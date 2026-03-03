@@ -1,91 +1,132 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>{{ isNew ? 'Create Task' : 'Task Details' }}</h3>
-        <button class="close-btn" @click="$emit('close')">&times;</button>
-      </div>
+  <el-dialog
+    :model-value="true"
+    :title="isNew ? 'Create Task' : 'Task Details'"
+    width="500px"
+    :close-on-click-modal="false"
+    @close="$emit('close')"
+  >
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+    >
+      <el-form-item label="Title" prop="title">
+        <el-input v-model="form.title" placeholder="Enter task title" />
+      </el-form-item>
 
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Title *</label>
-          <input v-model="form.title" type="text" placeholder="Enter task title" />
-        </div>
+      <el-form-item label="Description">
+        <el-input
+          v-model="form.description"
+          type="textarea"
+          :rows="4"
+          placeholder="Enter task description"
+        />
+      </el-form-item>
 
-        <div class="form-group">
-          <label>Description</label>
-          <textarea v-model="form.description" rows="4" placeholder="Enter task description"></textarea>
-        </div>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="Status">
+            <el-select v-model="form.status" style="width: 100%">
+              <el-option label="To Do" value="TODO" />
+              <el-option label="In Progress" value="IN_PROGRESS" />
+              <el-option label="In Review" value="IN_REVIEW" />
+              <el-option label="Done" value="DONE" />
+              <el-option label="Blocked" value="BLOCKED" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="Priority">
+            <el-select v-model="form.priority" style="width: 100%">
+              <el-option label="Low" value="LOW">
+                <el-tag type="info" size="small">Low</el-tag>
+              </el-option>
+              <el-option label="Medium" value="MEDIUM">
+                <el-tag type="primary" size="small">Medium</el-tag>
+              </el-option>
+              <el-option label="High" value="HIGH">
+                <el-tag type="warning" size="small">High</el-tag>
+              </el-option>
+              <el-option label="Critical" value="CRITICAL">
+                <el-tag type="danger" size="small">Critical</el-tag>
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Status</label>
-            <select v-model="form.status">
-              <option value="TODO">To Do</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="IN_REVIEW">In Review</option>
-              <option value="DONE">Done</option>
-              <option value="BLOCKED">Blocked</option>
-            </select>
-          </div>
+      <el-form-item label="Assignee">
+        <el-input v-model="form.assignee" placeholder="Enter assignee name" />
+      </el-form-item>
 
-          <div class="form-group">
-            <label>Priority</label>
-            <select v-model="form.priority">
-              <option value="LOW">Low</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="HIGH">High</option>
-              <option value="CRITICAL">Critical</option>
-            </select>
-          </div>
-        </div>
+      <!-- Agent Execution Section -->
+      <el-divider v-if="!isNew && agents.length > 0">
+        <el-icon><Cpu /></el-icon>
+        Execute with Agent
+      </el-divider>
 
-        <div class="form-group">
-          <label>Assignee</label>
-          <input v-model="form.assignee" type="text" placeholder="Enter assignee name" />
-        </div>
-
-        <!-- Agent Execution Section -->
-        <div v-if="!isNew && agents.length > 0" class="execution-section">
-          <h4>Execute with Agent</h4>
-          <div class="agent-select">
-            <select v-model="selectedAgentId">
-              <option :value="null">Select an agent...</option>
-              <option v-for="agent in agents" :key="agent.id" :value="agent.id">
-                {{ agent.name }} ({{ agent.type }})
-              </option>
-            </select>
-            <button
-              class="execute-btn"
+      <div v-if="!isNew && agents.length > 0" class="execution-section">
+        <el-row :gutter="8">
+          <el-col :span="16">
+            <el-select v-model="selectedAgentId" placeholder="Select an agent..." style="width: 100%">
+              <el-option
+                v-for="agent in agents"
+                :key="agent.id"
+                :label="`${agent.name} (${agent.type})`"
+                :value="agent.id"
+              />
+            </el-select>
+          </el-col>
+          <el-col :span="8">
+            <el-button
+              type="success"
               :disabled="!selectedAgentId || isExecuting"
+              :loading="isExecuting"
               @click="executeTask"
             >
-              {{ isExecuting ? 'Starting...' : 'Execute' }}
-            </button>
-          </div>
+              Execute
+            </el-button>
+          </el-col>
+        </el-row>
 
-          <!-- Execution Status -->
-          <div v-if="currentExecution" class="execution-status" :class="currentExecution.status.toLowerCase()">
-            <strong>Status:</strong> {{ currentExecution.status }}
-            <div v-if="currentExecution.output" class="execution-output">
-              <pre>{{ currentExecution.output }}</pre>
-            </div>
-          </div>
-        </div>
+        <!-- Execution Status -->
+        <el-alert
+          v-if="currentExecution"
+          :type="executionAlertType"
+          :title="`Status: ${currentExecution.status}`"
+          class="execution-status"
+          show-icon
+        >
+          <template v-if="currentExecution.output" #default>
+            <el-scrollbar max-height="200px">
+              <pre class="execution-output">{{ currentExecution.output }}</pre>
+            </el-scrollbar>
+          </template>
+        </el-alert>
       </div>
+    </el-form>
 
-      <div class="modal-footer">
-        <button v-if="!isNew" class="delete-btn" @click="handleDelete">Delete</button>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button v-if="!isNew" type="danger" @click="handleDelete">
+          Delete
+        </el-button>
         <div class="spacer"></div>
-        <button class="cancel-btn" @click="$emit('close')">Cancel</button>
-        <button class="save-btn" @click="handleSave">{{ isNew ? 'Create' : 'Save' }}</button>
+        <el-button @click="$emit('close')">Cancel</el-button>
+        <el-button type="primary" @click="handleSave">
+          {{ isNew ? 'Create' : 'Save' }}
+        </el-button>
       </div>
-    </div>
-  </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Cpu } from '@element-plus/icons-vue'
 import { taskApi } from '../api/task'
 import { agentApi } from '../api/agent'
 import { executionApi } from '../api/execution'
@@ -103,6 +144,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved', 'deleted'])
 
+const formRef = ref(null)
 const isNew = computed(() => !props.task?.id)
 
 const form = ref({
@@ -113,11 +155,26 @@ const form = ref({
   assignee: ''
 })
 
+const rules = {
+  title: [
+    { required: true, message: 'Title is required', trigger: 'blur' }
+  ]
+}
+
 const agents = ref([])
 const selectedAgentId = ref(null)
 const isExecuting = ref(false)
 const currentExecution = ref(null)
 let eventSource = null
+
+const executionAlertType = computed(() => {
+  if (!currentExecution.value) return 'info'
+  const status = currentExecution.value.status?.toLowerCase()
+  if (status === 'running') return 'warning'
+  if (status === 'success' || status === 'completed') return 'success'
+  if (status === 'failed') return 'error'
+  return 'info'
+})
 
 watch(() => props.task, (newTask) => {
   if (newTask) {
@@ -149,8 +206,9 @@ onUnmounted(() => {
 })
 
 const handleSave = async () => {
-  if (!form.value.title.trim()) {
-    alert('Title is required')
+  try {
+    await formRef.value.validate()
+  } catch {
     return
   }
 
@@ -165,24 +223,34 @@ const handleSave = async () => {
     } else {
       await taskApi.update(props.task.id, data)
     }
+    ElMessage.success(isNew.value ? 'Task created' : 'Task saved')
     emit('saved')
     emit('close')
   } catch (e) {
     console.error('Failed to save task:', e)
-    alert('Failed to save task')
+    ElMessage.error('Failed to save task')
   }
 }
 
 const handleDelete = async () => {
-  if (!confirm('Are you sure you want to delete this task?')) return
+  try {
+    await ElMessageBox.confirm('Are you sure you want to delete this task?', 'Delete Task', {
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
 
   try {
     await taskApi.delete(props.task.id)
+    ElMessage.success('Task deleted')
     emit('deleted')
     emit('close')
   } catch (e) {
     console.error('Failed to delete task:', e)
-    alert('Failed to delete task')
+    ElMessage.error('Failed to delete task')
   }
 }
 
@@ -211,7 +279,7 @@ const executeTask = async () => {
     }
   } catch (e) {
     console.error('Failed to execute task:', e)
-    alert('Failed to start execution')
+    ElMessage.error('Failed to start execution')
   } finally {
     isExecuting.value = false
   }
@@ -219,198 +287,30 @@ const executeTask = async () => {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: #fff;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #6c757d;
-}
-
-.modal-body {
-  padding: 20px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 500;
-  font-size: 14px;
-  color: #495057;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
-}
-
-.form-row {
-  display: flex;
-  gap: 16px;
-}
-
-.form-row .form-group {
-  flex: 1;
-}
-
 .execution-section {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e9ecef;
-}
-
-.execution-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #495057;
-}
-
-.agent-select {
-  display: flex;
-  gap: 8px;
-}
-
-.agent-select select {
-  flex: 1;
-}
-
-.execute-btn {
-  padding: 8px 16px;
-  background: #198754;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.execute-btn:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
+  margin-top: 8px;
 }
 
 .execution-status {
   margin-top: 12px;
-  padding: 12px;
-  border-radius: 6px;
-  background: #f8f9fa;
-}
-
-.execution-status.running {
-  background: #cfe2ff;
-}
-
-.execution-status.success {
-  background: #d1e7dd;
-}
-
-.execution-status.failed {
-  background: #f8d7da;
 }
 
 .execution-output {
-  margin-top: 8px;
-}
-
-.execution-output pre {
   margin: 0;
   padding: 8px;
-  background: #212529;
-  color: #f8f9fa;
+  background: var(--el-bg-color-page);
   border-radius: 4px;
   font-size: 12px;
-  max-height: 200px;
-  overflow: auto;
   white-space: pre-wrap;
+  font-family: monospace;
 }
 
-.modal-footer {
+.dialog-footer {
   display: flex;
-  align-items: center;
-  padding: 16px 20px;
-  border-top: 1px solid #e9ecef;
+  width: 100%;
 }
 
 .spacer {
   flex: 1;
-}
-
-.delete-btn {
-  padding: 8px 16px;
-  background: #dc3545;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.cancel-btn {
-  padding: 8px 16px;
-  background: #6c757d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-right: 8px;
-}
-
-.save-btn {
-  padding: 8px 16px;
-  background: #0d6efd;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
 }
 </style>
