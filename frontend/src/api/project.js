@@ -16,7 +16,7 @@ const update = (id, data) => {
   return api.put(`/projects/${id}`, data)
 }
 
-const delete = (id) => {
+const deleteProject = (id) => {
   return api.delete(`/projects/${id}`)
 }
 
@@ -25,5 +25,5 @@ export default {
   getById,
   create,
   update,
-  delete
+  delete: deleteProject
 }

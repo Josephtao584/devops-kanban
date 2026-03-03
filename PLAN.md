@@ -272,3 +272,135 @@ devops-kanban/
 ## Sources
 
 - [Vibe Kanban GitHub](https://github.com/BloopAI/vibe-kanban)
+
+---
+
+## 当前项目进度 (2026-03-03 更新)
+
+### 后端完成度: ~90%
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| Controller | ✅ 完成 | 所有 API 端点已实现 |
+| Service | ✅ 完成 | 所有业务逻辑已实现 |
+| Repository | ✅ 完成 | 文件存储实现 (非数据库) |
+| Entity | ✅ 完成 | Project, Task, TaskSource, Agent, Execution |
+| DTO | ✅ 完成 | 所有 DTO 和 ApiResponse |
+| SPI | ✅ 完成 | TaskSourceAdapter, AgentAdapter |
+| 适配器 | ✅ 完成 | Claude/Codex/GitHub/Local |
+| SSE | ✅ 完成 | 实时输出流 |
+| @EnableAsync | ✅ 完成 | 异步执行配置 |
+
+### 前端完成度: ~85%
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| Vue 组件 | ✅ 完成 | KanbanView, AgentConfig, TaskSourceConfig |
+| 子组件 | ✅ 完成 | TaskCard, TaskDetail |
+| API 模块 | ✅ 完成 | project, task, agent, execution, taskSource |
+| 路由 | ✅ 完成 | Vue Router 配置 |
+| 拖拽 | ✅ 完成 | 原生 HTML5 拖拽 |
+| Element Plus | ❌ 未安装 | 计划中但未实现 |
+| Pinia | ❌ 未安装 | 状态管理未实现 |
+
+### 与原计划的差异
+
+1. **数据存储**: 使用文件存储 (JSON) 替代 PostgreSQL + JPA
+2. **实时通信**: 使用 SSE 替代 WebSocket
+3. **前端 UI**: 未使用 Element Plus，使用原生 CSS
+
+---
+
+## 后续开发任务
+
+### 阶段 6: 核心功能完善 (进行中)
+
+#### 6.1 验证和修复现有功能
+- [ ] 启动后端服务，验证所有 API 端点正常工作
+- [ ] 启动前端服务，验证页面交互正常
+- [ ] 修复发现的任何 bug
+
+#### 6.2 全局异常处理
+- [ ] 添加 `@ControllerAdvice` 全局异常处理器
+- [ ] 统一错误响应格式
+- [ ] 文件: `src/main/java/com/devops/kanban/config/GlobalExceptionHandler.java`
+
+#### 6.3 增强 GitService
+- [ ] 添加 JGit 依赖到 pom.xml
+- [ ] 实现真正的 `git worktree` 命令
+- [ ] 添加 diff 查看功能
+- [ ] 添加 merge 功能
+
+### 阶段 7: 前端 UI 优化
+
+#### 7.1 安装 Element Plus
+```bash
+cd frontend && npm install element-plus @element-plus/icons-vue
+```
+- [ ] 在 main.js 中配置 Element Plus
+- [ ] 将现有组件逐步迁移到 Element Plus 组件
+
+#### 7.2 UI 组件优化
+- [ ] 使用 el-card 重构任务卡片
+- [ ] 使用 el-dialog 替换模态框
+- [ ] 使用 el-form 重构表单
+- [ ] 使用 el-message 替换 toast
+
+#### 7.3 安装 Pinia 状态管理
+```bash
+cd frontend && npm install pinia
+```
+- [ ] 创建 stores 目录
+- [ ] 实现 projectStore, taskStore, agentStore
+
+### 阶段 8: 新功能开发
+
+#### 8.1 项目列表页面
+- [ ] 创建 ProjectListView.vue
+- [ ] 添加项目 CRUD 界面
+- [ ] 支持关联 Git 仓库
+
+#### 8.2 执行监控面板
+- [ ] 增强 TaskDetail 组件
+- [ ] 添加执行历史查看
+- [ ] 实时日志显示优化
+
+#### 8.3 Diff 查看器
+- [ ] 创建 DiffViewer.vue 组件
+- [ ] 显示代理修改的代码变更
+- [ ] 支持合并操作
+
+### 阶段 9: 扩展适配器
+
+#### 9.1 新任务源适配器
+- [ ] JiraAdapter
+- [ ] GitLabIssuesAdapter
+- [ ] TrelloAdapter
+
+#### 9.2 新 AI 代理适配器
+- [ ] GeminiAdapter
+- [ ] AmpAdapter
+- [ ] CursorAdapter
+
+### 阶段 10: 测试和部署
+
+#### 10.1 后端测试
+- [ ] Service 层单元测试
+- [ ] Controller 集成测试
+
+#### 10.2 前端测试
+- [ ] Vitest 配置
+- [ ] 组件测试
+
+#### 10.3 部署配置
+- [ ] Dockerfile
+- [ ] docker-compose.yml
+- [ ] 生产环境配置
+
+---
+
+## 验证方案
+
+1. **后端**: `mvn spring-boot:run` → 访问 http://localhost:8080/api/projects
+2. **前端**: `npm run dev` → 访问 http://localhost:5173
+3. **功能测试**: 创建项目 → 创建任务 → 拖拽任务 → 配置代理 → 执行任务

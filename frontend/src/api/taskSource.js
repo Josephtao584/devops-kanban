@@ -1,7 +1,7 @@
 import api from './index.js'
 
 const getByProject = (projectId) => {
-  return api.get(`/projects/${projectId}/task-sources`)
+  return api.get(`/task-sources`, { params: { projectId } })
 }
 
 const create = (data) => {
@@ -13,10 +13,10 @@ const sync = (id) => {
 }
 
 const testConnection = (id) => {
-  return api.post(`/task-sources/${id}/test-connection`)
+  return api.get(`/task-sources/${id}/test`)
 }
 
-const delete = (id) => {
+const deleteTaskSource = (id) => {
   return api.delete(`/task-sources/${id}`)
 }
 
@@ -25,5 +25,5 @@ export default {
   create,
   sync,
   testConnection,
-  delete
+  delete: deleteTaskSource
 }

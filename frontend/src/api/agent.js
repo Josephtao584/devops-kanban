@@ -1,7 +1,7 @@
 import api from './index.js'
 
 const getByProject = (projectId) => {
-  return api.get(`/projects/${projectId}/agents`)
+  return api.get(`/agents`, { params: { projectId } })
 }
 
 const getById = (id) => {
@@ -16,7 +16,7 @@ const update = (id, data) => {
   return api.put(`/agents/${id}`, data)
 }
 
-const delete = (id) => {
+const deleteAgent = (id) => {
   return api.delete(`/agents/${id}`)
 }
 
@@ -25,5 +25,5 @@ export default {
   getById,
   create,
   update,
-  delete
+  delete: deleteAgent
 }
