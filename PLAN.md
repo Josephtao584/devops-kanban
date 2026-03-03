@@ -4,46 +4,13 @@
 
 用户想要参考 [vibe-kanban](https://github.com/BloopAI/vibe-kanban) 项目，使用 Java 实现一个类似的 DevOps Kanban 系统。
 
-## Vibe-Kanban 功能分析
-
-### 核心功能
-
-#### 1. 项目管理
-- 添加 Git 仓库作为项目（支持现有仓库或创建新仓库）
-- 自动 Git 集成和仓库验证
-- 项目文件搜索功能
-- 自定义设置和开发脚本
-
-#### 2. 任务管理（Kanban 风格）
-- 创建和管理任务
-- 任务状态追踪（Todo, In Progress, Done）
-- 丰富的任务描述和备注
-- 支持多列看板
-
-#### 3. AI 代理集成
-- 支持 Claude Code、Amp、Echo、Gemini CLI、OpenAI Codex
-- 并行执行多个 AI 编码代理
-- 实时执行监控
-
-#### 4. Git Worktree 管理
-- 为每个任务创建隔离的 git worktree
-- 查看代理修改的 diff
-- 将成功的更改合并回主分支
-- Rebase 任务分支保持更新
-
-#### 5. 开发工具集成
-- 在编辑器中打开任务 worktree（VS Code, Cursor, Windsurf, IntelliJ, Zed）
-- 停止运行中的进程
-- 声音通知任务完成
-- GitHub CLI (`gh`) 集成创建 PR
-
 ## 技术选型
 
 | 组件 | 选择 |
 |------|------|
-| 前端框架 | Vue 3 + Element Plus |
+| 前端框架 | Vue 3 + Element Plus + Pinia |
 | 后端框架 | Spring Boot 3.x |
-| 数据库 | PostgreSQL |
+| 数据存储 | 文件存储 (JSON) |
 | 核心功能 | Kanban 任务管理 + Git 仓库集成 + AI 代理执行 |
 
 ## 数据模型设计
@@ -87,316 +54,6 @@ Execution (执行记录)
 └── completedAt: LocalDateTime
 ```
 
-## 项目结构
-
-```
-devops-kanban/
-├── pom.xml                          # Maven 配置
-├── src/main/java/com/devops/kanban/
-│   ├── KanbanApplication.java       # 启动类
-│   ├── config/                      # 配置类
-│   │   ├── SecurityConfig.java
-│   │   └── CorsConfig.java
-│   ├── controller/                  # REST 控制器
-│   │   ├── ProjectController.java
-│   │   ├── TaskController.java
-│   │   ├── AgentController.java
-│   │   └── ExecutionController.java
-│   ├── service/                     # 业务逻辑
-│   │   ├── ProjectService.java
-│   │   ├── TaskService.java
-│   │   ├── GitService.java
-│   │   ├── AgentService.java
-│   │   └── ExecutionService.java
-│   ├── repository/                  # 数据访问层
-│   │   ├── ProjectRepository.java
-│   │   ├── TaskRepository.java
-│   │   ├── AgentRepository.java
-│   │   └── ExecutionRepository.java
-│   ├── entity/                      # 实体类
-│   │   ├── Project.java
-│   │   ├── Task.java
-│   │   ├── Agent.java
-│   │   └── Execution.java
-│   ├── dto/                         # 数据传输对象
-│   └── util/                        # 工具类
-├── src/main/resources/
-│   ├── application.yml
-│   └── db/migration/                # Flyway 迁移脚本
-└── frontend/                        # Vue 3 前端
-    ├── package.json
-    ├── src/
-    │   ├── views/
-    │   ├── components/
-    │   ├── api/
-    │   └── store/
-    └── vite.config.js
-```
-
-## 实现阶段
-
-### 第一阶段：项目初始化（Day 1-2）
-**目标：搭建基础架构**
-
-1. **创建 Spring Boot 项目**
-   - 添加依赖：Spring Web, JPA, PostgreSQL Driver, Lombok, JGit
-   - 配置 `pom.xml`
-   - 配置 `application.yml`（数据库连接、服务端口）
-
-2. **创建数据库实体和 Repository**
-   - `Project.java` - 项目实体
-   - `Task.java` - 任务实体
-   - `Agent.java` - AI 代理配置
-   - `Execution.java` - 执行记录
-   - 对应的 Repository 接口
-
-3. **配置 Flyway 数据库迁移**
-   - 创建初始化 SQL 脚本
-
-### 第二阶段：项目管理和 Git 集成（Day 3-4）
-**目标：实现 Git 仓库管理**
-
-1. **Project CRUD API**
-   - `GET /api/projects` - 获取项目列表
-   - `POST /api/projects` - 创建项目
-   - `GET /api/projects/{id}` - 获取项目详情
-   - `DELETE /api/projects/{id}` - 删除项目
-
-2. **GitService 实现**
-   - `cloneRepository(url)` - 克隆仓库
-   - `validateRepository(path)` - 验证仓库
-   - `getBranches(projectId)` - 获取分支列表
-   - `createWorktree(projectId, branch)` - 创建 worktree
-   - `getDiff(projectId, from, to)` - 获取 diff
-   - `merge(projectId, branch)` - 合并分支
-
-### 第三阶段：Kanban 任务管理（Day 5-6）
-**目标：实现核心看板功能**
-
-1. **Task CRUD API**
-   - `GET /api/tasks?projectId={id}` - 获取任务列表
-   - `POST /api/tasks` - 创建任务
-   - `PUT /api/tasks/{id}` - 更新任务
-   - `PATCH /api/tasks/{id}/status` - 更新任务状态
-   - `DELETE /api/tasks/{id}` - 删除任务
-
-2. **TaskService 实现**
-   - 任务状态流转逻辑
-   - 任务排序
-
-### 第四阶段：AI 代理执行（Day 7-8）
-**目标：实现 AI 工具集成**
-
-1. **Agent 管理 API**
-   - `GET /api/agents` - 获取代理列表
-   - `POST /api/agents` - 配置代理
-
-2. **ExecutionService 实现**
-   - `execute(taskId, agentId)` - 执行任务
-   - `stop(executionId)` - 停止执行
-   - `getOutput(executionId)` - 获取实时输出（WebSocket）
-
-3. **命令执行引擎**
-   - 使用 `ProcessBuilder` 执行外部命令
-   - 实时输出流读取
-
-### 第五阶段：Vue 3 前端（Day 9-12）
-**目标：实现用户界面**
-
-1. **项目初始化**
-   - Vue 3 + Vite + Element Plus
-   - 路由配置（Vue Router）
-   - 状态管理（Pinia）
-
-2. **页面开发**
-   - 项目列表页
-   - 看板页面（支持拖拽）
-   - 任务详情弹窗
-   - 执行监控面板
-
-3. **API 集成**
-   - Axios 封装
-   - WebSocket 连接
-
-## 关键依赖（Maven）
-
-```xml
-<!-- Spring Boot -->
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-web</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-data-jpa</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-websocket</artifactId>
-</dependency>
-
-<!-- Database -->
-<dependency>
-    <groupId>org.postgresql</groupId>
-    <artifactId>postgresql</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.flywaydb</groupId>
-    <artifactId>flyway-core</artifactId>
-</dependency>
-
-<!-- Git -->
-<dependency>
-    <groupId>org.eclipse.jgit</groupId>
-    <artifactId>org.eclipse.jgit</artifactId>
-    <version>6.8.0.202311291450-r</version>
-</dependency>
-
-<!-- Utilities -->
-<dependency>
-    <groupId>org.projectlombok</groupId>
-    <artifactId>lombok</artifactId>
-</dependency>
-```
-
-## 验证方案
-
-1. **单元测试**：JUnit 5 + Mockito 测试 Service 层
-2. **集成测试**：Spring Boot Test 测试 API 端点
-3. **手动验证**：
-   - 启动 PostgreSQL 数据库
-   - 运行 `mvn spring-boot:run` 启动后端
-   - 访问 `http://localhost:8080/api/projects` 验证 API
-   - 运行前端 `npm run dev` 访问看板界面
-
-## Sources
-
-- [Vibe Kanban GitHub](https://github.com/BloopAI/vibe-kanban)
-
----
-
-## 当前项目进度 (2026-03-03 更新)
-
-### 后端完成度: ~90%
-
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| Controller | ✅ 完成 | 所有 API 端点已实现 |
-| Service | ✅ 完成 | 所有业务逻辑已实现 |
-| Repository | ✅ 完成 | 文件存储实现 (非数据库) |
-| Entity | ✅ 完成 | Project, Task, TaskSource, Agent, Execution |
-| DTO | ✅ 完成 | 所有 DTO 和 ApiResponse |
-| SPI | ✅ 完成 | TaskSourceAdapter, AgentAdapter |
-| 适配器 | ✅ 完成 | Claude/Codex/GitHub/Local |
-| SSE | ✅ 完成 | 实时输出流 |
-| @EnableAsync | ✅ 完成 | 异步执行配置 |
-
-### 前端完成度: ~85%
-
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| Vue 组件 | ✅ 完成 | KanbanView, AgentConfig, TaskSourceConfig |
-| 子组件 | ✅ 完成 | TaskCard, TaskDetail |
-| API 模块 | ✅ 完成 | project, task, agent, execution, taskSource |
-| 路由 | ✅ 完成 | Vue Router 配置 |
-| 拖拽 | ✅ 完成 | 原生 HTML5 拖拽 |
-| Element Plus | ❌ 未安装 | 计划中但未实现 |
-| Pinia | ❌ 未安装 | 状态管理未实现 |
-
-### 与原计划的差异
-
-1. **数据存储**: 使用文件存储 (JSON) 替代 PostgreSQL + JPA
-2. **实时通信**: 使用 SSE 替代 WebSocket
-3. **前端 UI**: 未使用 Element Plus，使用原生 CSS
-
----
-
-## 后续开发任务
-
-### 阶段 6: 核心功能完善 (进行中)
-
-#### 6.1 验证和修复现有功能
-- [ ] 启动后端服务，验证所有 API 端点正常工作
-- [ ] 启动前端服务，验证页面交互正常
-- [ ] 修复发现的任何 bug
-
-#### 6.2 全局异常处理
-- [ ] 添加 `@ControllerAdvice` 全局异常处理器
-- [ ] 统一错误响应格式
-- [ ] 文件: `src/main/java/com/devops/kanban/config/GlobalExceptionHandler.java`
-
-#### 6.3 增强 GitService
-- [ ] 添加 JGit 依赖到 pom.xml
-- [ ] 实现真正的 `git worktree` 命令
-- [ ] 添加 diff 查看功能
-- [ ] 添加 merge 功能
-
-### 阶段 7: 前端 UI 优化
-
-#### 7.1 安装 Element Plus
-```bash
-cd frontend && npm install element-plus @element-plus/icons-vue
-```
-- [ ] 在 main.js 中配置 Element Plus
-- [ ] 将现有组件逐步迁移到 Element Plus 组件
-
-#### 7.2 UI 组件优化
-- [ ] 使用 el-card 重构任务卡片
-- [ ] 使用 el-dialog 替换模态框
-- [ ] 使用 el-form 重构表单
-- [ ] 使用 el-message 替换 toast
-
-#### 7.3 安装 Pinia 状态管理
-```bash
-cd frontend && npm install pinia
-```
-- [ ] 创建 stores 目录
-- [ ] 实现 projectStore, taskStore, agentStore
-
-### 阶段 8: 新功能开发
-
-#### 8.1 项目列表页面
-- [ ] 创建 ProjectListView.vue
-- [ ] 添加项目 CRUD 界面
-- [ ] 支持关联 Git 仓库
-
-#### 8.2 执行监控面板
-- [ ] 增强 TaskDetail 组件
-- [ ] 添加执行历史查看
-- [ ] 实时日志显示优化
-
-#### 8.3 Diff 查看器
-- [ ] 创建 DiffViewer.vue 组件
-- [ ] 显示代理修改的代码变更
-- [ ] 支持合并操作
-
-### 阶段 9: 扩展适配器
-
-#### 9.1 新任务源适配器
-- [ ] JiraAdapter
-- [ ] GitLabIssuesAdapter
-- [ ] TrelloAdapter
-
-#### 9.2 新 AI 代理适配器
-- [ ] GeminiAdapter
-- [ ] AmpAdapter
-- [ ] CursorAdapter
-
-### 阶段 10: 测试和部署
-
-#### 10.1 后端测试
-- [ ] Service 层单元测试
-- [ ] Controller 集成测试
-
-#### 10.2 前端测试
-- [ ] Vitest 配置
-- [ ] 组件测试
-
-#### 10.3 部署配置
-- [ ] Dockerfile
-- [ ] docker-compose.yml
-- [ ] 生产环境配置
-
 ---
 
 ## 验证方案
@@ -404,3 +61,119 @@ cd frontend && npm install pinia
 1. **后端**: `mvn spring-boot:run` → 访问 http://localhost:8080/api/projects
 2. **前端**: `npm run dev` → 访问 http://localhost:5173
 3. **功能测试**: 创建项目 → 创建任务 → 拖拽任务 → 配置代理 → 执行任务
+
+## Sources
+
+- [Vibe Kanban GitHub](https://github.com/BloopAI/vibe-kanban)
+
+---
+
+## AI Session 管理功能 - 冒烟测试用例
+
+### 核心需求
+- 每个任务可以创建一个独立的 AI session（Claude Code、Codex 等）
+- 通过监听 CLI 输出的方式实现实时交互
+- 支持向 AI agent 发送输入（交互式）
+- 每个任务只能有一个活跃 Session
+
+### 一、Session 生命周期测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-01 | 创建 Session | `POST /api/sessions` (taskId, agentId) | 返回 201，Session ID 生成，状态为 CREATED | P0 |
+| SESS-02 | 启动 Session | `POST /api/sessions/{id}/start` | 返回 202，状态变为 RUNNING，进程启动 | P0 |
+| SESS-03 | 停止 Session | `POST /api/sessions/{id}/stop` | 返回 202，状态变为 STOPPED，进程终止 | P0 |
+| SESS-04 | 获取 Session 状态 | `GET /api/sessions/{id}` | 返回 Session 详情（状态、进程信息等） | P0 |
+| SESS-05 | 获取任务的活跃 Session | `GET /api/sessions?taskId={id}&activeOnly=true` | 返回该任务当前活跃的 Session | P0 |
+| SESS-06 | 获取 Session 历史输出 | `GET /api/sessions/{id}/output` | 返回历史输出日志 | P1 |
+| SESS-07 | 重启 Session | `POST /api/sessions/{id}/stop` + `POST /api/sessions/{id}/start` | Session 正确重启 | P1 |
+
+### 二、单任务单 Session 约束测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-10 | 任务已有活跃 Session 时创建 | 已有 RUNNING Session，再次 `POST /api/sessions` | 返回 409 Conflict，提示"任务已有活跃 Session" | P0 |
+| SESS-11 | Session 停止后可创建新 Session | 停止后重新创建 | 返回 201，创建成功 | P0 |
+| SESS-12 | 多任务各自独立 Session | 任务 A、B 各创建 Session | 两个 Session 独立运行，互不影响 | P1 |
+
+### 三、实时输出流测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-20 | WebSocket 连接 | 连接 `/ws` (STOMP) | 连接成功，可订阅 topic | P0 |
+| SESS-21 | 订阅输出流 | 订阅 `/topic/session/{id}/output` | 收到实时输出事件 | P0 |
+| SESS-22 | 订阅状态变更 | 订阅 `/topic/session/{id}/status` | 状态变更时收到通知 | P0 |
+| SESS-23 | 输出内容格式 | 检查输出事件 | 包含 timestamp、stream(stdout/stderr)、line | P1 |
+| SESS-24 | 大量输出处理 | AI 输出大量内容 | 输出不丢失、不阻塞 | P2 |
+| SESS-25 | 断线重连 | WebSocket 断开后重连 | 可重新订阅，继续接收输出 | P2 |
+
+### 四、交互式输入测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-30 | 发送输入 | `SEND /app/session/{id}/input` (WebSocket) | AI agent 收到输入并响应 | P0 |
+| SESS-31 | 输入框 UI | 前端输入框输入文本并发送 | 发送成功，输出区域显示响应 | P0 |
+| SESS-32 | 多行输入 | 发送多行文本 | 正确处理换行符 | P1 |
+| SESS-33 | 特殊字符输入 | 发送包含特殊字符的文本 | 正确转义/处理 | P2 |
+| SESS-34 | Session 非运行时发送输入 | STOPPED 状态发送输入 | 返回错误或忽略 | P1 |
+
+### 五、Agent 类型兼容性测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-40 | Claude Code Session | 使用 CLAUDE_CODE agent 创建 Session | 正常启动，输出正确 | P0 |
+| SESS-41 | Codex Session | 使用 CODEX agent 创建 Session | 正常启动，输出正确 | P1 |
+| SESS-42 | Local Script Session | 使用 LOCAL agent 创建 Session | 正常启动，输出正确 | P1 |
+| SESS-43 | 不支持的 Agent 类型 | 使用无效 agentType | 返回 400 错误 | P2 |
+
+### 六、Worktree 隔离测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-50 | Worktree 创建 | 创建 Session 时 | 自动在指定路径创建 worktree | P0 |
+| SESS-51 | Worktree 清理 | Session 停止/完成时 | worktree 正确清理（可选保留） | P1 |
+| SESS-52 | 多 Session 文件隔离 | 两个任务同时运行 | 文件修改互不影响 | P1 |
+
+### 七、前端 UI 测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-60 | SessionTerminal 组件渲染 | 打开任务详情页 | 终端组件正确显示 | P0 |
+| SESS-61 | 实时输出显示 | Session 运行中 | 输出实时滚动显示 | P0 |
+| SESS-62 | 状态指示器 | Session 不同状态 | 正确显示 RUNNING/IDLE/STOPPED | P1 |
+| SESS-63 | 控制按钮 | Start/Stop/Restart 按钮 | 功能正常，状态正确切换 | P0 |
+| SESS-64 | 输入框交互 | 输入文本并发送 | 发送成功，有响应 | P0 |
+| SESS-65 | 历史输出加载 | 刷新页面后 | 正确加载历史输出 | P1 |
+| SESS-66 | 终端样式 | 检查终端样式 | 黑色背景、等宽字体、滚动条 | P2 |
+
+### 八、异常与边界测试
+
+| ID | 测试项 | 操作 | 验证点 | 优先级 |
+|----|--------|------|--------|--------|
+| SESS-70 | 访问不存在的 Session | `GET /api/sessions/non-existent-id` | 返回 404 | P1 |
+| SESS-71 | 无效任务 ID 创建 | `POST /api/sessions` (无效 taskId) | 返回 400 或 404 | P1 |
+| SESS-72 | 进程异常退出 | 模拟 AI agent 崩溃 | 状态变为 ERROR，错误信息记录 | P1 |
+| SESS-73 | 超时处理 | Session 运行超时 | 自动停止，状态标记 TIMEOUT | P2 |
+| SESS-74 | 并发启动同一 Session | 同时发送多个 start 请求 | 只有一个成功，其他返回错误 | P2 |
+
+### 九、集成流程测试
+
+| ID | 测试项 | 操作流程 | 验证点 | 优先级 |
+|----|--------|----------|--------|--------|
+| SESS-80 | 完整交互流程 | 创建项目→创建任务→配置Agent→创建Session→启动→交互→停止 | 流程完整可用 | P0 |
+| SESS-81 | Session 重连流程 | 运行中刷新页面→重新连接→继续交互 | 无需重启，继续使用 | P1 |
+| SESS-82 | 多任务并行执行 | 任务 A、B 同时运行各自 Session | 两个 Session 独立运行 | P1 |
+
+### 优先级说明
+
+| 级别 | 说明 | 通过标准 |
+|------|------|----------|
+| **P0** | 核心功能，必须通过 | 100% 通过 |
+| **P1** | 重要功能，应该通过 | 建议 100% 通过 |
+| **P2** | 次要功能，建议通过 | 可接受部分失败 |
+
+### 冒烟测试通过标准
+
+- 所有 **P0** 级测试用例必须通过
+- **P1** 级测试用例建议全部通过
+- 阻塞发布的问题必须在发布前修复

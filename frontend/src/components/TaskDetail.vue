@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="true"
     :title="isNew ? 'Create Task' : 'Task Details'"
-    width="500px"
+    width="600px"
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
@@ -20,7 +20,7 @@
         <el-input
           v-model="form.description"
           type="textarea"
-          :rows="4"
+          :rows="3"
           placeholder="Enter task description"
         />
       </el-form-item>
@@ -61,50 +61,55 @@
         <el-input v-model="form.assignee" placeholder="Enter assignee name" />
       </el-form-item>
 
-      <!-- Agent Execution Section -->
+      <!-- AI Session Section -->
       <el-divider v-if="!isNew && agents.length > 0">
         <el-icon><Cpu /></el-icon>
-        Execute with Agent
+        AI Session
       </el-divider>
 
-      <div v-if="!isNew && agents.length > 0" class="execution-section">
-        <el-row :gutter="8">
-          <el-col :span="16">
-            <el-select v-model="selectedAgentId" placeholder="Select an agent..." style="width: 100%">
-              <el-option
-                v-for="agent in agents"
-                :key="agent.id"
-                :label="`${agent.name} (${agent.type})`"
-                :value="agent.id"
-              />
-            </el-select>
-          </el-col>
-          <el-col :span="8">
-            <el-button
-              type="success"
-              :disabled="!selectedAgentId || isExecuting"
-              :loading="isExecuting"
-              @click="executeTask"
-            >
-              Execute
-            </el-button>
-          </el-col>
-        </el-row>
+      <div v-if="!isNew && agents.length > 0" class="session-section">
+        <!-- Agent Selection -->
+        <div class="agent-select-row">
+          <el-select
+            v-model="selectedAgentId"
+            placeholder="Select an agent..."
+            style="flex: 1"
+            :disabled="hasActiveSession"
+          >
+            <el-option
+              v-for="agent in agents"
+              :key="agent.id"
+              :label="`${agent.name} (${agent.type})`"
+              :value="agent.id"
+            />
+          </el-select>
+          <el-button
+            v-if="!hasActiveSession"
+            type="primary"
+            :disabled="!selectedAgentId"
+            @click="createNewSession"
+          >
+            Create Session
+          </el-button>
+          <el-button
+            v-else
+            type="danger"
+            @click="deleteCurrentSession"
+          >
+            Delete Session
+          </el-button>
+        </div>
 
-        <!-- Execution Status -->
-        <el-alert
-          v-if="currentExecution"
-          :type="executionAlertType"
-          :title="`Status: ${currentExecution.status}`"
-          class="execution-status"
-          show-icon
-        >
-          <template v-if="currentExecution.output" #default>
-            <el-scrollbar max-height="200px">
-              <pre class="execution-output">{{ currentExecution.output }}</pre>
-            </el-scrollbar>
-          </template>
-        </el-alert>
+        <!-- Session Terminal -->
+        <SessionTerminal
+          v-if="hasActiveSession || localSession"
+          ref="terminalRef"
+          :task="task"
+          :agent-id="selectedAgentId"
+          @session-created="onSessionCreated"
+          @session-stopped="onSessionStopped"
+          @status-change="onStatusChange"
+        />
       </div>
     </el-form>
 
@@ -129,7 +134,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Cpu } from '@element-plus/icons-vue'
 import { taskApi } from '../api/task'
 import { agentApi } from '../api/agent'
-import { executionApi } from '../api/execution'
+import sessionApi from '../api/session'
+import SessionTerminal from './SessionTerminal.vue'
 
 const props = defineProps({
   task: {
@@ -145,6 +151,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved', 'deleted'])
 
 const formRef = ref(null)
+const terminalRef = ref(null)
 const isNew = computed(() => !props.task?.id)
 
 const form = ref({
@@ -163,17 +170,14 @@ const rules = {
 
 const agents = ref([])
 const selectedAgentId = ref(null)
-const isExecuting = ref(false)
-const currentExecution = ref(null)
-let eventSource = null
+const localSession = ref(null)
 
-const executionAlertType = computed(() => {
-  if (!currentExecution.value) return 'info'
-  const status = currentExecution.value.status?.toLowerCase()
-  if (status === 'running') return 'warning'
-  if (status === 'success' || status === 'completed') return 'success'
-  if (status === 'failed') return 'error'
-  return 'info'
+const hasActiveSession = computed(() => {
+  if (localSession.value) {
+    const status = localSession.value.status
+    return ['CREATED', 'RUNNING', 'IDLE'].includes(status)
+  }
+  return false
 })
 
 watch(() => props.task, (newTask) => {
@@ -193,15 +197,16 @@ onMounted(async () => {
     try {
       const response = await agentApi.getByProject(props.projectId)
       agents.value = response.data || []
+
+      // Check for active session
+      const sessionResponse = await sessionApi.getActiveByTask(props.task.id)
+      if (sessionResponse.data) {
+        localSession.value = sessionResponse.data
+        selectedAgentId.value = sessionResponse.data.agentId
+      }
     } catch (e) {
       console.error('Failed to load agents:', e)
     }
-  }
-})
-
-onUnmounted(() => {
-  if (eventSource) {
-    eventSource.close()
   }
 })
 
@@ -254,55 +259,73 @@ const handleDelete = async () => {
   }
 }
 
-const executeTask = async () => {
-  if (!selectedAgentId.value) return
+const createNewSession = async () => {
+  if (!selectedAgentId.value) {
+    ElMessage.warning('Please select an agent first')
+    return
+  }
 
-  isExecuting.value = true
   try {
-    const response = await executionApi.start(props.task.id, selectedAgentId.value)
-    currentExecution.value = response.data
-
-    // Setup SSE for real-time updates
-    eventSource = executionApi.getOutputStream(currentExecution.value.id)
-    eventSource.addEventListener('status', (e) => {
-      if (currentExecution.value) {
-        currentExecution.value.status = e.data
-      }
-    })
-    eventSource.addEventListener('output', (e) => {
-      if (currentExecution.value) {
-        currentExecution.value.output = e.data
-      }
-    })
-    eventSource.onerror = () => {
-      eventSource.close()
-    }
+    const response = await sessionApi.create(props.task.id, selectedAgentId.value)
+    localSession.value = response.data
+    ElMessage.success('Session created')
   } catch (e) {
-    console.error('Failed to execute task:', e)
-    ElMessage.error('Failed to start execution')
-  } finally {
-    isExecuting.value = false
+    console.error('Failed to create session:', e)
+    ElMessage.error(e.response?.data?.message || 'Failed to create session')
+  }
+}
+
+const deleteCurrentSession = async () => {
+  if (!localSession.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      'Are you sure you want to delete this session? All output will be lost.',
+      'Delete Session',
+      {
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    await sessionApi.delete(localSession.value.id)
+    localSession.value = null
+    ElMessage.success('Session deleted')
+  } catch (e) {
+    console.error('Failed to delete session:', e)
+    ElMessage.error('Failed to delete session')
+  }
+}
+
+const onSessionCreated = (session) => {
+  localSession.value = session
+}
+
+const onSessionStopped = () => {
+  // Session stopped, but still exists
+}
+
+const onStatusChange = (status) => {
+  if (localSession.value) {
+    localSession.value.status = status
   }
 }
 </script>
 
 <style scoped>
-.execution-section {
+.session-section {
   margin-top: 8px;
 }
 
-.execution-status {
-  margin-top: 12px;
-}
-
-.execution-output {
-  margin: 0;
-  padding: 8px;
-  background: var(--el-bg-color-page);
-  border-radius: 4px;
-  font-size: 12px;
-  white-space: pre-wrap;
-  font-family: monospace;
+.agent-select-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .dialog-footer {

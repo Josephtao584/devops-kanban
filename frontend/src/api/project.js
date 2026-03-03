@@ -1,29 +1,17 @@
 import api from './index.js'
 
-const getAll = () => {
-  return api.get('/projects')
+const projectApi = {
+  getAll: () => api.get('/projects'),
+  getById: (id) => api.get(`/projects/${id}`),
+  create: (data) => api.post('/projects', data),
+  update: (id, data) => api.put(`/projects/${id}`, data),
+  delete: (id) => api.delete(`/projects/${id}`)
 }
 
-const getById = (id) => {
-  return api.get(`/projects/${id}`)
-}
+export const getProjects = () => api.get('/projects')
+export const getProject = (id) => api.get(`/projects/${id}`)
+export const createProject = (data) => api.post('/projects', data)
+export const updateProject = (id, data) => api.put(`/projects/${id}`, data)
+export const deleteProject = (id) => api.delete(`/projects/${id}`)
 
-const create = (data) => {
-  return api.post('/projects', data)
-}
-
-const update = (id, data) => {
-  return api.put(`/projects/${id}`, data)
-}
-
-const deleteProject = (id) => {
-  return api.delete(`/projects/${id}`)
-}
-
-export default {
-  getAll,
-  getById,
-  create,
-  update,
-  delete: deleteProject
-}
+export default projectApi

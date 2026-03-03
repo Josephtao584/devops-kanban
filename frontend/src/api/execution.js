@@ -1,29 +1,17 @@
 import api from './index.js'
 
-const start = (taskId, agentId) => {
-  return api.post('/executions', { taskId, agentId })
+const executionApi = {
+  start: (taskId, agentId) => api.post('/executions', { taskId, agentId }),
+  getById: (id) => api.get(`/executions/${id}`),
+  getByTask: (taskId) => api.get('/executions', { params: { taskId } }),
+  stop: (id) => api.post(`/executions/${id}/stop`),
+  getOutputStream: (id) => new EventSource(`/api/executions/${id}/output`)
 }
 
-const getById = (id) => {
-  return api.get(`/executions/${id}`)
-}
+export const startExecution = (taskId, agentId) => api.post('/executions', { taskId, agentId })
+export const getExecution = (id) => api.get(`/executions/${id}`)
+export const getExecutionsByTask = (taskId) => api.get('/executions', { params: { taskId } })
+export const stopExecution = (id) => api.post(`/executions/${id}/stop`)
+export const getExecutionOutputStream = (id) => new EventSource(`/api/executions/${id}/output`)
 
-const getByTask = (taskId) => {
-  return api.get(`/executions`, { params: { taskId } })
-}
-
-const stop = (id) => {
-  return api.post(`/executions/${id}/stop`)
-}
-
-const getOutputStream = (id) => {
-  return new EventSource(`/api/executions/${id}/output`)
-}
-
-export default {
-  start,
-  getById,
-  getByTask,
-  stop,
-  getOutputStream
-}
+export default executionApi

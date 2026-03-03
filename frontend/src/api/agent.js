@@ -1,29 +1,17 @@
 import api from './index.js'
 
-const getByProject = (projectId) => {
-  return api.get(`/agents`, { params: { projectId } })
+const agentApi = {
+  getAll: (projectId) => api.get('/agents', { params: { projectId } }),
+  getById: (id) => api.get(`/agents/${id}`),
+  create: (data) => api.post('/agents', data),
+  update: (id, data) => api.put(`/agents/${id}`, data),
+  delete: (id) => api.delete(`/agents/${id}`)
 }
 
-const getById = (id) => {
-  return api.get(`/agents/${id}`)
-}
+export const getAgents = (projectId) => api.get('/agents', { params: { projectId } })
+export const getAgent = (id) => api.get(`/agents/${id}`)
+export const createAgent = (data) => api.post('/agents', data)
+export const updateAgent = (id, data) => api.put(`/agents/${id}`, data)
+export const deleteAgent = (id) => api.delete(`/agents/${id}`)
 
-const create = (data) => {
-  return api.post('/agents', data)
-}
-
-const update = (id, data) => {
-  return api.put(`/agents/${id}`, data)
-}
-
-const deleteAgent = (id) => {
-  return api.delete(`/agents/${id}`)
-}
-
-export default {
-  getByProject,
-  getById,
-  create,
-  update,
-  delete: deleteAgent
-}
+export default agentApi

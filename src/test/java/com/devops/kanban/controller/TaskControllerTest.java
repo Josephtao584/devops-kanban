@@ -151,6 +151,7 @@ class TaskControllerTest {
     @DisplayName("PUT /api/tasks/{id} should update task")
     void updateTask() throws Exception {
         TaskDTO updateDTO = TaskDTO.builder()
+                .projectId(1L)
                 .title("Updated Title")
                 .description("Updated Description")
                 .status("IN_PROGRESS")

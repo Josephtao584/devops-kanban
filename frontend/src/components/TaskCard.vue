@@ -1,16 +1,31 @@
 <template>
   <el-card
     class="task-card"
-    :class="priorityClass"
+    :class="[priorityClass, { 'is-running': isRunning }]"
     shadow="hover"
     @click="$emit('click')"
   >
     <template #header>
       <div class="task-header">
-        <el-tag :type="priorityTagType" size="small" effect="dark">
-          {{ priorityLabel }}
-        </el-tag>
-        <span v-if="task.externalId" class="external-id">#{{ task.externalId }}</span>
+        <div class="header-left">
+          <el-tag :type="priorityTagType" size="small" effect="dark">
+            {{ priorityLabel }}
+          </el-tag>
+          <span v-if="task.externalId" class="external-id">#{{ task.externalId }}</span>
+        </div>
+        <div class="header-actions">
+          <el-button
+            v-if="!isRunning"
+            type="primary"
+            size="small"
+            circle
+            @click.stop="$emit('run', task)"
+            title="Run with AI"
+          >
+            <el-icon><VideoPlay /></el-icon>
+          </el-button>
+          <el-icon v-else class="running-indicator"><Loading /></el-icon>
+        </div>
       </div>
     </template>
 
@@ -36,16 +51,20 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Clock } from '@element-plus/icons-vue'
+import { Clock, VideoPlay, Loading } from '@element-plus/icons-vue'
 
 const props = defineProps({
   task: {
     type: Object,
     required: true
+  },
+  isRunning: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['click'])
+defineEmits(['click', 'run'])
 
 const priorityClass = computed(() => {
   return `priority-${(props.task.priority || 'MEDIUM').toLowerCase()}`
@@ -124,6 +143,32 @@ const formatTime = (dateStr) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.running-indicator {
+  color: var(--el-color-primary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.task-card.is-running {
+  border-left-color: var(--el-color-primary);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-5);
 }
 
 .external-id {

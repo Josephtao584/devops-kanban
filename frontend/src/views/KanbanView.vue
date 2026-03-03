@@ -77,9 +77,20 @@
               >
                 {{ $t(`priority.${task.priority}`) }}
               </span>
-              <span v-if="task.assignee" class="assignee">
-                {{ getAssigneeInitials(task.assignee) }}
-              </span>
+              <div class="task-actions">
+                <button
+                  class="run-btn"
+                  :class="{ running: isTaskRunning(task.id) }"
+                  @click.stop="onTaskRun(task)"
+                  :title="isTaskRunning(task.id) ? 'Running...' : 'Run with AI'"
+                >
+                  <span v-if="isTaskRunning(task.id)" class="spinner-icon"></span>
+                  <span v-else>&#9654;</span>
+                </button>
+                <span v-if="task.assignee" class="assignee">
+                  {{ getAssigneeInitials(task.assignee) }}
+                </span>
+              </div>
             </div>
           </div>
           <div v-if="getTasksByStatus(column.status).length === 0" class="empty-column">
@@ -162,6 +173,14 @@
           </button>
           <div class="modal-actions">
             <button
+              v-if="isEditing"
+              class="btn btn-success"
+              @click="openAgentSelectorFromModal"
+              :disabled="loading.saving"
+            >
+              Run with AI
+            </button>
+            <button
               class="btn btn-secondary"
               @click="closeTaskModal"
               :disabled="loading.saving"
@@ -179,14 +198,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Agent Selector Dialog -->
+    <AgentSelector
+      v-model="showAgentSelector"
+      :project-id="selectedProjectId"
+      :task="selectedTask"
+      @select="onAgentSelected"
+    />
+
+    <!-- Fixed Terminal Panel -->
+    <TerminalPanel
+      :sessions="activeSessions"
+      :current-session-id="currentSessionId"
+      @close="onSessionClose"
+      @switch="onSessionSwitch"
+      @stop="onSessionStop"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import projectApi from '../api/project.js'
 import taskApi from '../api/task.js'
+import sessionApi from '../api/session.js'
+import AgentSelector from '../components/AgentSelector.vue'
+import TerminalPanel from '../components/TerminalPanel.vue'
 
 const { t } = useI18n()
 
@@ -207,6 +246,15 @@ const showTaskModal = ref(false)
 const isEditing = ref(false)
 const editingTaskId = ref(null)
 const draggedTask = ref(null)
+
+// Agent selector state
+const showAgentSelector = ref(false)
+const selectedTask = ref(null)
+
+// Session state
+const activeSessions = ref([])
+const currentSessionId = ref(null)
+const runningTasks = ref(new Set())
 
 const loading = reactive({
   projects: false,
@@ -251,6 +299,8 @@ const fetchTasks = async () => {
   try {
     const response = await taskApi.getByProject(selectedProjectId.value)
     tasks.value = response.data || response || []
+    // Load active sessions after tasks are loaded
+    await loadActiveSessions()
   } catch (error) {
     console.error('Failed to fetch tasks:', error)
     tasks.value = []
@@ -339,6 +389,153 @@ const deleteTask = async () => {
   }
 }
 
+// Agent selector and session management
+const openAgentSelectorFromModal = () => {
+  selectedTask.value = tasks.value.find(t => t.id === editingTaskId.value)
+  showAgentSelector.value = true
+}
+
+const onTaskRun = (task) => {
+  selectedTask.value = task
+  showAgentSelector.value = true
+}
+
+const onAgentSelected = async ({ agentId, task }) => {
+  showAgentSelector.value = false
+
+  if (!task) {
+    task = selectedTask.value
+  }
+
+  if (!task) return
+
+  try {
+    // Check if task already has an active session
+    const existingResponse = await sessionApi.getActiveByTask(task.id)
+    if (existingResponse.data || existingResponse) {
+      const existingSession = existingResponse.data || existingResponse
+      // Add to active sessions if not already there
+      if (!activeSessions.value.find(s => s.id === existingSession.id)) {
+        activeSessions.value.push({
+          ...existingSession,
+          taskTitle: task.title
+        })
+      }
+      currentSessionId.value = existingSession.id
+      runningTasks.value.add(task.id)
+      return
+    }
+
+    // Create new session
+    const response = await sessionApi.create(task.id, agentId)
+    const session = response.data || response
+
+    // Add to active sessions
+    activeSessions.value.push({
+      ...session,
+      taskTitle: task.title
+    })
+    currentSessionId.value = session.id
+    runningTasks.value.add(task.id)
+
+    // Auto-start the session
+    await sessionApi.start(session.id)
+
+    // Update session status
+    const sessionIndex = activeSessions.value.findIndex(s => s.id === session.id)
+    if (sessionIndex !== -1) {
+      activeSessions.value[sessionIndex].status = 'RUNNING'
+    }
+  } catch (error) {
+    console.error('Failed to create/start session:', error)
+  }
+}
+
+const onSessionClose = async (sessionId) => {
+  const session = activeSessions.value.find(s => s.id === sessionId)
+
+  // Stop session if running
+  if (session && (session.status === 'RUNNING' || session.status === 'IDLE')) {
+    try {
+      await sessionApi.stop(sessionId)
+    } catch (e) {
+      console.error('Failed to stop session:', e)
+    }
+  }
+
+  // Remove from active sessions
+  activeSessions.value = activeSessions.value.filter(s => s.id !== sessionId)
+
+  // Update running tasks
+  if (session) {
+    const task = tasks.value.find(t => t.title === session.taskTitle)
+    if (task) {
+      runningTasks.value.delete(task.id)
+    }
+  }
+
+  // Switch to another session if current was closed
+  if (currentSessionId.value === sessionId) {
+    currentSessionId.value = activeSessions.value[0]?.id || null
+  }
+}
+
+const onSessionSwitch = (sessionId) => {
+  currentSessionId.value = sessionId
+}
+
+const onSessionStop = async (sessionId) => {
+  try {
+    await sessionApi.stop(sessionId)
+    const session = activeSessions.value.find(s => s.id === sessionId)
+    if (session) {
+      session.status = 'STOPPED'
+      const task = tasks.value.find(t => t.title === session.taskTitle)
+      if (task) {
+        runningTasks.value.delete(task.id)
+      }
+    }
+  } catch (e) {
+    console.error('Failed to stop session:', e)
+  }
+}
+
+const isTaskRunning = (taskId) => {
+  return runningTasks.value.has(taskId)
+}
+
+const loadActiveSessions = async () => {
+  if (!selectedProjectId.value) return
+
+  try {
+    // Get all tasks and check for active sessions
+    for (const task of tasks.value) {
+      try {
+        const response = await sessionApi.getActiveByTask(task.id)
+        const session = response.data !== undefined ? response.data : response
+        if (session && session.id) {
+          if (!activeSessions.value.find(s => s.id === session.id)) {
+            activeSessions.value.push({
+              ...session,
+              taskTitle: task.title
+            })
+            runningTasks.value.add(task.id)
+          }
+        }
+      } catch (e) {
+        // No active session for this task
+      }
+    }
+
+    // Set current session to first active
+    if (activeSessions.value.length > 0 && !currentSessionId.value) {
+      currentSessionId.value = activeSessions.value[0].id
+    }
+  } catch (error) {
+    console.error('Failed to load active sessions:', error)
+  }
+}
+
 // Drag and drop handlers
 const onDragStart = (event, task) => {
   draggedTask.value = task
@@ -392,6 +589,13 @@ const getAssigneeInitials = (assignee) => {
 // Lifecycle
 onMounted(() => {
   fetchProjects()
+})
+
+onUnmounted(() => {
+  // Clean up sessions on unmount
+  activeSessions.value = []
+  currentSessionId.value = null
+  runningTasks.value.clear()
 })
 </script>
 
@@ -513,6 +717,7 @@ onMounted(() => {
   flex: 1;
   overflow-x: auto;
   padding-bottom: 1rem;
+  margin-bottom: 300px; /* Make room for terminal panel */
 }
 
 .kanban-column {
@@ -662,6 +867,55 @@ onMounted(() => {
   justify-content: center;
   font-size: 0.7rem;
   font-weight: 600;
+}
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.run-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  background: #48bb78;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  transition: all 0.2s ease;
+}
+
+.run-btn:hover {
+  background: #38a169;
+  transform: scale(1.1);
+}
+
+.run-btn.running {
+  background: #718096;
+  cursor: not-allowed;
+}
+
+.spinner-icon {
+  width: 12px;
+  height: 12px;
+  border: 2px solid white;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.btn-success {
+  background: #48bb78;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #38a169;
 }
 
 .empty-column {
