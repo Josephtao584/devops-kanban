@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
@@ -8,6 +9,8 @@ import en from 'element-plus/es/locale/lang/en'
 import App from './App.vue'
 import router from './router'
 import i18n from './locales'
+
+const pinia = createPinia()
 
 const app = createApp(App)
 
@@ -21,6 +24,7 @@ const elementLocale = localStorage.getItem('locale') === 'zh' ? zhCn : en
 
 app.use(router)
 app.use(i18n)
+app.use(pinia)
 app.use(ElementPlus, { locale: elementLocale })
 
 app.mount('#app')
