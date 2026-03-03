@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import ProjectListView from '../views/ProjectListView.vue'
 import KanbanView from '../views/KanbanView.vue'
 import TaskSourceConfig from '../views/TaskSourceConfig.vue'
 import AgentConfig from '../views/AgentConfig.vue'
@@ -6,16 +7,21 @@ import AgentConfig from '../views/AgentConfig.vue'
 const routes = [
   {
     path: '/',
+    name: 'ProjectList',
+    component: ProjectListView
+  },
+  {
+    path: '/kanban/:projectId?',
     name: 'KanbanView',
     component: KanbanView
   },
   {
-    path: '/task-sources',
+    path: '/task-sources/:projectId?',
     name: 'TaskSourceConfig',
     component: TaskSourceConfig
   },
   {
-    path: '/agents',
+    path: '/agents/:projectId?',
     name: 'AgentConfig',
     component: AgentConfig
   }

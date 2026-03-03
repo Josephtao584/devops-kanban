@@ -15,6 +15,7 @@ public class Project {
     private String name;
     private String description;
     private String repositoryUrl;
+    private String localPath;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

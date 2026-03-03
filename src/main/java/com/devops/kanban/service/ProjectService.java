@@ -39,7 +39,8 @@ public class ProjectService {
 
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
-        project.setRepositoryUrl(dto.getRepositoryUrl());
+        project.setRepositoryUrl(dto.getRepoUrl());
+        project.setLocalPath(dto.getLocalPath());
 
         project = projectRepository.save(project);
         return toDTO(project);
@@ -54,7 +55,8 @@ public class ProjectService {
                 .id(project.getId())
                 .name(project.getName())
                 .description(project.getDescription())
-                .repositoryUrl(project.getRepositoryUrl())
+                .repoUrl(project.getRepositoryUrl())
+                .localPath(project.getLocalPath())
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
                 .build();
@@ -65,7 +67,8 @@ public class ProjectService {
                 .id(dto.getId())
                 .name(dto.getName())
                 .description(dto.getDescription())
-                .repositoryUrl(dto.getRepositoryUrl())
+                .repositoryUrl(dto.getRepoUrl())
+                .localPath(dto.getLocalPath())
                 .build();
     }
 }

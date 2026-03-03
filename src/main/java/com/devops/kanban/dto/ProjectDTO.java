@@ -18,7 +18,8 @@ public class ProjectDTO {
     private String name;
 
     private String description;
-    private String repositoryUrl;
+    private String repoUrl;
+    private String localPath;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
