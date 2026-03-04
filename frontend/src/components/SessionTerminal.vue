@@ -54,6 +54,9 @@
         <p>Session ready. Click "Start" to begin...</p>
       </div>
       <div v-else>
+        <div v-if="session && session.status === 'STOPPED'" class="history-indicator">
+          [Historical output - session stopped]
+        </div>
         <div
           v-for="(line, index) in outputLines"
           :key="index"
@@ -101,6 +104,10 @@ const props = defineProps({
   agentId: {
     type: Number,
     default: null
+  },
+  initialSession: {
+    type: Object,
+    default: null
   }
 })
 
@@ -135,19 +142,23 @@ const statusText = computed(() => {
 const loadActiveSession = async () => {
   try {
     const response = await sessionApi.getActiveByTask(props.task.id)
-    if (response.data) {
+    console.log('Load active session response:', response)
+    if (response.success && response.data) {
       session.value = response.data
       // Load existing output
       if (response.data.output) {
         const lines = response.data.output.split('\n').filter(l => l.trim())
         outputLines.value = lines.map((line, i) => ({
           data: line,
-          stream: i < outputLines.value.length ? outputLines.value[i]?.stream : 'stdout',
+          stream: 'stdout',
           timestamp: Date.now() + i
         }))
+        scrollToBottom()
       }
-      // Connect WebSocket
-      connectWebSocket()
+      // Connect WebSocket if session is running
+      if (['RUNNING', 'IDLE'].includes(response.data.status)) {
+        connectWebSocket()
+      }
     }
   } catch (e) {
     console.error('Failed to load active session:', e)
@@ -161,17 +172,23 @@ const createSession = async () => {
   }
 
   try {
+    console.log('Creating session for task:', props.task.id, 'agent:', props.agentId)
     const response = await sessionApi.create(props.task.id, props.agentId)
-    session.value = response.data
-    emit('session-created', session.value)
+    console.log('Create session response:', response)
 
-    // Connect WebSocket
-    connectWebSocket()
-
-    return session.value
+    if (response.success && response.data) {
+      session.value = response.data
+      emit('session-created', session.value)
+      // Connect WebSocket
+      connectWebSocket()
+      return session.value
+    } else {
+      ElMessage.error(response.message || 'Failed to create session')
+      return null
+    }
   } catch (e) {
     console.error('Failed to create session:', e)
-    ElMessage.error(e.response?.data?.message || 'Failed to create session')
+    ElMessage.error(e.response?.data?.message || e.message || 'Failed to create session')
     return null
   }
 }
@@ -183,13 +200,63 @@ const startSession = async () => {
   }
 
   isStarting.value = true
+  // Show starting message
+  outputLines.value.push({
+    data: 'Starting session...',
+    stream: 'stdout',
+    timestamp: Date.now()
+  })
+
   try {
+    // Connect WebSocket first to catch early output
+    await connectWebSocket()
+
     const response = await sessionApi.start(session.value.id)
-    session.value = response.data
-    emit('status-change', session.value.status)
+    console.log('Start session response:', response)
+    if (response.success && response.data) {
+      session.value = response.data
+      emit('status-change', session.value.status)
+
+      // Remove the "starting" message and load actual output
+      outputLines.value = []
+
+      // Load existing output from the response
+      if (response.data.output) {
+        const lines = response.data.output.split('\n').filter(l => l.trim())
+        lines.forEach((line, i) => {
+          outputLines.value.push({
+            data: line,
+            stream: 'stdout',
+            timestamp: Date.now() + i
+          })
+        })
+        scrollToBottom()
+      }
+
+      // If no output yet, show waiting message
+      if (outputLines.value.length === 0) {
+        outputLines.value.push({
+          data: 'Session started. Waiting for output...',
+          stream: 'stdout',
+          timestamp: Date.now()
+        })
+      }
+    } else {
+      outputLines.value.push({
+        data: 'Error: ' + (response.message || 'Failed to start session'),
+        stream: 'stderr',
+        timestamp: Date.now()
+      })
+      ElMessage.error(response.message || 'Failed to start session')
+    }
   } catch (e) {
     console.error('Failed to start session:', e)
-    ElMessage.error(e.response?.data?.message || 'Failed to start session')
+    outputLines.value.push({
+      data: 'Error: ' + (e.response?.data?.message || e.message || 'Failed to start session'),
+      stream: 'stderr',
+      timestamp: Date.now()
+    })
+    ElMessage.error(e.response?.data?.message || e.message || 'Failed to start session')
   } finally {
     isStarting.value = false
   }
@@ -249,13 +316,16 @@ const connectWebSocket = async () => {
 
   try {
     if (!wsService.isConnected()) {
+      console.log('Connecting to WebSocket...')
       await wsService.connect()
+      console.log('WebSocket connected successfully')
     }
 
     isConnected.value = true
 
     // Subscribe to output
     wsService.subscribeToOutput(session.value.id, (data) => {
+      console.log('Received output:', data)
       if (data.type === 'output') {
         outputLines.value.push({
           data: data.data,
@@ -268,6 +338,7 @@ const connectWebSocket = async () => {
 
     // Subscribe to status
     wsService.subscribeToStatus(session.value.id, (data) => {
+      console.log('Received status:', data)
       if (data.type === 'status' && session.value) {
         session.value.status = data.status
         emit('status-change', data.status)
@@ -281,7 +352,49 @@ const connectWebSocket = async () => {
     })
   } catch (e) {
     console.error('Failed to connect WebSocket:', e)
+    isConnected.value = false
     // Will fall back to REST API for input
+  }
+}
+
+// Poll for output as fallback
+let outputPollInterval = null
+const startOutputPolling = () => {
+  if (outputPollInterval) return
+
+  outputPollInterval = setInterval(async () => {
+    if (!session.value || !session.value.id) return
+
+    try {
+      const response = await sessionApi.getOutput(session.value.id)
+      if (response.success && response.data) {
+        const currentOutput = outputLines.value.map(l => l.data).join('\n')
+        if (response.data && response.data !== currentOutput) {
+          // New output available, parse and add
+          const newLines = response.data.split('\n').filter(l => l.trim())
+          const existingLines = new Set(outputLines.value.map(l => l.data))
+          newLines.forEach((line, i) => {
+            if (!existingLines.has(line)) {
+              outputLines.value.push({
+                data: line,
+                stream: 'stdout',
+                timestamp: Date.now() + i
+              })
+            }
+          })
+          scrollToBottom()
+        }
+      }
+    } catch (e) {
+      console.error('Failed to poll output:', e)
+    }
+  }, 2000) // Poll every 2 seconds
+}
+
+const stopOutputPolling = () => {
+  if (outputPollInterval) {
+    clearInterval(outputPollInterval)
+    outputPollInterval = null
   }
 }
 
@@ -293,7 +406,26 @@ const disconnectWebSocket = () => {
 
 // Lifecycle
 onMounted(() => {
-  loadActiveSession()
+  // Use initialSession from parent if provided, otherwise load from API
+  if (props.initialSession) {
+    session.value = props.initialSession
+    // Load existing output from session
+    if (props.initialSession.output) {
+      const lines = props.initialSession.output.split('\n').filter(l => l.trim())
+      outputLines.value = lines.map((line, i) => ({
+        data: line,
+        stream: 'stdout',
+        timestamp: Date.now() + i
+      }))
+      scrollToBottom()
+    }
+    // Connect WebSocket if session is running
+    if (['RUNNING', 'IDLE'].includes(props.initialSession.status)) {
+      connectWebSocket()
+    }
+  } else {
+    loadActiveSession()
+  }
 })
 
 onUnmounted(() => {
@@ -309,6 +441,27 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
     outputLines.value = []
   }
 })
+
+// Watch for initialSession changes from parent
+watch(() => props.initialSession, (newSession) => {
+  if (newSession) {
+    session.value = newSession
+    // Load existing output from session
+    if (newSession.output) {
+      const lines = newSession.output.split('\n').filter(l => l.trim())
+      outputLines.value = lines.map((line, i) => ({
+        data: line,
+        stream: 'stdout',
+        timestamp: Date.now() + i
+      }))
+      scrollToBottom()
+    }
+    // Connect WebSocket if session is running
+    if (['RUNNING', 'IDLE'].includes(newSession.status)) {
+      connectWebSocket()
+    }
+  }
+}, { immediate: true })
 
 // Auto-scroll when output changes
 watch(outputLines, () => {
@@ -416,6 +569,15 @@ defineExpose({
 
 .output-line.stdin {
   color: #67c23a;
+}
+
+.history-indicator {
+  color: #909399;
+  font-style: italic;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: rgba(144, 147, 153, 0.1);
+  border-radius: 4px;
 }
 
 .prompt {

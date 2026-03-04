@@ -133,6 +133,9 @@ public class SessionService {
             // Start process
             processManager.startProcess(sessionId, command, Paths.get(session.getWorktreePath()));
 
+            // Initialize output buffer from storage (for resuming)
+            processManager.initializeOutput(sessionId);
+
             // Update session status
             session.setStatus(Session.SessionStatus.RUNNING);
             session.setLastHeartbeat(LocalDateTime.now());
@@ -167,12 +170,14 @@ public class SessionService {
             throw new IllegalStateException("Session is not running: " + session.getStatus());
         }
 
-        // Stop the process
+        // Get final output and stop the process
+        String finalOutput = processManager.getOutput(sessionId);
         processManager.stopProcess(sessionId);
 
-        // Update session status
+        // Update session status and output
         session.setStatus(Session.SessionStatus.STOPPED);
         session.setStoppedAt(LocalDateTime.now());
+        session.setOutput(finalOutput);
         session = sessionRepository.save(session);
 
         log.info("Stopped session {}", sessionId);
@@ -227,10 +232,27 @@ public class SessionService {
     }
 
     /**
+     * Get all sessions for a task with output loaded
+     */
+    public List<Session> getSessionsWithOutputByTaskId(Long taskId) {
+        List<Session> sessions = sessionRepository.findByTaskId(taskId);
+        // Output is already stored in session entity, no need to load separately
+        return sessions;
+    }
+
+    /**
      * Get session output
      */
     public String getSessionOutput(Long sessionId) {
-        return processManager.getOutput(sessionId);
+        // First check in-memory output
+        String output = processManager.getOutput(sessionId);
+        if (output != null && !output.isEmpty()) {
+            return output;
+        }
+        // Then check storage
+        return sessionRepository.findById(sessionId)
+                .map(session -> session.getOutput() != null ? session.getOutput() : "")
+                .orElse("");
     }
 
     /**

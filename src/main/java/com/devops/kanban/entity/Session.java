@@ -21,6 +21,7 @@ public class Session {
     private LocalDateTime startedAt;
     private LocalDateTime lastHeartbeat;
     private LocalDateTime stoppedAt;
+    private String output;  // Conversation history/output buffer
 
     public enum SessionStatus {
         CREATED,    // Session created but not started

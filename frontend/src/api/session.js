@@ -14,6 +14,10 @@ const sessionApi = {
   // Get active session for a task
   getActiveByTask: (taskId) => api.get(`/sessions/task/${taskId}/active`),
 
+  // Get session history for a task (with output)
+  getHistory: (taskId, includeOutput = true) =>
+    api.get(`/sessions/task/${taskId}/history`, { params: { includeOutput } }),
+
   // Start a session
   start: (id) => api.post(`/sessions/${id}/start`),
 
@@ -34,6 +38,7 @@ export const createSession = (taskId, agentId) => sessionApi.create(taskId, agen
 export const getSession = (id) => sessionApi.getById(id)
 export const getSessionsByTask = (taskId, activeOnly = false) => sessionApi.getByTask(taskId, activeOnly)
 export const getActiveSessionByTask = (taskId) => sessionApi.getActiveByTask(taskId)
+export const getSessionHistory = (taskId, includeOutput = true) => sessionApi.getHistory(taskId, includeOutput)
 export const startSession = (id) => sessionApi.start(id)
 export const stopSession = (id) => sessionApi.stop(id)
 export const sendSessionInput = (id, input) => sessionApi.sendInput(id, input)

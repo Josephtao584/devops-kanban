@@ -1,5 +1,7 @@
 package com.devops.kanban.service;
 
+import com.devops.kanban.entity.Session;
+import com.devops.kanban.repository.SessionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -8,6 +10,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,16 +23,21 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class SessionProcessManager {
 
+    private static final long PERSIST_INTERVAL_MS = 5000; // 5 seconds debounce
+
     private final SimpMessagingTemplate messagingTemplate;
+    private final SessionRepository sessionRepository;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     // Active process management
     private final ConcurrentHashMap<Long, Process> activeProcesses = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, BufferedWriter> processInputs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, StringBuilder> sessionOutputs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Long> lastPersistTime = new ConcurrentHashMap<>();
 
-    public SessionProcessManager(SimpMessagingTemplate messagingTemplate) {
+    public SessionProcessManager(SimpMessagingTemplate messagingTemplate, SessionRepository sessionRepository) {
         this.messagingTemplate = messagingTemplate;
+        this.sessionRepository = sessionRepository;
     }
 
     /**
@@ -81,6 +89,9 @@ public class SessionProcessManager {
      * @param sessionId the session ID
      */
     public void stopProcess(Long sessionId) {
+        // Persist output before stopping
+        persistOutput(sessionId);
+
         Process process = activeProcesses.remove(sessionId);
         BufferedWriter writer = processInputs.remove(sessionId);
 
@@ -164,7 +175,34 @@ public class SessionProcessManager {
      */
     public String getOutput(Long sessionId) {
         StringBuilder output = sessionOutputs.get(sessionId);
-        return output != null ? output.toString() : "";
+        if (output != null && output.length() > 0) {
+            return output.toString();
+        }
+        // Try to load from storage if not in memory
+        return loadOutputFromStorage(sessionId);
+    }
+
+    /**
+     * Load output from storage for a session
+     */
+    private String loadOutputFromStorage(Long sessionId) {
+        Optional<Session> sessionOpt = sessionRepository.findById(sessionId);
+        return sessionOpt.map(session -> session.getOutput() != null ? session.getOutput() : "").orElse("");
+    }
+
+    /**
+     * Initialize output buffer from storage (for resuming sessions)
+     *
+     * @param sessionId the session ID
+     */
+    public void initializeOutput(Long sessionId) {
+        String storedOutput = loadOutputFromStorage(sessionId);
+        if (storedOutput != null && !storedOutput.isEmpty()) {
+            StringBuilder buffer = sessionOutputs.computeIfAbsent(sessionId, k -> new StringBuilder());
+            buffer.setLength(0); // Clear existing
+            buffer.append(storedOutput);
+            log.debug("Initialized output buffer for session {} with {} chars", sessionId, storedOutput.length());
+        }
     }
 
     /**
@@ -173,8 +211,39 @@ public class SessionProcessManager {
      * @param sessionId the session ID
      */
     public void cleanup(Long sessionId) {
+        // Save output before cleanup
+        persistOutput(sessionId);
         stopProcess(sessionId);
         sessionOutputs.remove(sessionId);
+        lastPersistTime.remove(sessionId);
+    }
+
+    /**
+     * Persist output with debounce to avoid too frequent writes
+     */
+    private void persistOutputDebounced(Long sessionId) {
+        long now = System.currentTimeMillis();
+        Long last = lastPersistTime.get(sessionId);
+        if (last == null || (now - last) > PERSIST_INTERVAL_MS) {
+            persistOutput(sessionId);
+            lastPersistTime.put(sessionId, now);
+        }
+    }
+
+    /**
+     * Immediately persist output to storage
+     */
+    public void persistOutput(Long sessionId) {
+        StringBuilder output = sessionOutputs.get(sessionId);
+        if (output == null || output.length() == 0) {
+            return;
+        }
+
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            session.setOutput(output.toString());
+            sessionRepository.save(session);
+            log.debug("Persisted output for session {} ({} chars)", sessionId, output.length());
+        });
     }
 
     /**
@@ -194,6 +263,9 @@ public class SessionProcessManager {
 
                 // Broadcast to WebSocket
                 broadcastOutput(sessionId, streamName, line);
+
+                // Debounced persistence
+                persistOutputDebounced(sessionId);
             }
 
         } catch (IOException e) {
@@ -214,6 +286,9 @@ public class SessionProcessManager {
      */
     private void handleProcessEnd(Long sessionId, int exitCode) {
         log.info("Process ended for session {} with exit code {}", sessionId, exitCode);
+
+        // Persist final output
+        persistOutput(sessionId);
 
         // Broadcast final status
         String status = exitCode == 0 ? "COMPLETED" : "ERROR";

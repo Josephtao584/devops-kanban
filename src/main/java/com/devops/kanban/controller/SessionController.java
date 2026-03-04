@@ -89,6 +89,20 @@ public class SessionController {
     }
 
     /**
+     * Get session history for a task with output
+     */
+    @GetMapping("/task/{taskId}/history")
+    public ResponseEntity<ApiResponse<List<SessionDTO>>> getSessionHistory(
+            @PathVariable Long taskId,
+            @RequestParam(required = false, defaultValue = "true") boolean includeOutput) {
+        List<Session> sessions = sessionService.getSessionsWithOutputByTaskId(taskId);
+        List<SessionDTO> dtos = sessions.stream()
+                .map(session -> toDTO(session, includeOutput))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success(dtos));
+    }
+
+    /**
      * Start a session
      */
     @PostMapping("/{id}/start")
@@ -175,7 +189,11 @@ public class SessionController {
     // ==================== DTO Conversion ====================
 
     private SessionDTO toDTO(Session session) {
-        return SessionDTO.builder()
+        return toDTO(session, true);
+    }
+
+    private SessionDTO toDTO(Session session, boolean includeOutput) {
+        SessionDTO.SessionDTOBuilder builder = SessionDTO.builder()
                 .id(session.getId())
                 .taskId(session.getTaskId())
                 .agentId(session.getAgentId())
@@ -185,8 +203,17 @@ public class SessionController {
                 .sessionId(session.getSessionId())
                 .startedAt(session.getStartedAt())
                 .lastHeartbeat(session.getLastHeartbeat())
-                .stoppedAt(session.getStoppedAt())
-                .output(sessionService.getSessionOutput(session.getId()))
-                .build();
+                .stoppedAt(session.getStoppedAt());
+
+        if (includeOutput) {
+            // First check session entity output, then fall back to process manager
+            String output = session.getOutput();
+            if (output == null || output.isEmpty()) {
+                output = sessionService.getSessionOutput(session.getId());
+            }
+            builder.output(output);
+        }
+
+        return builder.build();
     }
 }

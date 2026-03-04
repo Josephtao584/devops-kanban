@@ -106,10 +106,45 @@
           ref="terminalRef"
           :task="task"
           :agent-id="selectedAgentId"
+          :initial-session="localSession"
           @session-created="onSessionCreated"
           @session-stopped="onSessionStopped"
           @status-change="onStatusChange"
         />
+      </div>
+
+      <!-- Session History -->
+      <el-divider v-if="!isNew && sessionHistory.length > 0">
+        <el-icon><Clock /></el-icon>
+        Session History
+      </el-divider>
+
+      <div v-if="!isNew && sessionHistory.length > 0" class="history-section">
+        <el-collapse v-loading="historyLoading">
+          <el-collapse-item
+            v-for="session in sessionHistory"
+            :key="session.id"
+            :name="session.id"
+          >
+            <template #title>
+              <div class="history-item-title">
+                <el-tag :type="getStatusTagType(session.status)" size="small">
+                  {{ session.status }}
+                </el-tag>
+                <span class="history-time">
+                  {{ formatTime(session.startedAt) }}
+                </span>
+                <span v-if="session.stoppedAt" class="history-duration">
+                  ({{ formatDuration(session.startedAt, session.stoppedAt) }})
+                </span>
+              </div>
+            </template>
+            <div class="history-output">
+              <pre v-if="session.output">{{ session.output }}</pre>
+              <el-empty v-else description="No output recorded" :image-size="40" />
+            </div>
+          </el-collapse-item>
+        </el-collapse>
       </div>
     </el-form>
 
@@ -131,7 +166,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Cpu } from '@element-plus/icons-vue'
+import { Cpu, Clock } from '@element-plus/icons-vue'
 import { taskApi } from '../api/task'
 import { agentApi } from '../api/agent'
 import sessionApi from '../api/session'
@@ -171,6 +206,8 @@ const rules = {
 const agents = ref([])
 const selectedAgentId = ref(null)
 const localSession = ref(null)
+const sessionHistory = ref([])
+const historyLoading = ref(false)
 
 const hasActiveSession = computed(() => {
   if (localSession.value) {
@@ -204,11 +241,32 @@ onMounted(async () => {
         localSession.value = sessionResponse.data
         selectedAgentId.value = sessionResponse.data.agentId
       }
+
+      // Load session history
+      loadSessionHistory()
     } catch (e) {
       console.error('Failed to load agents:', e)
     }
   }
 })
+
+const loadSessionHistory = async () => {
+  if (!props.task?.id) return
+  historyLoading.value = true
+  try {
+    const response = await sessionApi.getHistory(props.task.id)
+    if (response.success && response.data) {
+      // Filter out active session and sort by startedAt descending
+      sessionHistory.value = response.data
+        .filter(s => !localSession.value || s.id !== localSession.value.id)
+        .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+    }
+  } catch (e) {
+    console.error('Failed to load session history:', e)
+  } finally {
+    historyLoading.value = false
+  }
+}
 
 const handleSave = async () => {
   try {
@@ -266,12 +324,18 @@ const createNewSession = async () => {
   }
 
   try {
+    console.log('Creating session for task:', props.task.id, 'agent:', selectedAgentId.value)
     const response = await sessionApi.create(props.task.id, selectedAgentId.value)
-    localSession.value = response.data
-    ElMessage.success('Session created')
+    console.log('Create session response:', response)
+    if (response.success && response.data) {
+      localSession.value = response.data
+      ElMessage.success('Session created')
+    } else {
+      ElMessage.error(response.message || 'Failed to create session')
+    }
   } catch (e) {
     console.error('Failed to create session:', e)
-    ElMessage.error(e.response?.data?.message || 'Failed to create session')
+    ElMessage.error(e.response?.data?.message || e.message || 'Failed to create session')
   }
 }
 
@@ -307,13 +371,45 @@ const onSessionCreated = (session) => {
 }
 
 const onSessionStopped = () => {
-  // Session stopped, but still exists
+  // Session stopped, refresh history
+  loadSessionHistory()
 }
 
 const onStatusChange = (status) => {
   if (localSession.value) {
     localSession.value.status = status
   }
+}
+
+// Helper functions for history display
+const getStatusTagType = (status) => {
+  const types = {
+    'CREATED': 'info',
+    'RUNNING': 'success',
+    'IDLE': 'warning',
+    'STOPPED': '',
+    'ERROR': 'danger'
+  }
+  return types[status] || 'info'
+}
+
+const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleString()
+}
+
+const formatDuration = (startStr, endStr) => {
+  if (!startStr || !endStr) return ''
+  const start = new Date(startStr)
+  const end = new Date(endStr)
+  const diffMs = end - start
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffSecs = Math.floor((diffMs % 60000) / 1000)
+  if (diffMins > 0) {
+    return `${diffMins}m ${diffSecs}s`
+  }
+  return `${diffSecs}s`
 }
 </script>
 
@@ -326,6 +422,45 @@ const onStatusChange = (status) => {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.history-section {
+  margin-top: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.history-time {
+  color: #606266;
+  font-size: 12px;
+}
+
+.history-duration {
+  color: #909399;
+  font-size: 11px;
+}
+
+.history-output {
+  background: #f5f7fa;
+  border-radius: 4px;
+  padding: 8px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.history-output pre {
+  margin: 0;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .dialog-footer {
