@@ -3,6 +3,7 @@ package com.devops.kanban.service;
 import com.devops.kanban.dto.TaskDTO;
 import com.devops.kanban.entity.*;
 import com.devops.kanban.repository.AgentRepository;
+import com.devops.kanban.repository.ProjectRepository;
 import com.devops.kanban.repository.SessionRepository;
 import com.devops.kanban.repository.TaskRepository;
 import com.devops.kanban.spi.AgentAdapter;
@@ -29,6 +30,7 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final TaskRepository taskRepository;
     private final AgentRepository agentRepository;
+    private final ProjectRepository projectRepository;
     private final GitService gitService;
     private final SessionProcessManager processManager;
     private final Map<Agent.AgentType, AgentAdapter> adapters;
@@ -37,12 +39,14 @@ public class SessionService {
             SessionRepository sessionRepository,
             TaskRepository taskRepository,
             AgentRepository agentRepository,
+            ProjectRepository projectRepository,
             GitService gitService,
             SessionProcessManager processManager,
             List<AgentAdapter> adapterList) {
         this.sessionRepository = sessionRepository;
         this.taskRepository = taskRepository;
         this.agentRepository = agentRepository;
+        this.projectRepository = projectRepository;
         this.gitService = gitService;
         this.processManager = processManager;
         this.adapters = adapterList.stream()
@@ -72,9 +76,14 @@ public class SessionService {
             throw new IllegalStateException("Task already has an active session: " + existingSession.get().getId());
         }
 
+        // Get project's local path for worktree creation
+        Project project = projectRepository.findById(task.getProjectId())
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + task.getProjectId()));
+        Path localPath = Paths.get(project.getLocalPath());
+
         // Create worktree for isolation
         String branch = "session-" + taskId + "-" + System.currentTimeMillis();
-        Path worktree = gitService.createWorktree(task.getProjectId(), branch);
+        Path worktree = gitService.createWorktree(localPath, task.getProjectId(), branch);
 
         // Create session record
         Session session = Session.builder()

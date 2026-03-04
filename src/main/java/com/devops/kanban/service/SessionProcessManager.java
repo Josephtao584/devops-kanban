@@ -53,6 +53,8 @@ public class SessionProcessManager {
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.directory(workingDir.toFile());
             pb.environment().putAll(System.getenv());
+            // Remove CLAUDECODE env var to allow nested Claude Code sessions
+            pb.environment().remove("CLAUDECODE");
 
             // Don't merge stderr - we want to handle them separately
             Process process = pb.start();

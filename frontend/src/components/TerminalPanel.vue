@@ -192,15 +192,20 @@ const scrollToBottom = () => {
 
 // Watch for session changes to subscribe to WebSocket
 watch(() => props.currentSessionId, async (newId, oldId) => {
+  console.log('[TerminalPanel] Session changed:', { oldId, newId })
+
   if (oldId) {
     // Unsubscribe from old session
     wsService.unsubscribeFromSession(oldId)
   }
 
   if (newId) {
+    console.log('[TerminalPanel] Loading output for session:', newId)
+
     // Load existing output
     try {
       const response = await sessionApi.getOutput(newId)
+      console.log('[TerminalPanel] Output response:', response)
       // Handle string output (split by newlines)
       const outputStr = response.data || response || ''
       if (typeof outputStr === 'string') {
@@ -218,23 +223,26 @@ watch(() => props.currentSessionId, async (newId, oldId) => {
         }))
       }
     } catch (e) {
-      console.error('Failed to load output:', e)
+      console.error('[TerminalPanel] Failed to load output:', e)
     }
 
     // Connect WebSocket if not connected
+    console.log('[TerminalPanel] WebSocket connected?', wsService.isConnected())
     if (!wsService.isConnected()) {
       try {
+        console.log('[TerminalPanel] Connecting WebSocket...')
         await wsService.connect()
+        console.log('[TerminalPanel] WebSocket connected successfully')
       } catch (e) {
-        console.error('Failed to connect WebSocket:', e)
+        console.error('[TerminalPanel] Failed to connect WebSocket:', e)
       }
     }
 
     // Subscribe to output
     wsService.subscribeToOutput(newId, (data) => {
-      if (data.type === 'output') {
+      if (data.type === 'message') {
         addOutput(newId, {
-          data: data.data,
+          data: data.content || data.data,
           stream: data.stream,
           timestamp: data.timestamp
         })
@@ -277,51 +285,73 @@ defineExpose({
 <style scoped>
 .terminal-panel {
   position: fixed;
-  bottom: 0;
-  left: 0;
+  top: 0;
   right: 0;
+  bottom: 0;
   background: #1e1e1e;
-  border-top: 1px solid #3d3d3d;
-  transition: height 0.3s ease;
+  border-left: 1px solid #3d3d3d;
+  transition: width 0.3s ease;
   z-index: 100;
+  display: flex;
+  flex-direction: column;
 }
 
 .terminal-panel.expanded {
-  height: 300px;
+  width: 400px;
 }
 
 .terminal-panel.minimized {
-  height: 40px;
+  width: 40px;
 }
 
 .terminal-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 40px;
-  padding: 0 12px;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
   background: #2d2d2d;
   border-bottom: 1px solid #3d3d3d;
 }
 
+.terminal-panel.minimized .terminal-header {
+  height: 100%;
+  justify-content: flex-start;
+}
+
 .session-tabs {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   flex: 1;
-  overflow-x: auto;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.terminal-panel.minimized .session-tabs {
+  padding: 4px 0;
 }
 
 .session-tab {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
+  padding: 6px 8px;
   background: #3d3d3d;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+}
+
+.terminal-panel.minimized .session-tab {
+  flex-direction: column;
+  padding: 4px;
+  gap: 2px;
+}
+
+.terminal-panel.minimized .task-name {
+  display: none;
 }
 
 .session-tab:hover {
@@ -335,9 +365,10 @@ defineExpose({
 .task-name {
   font-size: 12px;
   color: #d4d4d4;
-  max-width: 120px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
 }
 
 .session-status {
@@ -376,6 +407,7 @@ defineExpose({
   font-size: 14px;
   color: #909399;
   transition: color 0.2s;
+  flex-shrink: 0;
 }
 
 .close-btn:hover {
@@ -385,13 +417,27 @@ defineExpose({
 .no-sessions {
   color: #666;
   font-size: 12px;
-  padding: 0 12px;
+  padding: 8px;
+  text-align: center;
+}
+
+.terminal-panel.minimized .no-sessions {
+  display: none;
 }
 
 .panel-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid #3d3d3d;
+}
+
+.terminal-panel.minimized .panel-actions {
+  flex-direction: column;
+  border-top: none;
+  padding: 4px 0;
 }
 
 .panel-actions .el-button {
@@ -459,10 +505,18 @@ defineExpose({
   border-top: 1px solid #3d3d3d;
 }
 
+.terminal-input :deep(.el-input-group) {
+  display: flex;
+  border: 1px solid #3d3d3d;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
 .terminal-input :deep(.el-input__wrapper) {
   background: #1e1e1e;
   box-shadow: none;
-  border: 1px solid #3d3d3d;
+  border: none;
+  border-radius: 0;
 }
 
 .terminal-input :deep(.el-input__inner) {
@@ -472,11 +526,15 @@ defineExpose({
 
 .terminal-input :deep(.el-input-group__append) {
   background: #3d3d3d;
-  border-color: #3d3d3d;
+  border: none;
+  border-left: 1px solid #3d3d3d;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .terminal-input :deep(.el-input-group__append .el-button) {
   color: #d4d4d4;
+  margin: 0;
 }
 
 .input-prompt {
@@ -501,5 +559,65 @@ defineExpose({
 
 .output-container::-webkit-scrollbar-thumb:hover {
   background: #4d4d4d;
+}
+
+/* Mobile responsive - switch to bottom panel on small screens */
+@media (max-width: 768px) {
+  .terminal-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    height: 300px;
+    border-left: none;
+    border-top: 1px solid #3d3d3d;
+  }
+
+  .terminal-panel.minimized {
+    height: 40px;
+    width: 100% !important;
+  }
+
+  .terminal-header {
+    flex-direction: row;
+    height: 40px;
+    padding: 0 12px;
+  }
+
+  .terminal-panel.minimized .terminal-header {
+    height: 40px;
+  }
+
+  .session-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 4px;
+  }
+
+  .session-tab {
+    flex-direction: row;
+    padding: 6px 12px;
+  }
+
+  .terminal-panel.minimized .session-tab {
+    flex-direction: row;
+    padding: 6px 12px;
+  }
+
+  .terminal-panel.minimized .task-name {
+    display: block;
+  }
+
+  .panel-actions {
+    flex-direction: row;
+    border-top: none;
+    padding: 0 8px;
+  }
+
+  .no-sessions {
+    display: block;
+  }
 }
 </style>

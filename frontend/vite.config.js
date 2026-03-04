@@ -10,6 +10,11 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true
+      },
+      '/ws': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true
       }
     }
   },
@@ -17,6 +22,9 @@ export default defineConfig({
     alias: {
       '@': '/src'
     }
+  },
+  define: {
+    global: 'globalThis'
   },
   test: {
     environment: 'jsdom',

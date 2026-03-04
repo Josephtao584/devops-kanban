@@ -67,7 +67,7 @@
             class="task-card"
             draggable="true"
             @dragstart="onDragStart($event, task)"
-            @click="openTaskModal(task)"
+            @click="onTaskClick(task)"
           >
             <div class="task-title">{{ task.title }}</div>
             <div class="task-meta">
@@ -78,6 +78,13 @@
                 {{ $t(`priority.${task.priority}`) }}
               </span>
               <div class="task-actions">
+                <button
+                  class="edit-btn"
+                  @click.stop="openTaskModal(task)"
+                  :title="$t('task.editTask')"
+                >
+                  ✎
+                </button>
                 <button
                   class="run-btn"
                   :class="{ running: isTaskRunning(task.id) }"
@@ -209,6 +216,7 @@
 
     <!-- Fixed Terminal Panel -->
     <TerminalPanel
+      ref="terminalPanelRef"
       :sessions="activeSessions"
       :current-session-id="currentSessionId"
       @close="onSessionClose"
@@ -220,6 +228,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import projectApi from '../api/project.js'
 import taskApi from '../api/task.js'
@@ -228,6 +237,8 @@ import AgentSelector from '../components/AgentSelector.vue'
 import TerminalPanel from '../components/TerminalPanel.vue'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 // Column definitions
 const columns = [
@@ -255,6 +266,7 @@ const selectedTask = ref(null)
 const activeSessions = ref([])
 const currentSessionId = ref(null)
 const runningTasks = ref(new Set())
+const terminalPanelRef = ref(null)
 
 const loading = reactive({
   projects: false,
@@ -282,7 +294,13 @@ const fetchProjects = async () => {
     projects.value = response.data || response || []
 
     if (projects.value.length > 0 && !selectedProjectId.value) {
-      selectedProjectId.value = projects.value[0].id
+      // Try to get project ID from URL query param
+      const projectIdFromUrl = route.query.projectId
+      if (projectIdFromUrl && projects.value.find(p => String(p.id) === String(projectIdFromUrl))) {
+        selectedProjectId.value = projectIdFromUrl
+      } else {
+        selectedProjectId.value = projects.value[0].id
+      }
       await fetchTasks()
     }
   } catch (error) {
@@ -310,6 +328,8 @@ const fetchTasks = async () => {
 }
 
 const onProjectChange = () => {
+  // Update URL query param to persist selection
+  router.replace({ query: { projectId: selectedProjectId.value } })
   fetchTasks()
 }
 
@@ -400,8 +420,23 @@ const onTaskRun = (task) => {
   showAgentSelector.value = true
 }
 
+/**
+ * Handle task card click event
+ * - If has active session, switch to that session
+ * - If no active session, do nothing
+ */
+const onTaskClick = (task) => {
+  const activeSession = activeSessions.value.find(s => s.taskId === task.id)
+  if (activeSession) {
+    currentSessionId.value = activeSession.id
+  }
+}
+
 const onAgentSelected = async ({ agentId, task }) => {
   showAgentSelector.value = false
+
+  // 关闭任务详情弹窗，返回看板页面
+  closeTaskModal()
 
   if (!task) {
     task = selectedTask.value
@@ -412,8 +447,9 @@ const onAgentSelected = async ({ agentId, task }) => {
   try {
     // Check if task already has an active session
     const existingResponse = await sessionApi.getActiveByTask(task.id)
-    if (existingResponse.data || existingResponse) {
-      const existingSession = existingResponse.data || existingResponse
+    const existingSession = existingResponse.data !== undefined ? existingResponse.data : existingResponse
+    // Only use existing session if it has a valid id
+    if (existingSession && existingSession.id) {
       // Add to active sessions if not already there
       if (!activeSessions.value.find(s => s.id === existingSession.id)) {
         activeSessions.value.push({
@@ -441,10 +477,23 @@ const onAgentSelected = async ({ agentId, task }) => {
     // Auto-start the session
     await sessionApi.start(session.id)
 
+    // Send initial task description message
+    const initialMessage = buildInitialTaskMessage(task)
+    await sessionApi.sendInput(session.id, initialMessage)
+
     // Update session status
     const sessionIndex = activeSessions.value.findIndex(s => s.id === session.id)
     if (sessionIndex !== -1) {
       activeSessions.value[sessionIndex].status = 'RUNNING'
+    }
+
+    // Add initial message to TerminalPanel's output display
+    if (terminalPanelRef.value) {
+      terminalPanelRef.value.addOutput(session.id, {
+        data: initialMessage,
+        stream: 'stdin',
+        timestamp: Date.now()
+      })
     }
   } catch (error) {
     console.error('Failed to create/start session:', error)
@@ -502,6 +551,18 @@ const onSessionStop = async (sessionId) => {
 
 const isTaskRunning = (taskId) => {
   return runningTasks.value.has(taskId)
+}
+
+/**
+ * Build initial task description message
+ */
+const buildInitialTaskMessage = (task) => {
+  let message = `请帮我完成这个任务：${task.title}\n`
+  if (task.description && task.description.trim()) {
+    message += `\n任务描述：\n${task.description}\n`
+  }
+  message += '\n请分析任务需求并开始实施。'
+  return message
 }
 
 const loadActiveSessions = async () => {
@@ -717,7 +778,7 @@ onUnmounted(() => {
   flex: 1;
   overflow-x: auto;
   padding-bottom: 1rem;
-  margin-bottom: 300px; /* Make room for terminal panel */
+  margin-right: 420px; /* Make room for right-side terminal panel (400px + 20px buffer) */
 }
 
 .kanban-column {
@@ -900,6 +961,25 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
+.edit-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 14px;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.task-card:hover .edit-btn {
+  opacity: 1;
+}
+
+.edit-btn:hover {
+  color: #409eff;
+}
+
 .spinner-icon {
   width: 12px;
   height: 12px;
@@ -1060,6 +1140,8 @@ onUnmounted(() => {
 
   .kanban-board {
     flex-direction: column;
+    margin-right: 0;
+    margin-bottom: 0;
   }
 
   .kanban-column {

@@ -2,6 +2,7 @@ import api from './index.js'
 
 const agentApi = {
   getAll: (projectId) => api.get('/agents', { params: { projectId } }),
+  getByProject: (projectId) => api.get('/agents', { params: { projectId } }),
   getById: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),

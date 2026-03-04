@@ -22,39 +22,45 @@ class WebSocketService {
   connect(baseUrl = '') {
     return new Promise((resolve, reject) => {
       if (this.client && this.connected) {
+        console.log('[WebSocket] Already connected')
         resolve()
         return
       }
 
       const socketUrl = baseUrl ? `${baseUrl}/ws` : '/ws'
+      console.log('[WebSocket] Connecting to:', socketUrl)
 
       this.client = new Client({
-        webSocketFactory: () => new SockJS(socketUrl),
+        webSocketFactory: () => {
+          console.log('[WebSocket] Creating SockJS instance')
+          return new SockJS(socketUrl)
+        },
         reconnectDelay: 5000,
         heartbeatIncoming: 10000,
         heartbeatOutgoing: 10000,
         onConnect: () => {
-          console.log('WebSocket connected')
+          console.log('[WebSocket] Connected successfully')
           this.connected = true
           this.reconnectAttempts = 0
           resolve()
         },
         onDisconnect: () => {
-          console.log('WebSocket disconnected')
+          console.log('[WebSocket] Disconnected')
           this.connected = false
         },
         onStompError: (frame) => {
-          console.error('STOMP error:', frame)
+          console.error('[WebSocket] STOMP error:', frame)
           reject(new Error(frame.headers.message))
         },
         onWebSocketError: (event) => {
-          console.error('WebSocket error:', event)
+          console.error('[WebSocket] WebSocket error:', event)
           if (!this.connected) {
             reject(new Error('WebSocket connection failed'))
           }
         }
       })
 
+      console.log('[WebSocket] Activating client...')
       this.client.activate()
     })
   }
