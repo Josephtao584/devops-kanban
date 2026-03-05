@@ -1,0 +1,58 @@
+[
+  {
+    "id": 100,
+    "projectId": 1,
+    "title": "Create Hello World Program",
+    "description": "Create a simple hello.py file in the project root directory that outputs \"Hello, DevOps Kanban!\"",
+    "status": "TODO",
+    "priority": "LOW",
+    "assignee": null,
+    "sourceId": null,
+    "externalId": null,
+    "syncedAt": null,
+    "createdAt": "2026-03-05T10:00:00",
+    "updatedAt": "2026-03-05T10:00:00"
+  },
+  {
+    "id": 101,
+    "projectId": 1,
+    "title": "Write README Documentation",
+    "description": "Create README.md file with project introduction, installation steps, and usage instructions",
+    "status": "TODO",
+    "priority": "MEDIUM",
+    "assignee": null,
+    "sourceId": null,
+    "externalId": null,
+    "syncedAt": null,
+    "createdAt": "2026-03-05T10:05:00",
+    "updatedAt": "2026-03-05T10:05:00"
+  },
+  {
+    "id": 102,
+    "projectId": 1,
+    "title": "Add Error Handling",
+    "description": "Add basic error handling and logging functionality to the existing code",
+    "status": "TODO",
+    "priority": "MEDIUM",
+    "assignee": null,
+    "sourceId": null,
+    "externalId": null,
+    "syncedAt": null,
+    "createdAt": "2026-03-05T10:10:00",
+    "updatedAt": "2026-03-05T10:10:00"
+  },
+  {
+    "id": 103,
+    "projectId": 1,
+    "title": "Create Simple Calculator",
+    "description": "Create a calculator.py file that implements basic arithmetic operations (add, subtract, multiply, divide)",
+    "status": "TODO",
+    "priority": "LOW",
+    "assignee": null,
+    "sourceId": null,
+    "externalId": null,
+    "syncedAt": null,
+    "createdAt": "2026-03-05T10:15:00",
+    "updatedAt": "2026-03-05T10:15:00"
+  }
+]
