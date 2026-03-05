@@ -109,108 +109,18 @@
         <p>Select a task from the sidebar to start working with AI</p>
       </div>
 
-      <div v-else ref="chatContainer" class="chat-container">
-        <!-- Chat Header -->
-        <div class="chat-header">
-          <div class="chat-header-info">
-            <h3 class="chat-task-title">{{ selectedTask.title }}</h3>
-            <div class="chat-session-status" :class="getSessionStatusClass()">
-              <span class="status-dot"></span>
-              <span>{{ getSessionStatusText() }}</span>
-            </div>
-          </div>
-          <div class="chat-header-actions">
-            <button
-              v-if="!activeSession || activeSession.status === 'STOPPED'"
-              class="btn btn-primary btn-sm"
-              @click="startSession"
-              :loading="isStarting"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5,3 19,12 5,21"></polygon>
-              </svg>
-              Start
-            </button>
-            <button
-              v-if="activeSession && (activeSession.status === 'RUNNING' || activeSession.status === 'IDLE')"
-              class="btn btn-danger btn-sm"
-              @click="stopSession"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="6" y="6" width="12" height="12"></rect>
-              </svg>
-              Stop
-            </button>
-            <button
-              class="btn btn-ghost btn-sm"
-              @click="clearChat"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3,6 5,6 21,6"></polyline>
-                <path d="M19,6v14a2,2 0,0 1-2,2H7a2,2 0,0 1-2-2V6m3,0V4a2,2 0,0 1,2-2h4a2,2 0,0 1,2,2v2"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Task Summary -->
-        <div class="task-summary" v-if="selectedTask && selectedTask.description">
-          <div class="task-summary-description">
-            <span class="description-label">简介：</span>{{ selectedTask.description }}
-          </div>
-        </div>
-
-        <!-- Messages -->
-        <div ref="messagesContainer" class="messages-container">
-          <div v-if="messages.length === 0" class="messages-empty">
-            <p>Start the session to begin the conversation</p>
-          </div>
-          <div v-else class="messages-list">
-            <div
-              v-for="msg in messages"
-              :key="msg.id"
-              class="message"
-              :class="`message-${msg.role}`"
-            >
-              <div class="message-avatar">
-                <span v-if="msg.role === 'user'">👤</span>
-                <span v-else>🤖</span>
-              </div>
-              <div class="message-content">
-                <div class="message-header">
-                  <span class="message-role">{{ getMessageRole(msg.role) }}</span>
-                  <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
-                </div>
-                <div class="message-body">{{ formatMessageContent(msg.content) }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Input Area -->
-        <div class="chat-input-container">
-          <div class="chat-input-wrapper">
-            <textarea
-              v-model="inputText"
-              class="chat-input"
-              placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-              :disabled="!canSendMessages"
-              @keydown.enter.exact.prevent="sendMessage"
-              rows="1"
-              ref="chatInput"
-            ></textarea>
-            <button
-              class="send-btn"
-              :disabled="!inputText.trim() || !canSendMessages"
-              @click="sendMessage"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
-              </svg>
-            </button>
-          </div>
-        </div>
+      <div v-else class="chat-container">
+        <!-- ChatBox Component -->
+        <ChatBox
+          ref="chatBoxRef"
+          :task="selectedTask"
+          :agent-id="selectedAgentId"
+          :initial-session="activeSession"
+          @session-created="onSessionCreated"
+          @session-stopped="onSessionStopped"
+          @status-change="onStatusChange"
+          @request-agent-select="handleRequestAgentSelect"
+        />
       </div>
     </main>
 
@@ -324,45 +234,30 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import projectApi from '../api/project.js'
 import taskApi from '../api/task.js'
-import sessionApi from '../api/session.js'
 import agentApi from '../api/agent.js'
-import wsService from '../services/websocket'
+import sessionApi from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
+import ChatBox from '../components/ChatBox.vue'
 
 const route = useRoute()
 const router = useRouter()
-
-// Filters
-const filters = [
-  { value: 'all', label: 'All' },
-  { value: 'TODO', label: 'To Do' },
-  { value: 'IN_PROGRESS', label: 'In Progress' },
-  { value: 'DONE', label: 'Done' }
-]
 
 // State
 const projects = ref([])
 const tasks = ref([])
 const selectedProjectId = ref('')
 const selectedTask = ref(null)
-const activeFilter = ref('all')
+const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const isEditing = ref(false)
 const editingTaskId = ref(null)
 const activeSession = ref(null)
-const messages = ref([])
-const inputText = ref('')
-const isStarting = ref(false)
-const isStopping = ref(false)
-const isConnected = ref(false)
-const messagesContainer = ref(null)
-const chatInput = ref(null)
-const chatContainer = ref(null)
+const chatBoxRef = ref(null)
 const isPanelCollapsed = ref(false)
 const expandedDiffs = ref(new Set())
 const fileChanges = ref([])
@@ -371,6 +266,15 @@ const runningTasks = ref(new Set())
 // Agent selector
 const showAgentSelector = ref(false)
 const pendingTask = ref(null)
+
+// Filter state
+const filters = [
+  { label: '全部', value: 'all' },
+  { label: '待办', value: 'TODO' },
+  { label: '进行中', value: 'IN_PROGRESS' },
+  { label: '已完成', value: 'DONE' }
+]
+const activeFilter = ref('all')
 
 const loading = reactive({
   projects: false,
@@ -392,11 +296,6 @@ const filteredTasks = computed(() => {
   return tasks.value.filter(t => t.status === activeFilter.value)
 })
 
-const canSendMessages = computed(() => {
-  return activeSession.value &&
-    (activeSession.value.status === 'RUNNING' || activeSession.value.status === 'IDLE') &&
-    isConnected.value
-})
 
 // Methods
 const getTasksByFilter = (filter) => {
@@ -586,213 +485,65 @@ const deleteTask = async (taskId) => {
   }
 }
 
-const handleAgentSelect = async ({ agentId, agent, task }) => {
-  if (!task) return
 
-  try {
-    const response = await sessionApi.create(task.id, agentId)
-    activeSession.value = response.data || response
+// ChatBox event handlers
+const onSessionCreated = (session) => {
+  activeSession.value = session;
+};
 
-    // Auto-start
-    await sessionApi.start(activeSession.value.id)
+const onSessionStopped = () => {
+  // Session stopped, refresh if needed
+};
 
-    // Send initial message
-    const initialMessage = `请帮我完成这个任务：${task.title}\n${task.description ? '\n任务描述：\n' + task.description : ''}\n请分析任务需求并开始实施。`
-    await sessionApi.sendInput(activeSession.value.id, initialMessage)
-
-    await connectWebSocket()
-    showAgentSelector.value = false
-    pendingTask.value = null
-  } catch (error) {
-    console.error('Failed to create session:', error)
-    alert('Failed to create session: ' + (error.message || 'Unknown error'))
+const onStatusChange = (status) => {
+  if (activeSession.value) {
+    activeSession.value.status = status;
   }
+};
+const handleAgentSelect = ({ agentId, agent, task }) => {
+  // Set selected agent and pending task, ChatBox will handle session creation
+  selectedAgentId.value = agentId
+  pendingTask.value = task
+  showAgentSelector.value = false
 }
 
-const startSession = async () => {
-  if (!selectedTask.value) return
-
-  isStarting.value = true
-  try {
-    // Check if session exists
-    if (!activeSession.value) {
-      // Get agents to auto-select first one
-      const agentsResponse = await agentApi.getAll(selectedProjectId.value)
-      const agents = agentsResponse.data || agentsResponse || []
-
-      if (agents.length === 0) {
-        alert('No agents available. Please configure an agent first.')
-        return
-      }
-
-      const sessionResponse = await sessionApi.create(selectedTask.value.id, agents[0].id)
-      activeSession.value = sessionResponse.data || sessionResponse
-    }
-
-    const startResponse = await sessionApi.start(activeSession.value.id)
-    activeSession.value = startResponse.data || startResponse
-
-    await connectWebSocket()
-  } catch (error) {
-    console.error('Failed to start session:', error)
-  } finally {
-    isStarting.value = false
-  }
-}
-
-const stopSession = async () => {
-  if (!activeSession.value) return
-
-  isStopping.value = true
-  try {
-    const response = await sessionApi.stop(activeSession.value.id)
-    activeSession.value = response.data || response
-  } catch (error) {
-    console.error('Failed to stop session:', error)
-  } finally {
-    isStopping.value = false
-  }
-}
-
-const clearChat = () => {
-  messages.value = []
-}
-
-const sendMessage = async () => {
-  if (!inputText.value.trim() || !activeSession.value) return
-
-  const input = inputText.value.trim()
-  inputText.value = ''
-
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: input,
-    timestamp: Date.now()
-  })
-
-  try {
-    if (isConnected.value) {
-      wsService.sendInput(activeSession.value.id, input)
-    } else {
-      await sessionApi.sendInput(activeSession.value.id, input)
-    }
-  } catch (error) {
-    console.error('Failed to send message:', error)
-  }
-
-  nextTick(() => scrollToBottom())
+const handleRequestAgentSelect = (task) => {
+  console.log('handleRequestAgentSelect called, task:', task?.id, 'projectId:', selectedProjectId.value)
+  // Show agent selector when ChatBox requests it
+  pendingTask.value = task
+  showAgentSelector.value = true
 }
 
 const loadActiveSession = async () => {
   if (!selectedTask.value) return
-
   try {
     const response = await sessionApi.getActiveByTask(selectedTask.value.id)
-    const session = response.data !== undefined ? response.data : response
-
-    if (session && session.id) {
-      activeSession.value = session
-      await connectWebSocket()
-      loadSessionOutput()
+    if (response.success && response.data) {
+      activeSession.value = response.data
     }
-  } catch (e) {
-    // No active session
-  }
-}
-
-const loadSessionOutput = async () => {
-  if (!activeSession.value?.output) return
-
-  const lines = activeSession.value.output.split('\n').filter(l => l.trim())
-  messages.value = lines.map((line, i) => ({
-    id: `history-${i}`,
-    role: line.startsWith('$') || line.startsWith('>') ? 'user' : 'assistant',
-    content: line,
-    timestamp: Date.now() + i
-  }))
-
-  nextTick(() => scrollToBottom())
-}
-
-const connectWebSocket = async () => {
-  if (!activeSession.value || isConnected.value) return
-
-  try {
-    if (!wsService.isConnected()) {
-      await wsService.connect()
-    }
-
-    isConnected.value = true
-
-    wsService.subscribeToOutput(activeSession.value.id, (data) => {
-      if (data.type === 'chunk') {
-        const role = data.stream === 'stdin' ? 'user' : 'assistant'
-        messages.value.push({
-          id: Date.now(),
-          role,
-          content: data.content,
-          timestamp: data.timestamp
-        })
-        nextTick(() => scrollToBottom())
-      }
-    })
-
-    wsService.subscribeToStatus(activeSession.value.id, (data) => {
-      if (data.type === 'status' && activeSession.value) {
-        activeSession.value.status = data.status
-      }
-      if (data.type === 'exit') {
-        activeSession.value.status = data.status
-      }
-    })
   } catch (error) {
-    console.error('Failed to connect WebSocket:', error)
-    isConnected.value = false
+    console.error('Failed to load active session:', error)
   }
 }
 
-const getSessionStatusClass = () => {
-  if (!activeSession.value) return ''
-  const status = activeSession.value.status?.toLowerCase()
-  return `session-${status}`
+const isTaskRunning = (taskId) => {
+  return runningTasks.value.has(taskId)
 }
 
-const getSessionStatusText = () => {
-  if (!activeSession.value) return 'No Session'
-  return activeSession.value.status || 'Unknown'
-}
 
-const getMessageRole = (role) => {
-  return role === 'user' ? 'You' : 'Assistant'
-}
 
-const formatMessageTime = (timestamp) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
-const formatMessageContent = (content) => {
-  return content
-}
 
-const formatMessage = (content) => {
-  // Simple markdown-like formatting
-  return content
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br>')
-}
 
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
+
+
+
+
+
+
+
+
+
 
 const toggleFileDiff = (path) => {
   if (expandedDiffs.value.has(path)) {
@@ -803,49 +554,26 @@ const toggleFileDiff = (path) => {
   expandedDiffs.value = new Set(expandedDiffs.value)
 }
 
-const isTaskRunning = (taskId) => {
-  return runningTasks.value.has(taskId)
-}
 
-// Watch for task selection changes
-watch([selectedTask], async () => {
-  if (selectedTask.value) {
-    await loadActiveSession()
-  }
-})
 
-// Watch for active session changes to update runningTasks
-watch([activeSession], () => {
-  // Clear all running tasks
-  runningTasks.value.clear()
 
-  // Add task from active session if running
-  if (activeSession.value?.task_id &&
-      (activeSession.value.status === 'RUNNING' || activeSession.value.status === 'IDLE')) {
-    runningTasks.value.add(activeSession.value.task_id)
-  }
-}, { immediate: true, deep: true })
+
 
 // Lifecycle
 onMounted(() => {
   fetchProjects()
 })
 
-// Auto-resize textarea
-const autoResizeTextarea = () => {
-  if (chatInput.value) {
-    chatInput.value.style.height = 'auto'
-    chatInput.value.style.height = Math.min(chatInput.value.scrollHeight, 200) + 'px'
-  }
-}
+onUnmounted(() => {
+  
+})
 
-watch(inputText, autoResizeTextarea)
 </script>
 
 <style scoped>
 .app-container {
   display: flex;
-  height: 100vh;
+  height: 100%;
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   color: var(--text-primary);
   overflow: hidden;
@@ -983,19 +711,20 @@ watch(inputText, autoResizeTextarea)
 
 .filter-btn {
   flex: 1;
-  padding: 8px 12px;
+  padding: 12px 8px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .filter-btn:hover {
@@ -1011,11 +740,10 @@ watch(inputText, autoResizeTextarea)
 
 .filter-count {
   background: rgba(255, 255, 255, 0.15);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
   font-weight: 600;
-  flex-shrink: 0;
 }
 
 .filter-btn:not(.active) .filter-count {
@@ -1311,139 +1039,11 @@ watch(inputText, autoResizeTextarea)
   width: fit-content;
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #666;
-}
 
-.session-running .status-dot {
-  background: #22c55e;
-  box-shadow: 0 0 8px #22c55e;
-  animation: pulse 1.5s infinite;
-}
 
-.session-idle .status-dot {
-  background: #f59e0b;
-  box-shadow: 0 0 8px #f59e0b;
-}
 
-.session-stopped .status-dot {
-  background: #666;
-}
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
-}
 
-/* Messages */
-.messages-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  min-height: 0;
-  background: linear-gradient(180deg, transparent 0%, var(--bg-primary) 100%);
-}
-
-.messages-empty {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 60px 40px;
-}
-
-.messages-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.message {
-  display: flex;
-  gap: 12px;
-  max-width: 85%;
-  animation: messageIn 0.3s ease;
-}
-
-@keyframes messageIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.message-user {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-}
-
-.message-assistant {
-  align-self: flex-start;
-}
-
-.message-avatar {
-  font-size: 24px;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-tertiary);
-  border-radius: 50%;
-}
-
-.message-content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.message-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  padding: 0 4px;
-}
-
-.message-role {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.message-time {
-  color: var(--text-muted);
-}
-
-.message-body {
-  background: var(--bg-secondary);
-  padding: 14px 18px;
-  border-radius: 16px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.message-user .message-body {
-  background: linear-gradient(135deg, #6366f1 0%, #5c5cff 100%);
-  color: white;
-  border-radius: 16px 16px 4px 16px;
-  box-shadow: 0 4px 12px rgba(92, 92, 255, 0.25);
-}
-
-.message-assistant .message-body {
-  border-radius: 16px 16px 16px 4px;
-  border: 1px solid var(--border-color);
-}
 
 /* Task Summary */
 .task-summary {
@@ -1526,74 +1126,13 @@ watch(inputText, autoResizeTextarea)
   margin-right: 4px;
 }
 
-/* Chat Input */
-.chat-input-container {
-  padding: 16px 24px 24px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
 
-.chat-input-wrapper {
-  display: flex;
-  gap: 12px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 10px;
-  transition: all 0.2s ease;
-}
 
-.chat-input-wrapper:focus-within {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(92, 92, 255, 0.1);
-}
 
-.chat-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.5;
-  resize: none;
-  max-height: 200px;
-  font-family: inherit;
-  padding: 4px;
-}
 
-.chat-input:focus {
-  outline: none;
-}
 
-.chat-input::placeholder {
-  color: var(--text-muted);
-}
 
-.send-btn {
-  background: linear-gradient(135deg, #6366f1 0%, #5c5cff 100%);
-  border: none;
-  border-radius: 12px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(92, 92, 255, 0.25);
-}
 
-.send-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(92, 92, 255, 0.35);
-}
-
-.send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-}
 
 /* Changes Panel */
 .changes-panel {
@@ -1947,29 +1486,21 @@ watch(inputText, autoResizeTextarea)
     font-size: 12px;
   }
 
-  .chat-header{
-    padding: 14px 18px;
-  }
+  
 
   .chat-task-title{
     font-size: 15px;
   }
 
-  .chat-header-actions{
-    gap: 6px;
-  }
+  
 
-  .messages-container{
-    padding: 18px;
-  }
+  
 
   .message{
     max-width: 92%;
   }
 
-  .chat-input-container{
-    padding: 14px 18px 18px;
-  }
+  
 
   .modal{
     max-width: calc(100% - 32px);

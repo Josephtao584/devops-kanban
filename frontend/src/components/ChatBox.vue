@@ -1,5 +1,9 @@
 <template>
   <div class="chat-box">
+    <!-- Debug info (temporary) -->
+    <div style="padding: 4px 8px; background: #f0f0f0; font-size: 11px; color: #666;">
+      Debug: status={{ session?.status }} | canSend={{ canSendMessage }} | claudeId={{ session?.claudeSessionId?.substring(0, 8) || 'none' }}
+    </div>
     <!-- Header -->
     <div class="chat-header">
       <div class="header-left">
@@ -8,6 +12,9 @@
           <span class="status-dot"></span>
           {{ statusText }}
         </span>
+        <span v-if="session?.claudeSessionId" class="claude-session-id">
+          Session: {{ session.claudeSessionId }}
+        </span>
       </div>
       <div class="header-actions">
         <el-button
@@ -15,7 +22,6 @@
           type="primary"
           size="small"
           :loading="isStarting"
-          :disabled="!session"
           @click="startSession"
         >
           <el-icon><VideoPlay /></el-icon> Start
@@ -80,22 +86,20 @@
 
     <!-- Input Area -->
     <div class="chat-input-container">
-      <div v-if="!session || !(session.status === 'RUNNING' || session.status === 'IDLE')" class="input-disabled-overlay">
-        <span>Start the session to send messages</span>
-      </div>
-      <div class="chat-input-wrapper" :class="{ disabled: !session || !(session.status === 'RUNNING' || session.status === 'IDLE') }">
+
+      <div class="chat-input-wrapper">
         <el-input
           v-model="inputText"
           type="textarea"
           :rows="1"
           :autosize="{ minRows: 1, maxRows: 4 }"
           placeholder="Type a message... (Enter to send)"
-          :disabled="!isConnected"
+          :disabled="false"
           @keyup.enter.exact="sendMessage"
         />
         <el-button
           type="primary"
-          :disabled="!inputText.trim() || !isConnected"
+          :disabled="!inputText.trim()"
           @click="sendMessage"
         >
           <el-icon><Position /></el-icon>
@@ -129,7 +133,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['session-created', 'session-stopped', 'status-change'])
+const emit = defineEmits(['session-created', 'session-stopped', 'status-change', 'request-agent-select'])
 
 // State
 const session = ref(null)
@@ -144,9 +148,50 @@ const messagesContainer = ref(null)
 const initialPrompt = ref(null)
 const initialPromptFiltered = ref(false)
 
+// Waiting state and timer
+const isWaitingForResponse = ref(false)
+const waitingStartTime = ref(null)
+const elapsedSeconds = ref(0)
+let waitingTimer = null
+
+// Start waiting timer
+const startWaitingTimer = () => {
+  isWaitingForResponse.value = true
+  waitingStartTime.value = Date.now()
+  elapsedSeconds.value = 0
+  if (waitingTimer) clearInterval(waitingTimer)
+  waitingTimer = setInterval(() => {
+    if (waitingStartTime.value) {
+      elapsedSeconds.value = Math.floor((Date.now() - waitingStartTime.value) / 1000)
+    }
+  }, 1000)
+}
+
+// Stop waiting timer
+const stopWaitingTimer = () => {
+  isWaitingForResponse.value = false
+  waitingStartTime.value = null
+  if (waitingTimer) {
+    clearInterval(waitingTimer)
+    waitingTimer = null
+  }
+}
+
+// Format elapsed time
+const formatElapsedTime = computed(() => {
+  const seconds = elapsedSeconds.value
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}m ${remainingSeconds}s`
+})
+
 // Computed
 const statusClass = computed(() => {
   if (!session.value) return 'status-none'
+  if (isWaitingForResponse.value) return 'status-running'
   const status = session.value.status?.toLowerCase()
   if (status === 'running') return 'status-running'
   if (status === 'idle') return 'status-idle'
@@ -157,7 +202,40 @@ const statusClass = computed(() => {
 
 const statusText = computed(() => {
   if (!session.value) return 'No Session'
+  if (isWaitingForResponse.value) {
+    return `运行中 ${formatElapsedTime.value}`
+  }
   return session.value.status || 'Unknown'
+})
+
+// Check if user can send messages
+const canSendMessage = computed(() => {
+  if (!session.value) {
+    console.log('[canSendMessage] No session')
+    return false
+  }
+  const status = session.value.status
+  const claudeSessionId = session.value.claudeSessionId
+  console.log('[canSendMessage] status:', status, 'claudeSessionId:', claudeSessionId)
+  // Can send if running/idle, or if stopped but has claudeSessionId (can resume)
+  if (['RUNNING', 'IDLE'].includes(status)) return true
+  if (['STOPPED', 'COMPLETED'].includes(status) && claudeSessionId) return true
+  console.log('[canSendMessage] returning false')
+  return false
+})
+
+// Reason why input is disabled
+const inputDisabledReason = computed(() => {
+  if (!session.value) return 'No active session'
+  const status = session.value.status
+  if (['RUNNING', 'IDLE'].includes(status)) return ''
+  if (['STOPPED', 'COMPLETED'].includes(status) && !session.value.claudeSessionId) {
+    return 'Session ended - no resume capability (session ID not found)'
+  }
+  if (['STOPPED', 'COMPLETED'].includes(status)) {
+    return '' // Can resume
+  }
+  return 'Start the session to send messages'
 })
 
 // Task status and priority display
@@ -300,8 +378,9 @@ const loadActiveSession = async () => {
 }
 
 const createSession = async () => {
+  console.log('createSession called, agentId:', props.agentId)
   if (!props.agentId) {
-    ElMessage.warning('Please select an agent first')
+    emit('request-agent-select', props.task)
     return null
   }
 
@@ -404,15 +483,43 @@ const sendMessage = async () => {
   messages.value.push(createMessage('user', input))
   scrollToBottom()
 
+  // Start waiting timer
+  startWaitingTimer()
+
   try {
-    if (isConnected.value) {
+    const status = session.value.status
+    // If session is stopped/completed but has claudeSessionId, use continue API
+    if (['STOPPED', 'COMPLETED'].includes(status) && session.value.claudeSessionId) {
+      console.log('Resuming session with claudeSessionId:', session.value.claudeSessionId)
+      const response = await sessionApi.continue(session.value.id, input)
+      if (response.success && response.data) {
+        // Update session data to get new status (RUNNING)
+        session.value = response.data
+        emit('status-change', session.value.status)
+        // Force reconnect WebSocket to receive new output
+        disconnectWebSocket()
+        if (['RUNNING', 'IDLE'].includes(response.data.status)) {
+          await connectWebSocket()
+        }
+      } else {
+        stopWaitingTimer()
+        ElMessage.error(response.message || 'Failed to continue session')
+        // Restore input on failure
+        inputText.value = input
+        messages.value.pop()
+      }
+    } else if (isConnected.value) {
       wsService.sendInput(session.value.id, input)
     } else {
       await sessionApi.sendInput(session.value.id, input)
     }
   } catch (e) {
+    stopWaitingTimer()
     console.error('Failed to send message:', e)
     ElMessage.error('Failed to send message')
+    // Restore input on error
+    inputText.value = input
+    messages.value.pop()
   }
 }
 
@@ -438,17 +545,31 @@ const connectWebSocket = async () => {
   }
 
   try {
+    // 确保连接建立
     if (!wsService.isConnected()) {
+      console.log('[ChatBox] Connecting WebSocket...')
       await wsService.connect()
+      // 等待一小段时间确保连接稳定
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // 再次检查连接状态
+    if (!wsService.isConnected()) {
+      console.warn('[ChatBox] WebSocket not connected after connect()')
+      return
     }
 
     isConnected.value = true
+    console.log('[ChatBox] WebSocket connected, subscribing to session', session.value.id)
 
     wsService.subscribeToOutput(session.value.id, (data) => {
       console.log('Received output:', data)
       if (data.type === 'chunk') {
         const role = data.stream === 'stdin' ? 'user' : 'assistant'
         if (role !== 'user') {
+          // Stop waiting timer when receiving response
+          stopWaitingTimer()
+
           if (shouldFilterContent(data.content)) {
             return
           }
@@ -477,16 +598,32 @@ const connectWebSocket = async () => {
       }
     })
 
-    wsService.subscribeToStatus(session.value.id, (data) => {
+    wsService.subscribeToStatus(session.value.id, async (data) => {
       if (data.type === 'status' && session.value) {
         session.value.status = data.status
         emit('status-change', data.status)
+        // Stop waiting timer when status changes to IDLE
+        if (data.status === 'IDLE') {
+          stopWaitingTimer()
+        }
       }
       if (data.type === 'exit') {
+        stopWaitingTimer()
         if (session.value) {
           session.value.status = data.status
         }
         emit('status-change', data.status)
+        // Refresh session data to get claudeSessionId for resume capability
+        try {
+          const response = await sessionApi.getById(session.value.id)
+          if (response.success && response.data) {
+            // Use Object.assign to ensure reactivity
+            Object.assign(session.value, response.data)
+            console.log('Session refreshed, claudeSessionId:', session.value.claudeSessionId)
+          }
+        } catch (e) {
+          console.error('Failed to refresh session:', e)
+        }
       }
     })
   } catch (e) {
@@ -524,10 +661,20 @@ onMounted(() => {
 
 onUnmounted(() => {
   disconnectWebSocket()
+  stopWaitingTimer()
 })
 
 // Watch for agent changes
 watch(() => props.agentId, async (newAgentId, oldAgentId) => {
+  console.log('[ChatBox] agentId changed:', oldAgentId, '->', newAgentId)
+  // If agentId changes from null/undefined to a value, create a session
+  if ((oldAgentId == null || oldAgentId === undefined) && newAgentId != null) {
+    console.log('[ChatBox] Agent selected, creating session...')
+    await createSession()
+    return
+  }
+
+  // If changing to a different agent and there's an existing session, stop it
   if (oldAgentId && newAgentId !== oldAgentId && session.value) {
     await stopSession()
     session.value = null
@@ -575,7 +722,8 @@ defineExpose({
 .chat-box {
   display: flex;
   flex-direction: column;
-  height: 500px;
+  flex: 1;
+  min-height: 0;
   background-color: var(--bg-secondary);
   border-radius: 12px;
   overflow: hidden;
@@ -587,7 +735,7 @@ defineExpose({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 16px;
   background-color: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -610,6 +758,15 @@ defineExpose({
   gap: 6px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.claude-session-id {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  background: rgba(144, 147, 153, 0.1);
+  border-radius: 4px;
 }
 
 .status-dot {
@@ -653,7 +810,7 @@ defineExpose({
 
 /* Task summary styles */
 .task-summary {
-  padding: 10px 16px;
+  padding: 8px 16px;
   background-color: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -701,8 +858,9 @@ defineExpose({
 
 .messages-area {
   flex: 1;
+  min-height: 0;  /* 关键：允许 flex 收缩 */
   overflow-y: auto;
-  padding: 20px;
+  padding: 12px;
   background-color: var(--bg-secondary);
 }
 
@@ -711,7 +869,8 @@ defineExpose({
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   color: var(--text-muted);
 }
 
@@ -782,12 +941,13 @@ defineExpose({
 }
 
 .message-content {
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+  font-family: 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .message-user .message-content {
@@ -806,35 +966,17 @@ defineExpose({
 .chat-input-container {
   position: relative;
   border-top: 1px solid var(--border-color);
-}
-
-.input-disabled-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: var(--text-secondary);
-  font-size: 13px;
-  z-index: 10;
-  pointer-events: none;
+  background-color: var(--bg-tertiary);
+  flex-shrink: 0;
 }
 
 .chat-input-wrapper {
   display: flex;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   background-color: var(--bg-tertiary);
 }
 
-.chat-input-wrapper.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
 
 .chat-input-wrapper .el-textarea {
   flex: 1;
@@ -844,6 +986,10 @@ defineExpose({
   resize: none;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 14px;
 }
 
 .chat-input-wrapper .el-textarea :deep(textarea:focus) {
