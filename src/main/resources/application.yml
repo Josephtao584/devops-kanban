@@ -17,4 +17,4 @@ app:
   storage:
     path: ./data
   cors:
-    origins: http://localhost:5173,http://localhost:3000,http://localhost:3001
+    origins: http://localhost:5173,http://localhost:3000,http://localhost:3001,http://localhost:3002

@@ -1,24 +1,24 @@
 <template>
   <div class="chat-box">
-    <!-- Header with status -->
+    <!-- Header -->
     <div class="chat-header">
-      <div class="status-indicator">
-        <span
-          class="status-dot"
-          :class="statusClass"
-        ></span>
-        <span class="status-text">{{ statusText }}</span>
+      <div class="header-left">
+        <span class="header-title">Agent Chat</span>
+        <span class="header-status" :class="statusClass">
+          <span class="status-dot"></span>
+          {{ statusText }}
+        </span>
       </div>
-      <div class="control-buttons">
+      <div class="header-actions">
         <el-button
           v-if="!session || session.status === 'CREATED' || session.status === 'STOPPED'"
-          type="success"
+          type="primary"
           size="small"
           :loading="isStarting"
           :disabled="!session"
           @click="startSession"
         >
-          Start
+          <el-icon><VideoPlay /></el-icon> Start
         </el-button>
         <el-button
           v-if="session && (session.status === 'RUNNING' || session.status === 'IDLE')"
@@ -27,86 +27,73 @@
           :loading="isStopping"
           @click="stopSession"
         >
-          Stop
+          <el-icon><VideoPause /></el-icon> Stop
         </el-button>
         <el-button
-          v-if="session"
-          type="info"
+          v-if="session && messages.length > 0"
           size="small"
-          :disabled="session.status === 'RUNNING' || session.status === 'IDLE'"
           @click="clearMessages"
         >
-          Clear
+          <el-icon><Delete /></el-icon>
         </el-button>
       </div>
     </div>
 
     <!-- Messages Area -->
     <div ref="messagesContainer" class="messages-area">
-      <div v-if="!session" class="chat-placeholder">
-        <el-empty description="No active session" :image-size="60">
-          <template #description>
-            <p>Select an agent and create a session to start</p>
-          </template>
-        </el-empty>
+      <div v-if="!session" class="chat-empty">
+        <div class="empty-icon">
+          <el-icon :size="48"><ChatDotRound /></el-icon>
+        </div>
+        <p class="empty-text">No active session</p>
+        <p class="empty-hint">Select an agent and start a session to begin chatting</p>
       </div>
-      <div v-else-if="messages.length === 0" class="chat-placeholder">
-        <p>Session ready. Click "Start" to begin...</p>
+      <div v-else-if="messages.length === 0" class="chat-empty">
+        <div class="empty-icon">
+          <el-icon :size="48"><ChatLineRound /></el-icon>
+        </div>
+        <p class="empty-text">Ready to chat</p>
+        <p class="empty-hint">Click "Start" to begin the conversation</p>
       </div>
       <div v-else class="messages-list">
-        <div v-if="session && session.status === 'STOPPED'" class="history-indicator">
-          <el-icon><Clock /></el-icon>
-          Historical conversation - session stopped
-        </div>
         <div
           v-for="msg in messages"
           :key="msg.id"
-          class="message-wrapper"
+          class="message"
           :class="`message-${msg.role}`"
         >
-          <div class="message-avatar">
-            <el-avatar
-              v-if="msg.role === 'user'"
-              :size="32"
-              class="avatar-user"
-            >
-              <el-icon><User /></el-icon>
-            </el-avatar>
-            <el-avatar
-              v-else
-              :size="32"
-              class="avatar-assistant"
-            >
-              <el-icon><Monitor /></el-icon>
-            </el-avatar>
+          <div class="message-header">
+            <span class="message-role">{{ getMessageRole(msg.role) }}</span>
+            <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
           </div>
-          <div class="message-bubble">
-            <div class="message-content">{{ msg.content }}</div>
-            <div class="message-time">{{ formatMessageTime(msg.timestamp) }}</div>
-          </div>
+          <div class="message-content">{{ msg.content }}</div>
         </div>
       </div>
     </div>
 
     <!-- Input Area -->
-    <div class="chat-input" v-if="session && (session.status === 'RUNNING' || session.status === 'IDLE')">
-      <el-input
-        v-model="inputText"
-        type="textarea"
-        :rows="1"
-        :autosize="{ minRows: 1, maxRows: 4 }"
-        placeholder="Type your message and press Enter to send..."
-        :disabled="!isConnected"
-        @keyup.enter.exact="sendMessage"
-      />
-      <el-button
-        type="primary"
-        :disabled="!inputText.trim()"
-        @click="sendMessage"
-      >
-        <el-icon><Position /></el-icon>
-        Send
-      </el-button>
+    <div class="chat-input-container">
+      <div v-if="!session || !(session.status === 'RUNNING' || session.status === 'IDLE')" class="input-disabled-overlay">
+        <span>Start the session to send messages</span>
+      </div>
+      <div class="chat-input-wrapper" :class="{ disabled: !session || !(session.status === 'RUNNING' || session.status === 'IDLE') }">
+        <el-input
+          v-model="inputText"
+          type="textarea"
+          :rows="1"
+          :autosize="{ minRows: 1, maxRows: 4 }"
+          placeholder="Type a message... (Enter to send)"
+          :disabled="!isConnected"
+          @keyup.enter.exact="sendMessage"
+        />
+        <el-button
+          type="primary"
+          :disabled="!inputText.trim() || !isConnected"
+          @click="sendMessage"
+        >
+          <el-icon><Position /></el-icon>
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -114,11 +101,11 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { User, Monitor, Position, Clock } from '@element-plus/icons-vue'
+import { Position, VideoPlay, VideoPause, Delete, ChatDotRound, ChatLineRound } from '@element-plus/icons-vue'
 import wsService from '../services/websocket'
 import sessionApi from '../api/session'
 import { createMessage } from '../types/chat'
-import { parseOutputToMessages, parseWebSocketData } from '../utils/messageParser'
+import { parseOutputToMessages } from '../utils/messageParser'
 
 const props = defineProps({
   task: {
@@ -146,6 +133,10 @@ const isStopping = ref(false)
 const isConnected = ref(false)
 const messagesContainer = ref(null)
 
+// Store initial prompt for filtering
+const initialPrompt = ref(null)
+const initialPromptFiltered = ref(false)
+
 // Computed
 const statusClass = computed(() => {
   if (!session.value) return 'status-none'
@@ -169,17 +160,82 @@ const formatMessageTime = (timestamp) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+// Get display role name for messages
+const getMessageRole = (role) => {
+  if (role === 'user') return 'You'
+  return 'Assistant'
+}
+
+// Check if content is the initial prompt (should be filtered out)
+const isInitialPrompt = (content) => {
+  if (!initialPrompt.value) return false
+  if (initialPromptFiltered.value) return false
+
+  const normalizedContent = content.trim()
+  const normalizedPrompt = initialPrompt.value.trim()
+
+  // Exact match or content starts with the full prompt
+  if (normalizedContent === normalizedPrompt || normalizedContent.startsWith(normalizedPrompt)) {
+    return true
+  }
+
+  // Check if content starts with the first line of prompt (for chunked messages)
+  const promptFirstLine = initialPrompt.value.split('\n')[0]?.trim()
+  if (promptFirstLine && normalizedContent.startsWith(promptFirstLine)) {
+    return true
+  }
+
+  return false
+}
+
+// Filter out initial prompt from content (only filter once)
+const shouldFilterContent = (content) => {
+  if (!isInitialPrompt(content)) return false
+
+  // Mark as filtered after detecting initial prompt
+  initialPromptFiltered.value = true
+  return true
+}
+
+// Get content with initial prompt removed (for partial filtering)
+const getContentWithoutInitialPrompt = (content) => {
+  if (!initialPrompt.value) return content
+  if (!isInitialPrompt(content)) return content
+
+  // Mark as filtered
+  initialPromptFiltered.value = true
+
+  const normalizedContent = content.trim()
+  const normalizedPrompt = initialPrompt.value.trim()
+
+  // Remove full prompt prefix
+  if (normalizedContent.startsWith(normalizedPrompt)) {
+    const rest = normalizedContent.slice(normalizedPrompt.length).trim()
+    return rest
+  }
+
+  // Remove first line prefix (for chunked messages)
+  const promptFirstLine = initialPrompt.value.split('\n')[0]?.trim()
+  if (promptFirstLine && normalizedContent.startsWith(promptFirstLine)) {
+    const rest = normalizedContent.slice(promptFirstLine.length).trim()
+    return rest
+  }
+
+  return content
+}
+
 const loadActiveSession = async () => {
   try {
     const response = await sessionApi.getActiveByTask(props.task.id)
     if (response.success && response.data) {
       session.value = response.data
-      // Load existing output as messages
+      if (response.data.initialPrompt) {
+        initialPrompt.value = response.data.initialPrompt
+      }
       if (response.data.output) {
         messages.value = parseOutputToMessages(response.data.output)
         scrollToBottom()
       }
-      // Connect WebSocket if session is running
       if (['RUNNING', 'IDLE'].includes(response.data.status)) {
         connectWebSocket()
       }
@@ -199,6 +255,10 @@ const createSession = async () => {
     const response = await sessionApi.create(props.task.id, props.agentId)
     if (response.success && response.data) {
       session.value = response.data
+      if (response.data.initialPrompt) {
+        initialPrompt.value = response.data.initialPrompt
+        initialPromptFiltered.value = false
+      }
       emit('session-created', session.value)
       connectWebSocket()
       return session.value
@@ -219,14 +279,12 @@ const startSession = async () => {
     if (!session.value) return
   }
 
-  // Prevent duplicate start
   if (isStarting.value) {
     console.warn('Session is already starting')
     return
   }
 
   isStarting.value = true
-  // Add system message
   messages.value.push(createMessage('system', 'Starting session...'))
 
   try {
@@ -235,19 +293,21 @@ const startSession = async () => {
       session.value = response.data
       emit('status-change', session.value.status)
 
-      // Remove the "starting" message
+      if (response.data.initialPrompt) {
+        initialPrompt.value = response.data.initialPrompt
+        initialPromptFiltered.value = false
+      }
+
       messages.value = messages.value.filter(m => m.role !== 'system')
 
-      // Load existing output from the response
       if (response.data.output) {
-        messages.value = parseOutputToMessages(response.data.output)
+        const parsedMessages = parseOutputToMessages(response.data.output)
+        messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
         scrollToBottom()
       }
 
-      // Connect WebSocket after session starts (to avoid duplicate subscriptions)
       await connectWebSocket()
 
-      // If no messages yet, show waiting message
       if (messages.value.length === 0) {
         messages.value.push(createMessage('assistant', 'Session started. Waiting for output...'))
       }
@@ -287,7 +347,6 @@ const sendMessage = async () => {
   const input = inputText.value.trim()
   inputText.value = ''
 
-  // Add user message to chat
   messages.value.push(createMessage('user', input))
   scrollToBottom()
 
@@ -305,6 +364,7 @@ const sendMessage = async () => {
 
 const clearMessages = () => {
   messages.value = []
+  initialPromptFiltered.value = false
 }
 
 const scrollToBottom = () => {
@@ -318,7 +378,6 @@ const scrollToBottom = () => {
 const connectWebSocket = async () => {
   if (!session.value) return
 
-  // Prevent duplicate connection
   if (isConnected.value) {
     console.log('WebSocket already connected for session', session.value.id)
     return
@@ -331,27 +390,39 @@ const connectWebSocket = async () => {
 
     isConnected.value = true
 
-    // Subscribe to output
     wsService.subscribeToOutput(session.value.id, (data) => {
       console.log('Received output:', data)
-      // Handle chunk message type from backend
       if (data.type === 'chunk') {
         const role = data.stream === 'stdin' ? 'user' : 'assistant'
-        // For user messages from stdin, we already added them in sendMessage
-        // So only add non-user messages
         if (role !== 'user') {
-          messages.value.push({
-            id: data.timestamp || Date.now(),
-            role,
-            content: data.content,
-            timestamp: data.timestamp
-          })
-          scrollToBottom()
+          if (shouldFilterContent(data.content)) {
+            return
+          }
+
+          const cleanedContent = getContentWithoutInitialPrompt(data.content)
+          if (cleanedContent !== data.content) {
+            if (cleanedContent) {
+              messages.value.push({
+                id: data.timestamp || Date.now(),
+                role,
+                content: cleanedContent,
+                timestamp: data.timestamp
+              })
+              scrollToBottom()
+            }
+          } else {
+            messages.value.push({
+              id: data.timestamp || Date.now(),
+              role,
+              content: data.content,
+              timestamp: data.timestamp
+            })
+            scrollToBottom()
+          }
         }
       }
     })
 
-    // Subscribe to status
     wsService.subscribeToStatus(session.value.id, (data) => {
       if (data.type === 'status' && session.value) {
         session.value.status = data.status
@@ -380,8 +451,13 @@ const disconnectWebSocket = () => {
 onMounted(() => {
   if (props.initialSession) {
     session.value = props.initialSession
+    if (props.initialSession.initialPrompt) {
+      initialPrompt.value = props.initialSession.initialPrompt
+      initialPromptFiltered.value = false
+    }
     if (props.initialSession.output) {
-      messages.value = parseOutputToMessages(props.initialSession.output)
+      const parsedMessages = parseOutputToMessages(props.initialSession.output)
+      messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
       scrollToBottom()
     }
     if (['RUNNING', 'IDLE'].includes(props.initialSession.status)) {
@@ -402,21 +478,24 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
     await stopSession()
     session.value = null
     messages.value = []
+    initialPrompt.value = null
+    initialPromptFiltered.value = false
   }
 })
 
 // Watch for initialSession changes from parent
-// Only load output if session has output and messages are empty
-// Note: No immediate: true to avoid duplicate calls with onMounted
 watch(() => props.initialSession, (newSession) => {
   if (newSession) {
     session.value = newSession
-    // Only load output if messages are empty (avoid duplicate loading)
+    if (newSession.initialPrompt) {
+      initialPrompt.value = newSession.initialPrompt
+      initialPromptFiltered.value = false
+    }
     if (newSession.output && messages.value.length === 0) {
-      messages.value = parseOutputToMessages(newSession.output)
+      const parsedMessages = parseOutputToMessages(newSession.output)
+      messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
       scrollToBottom()
     }
-    // Connect WebSocket if session is running and not already connected
     if (['RUNNING', 'IDLE'].includes(newSession.status) && !isConnected.value) {
       connectWebSocket()
     }
@@ -442,187 +521,243 @@ defineExpose({
 .chat-box {
   display: flex;
   flex-direction: column;
-  height: 400px;
-  background: #f5f7fa;
-  border-radius: 8px;
+  height: 500px;
+  background: #ffffff;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #e4e7ed;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.status-indicator {
+.header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+
+.header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  animation: pulse 2s infinite;
+  background: #9ca3af;
 }
 
-.status-none { background: #c0c4cc; }
-.status-created { background: #409eff; }
-.status-running { background: #67c23a; animation: pulse 1s infinite; }
-.status-idle { background: #e6a23c; }
-.status-stopped { background: #909399; }
-.status-error { background: #f56c6c; }
+.status-running .status-dot {
+  background: #22c55e;
+  animation: pulse 1.5s infinite;
+}
+
+.status-idle .status-dot {
+  background: #eab308;
+}
+
+.status-stopped .status-dot {
+  background: #6b7280;
+}
+
+.status-error .status-dot {
+  background: #ef4444;
+}
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 
-.status-text {
-  color: #606266;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.control-buttons {
+.header-actions {
   display: flex;
   gap: 8px;
+}
+
+.header-actions .el-button {
+  font-size: 12px;
+  padding: 6px 12px;
 }
 
 .messages-area {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  background: #f5f7fa;
+  padding: 20px;
+  background: #ffffff;
 }
 
-.chat-placeholder {
+.chat-empty {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 100%;
-  color: #909399;
+  color: #9ca3af;
 }
 
-.chat-placeholder :deep(.el-empty__description p) {
-  color: #909399;
+.empty-icon {
+  color: #d1d5db;
+  margin-bottom: 16px;
+}
+
+.empty-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.history-indicator {
+.message {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #909399;
-  font-size: 12px;
-  font-style: italic;
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  background: rgba(144, 147, 153, 0.1);
-  border-radius: 4px;
-}
-
-.message-wrapper {
-  display: flex;
-  gap: 8px;
+  flex-direction: column;
   max-width: 85%;
 }
 
 .message-user {
   align-self: flex-end;
+  align-items: flex-end;
+}
+
+.message-assistant,
+.message-system {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.message-user .message-header {
   flex-direction: row-reverse;
 }
 
-.message-assistant {
-  align-self: flex-start;
-}
-
-.message-system {
-  align-self: center;
-  background: #e6a23c;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 4px;
+.message-role {
   font-size: 12px;
+  font-weight: 600;
+  color: #374151;
 }
 
-.message-avatar {
-  flex-shrink: 0;
-}
-
-.avatar-user {
-  background: #409eff;
-}
-
-.avatar-assistant {
-  background: #67c23a;
-}
-
-.message-bubble {
-  padding: 10px 14px;
-  border-radius: 12px;
-  max-width: 100%;
-  word-break: break-word;
-}
-
-.message-user .message-bubble {
-  background: #409eff;
-  color: white;
-  border-radius: 16px 16px 4px 16px;
-}
-
-.message-assistant .message-bubble {
-  background: #fff;
-  color: #303133;
-  border-radius: 16px 16px 16px 4px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.message-content {
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: pre-wrap;
+.message-user .message-role {
+  color: #2563eb;
 }
 
 .message-time {
-  font-size: 10px;
-  margin-top: 4px;
-  opacity: 0.7;
+  font-size: 11px;
+  color: #9ca3af;
 }
 
-.message-user .message-time {
-  text-align: right;
+.message-content {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.chat-input {
+.message-user .message-content {
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 12px 12px 4px 12px;
+}
+
+.message-assistant .message-content,
+.message-system .message-content {
+  background: #f3f4f6;
+  color: #1f2937;
+  border-radius: 12px 12px 12px 4px;
+}
+
+.chat-input-container {
+  position: relative;
+  border-top: 1px solid #e5e7eb;
+}
+
+.input-disabled-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #6b7280;
+  font-size: 13px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.chat-input-wrapper {
   display: flex;
   gap: 8px;
-  padding: 12px;
-  background: #fff;
-  border-top: 1px solid #e4e7ed;
+  padding: 12px 16px;
+  background: #f9fafb;
 }
 
-.chat-input .el-textarea {
+.chat-input-wrapper.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.chat-input-wrapper .el-textarea {
   flex: 1;
 }
 
-.chat-input .el-button {
+.chat-input-wrapper .el-textarea :deep(textarea) {
+  resize: none;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.chat-input-wrapper .el-textarea :deep(textarea:focus) {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.chat-input-wrapper .el-button {
+  height: auto;
   align-self: flex-end;
+  border-radius: 8px;
 }
 
 /* Scrollbar styling */
 .messages-area::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .messages-area::-webkit-scrollbar-track {
@@ -630,11 +765,11 @@ defineExpose({
 }
 
 .messages-area::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
-  border-radius: 3px;
+  background: #e5e7eb;
+  border-radius: 4px;
 }
 
 .messages-area::-webkit-scrollbar-thumb:hover {
-  background: #909399;
+  background: #d1d5db;
 }
 </style>
