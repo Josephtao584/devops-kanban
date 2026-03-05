@@ -28,7 +28,7 @@ public class BridgeConfig {
     /**
      * Bridge server port
      */
-    private int port = 3001;
+    private int port = 3002;
 
     /**
      * HTTP request timeout in milliseconds

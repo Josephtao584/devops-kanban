@@ -21,12 +21,37 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+/**
+ * Auto-detect Claude CLI path based on platform
+ */
+function findClaudeCliPath() {
+  const platform = process.platform;
+
+  if (platform === 'win32') {
+    return 'C:\\Users\\Administrator\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js';
+  } else if (platform === 'darwin') {
+    // macOS - check common locations
+    const macPaths = [
+      '/usr/local/bin/claude',
+      '/opt/homebrew/bin/claude',
+      process.env.HOME + '/.npm-global/bin/claude'
+    ];
+    for (const p of macPaths) {
+      if (fs.existsSync(p)) return p;
+    }
+    // Fallback: assume claude is in PATH
+    return 'claude';
+  } else {
+    // Linux and others - assume claude is in PATH
+    return 'claude';
+  }
+}
+
 // Configuration
 const CONFIG = {
   port: process.env.BRIDGE_PORT || 3002,
   host: process.env.BRIDGE_HOST || 'localhost',
-  claudeCliPath: process.env.CLAUDE_CLI_PATH ||
-    'C:\\Users\\Administrator\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js',
+  claudeCliPath: process.env.CLAUDE_CLI_PATH || findClaudeCliPath(),
   outputFormat: 'stream-json',
   logLevel: process.env.LOG_LEVEL || 'info'
 };
@@ -175,12 +200,21 @@ async function handleStartSession(req, res) {
     processEnv.NO_COLOR = '1';
 
     // Build command arguments
-    const args = [CONFIG.claudeCliPath, '--output-format', CONFIG.outputFormat];
+    let command, args;
+    if (CONFIG.claudeCliPath.endsWith('.js')) {
+      // Windows: run via node
+      command = 'node';
+      args = [CONFIG.claudeCliPath, '--output-format', CONFIG.outputFormat];
+    } else {
+      // macOS/Linux: run directly
+      command = CONFIG.claudeCliPath;
+      args = ['--output-format', CONFIG.outputFormat];
+    }
 
-    log.info(`[Session-${sessionId}] Spawning Claude CLI | Args: node ${args.join(' ')}`);
+    log.info(`[Session-${sessionId}] Spawning Claude CLI | Command: ${command} ${args.join(' ')}`);
 
     // Spawn Claude CLI process
-    const childProcess = spawn('node', args, {
+    const childProcess = spawn(command, args, {
       cwd: workDir,
       env: processEnv,
       stdio: ['pipe', 'pipe', 'pipe'],

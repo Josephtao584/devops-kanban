@@ -1,0 +1,86 @@
+Warning: Ignores instruction to use SSLv2
+Warning: Ignores instruction to use SSLv2
+* Uses proxy env variable no_proxy == 'localhost,127.0.0.1,::1,*.local,.local,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+* Uses proxy env variable http_proxy == 'http://localhost:54918'
+* Uses proxy env variable no_proxy == 'localhost,127.0.0.1,::1,*.local,.local,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+* Uses proxy env variable http_proxy == 'http://localhost:54918'
+* Host localhost:54918 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+* Host localhost:54918 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total     % Total    % Received % X % Received % Xferd  Average Sferd  Average Speed   Time    Timepeed   Time    Time     Time  Curre     Time  Current
+           nt
+                                               Dload         Dload  Upload   Tota Upload   Total   Spent    Ll   Spent    Left  Speed
+eft  Speed
+  0   0     0       0    0     0    0  0     0    0     0      0      0      0      0 --:--:--    0 --:--:-- --:--:-- --:- --:--:-- --:--:--     0-:--     0*   Trying [::1]:54918...
+*   Trying [::1]:54918...
+* connect to ::1 port 54918 from ::1 port 63707 failed: Connection refused
+* connect to ::1 port 54918 from ::1 port 63707 failed: Connection refused
+*   Trying 127.0.0.1:54918...
+*   Trying 127.0.0.1:54918...
+* Connected to localhost (127.0.0.1) port 54918
+* Connected to localhost (127.0.0.1) port 54918
+> GET http://0.0.0.7/ HTTP/1.0
+> Host: 0.0.0.7
+> User-Agent: curl/8.7.1
+> Accept: */*
+> Proxy-Connection: Keep-Alive
+> Origin: http://localhost:3000
+> Content-Type: application/json
+> > GET http://0.0.0.7/ HTTP/1.0
+> Host: 0.0.0.7
+> User-Agent: curl/8.7.1
+> Accept: */*
+> Proxy-Connection: Keep-Alive
+> Origin: http://localhost:3000
+> Content-Type: application/json
+> 
+* Request completely sent off
+
+* Request completely sent off
+  0     0    0     0    0     0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:-  0      0      0 --:--:--  0:00:01 --:--:--     0-     0  0     0    0     0  0     0    0     0    0     0      0      0 --:--:-    0     0      0      0 --:--:--  0:00:02 --:---  0:00:02 --:--:--     0:--     0  0     0      0     0    0     0    0     0      0      0 --:--:-- 0     0    0     0      0      0 --:--:--  0:00:03 --:--:--      0:00:03 --:--:--     00    0     0    0     0    0     0      00     0    0     0    0     0      0      0 --:--:-      0 --:--:--  0:00:04-  0:00:04 --:--:--     0 --:--:--     0  0     0    0     0    0  0     0    0     0    0     0      0      0 --:--:--  0:00:05 --:--:-     0      0      0 --:--:--  0:00:05 --:--:--     0-     0  0     0    0      0     0    0     0    0     0      0      0 -- 0    0     0      0      0 --:--:--  0:00:06:--:--  0:00:06 --:--:--     0 --:--:--     0< HTTP/1.1 502 Bad Gateway
+< HTTP/1.1 502 Bad Gateway
+< Content-Type: text/plain
+< Date: Wed, 04 Mar 2026 02:58:14 GMT
+< Connection: close
+< 
+{ < Content-Type: text/plain
+< Date: Wed, 04 Mar 2026 02:58:14 GMT
+< Connection: close
+< 
+{ [11 bytes [11 bytes data]
+data]
+100    11    0100    11    0    11    0       11    0     0      1      0      1      0 --:--:--    0 --:--:--  0:00:06 --:--:--    0:00:06 --:--:--     2 210100    11    00    11    0    11    0     0         11    0     0      1      0 --:--:--   1      0 --:--:--  0:00:06 --:--:--     3
+* Closing connection
+0:00:06 --:--:--     3
+* Closing connection
+* Uses proxy env variable no_proxy == 'localhost,127.0.0.1,::1,*.local,.local,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+* Host localhost:3000 was resolved.
+* Uses proxy env variable no_proxy == 'localhost,127.0.0.1,::1,*.local,.local,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
+* Host localhost:3000 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total    % Received %* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total    % Received % Xferd  Av Xferd  Average Speed erage Speed   Time    Time     Time  Current
+                   Time    Time     Time  Current
+                                 Dload  Upload   Tota                Dload  Upload   Total   Spent    Left  Speed
+  l   Spent    Left  Speed
+  0     0   0     0    0      0     0    0    0    0     0  0      0      0 --:--:--      0      0 --:--:-- --:--:-- --:--:--:-- --:--:--     --:--     00*   Trying [::1]:3000...
+*   Trying [::1]:3000...
+* Immediate connect fail for ::1: Operation not permitted
+* Immediate connect fail for ::1: Operation not permitted
+*   Trying 127.0.0.1:3000...
+*   Trying 127.0.0.1:3000...
+* Immediate connect fail for 127.0.0.1: Operation not permitted
+* Immediate connect fail for 127.0.0.1: Operation not permitted
+* Failed to connect to localhost port 3000 after 0 ms: Couldn't connect to server
+ * Failed to connect to localhost port 3000 after 0 ms: Couldn't connect to server
+  0     0   0     0    0     0   0     0    0        0     0   0      0         0      0 --:--:--0 --:--:-- --:--:--  --:--:-- --:--:--     0
+* Closing connection
+cu--:--:--     0
+* Closing connection
+curl: rl: (7) Failed to connect to localho(7) Failed to connect to localhost port 3000 aftest port 3000 after 0 ms: r 0 ms: Couldn't connecCouldn't connect to servet to server
+r

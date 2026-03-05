@@ -220,6 +220,12 @@ public class SessionService {
 
         log.info("[Session-{}] Bridge session started | PID: {} | Status: {}",
             session.getId(), bridgeSession.getPid(), bridgeSession.getStatus());
+
+        // Start WebSocket connection to Bridge,接收实时输出
+        bridgeWebSocketClient.connectToBridge(bridgeSessionId, session.getId());
+
+        log.info("[Session-{}] WebSocket connection to Bridge initiated | BridgeSessionId: {}",
+            session.getId(), bridgeSessionId);
     }
 
     /**
@@ -273,6 +279,13 @@ public class SessionService {
             // Stop via bridge
             log.info("[Session-{}] Stopping via bridge | BridgeSessionId: {}", sessionId, session.getSessionId());
             bridgeClient.stopSession(session.getSessionId());
+            // Close WebSocket connection to bridge
+            bridgeWebSocketClient.disconnectFromBridge(session.getSessionId());
+
+        if (useBridge) {
+            // Stop via bridge
+            log.info("[Session-{}] Stopping via bridge | BridgeSessionId: {}", sessionId, session.getSessionId());
+            bridgeClient.stopSession(session.getSessionId());
         } else {
             // Stop via PTY
             processManager.stopProcess(sessionId);
@@ -311,15 +324,14 @@ public class SessionService {
 
         // Check if session was started via bridge
         boolean useBridge = bridgeConfig.isEnabled() &&
-            bridgeClient.getSession(session.getSessionId()) != null;
+            bridgeWebSocketClient.isConnected(session.getSessionId());
 
         if (useBridge) {
-            // For bridge mode, input is handled via WebSocket
-            // The frontend should connect directly to the bridge WebSocket
-            // Here we just log and return true since actual input is handled by bridge
-            log.debug("[Session-{}] Bridge mode - input handled via bridge WebSocket", sessionId);
-            return true;
+            // Use BridgeWebSocketClient to send input
+            log.debug("[Session-{}] Bridge mode - sending input via BridgeWebSocketClient", sessionId);
+            return bridgeWebSocketClient.sendInput(session.getSessionId(), input);
         } else {
+            log.warn("[Session-{}] PTY mode - cannot send input: {} | sessionId);
             return processManager.sendInput(sessionId, input);
         }
     }
@@ -414,8 +426,9 @@ public class SessionService {
         // Cleanup process resources
         processManager.cleanup(sessionId);
 
-        // Cleanup bridge session tracking
+        // Cleanup bridge session tracking and WebSocket connection
         bridgeClient.removeSession(session.getSessionId());
+        bridgeWebSocketClient.disconnectFromBridge(session.getSessionId());
 
         // Delete session
         sessionRepository.delete(sessionId);

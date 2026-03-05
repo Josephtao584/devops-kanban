@@ -65,6 +65,20 @@
             <version>7.2.1.202505142326-r</version>
         </dependency>
 
+        <!-- PTY4J for pseudo-terminal support -->
+        <dependency>
+            <groupId>org.jetbrains.pty4j</groupId>
+            <artifactId>pty4j</artifactId>
+            <version>0.13.3</version>
+        </dependency>
+
+        <!-- Java-WebSocket for Bridge WebSocket client -->
+        <dependency>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>1.5.4</version>
+        </dependency>
+
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
