@@ -173,11 +173,9 @@ public class ClaudeCodeExecutor {
             sessionOutputs.put(sessionId, outputBuilder);
             sessionRawJson.put(sessionId, new StringBuilder());
 
-            // Record initial prompt as user input (for message parsing)
-            if (initialPrompt != null && !initialPrompt.isEmpty()) {
-                outputBuilder.append("\n> ").append(initialPrompt).append("\n");
-                log.info("[Session-{}] Recorded initial prompt as user input ({} chars)", sessionId, initialPrompt.length());
-            }
+            // Initial prompt is passed via session.initialPrompt field
+            // Do NOT record it in output to avoid duplication with CLI echo
+            // The frontend will display initialPrompt from the session object
 
             OutputStream stdin = process.getOutputStream();
             sessionStdins.put(sessionId, stdin);
@@ -283,22 +281,12 @@ public class ClaudeCodeExecutor {
                             String result = jsonNode.get("result").asText();
                             log.info("[Session-{}] Extracted result from JSON ({} chars)", sessionId, result.length());
 
-                            // Remove initialPrompt prefix from result if present (avoid echo duplication)
+                            // Remove initialPrompt echo from result if present (CLI echoes the prompt argument)
                             Session sessionOpt = sessionRepository.findById(sessionId).orElse(null);
                             if (sessionOpt != null) {
                                 String prompt = sessionOpt.getInitialPrompt();
                                 if (prompt != null && !prompt.isEmpty()) {
-                                    // Trim both strings for comparison to handle whitespace differences
-                                    String trimmedResult = result.trim();
-                                    String trimmedPrompt = prompt.trim();
-                                    if (trimmedResult.startsWith(trimmedPrompt)) {
-                                        // Find the actual position in original result to preserve formatting
-                                        int idx = result.indexOf(trimmedPrompt);
-                                        if (idx >= 0) {
-                                            result = result.substring(idx + trimmedPrompt.length()).trim();
-                                            log.info("[Session-{}] Removed initialPrompt echo from result (prompt: '{}')", sessionId, trimmedPrompt);
-                                        }
-                                    }
+                                    result = removePromptEcho(sessionId, result, prompt);
                                 }
                             }
 
@@ -531,6 +519,88 @@ public class ClaudeCodeExecutor {
                 .replaceAll("[\\x00-\\x1F\\x7F]", "")
                 // Also remove any remaining [X sequences (simplified ANSI without ESC)
                 .replaceAll("\\[[0-9;]*[A-Za-z]", "");
+    }
+
+    /**
+     * Remove initial prompt echo from CLI result.
+     * CLI echoes the prompt argument at the start of output, which needs to be removed
+     * to avoid duplication (prompt is displayed from session.initialPrompt instead).
+     */
+    private String removePromptEcho(Long sessionId, String result, String prompt) {
+        if (result == null || result.isEmpty() || prompt == null || prompt.isEmpty()) {
+            return result;
+        }
+
+        String trimmedResult = result.trim();
+        String trimmedPrompt = prompt.trim();
+
+        // Strategy 1: Exact match at start
+        if (trimmedResult.startsWith(trimmedPrompt)) {
+            int idx = result.indexOf(trimmedPrompt);
+            if (idx >= 0) {
+                String remaining = result.substring(idx + trimmedPrompt.length());
+                // Remove leading whitespace/newlines after the prompt
+                remaining = remaining.replaceFirst("^[\\s\\n\\r]+", "");
+                log.info("[Session-{}] Removed prompt echo (exact match, {} chars)", sessionId, trimmedPrompt.length());
+                return remaining;
+            }
+        }
+
+        // Strategy 2: Multi-line prompt - check if first few lines match
+        String[] promptLines = trimmedPrompt.split("\\r?\\n", 2);
+        String[] resultLines = trimmedResult.split("\\r?\\n", 2);
+        if (promptLines.length > 0 && resultLines.length > 0) {
+            String firstPromptLine = promptLines[0].trim();
+            String firstResultLine = resultLines[0].trim();
+            if (!firstPromptLine.isEmpty() && firstResultLine.equals(firstPromptLine)) {
+                // First line matches, find and remove the entire prompt section
+                int firstLineIdx = result.indexOf(firstPromptLine);
+                if (firstLineIdx >= 0) {
+                    // Calculate end position after prompt
+                    int promptEndIdx = firstLineIdx + firstPromptLine.length();
+                    // Also skip any continuation lines that match the prompt
+                    if (promptLines.length > 1 && resultLines.length > 1) {
+                        String secondPromptLine = promptLines[1].trim();
+                        if (!secondPromptLine.isEmpty()) {
+                            int secondLineStart = result.indexOf(secondPromptLine, promptEndIdx);
+                            if (secondLineStart >= 0 && secondLineStart < promptEndIdx + 100) {
+                                promptEndIdx = secondLineStart + secondPromptLine.length();
+                            }
+                        }
+                    }
+                    String remaining = result.substring(promptEndIdx);
+                    remaining = remaining.replaceFirst("^[\\s\\n\\r]+", "");
+                    log.info("[Session-{}] Removed prompt echo (line-by-line match)", sessionId);
+                    return remaining;
+                }
+            }
+        }
+
+        // Strategy 3: Check for prompt anywhere in first 200 chars (with tolerance for whitespace)
+        String normalizedResult = trimmedResult.replaceAll("\\s+", " ");
+        String normalizedPrompt = trimmedPrompt.replaceAll("\\s+", " ");
+        if (normalizedResult.startsWith(normalizedPrompt)) {
+            // Find the end of the original prompt in result
+            int endIdx = 0;
+            int promptCharIdx = 0;
+            for (int i = 0; i < result.length() && promptCharIdx < prompt.length(); i++) {
+                char rc = result.charAt(i);
+                char pc = prompt.charAt(promptCharIdx);
+                if (rc == pc || (Character.isWhitespace(rc) && Character.isWhitespace(pc))) {
+                    promptCharIdx++;
+                }
+                endIdx = i + 1;
+            }
+            if (promptCharIdx >= prompt.length() * 0.9) { // At least 90% matched
+                String remaining = result.substring(endIdx);
+                remaining = remaining.replaceFirst("^[\\s\\n\\r]+", "");
+                log.info("[Session-{}] Removed prompt echo (fuzzy match)", sessionId);
+                return remaining;
+            }
+        }
+
+        log.debug("[Session-{}] No prompt echo detected in result", sessionId);
+        return result;
     }
 
     public void cleanup(Long sessionId) {
