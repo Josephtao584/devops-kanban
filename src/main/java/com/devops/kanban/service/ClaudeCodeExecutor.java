@@ -71,65 +71,35 @@ public class ClaudeCodeExecutor {
             sessionId, claudeCliPath, worktreePath, isResume);
 
         try {
-            // 1. Build command - on Windows, wrap with cmd /c to set UTF-8 code page first
-            // This is critical for emoji/unicode support on Windows (CP936/GBK vs UTF-8)
+            // 1. Build command - ConPTY provides native UTF-8 support on Windows
             List<String> command = new ArrayList<>();
-            List<String> innerCommand = new ArrayList<>();
 
             if (claudeCliPath.endsWith(".js")) {
-                innerCommand.add("node");
-                innerCommand.add(claudeCliPath);
+                command.add("node");
+                command.add(claudeCliPath);
             } else {
-                innerCommand.add(claudeCliPath);
+                command.add(claudeCliPath);
             }
 
             // Use print mode (-p) for clean output
             // Process will exit after completion, use --resume for multi-turn conversation
-            innerCommand.add("-p");
-            innerCommand.add("--dangerously-skip-permissions");
-            innerCommand.add("--output-format");
-            innerCommand.add("json");
+            command.add("-p");
+            command.add("--dangerously-skip-permissions");
+            command.add("--output-format");
+            command.add("json");
 
             // Add --resume with session ID if this is a continuation
             if (claudeSessionId != null && !claudeSessionId.isEmpty()) {
-                innerCommand.add("--resume");
-                innerCommand.add(claudeSessionId);
+                command.add("--resume");
+                command.add(claudeSessionId);
                 log.info("[Session-{}] Using --resume with Claude session ID: {}", sessionId, claudeSessionId);
             }
 
             // Pass initial prompt as command argument (works in interactive mode too)
             // Frontend will filter this from the output to avoid duplication
             if (initialPrompt != null && !initialPrompt.isEmpty()) {
-                innerCommand.add(initialPrompt);
+                command.add(initialPrompt);
                 log.info("[Session-{}] Passing initial prompt as command argument ({} chars)", sessionId, initialPrompt.length());
-            }
-
-            if (PlatformUtils.isWindows()) {
-                // On Windows: wrap with cmd /c to set UTF-8 code page (65001) before running command
-                // This ensures PTY output is UTF-8 encoded instead of default GBK/CP936
-                // Note: Must pass as single string to cmd /c for shell operators (>nul, &&) to work
-                String innerCommandStr = String.join(" ", innerCommand);
-                // Quote the inner command if it contains spaces (e.g., paths with spaces)
-                if (innerCommandStr.contains(" ") && !innerCommandStr.startsWith("\"")) {
-                    // More robust quoting: quote individual path arguments that contain spaces
-                    StringBuilder quotedCmd = new StringBuilder();
-                    for (String part : innerCommand) {
-                        if (part.contains(" ") || part.contains("(") || part.contains(")")) {
-                            quotedCmd.append("\"").append(part).append("\"");
-                        } else {
-                            quotedCmd.append(part);
-                        }
-                        quotedCmd.append(" ");
-                    }
-                    innerCommandStr = quotedCmd.toString().trim();
-                }
-                command.add("cmd");
-                command.add("/c");
-                command.add("chcp 65001 >nul && " + innerCommandStr);
-                log.info("[Session-{}] Using Windows UTF-8 code page wrapper (chcp 65001)", sessionId);
-            } else {
-                // On Unix: use command directly (UTF-8 is default)
-                command.addAll(innerCommand);
             }
 
             // 2. Build environment - include necessary system variables
@@ -183,12 +153,19 @@ public class ClaudeCodeExecutor {
 
             log.info("[Session-{}] Using print mode with permission bypass (nested execution enabled)", sessionId);
 
-            // 3. Start PTY process
-            PtyProcess process = new PtyProcessBuilder()
+            // 3. Start PTY process with ConPTY for proper UTF-8 support on Windows
+            PtyProcessBuilder builder = new PtyProcessBuilder()
                     .setCommand(command.toArray(new String[0]))
                     .setDirectory(worktreePath.toString())
-                    .setEnvironment(env)
-                    .start();
+                    .setEnvironment(env);
+
+            // Enable ConPTY on Windows for UTF-8 emoji support
+            if (PlatformUtils.isWindows()) {
+                builder.setUseWinConPty(true);
+                log.info("[Session-{}] Using ConPTY for UTF-8 support", sessionId);
+            }
+
+            PtyProcess process = builder.start();
 
             activeProcesses.put(sessionId, process);
             sessionStartTimes.put(sessionId, System.currentTimeMillis());
@@ -259,6 +236,7 @@ public class ClaudeCodeExecutor {
         byte[] buffer = new byte[BUFFER_SIZE];
         int bytesRead;
         long totalBytes = 0;
+        boolean processExited = false;
 
         try {
             StringBuilder rawJsonBuilder = sessionRawJson.get(sessionId);
@@ -267,15 +245,52 @@ public class ClaudeCodeExecutor {
                 sessionRawJson.put(sessionId, rawJsonBuilder);
             }
 
-            while ((bytesRead = inputStream.read(buffer)) != -1) {
-                // Decode as UTF-8 (chcp 65001 should make PTY output UTF-8 on Windows)
+            // Use available() to check for data without blocking indefinitely
+            // When process exits, ConPTY may not return -1 from read()
+            PtyProcess process = activeProcesses.get(sessionId);
+
+            while (!processExited) {
+                // Check if there's data available to read
+                int available = inputStream.available();
+
+                if (available > 0) {
+                    bytesRead = inputStream.read(buffer, 0, Math.min(available, buffer.length));
+                    if (bytesRead == -1) {
+                        log.info("[Session-{}] Stream returned -1 (EOF)", sessionId);
+                        break;
+                    }
+                } else {
+                    // No data available - check if process is still alive
+                    if (process != null && !process.isAlive()) {
+                        // Process exited, try one more read in case of remaining data
+                        bytesRead = inputStream.read(buffer);
+                        if (bytesRead == -1) {
+                            log.info("[Session-{}] Process exited, stream ended", sessionId);
+                            break;
+                        }
+                        // Process the remaining data and then exit loop
+                        processExited = true;
+                    } else {
+                        // Process still running, wait a bit for more data
+                        try {
+                            Thread.sleep(50);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            log.debug("[Session-{}] Read interrupted", sessionId);
+                            break;
+                        }
+                        continue;
+                    }
+                }
+
+                // Decode as UTF-8 (ConPTY provides native UTF-8 support on Windows)
                 String chunk = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
                 totalBytes += bytesRead;
 
                 // Detect encoding issues (replacement character indicates UTF-8 decode failure)
                 if (chunk.contains("\uFFFD")) {
                     log.warn("[Session-{}] Encoding issue detected: replacement character (U+FFFD) found in output. " +
-                        "PTY may not be using UTF-8 encoding despite chcp 65001.", sessionId);
+                        "ConPTY may not be working correctly.", sessionId);
                 }
 
                 // Log raw chunk for debugging (first 10KB only)

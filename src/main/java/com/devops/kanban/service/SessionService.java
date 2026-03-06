@@ -105,6 +105,10 @@ public class SessionService {
         log.debug("[Session] Creating worktree | LocalPath: {} | Branch: {}", localPath, branch);
         Path worktree = gitService.createWorktree(localPath, task.getProjectId(), branch);
 
+        // Generate initialPrompt at creation time so frontend can display it
+        TaskDTO taskDTO = converter.toDTO(task);
+        String initialPrompt = promptBuilder.buildInitialPrompt(taskDTO);
+
         // Create session record
         Session session = Session.builder()
                 .taskId(taskId)
@@ -114,6 +118,7 @@ public class SessionService {
                 .branch(branch)
                 .sessionId(UUID.randomUUID().toString())
                 .startedAt(LocalDateTime.now())
+                .initialPrompt(initialPrompt)
                 .build();
 
         session = sessionRepository.save(session);
