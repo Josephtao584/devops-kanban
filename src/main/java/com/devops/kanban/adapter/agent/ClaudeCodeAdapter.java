@@ -124,13 +124,13 @@ public class ClaudeCodeAdapter implements AgentAdapter {
 
     private String buildPrompt(TaskDTO task) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("Task: ").append(task.getTitle()).append("\n\n");
+        prompt.append("**Task:** ").append(task.getTitle()).append("\n");
 
         if (task.getDescription() != null && !task.getDescription().isEmpty()) {
-            prompt.append("Description:\n").append(task.getDescription()).append("\n\n");
+            prompt.append("**Description:** ").append(task.getDescription()).append("\n");
         }
 
-        prompt.append("Please complete this task. Make the necessary changes and ensure the code works correctly.");
+        prompt.append("\nPlease complete this task. Make the necessary changes and ensure the code works correctly.");
 
         return prompt.toString();
     }

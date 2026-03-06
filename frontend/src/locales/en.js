@@ -55,11 +55,12 @@ export default {
     addTask: '+ Add Task'
   },
   status: {
-    TODO: 'To Do',
-    IN_PROGRESS: 'In Progress',
-    IN_REVIEW: 'In Review',
-    DONE: 'Done',
-    BLOCKED: 'Blocked'
+    TODO: 'Pending',
+    DESIGN: 'Design',
+    DEVELOPMENT: 'Development',
+    TESTING: 'Testing',
+    RELEASE: 'Release',
+    DONE: 'Done'
   },
   priority: {
     LOW: 'Low',

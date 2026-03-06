@@ -3,101 +3,77 @@ package com.devops.kanban.repository.impl;
 import com.devops.kanban.entity.Execution;
 import com.devops.kanban.repository.ExecutionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Repository
-public class FileExecutionRepository implements ExecutionRepository {
+public class FileExecutionRepository extends AbstractFileRepository<Execution, Long> implements ExecutionRepository {
 
-    private final Path dataDir;
-    private final ObjectMapper mapper;
-    private final AtomicLong idGenerator = new AtomicLong(0);
-
-    public FileExecutionRepository(@Value("${app.storage.path:./data}") String storagePath) {
-        this.dataDir = Paths.get(storagePath);
-        this.mapper = new ObjectMapper()
-                .registerModule(new JavaTimeModule());
-        loadIdGenerator();
+    public FileExecutionRepository(@org.springframework.beans.factory.annotation.Value("${app.storage.path:./data}") String storagePath) {
+        super(storagePath, new TypeReference<List<Execution>>() {}, Execution::getId);
     }
 
-    private Path getFilePath() {
+    @Override
+    protected Path getFilePath() {
         return dataDir.resolve("executions.json");
-    }
-
-    private List<Execution> readAll() {
-        try {
-            File file = getFilePath().toFile();
-            if (!file.exists()) {
-                return new ArrayList<>();
-            }
-            return mapper.readValue(file, new TypeReference<List<Execution>>() {});
-        } catch (IOException e) {
-            return new ArrayList<>();
-        }
-    }
-
-    private void writeAll(List<Execution> executions) {
-        try {
-            Files.createDirectories(dataDir);
-            mapper.writerWithDefaultPrettyPrinter().writeValue(getFilePath().toFile(), executions);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to write executions", e);
-        }
-    }
-
-    private void loadIdGenerator() {
-        List<Execution> executions = readAll();
-        long maxId = executions.stream()
-                .mapToLong(e -> e.getId() != null ? e.getId() : 0)
-                .max()
-                .orElse(0);
-        idGenerator.set(maxId);
     }
 
     @Override
     public List<Execution> findByTaskId(Long taskId) {
         return readAll().stream()
-                .filter(e -> e.getTaskId().equals(taskId))
+                .filter(e -> e.getTaskId() != null && e.getTaskId().equals(taskId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Finds all executions for the given task IDs.
+     *
+     * @param taskIds the list of task IDs to search for
+     * @return list of executions belonging to any of the specified tasks
+     */
+    @Override
+    public List<Execution> findByTaskIds(List<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return readAll().stream()
+                .filter(e -> e.getTaskId() != null && taskIds.contains(e.getTaskId()))
                 .collect(Collectors.toList());
     }
 
     @Override
     public Optional<Execution> findById(Long id) {
-        return readAll().stream()
-                .filter(e -> e.getId().equals(id))
-                .findFirst();
+        return findByIdGeneric(id);
     }
 
     @Override
     public Execution save(Execution execution) {
-        List<Execution> executions = new ArrayList<>(readAll());
-
-        if (execution.getId() == null) {
-            execution.setId(getNextId());
-        }
-
-        executions.removeIf(e -> e.getId().equals(execution.getId()));
-        executions.add(execution);
-
-        writeAll(executions);
-        return execution;
+        return saveGeneric(execution, (e, id) -> {
+            if (e.getId() == null) {
+                e.setId(id);
+            }
+        });
     }
 
+    /**
+     * Deletes all executions for the given task IDs.
+     * This is used for cascade deletion when tasks are deleted.
+     *
+     * @param taskIds the list of task IDs whose executions should be deleted
+     */
     @Override
-    public Long getNextId() {
-        return idGenerator.incrementAndGet();
+    public void deleteByTaskIds(List<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return;
+        }
+        List<Execution> remaining = readAll().stream()
+                .filter(e -> e.getTaskId() == null || !taskIds.contains(e.getTaskId()))
+                .collect(Collectors.toList());
+        writeAll(remaining);
     }
 }

@@ -24,8 +24,8 @@
           <template #header>
             <div class="card-header">
               <el-icon size="24"><Folder /></el-icon>
-              <el-dropdown trigger="click" @click.stop>
-                <el-button link>
+              <el-dropdown trigger="click">
+                <el-button link @click.stop>
                   <el-icon><MoreFilled /></el-icon>
                 </el-button>
                 <template #dropdown>

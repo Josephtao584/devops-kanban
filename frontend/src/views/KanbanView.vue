@@ -1,171 +1,491 @@
 <template>
   <div class="app-container">
-    <!-- Left Sidebar - Task List -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <div class="project-selector">
-          <select
-            v-model="selectedProjectId"
-            @change="onProjectChange"
-            :disabled="loading.projects"
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="project-selector">
+        <select
+          v-model="selectedProjectId"
+          @change="onProjectChange"
+          :disabled="loading.projects"
+        >
+          <option value="" disabled>{{ $t('project.selectProject') }}</option>
+          <option
+            v-for="project in projects"
+            :key="project.id"
+            :value="project.id"
           >
-            <option value="" disabled>{{ $t('project.selectProject') }}</option>
-            <option
-              v-for="project in projects"
-              :key="project.id"
-              :value="project.id"
+            {{ project.name }}
+          </option>
+        </select>
+      </div>
+      <button
+        class="btn btn-primary btn-icon"
+        @click="openTaskModal()"
+        :disabled="!selectedProjectId"
+        title="New Task"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Main Content: Kanban Board + Chat -->
+    <div class="main-content">
+      <!-- Kanban Board -->
+      <div class="kanban-board">
+        <!-- TODO Column -->
+        <div class="kanban-column" data-status="TODO">
+          <div class="column-header">
+            <span class="column-status status-todo"></span>
+            <span class="column-title">待处理</span>
+            <span class="column-count">{{ todoTasks.length }}</span>
+          </div>
+          <div class="column-content">
+            <draggable
+              v-model:list="todoTasks"
+              group="tasks"
+              :animation="200"
+              ghost-class="ghost-card"
+              drag-class="drag-card"
+              :data-status="'TODO'"
+              @end="onDragEnd"
+              item-key="id"
             >
-              {{ project.name }}
-            </option>
-          </select>
-        </div>
-        <button
-          class="btn btn-primary btn-icon"
-          @click="openTaskModal()"
-          :disabled="!selectedProjectId"
-          title="New Task"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Task Filters -->
-      <div class="task-filters">
-        <button
-          v-for="filter in filters"
-          :key="filter.value"
-          class="filter-btn"
-          :class="{ active: activeFilter === filter.value }"
-          @click="activeFilter = filter.value"
-        >
-          {{ filter.label }}
-          <span class="filter-count">{{ getTasksByFilter(filter.value).length }}</span>
-        </button>
-      </div>
-
-      <!-- Task List -->
-      <div class="task-list">
-        <div
-          v-for="task in filteredTasks"
-          :key="task.id"
-          class="task-item"
-          :class="{
-            'task-selected': selectedTask?.id === task.id,
-            'task-running': isTaskRunning(task.id)
-          }"
-          @click="selectTask(task)"
-          @dblclick="openTaskModal(task)"
-        >
-          <div class="task-item-content">
-            <div class="task-item-main">
-              <span class="task-item-status" :class="getStatusClass(task.status)"></span>
-              <span class="task-item-title">{{ task.title }}</span>
-              <span class="task-item-priority" :class="getPriorityClass(task.priority)">
-                {{ getPriorityLabel(task.priority) }}
-              </span>
-            </div>
-            <div class="task-item-meta">
-              <button
-                class="edit-btn"
-                @click.stop="openTaskModal(task)"
-                title="Edit Task"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
-              <button
-                class="delete-btn"
-                @click.stop="deleteTask(task.id)"
-                title="Delete Task"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-              </button>
+              <template #item="{ element }">
+                <div
+                  class="task-card"
+                  :data-id="element.id"
+                  :class="{
+                    'task-selected': selectedTask?.id === element.id,
+                    'task-running': isTaskRunning(element.id)
+                  }"
+                  @click="selectTask(element)"
+                  @dblclick="openTaskModal(element)"
+                >
+                  <div class="task-card-content">
+                    <div class="task-card-main">
+                      <span class="task-card-title">{{ element.title }}</span>
+                      <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                        {{ getPriorityLabel(element.priority) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="edit-btn"
+                        @click.stop="openTaskModal(element)"
+                        title="Edit Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="delete-btn"
+                        @click.stop="deleteTask(element.id)"
+                        title="Delete Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+            <div v-if="todoTasks.length === 0" class="empty-column">
+              <p>暂无待处理任务</p>
             </div>
           </div>
         </div>
-        <div v-if="filteredTasks.length === 0" class="empty-tasks">
+
+        <!-- DESIGN Column -->
+        <div class="kanban-column" data-status="DESIGN">
+          <div class="column-header">
+            <span class="column-status status-design"></span>
+            <span class="column-title">设计</span>
+            <span class="column-count">{{ designTasks.length }}</span>
+          </div>
+          <div class="column-content">
+            <draggable
+              v-model:list="designTasks"
+              group="tasks"
+              :animation="200"
+              ghost-class="ghost-card"
+              drag-class="drag-card"
+              :data-status="'DESIGN'"
+              @end="onDragEnd"
+              item-key="id"
+            >
+              <template #item="{ element }">
+                <div
+                  class="task-card"
+                  :data-id="element.id"
+                  :class="{
+                    'task-selected': selectedTask?.id === element.id,
+                    'task-running': isTaskRunning(element.id)
+                  }"
+                  @click="selectTask(element)"
+                  @dblclick="openTaskModal(element)"
+                >
+                  <div class="task-card-content">
+                    <div class="task-card-main">
+                      <span class="task-card-title">{{ element.title }}</span>
+                      <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                        {{ getPriorityLabel(element.priority) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="edit-btn"
+                        @click.stop="openTaskModal(element)"
+                        title="Edit Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="delete-btn"
+                        @click.stop="deleteTask(element.id)"
+                        title="Delete Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+            <div v-if="designTasks.length === 0" class="empty-column">
+              <p>暂无设计任务</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- DEVELOPMENT Column -->
+        <div class="kanban-column" data-status="DEVELOPMENT">
+          <div class="column-header">
+            <span class="column-status status-development"></span>
+            <span class="column-title">开发</span>
+            <span class="column-count">{{ developmentTasks.length }}</span>
+          </div>
+          <div class="column-content">
+            <draggable
+              v-model:list="developmentTasks"
+              group="tasks"
+              :animation="200"
+              ghost-class="ghost-card"
+              drag-class="drag-card"
+              :data-status="'DEVELOPMENT'"
+              @end="onDragEnd"
+              item-key="id"
+            >
+              <template #item="{ element }">
+                <div
+                  class="task-card"
+                  :data-id="element.id"
+                  :class="{
+                    'task-selected': selectedTask?.id === element.id,
+                    'task-running': isTaskRunning(element.id)
+                  }"
+                  @click="selectTask(element)"
+                  @dblclick="openTaskModal(element)"
+                >
+                  <div class="task-card-content">
+                    <div class="task-card-main">
+                      <span class="task-card-title">{{ element.title }}</span>
+                      <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                        {{ getPriorityLabel(element.priority) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="edit-btn"
+                        @click.stop="openTaskModal(element)"
+                        title="Edit Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="delete-btn"
+                        @click.stop="deleteTask(element.id)"
+                        title="Delete Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+            <div v-if="developmentTasks.length === 0" class="empty-column">
+              <p>暂无开发任务</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TESTING Column -->
+        <div class="kanban-column" data-status="TESTING">
+          <div class="column-header">
+            <span class="column-status status-testing"></span>
+            <span class="column-title">测试</span>
+            <span class="column-count">{{ testingTasks.length }}</span>
+          </div>
+          <div class="column-content">
+            <draggable
+              v-model:list="testingTasks"
+              group="tasks"
+              :animation="200"
+              ghost-class="ghost-card"
+              drag-class="drag-card"
+              :data-status="'TESTING'"
+              @end="onDragEnd"
+              item-key="id"
+            >
+              <template #item="{ element }">
+                <div
+                  class="task-card"
+                  :data-id="element.id"
+                  :class="{
+                    'task-selected': selectedTask?.id === element.id,
+                    'task-running': isTaskRunning(element.id)
+                  }"
+                  @click="selectTask(element)"
+                  @dblclick="openTaskModal(element)"
+                >
+                  <div class="task-card-content">
+                    <div class="task-card-main">
+                      <span class="task-card-title">{{ element.title }}</span>
+                      <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                        {{ getPriorityLabel(element.priority) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="edit-btn"
+                        @click.stop="openTaskModal(element)"
+                        title="Edit Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="delete-btn"
+                        @click.stop="deleteTask(element.id)"
+                        title="Delete Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+            <div v-if="testingTasks.length === 0" class="empty-column">
+              <p>暂无测试任务</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- RELEASE Column -->
+        <div class="kanban-column" data-status="RELEASE">
+          <div class="column-header">
+            <span class="column-status status-release"></span>
+            <span class="column-title">发布</span>
+            <span class="column-count">{{ releaseTasks.length }}</span>
+          </div>
+          <div class="column-content">
+            <draggable
+              v-model:list="releaseTasks"
+              group="tasks"
+              :animation="200"
+              ghost-class="ghost-card"
+              drag-class="drag-card"
+              :data-status="'RELEASE'"
+              @end="onDragEnd"
+              item-key="id"
+            >
+              <template #item="{ element }">
+                <div
+                  class="task-card"
+                  :data-id="element.id"
+                  :class="{
+                    'task-selected': selectedTask?.id === element.id,
+                    'task-running': isTaskRunning(element.id)
+                  }"
+                  @click="selectTask(element)"
+                  @dblclick="openTaskModal(element)"
+                >
+                  <div class="task-card-content">
+                    <div class="task-card-main">
+                      <span class="task-card-title">{{ element.title }}</span>
+                      <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                        {{ getPriorityLabel(element.priority) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="edit-btn"
+                        @click.stop="openTaskModal(element)"
+                        title="Edit Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="delete-btn"
+                        @click.stop="deleteTask(element.id)"
+                        title="Delete Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+            <div v-if="releaseTasks.length === 0" class="empty-column">
+              <p>暂无发布任务</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- DONE Column -->
+        <div class="kanban-column" data-status="DONE">
+          <div class="column-header">
+            <span class="column-status status-done"></span>
+            <span class="column-title">已完成</span>
+            <span class="column-count">{{ doneTasks.length }}</span>
+          </div>
+          <div class="column-content">
+            <draggable
+              v-model:list="doneTasks"
+              group="tasks"
+              :animation="200"
+              ghost-class="ghost-card"
+              drag-class="drag-card"
+              :data-status="'DONE'"
+              @end="onDragEnd"
+              item-key="id"
+            >
+              <template #item="{ element }">
+                <div
+                  class="task-card"
+                  :data-id="element.id"
+                  :class="{
+                    'task-selected': selectedTask?.id === element.id,
+                    'task-running': isTaskRunning(element.id)
+                  }"
+                  @click="selectTask(element)"
+                  @dblclick="openTaskModal(element)"
+                >
+                  <div class="task-card-content">
+                    <div class="task-card-main">
+                      <span class="task-card-title">{{ element.title }}</span>
+                      <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                        {{ getPriorityLabel(element.priority) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="edit-btn"
+                        @click.stop="openTaskModal(element)"
+                        title="Edit Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        class="delete-btn"
+                        @click.stop="deleteTask(element.id)"
+                        title="Delete Task"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </draggable>
+            <div v-if="doneTasks.length === 0" class="empty-column">
+              <p>暂无已完成任务</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state when no tasks at all -->
+        <div v-if="tasks.length === 0" class="empty-board">
           <p>{{ $t('task.noTasks') }}</p>
         </div>
       </div>
-    </aside>
 
-    <!-- Main Chat Area -->
-    <main class="chat-main">
-      <div v-if="!selectedTask" class="chat-welcome">
-        <div class="welcome-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-        </div>
-        <h2>Welcome to DevOps Kanban</h2>
-        <p>Select a task from the sidebar to start working with AI</p>
-      </div>
-
-      <div v-else class="chat-container">
-        <!-- ChatBox Component -->
-        <ChatBox
-          ref="chatBoxRef"
-          :task="selectedTask"
-          :agent-id="selectedAgentId"
-          :initial-session="activeSession"
-          @session-created="onSessionCreated"
-          @session-stopped="onSessionStopped"
-          @status-change="onStatusChange"
-          @request-agent-select="handleRequestAgentSelect"
-        />
-      </div>
-    </main>
-
-    <!-- Right Panel - Code Changes -->
-    <aside class="changes-panel" :class="{ 'panel-collapsed': isPanelCollapsed }">
-      <div class="panel-header">
-        <h4>Code Changes</h4>
-        <button class="collapse-btn" @click="isPanelCollapsed = !isPanelCollapsed">
-          <svg v-if="!isPanelCollapsed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15,18 9,12 15,6"></polyline>
+      <!-- Chat Container -->
+      <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
+        <!-- Toggle button -->
+        <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? '展开聊天框' : '收起聊天框'">
+          <svg v-if="isChatCollapsed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9,18 15,12 9,6"></polyline>
+            <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
-        </button>
-      </div>
-      <div class="panel-content" v-show="!isPanelCollapsed">
-        <div v-if="!activeSession" class="panel-empty">
-          <p>No active session</p>
         </div>
-        <div v-else-if="fileChanges.length === 0" class="panel-empty">
-          <p>No file changes yet</p>
-        </div>
-        <div v-else class="file-changes">
-          <div
-            v-for="file in fileChanges"
-            :key="file.path"
-            class="file-change"
-            @click="toggleFileDiff(file.path)"
-          >
-            <div class="file-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14,2 14,8 20,8"></polyline>
-              </svg>
-              <span class="file-path">{{ file.path }}</span>
-              <span class="file-status" :class="file.status">{{ file.status }}</span>
-            </div>
-            <div v-if="expandedDiffs.has(file.path)" class="file-diff">
-              <pre class="diff-content">{{ file.diff }}</pre>
-            </div>
+
+        <div v-if="!selectedTask" class="chat-welcome">
+          <div class="welcome-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
           </div>
+          <h2>Welcome to DevOps Kanban</h2>
+          <p>选择一个任务开始与 AI 对话</p>
+        </div>
+
+        <div v-else class="chat-content">
+          <!-- ChatBox Component -->
+          <ChatBox
+            ref="chatBoxRef"
+            :task="selectedTask"
+            :agent-id="selectedAgentId"
+            :initial-session="activeSession"
+            @session-created="onSessionCreated"
+            @session-stopped="onSessionStopped"
+            @status-change="onStatusChange"
+            @request-agent-select="handleRequestAgentSelect"
+          />
         </div>
       </div>
-    </aside>
+    </div>
 
     <!-- Task Modal -->
     <div v-if="showTaskModal" class="modal-overlay" @click.self="closeTaskModal">
@@ -195,11 +515,12 @@
             <div class="form-group">
               <label>Status</label>
               <select v-model="taskForm.status">
-                <option value="TODO">To Do</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="IN_REVIEW">In Review</option>
-                <option value="DONE">Done</option>
-                <option value="BLOCKED">Blocked</option>
+                <option value="TODO">待处理</option>
+                <option value="DESIGN">设计</option>
+                <option value="DEVELOPMENT">开发</option>
+                <option value="TESTING">测试</option>
+                <option value="RELEASE">发布</option>
+                <option value="DONE">已完成</option>
               </select>
             </div>
             <div class="form-group">
@@ -237,9 +558,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import projectApi from '../api/project.js'
-import taskApi from '../api/task.js'
-import agentApi from '../api/agent.js'
+import draggable from 'vuedraggable'
+import { useProjectStore } from '../stores/projectStore'
+import { useTaskStore } from '../stores/taskStore'
 import sessionApi from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
@@ -247,9 +568,11 @@ import ChatBox from '../components/ChatBox.vue'
 const route = useRoute()
 const router = useRouter()
 
-// State
-const projects = ref([])
-const tasks = ref([])
+// Use Pinia stores
+const projectStore = useProjectStore()
+const taskStore = useTaskStore()
+
+// Local state
 const selectedProjectId = ref('')
 const selectedTask = ref(null)
 const selectedAgentId = ref(null)
@@ -258,27 +581,16 @@ const isEditing = ref(false)
 const editingTaskId = ref(null)
 const activeSession = ref(null)
 const chatBoxRef = ref(null)
-const isPanelCollapsed = ref(false)
-const expandedDiffs = ref(new Set())
-const fileChanges = ref([])
 const runningTasks = ref(new Set())
+const isChatCollapsed = ref(false)
 
 // Agent selector
 const showAgentSelector = ref(false)
 const pendingTask = ref(null)
 
-// Filter state
-const filters = [
-  { label: '全部', value: 'all' },
-  { label: '待办', value: 'TODO' },
-  { label: '进行中', value: 'IN_PROGRESS' },
-  { label: '已完成', value: 'DONE' }
-]
-const activeFilter = ref('all')
-
 const loading = reactive({
-  projects: false,
-  tasks: false,
+  projects: computed(() => projectStore.loading),
+  tasks: computed(() => taskStore.loading),
   saving: false
 })
 
@@ -290,37 +602,56 @@ const taskForm = reactive({
   assignee: ''
 })
 
-// Computed
-const filteredTasks = computed(() => {
-  if (activeFilter.value === 'all') return tasks.value
-  return tasks.value.filter(t => t.status === activeFilter.value)
-})
+// Computed - get tasks by status from store
+const tasks = computed(() => taskStore.tasks)
+const projects = computed(() => projectStore.projects)
 
+// Refs for each column - these will be updated when tasks change
+const todoTasks = ref(taskStore.tasksByStatus.TODO || [])
+const designTasks = ref(taskStore.tasksByStatus.DESIGN || [])
+const developmentTasks = ref(taskStore.tasksByStatus.DEVELOPMENT || [])
+const testingTasks = ref(taskStore.tasksByStatus.TESTING || [])
+const releaseTasks = ref(taskStore.tasksByStatus.RELEASE || [])
+const doneTasks = ref(taskStore.tasksByStatus.DONE || [])
 
-// Methods
-const getTasksByFilter = (filter) => {
-  if (filter === 'all') return tasks.value
-  return tasks.value.filter(t => t.status === filter)
-}
+// Flag to prevent watch from firing during drag operations
+let isDragging = false
+
+// Watch for changes in taskStore and update column refs
+watch(
+  () => taskStore.tasks,
+  () => {
+    if (isDragging) return
+    todoTasks.value = taskStore.tasksByStatus.TODO || []
+    designTasks.value = taskStore.tasksByStatus.DESIGN || []
+    developmentTasks.value = taskStore.tasksByStatus.DEVELOPMENT || []
+    testingTasks.value = taskStore.tasksByStatus.TESTING || []
+    releaseTasks.value = taskStore.tasksByStatus.RELEASE || []
+    doneTasks.value = taskStore.tasksByStatus.DONE || []
+  },
+  { deep: true }
+)
 
 const getStatusClass = (status) => {
   const classes = {
     TODO: 'status-todo',
-    IN_PROGRESS: 'status-progress',
-    IN_REVIEW: 'status-review',
-    DONE: 'status-done',
-    BLOCKED: 'status-blocked'
+    DESIGN: 'status-design',
+    DEVELOPMENT: 'status-development',
+    TESTING: 'status-testing',
+    RELEASE: 'status-release',
+    DONE: 'status-done'
   }
   return classes[status] || 'status-todo'
 }
 
 const getStatusLabel = (status) => {
   const labels = {
-    TODO: 'To Do',
-    IN_PROGRESS: 'In Progress',
-    IN_REVIEW: 'In Review',
-    DONE: 'Done',
-    BLOCKED: 'Blocked'
+    TODO: '待处理',
+    DESIGN: '设计',
+    DEVELOPMENT: '开发',
+    TESTING: '测试',
+    RELEASE: '发布',
+    DONE: '已完成'
   }
   return labels[status] || status
 }
@@ -346,40 +677,33 @@ const getPriorityLabel = (priority) => {
 }
 
 const fetchProjects = async () => {
-  loading.projects = true
   try {
-    const response = await projectApi.getAll()
-    projects.value = response.data || response || []
+    await projectStore.fetchProjects()
 
-    if (projects.value.length > 0 && !selectedProjectId.value) {
+    if (projectStore.projects.length > 0 && !selectedProjectId.value) {
       const projectIdFromUrl = route.query.projectId
-      if (projectIdFromUrl && projects.value.find(p => String(p.id) === String(projectIdFromUrl))) {
+      if (projectIdFromUrl && projectStore.projects.find(p => String(p.id) === String(projectIdFromUrl))) {
         selectedProjectId.value = projectIdFromUrl
       } else {
-        selectedProjectId.value = projects.value[0].id
+        selectedProjectId.value = projectStore.projects[0].id
       }
       await fetchTasks()
     }
   } catch (error) {
     console.error('Failed to fetch projects:', error)
-  } finally {
-    loading.projects = false
+    ElMessage.error('Failed to load projects')
   }
 }
 
 const fetchTasks = async () => {
   if (!selectedProjectId.value) return
 
-  loading.tasks = true
   try {
-    const response = await taskApi.getByProject(selectedProjectId.value)
-    tasks.value = response.data || response || []
+    await taskStore.fetchTasks(selectedProjectId.value)
     await loadActiveSession()
   } catch (error) {
     console.error('Failed to fetch tasks:', error)
-    tasks.value = []
-  } finally {
-    loading.tasks = false
+    ElMessage.error('Failed to load tasks')
   }
 }
 
@@ -434,20 +758,16 @@ const saveTask = async () => {
     }
 
     if (isEditing.value) {
-      await taskApi.update(editingTaskId.value, taskData)
-      const index = tasks.value.findIndex(t => t.id === editingTaskId.value)
-      if (index !== -1) {
-        tasks.value[index] = { ...tasks.value[index], ...taskData }
-      }
+      await taskStore.updateTask(editingTaskId.value, taskData)
     } else {
-      const response = await taskApi.create(taskData)
-      const newTask = response.data || response
-      tasks.value.push(newTask)
+      await taskStore.createTask(taskData)
     }
 
     closeTaskModal()
+    ElMessage.success(isEditing.value ? 'Task updated' : 'Task created')
   } catch (error) {
     console.error('Failed to save task:', error)
+    ElMessage.error('Failed to save task')
   } finally {
     loading.saving = false
   }
@@ -470,8 +790,7 @@ const deleteTask = async (taskId) => {
 
   loading.saving = true
   try {
-    await taskApi.delete(taskId)
-    tasks.value = tasks.value.filter(t => t.id !== taskId)
+    await taskStore.deleteTask(taskId)
     if (selectedTask.value?.id === taskId) {
       selectedTask.value = null
     }
@@ -485,6 +804,63 @@ const deleteTask = async (taskId) => {
   }
 }
 
+// Drag and drop handler
+const onDragEnd = async (evt) => {
+  // Get the new status from the target column's data-status attribute
+  const newStatus = evt.to?.getAttribute('data-status')
+
+  if (!newStatus) {
+    ElMessage.error('无法确定目标列状态')
+    return
+  }
+
+  // Get taskId from the dragged element
+  const taskId = evt.item?.getAttribute('data-id')
+
+  if (!taskId) {
+    ElMessage.error('无法获取任务 ID')
+    return
+  }
+
+  // Find the task
+  const task = taskStore.tasks.find(t => String(t.id) === String(taskId))
+  if (!task) {
+    ElMessage.error('找不到任务')
+    return
+  }
+
+  // If status hasn't changed, no need to update
+  if (task.status === newStatus) {
+    return
+  }
+
+  // Prevent watch from overwriting the drag changes
+  isDragging = true
+
+  // Update task status in store (this will trigger the watch, but it's blocked by isDragging)
+  const index = taskStore.tasks.findIndex(t => String(t.id) === String(taskId))
+  if (index !== -1) {
+    taskStore.tasks[index] = { ...taskStore.tasks[index], status: newStatus }
+  }
+
+  // Call API to persist
+  try {
+    await taskStore.updateTaskStatus(taskId, newStatus)
+    ElMessage.success(`任务已移动到 ${getStatusLabel(newStatus)}`)
+  } catch (error) {
+    // Revert on error
+    if (index !== -1) {
+      taskStore.tasks[index] = { ...taskStore.tasks[index], status: task.status }
+    }
+    console.error('Failed to update task status:', error)
+    ElMessage.error('更新任务状态失败')
+  } finally {
+    // Allow watch to sync after a short delay
+    setTimeout(() => {
+      isDragging = false
+    }, 100)
+  }
+}
 
 // ChatBox event handlers
 const onSessionCreated = (session) => {
@@ -520,9 +896,12 @@ const loadActiveSession = async () => {
     const response = await sessionApi.getActiveByTask(selectedTask.value.id)
     if (response.success && response.data) {
       activeSession.value = response.data
+    } else {
+      activeSession.value = null  // Ensure invalid sessions are cleared
     }
   } catch (error) {
     console.error('Failed to load active session:', error)
+    activeSession.value = null  // Clear on error as well
   }
 }
 
@@ -530,42 +909,13 @@ const isTaskRunning = (taskId) => {
   return runningTasks.value.has(taskId)
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const toggleFileDiff = (path) => {
-  if (expandedDiffs.value.has(path)) {
-    expandedDiffs.value.delete(path)
-  } else {
-    expandedDiffs.value.add(path)
-  }
-  expandedDiffs.value = new Set(expandedDiffs.value)
-}
-
-
-
-
-
-
 // Lifecycle
 onMounted(() => {
   fetchProjects()
 })
 
 onUnmounted(() => {
-  
+
 })
 
 </script>
@@ -573,33 +923,26 @@ onUnmounted(() => {
 <style scoped>
 .app-container {
   display: flex;
+  flex-direction: column;
   height: 100%;
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   color: var(--text-primary);
   overflow: hidden;
 }
 
-/* Sidebar */
-.sidebar {
-  width: 340px;
-  min-width: 340px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-color);
+/* Top Header */
+.top-header {
   display: flex;
-  flex-direction: column;
-  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
-}
-
-.sidebar-header {
-  display: flex;
-  padding: 16px;
+  padding: 12px 16px;
   gap: 10px;
   border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, var(--bg-tertiary) 0%, transparent 100%);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 
 .project-selector {
   flex: 1;
+  max-width: 300px;
 }
 
 .project-selector select {
@@ -630,6 +973,7 @@ onUnmounted(() => {
   box-shadow: 0 0 0 3px rgba(92, 92, 255, 0.15);
 }
 
+/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -654,17 +998,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
-.btn-danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
-}
-
-.btn-danger:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-}
-
 .btn-secondary {
   background: var(--bg-tertiary);
   color: var(--text-primary);
@@ -676,22 +1009,6 @@ onUnmounted(() => {
   border-color: var(--accent-color);
 }
 
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.btn-ghost:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.btn-sm {
-  padding: 8px 14px;
-  font-size: 12px;
-  border-radius: 8px;
-}
-
 .btn-icon {
   padding: 10px;
   width: 40px;
@@ -700,133 +1017,47 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
-/* Task Filters */
-.task-filters {
+/* Main Content: Kanban Board + Chat */
+.main-content {
   display: flex;
-  padding: 12px 16px 12px 12px;
-  gap: 6px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
-}
-
-.filter-btn {
   flex: 1;
-  padding: 12px 8px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-}
-
-.filter-btn:hover {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.filter-btn.active {
-  background: var(--accent-color);
-  color: white;
-  box-shadow: 0 2px 8px rgba(92, 92, 255, 0.25);
-}
-
-.filter-count {
-  background: rgba(255, 255, 255, 0.15);
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.filter-btn:not(.active) .filter-count {
-  background: var(--bg-primary);
-}
-
-/* Task List */
-.task-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.task-item {
-  padding: 14px 16px;
-  margin-bottom: 8px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
-  background: var(--bg-primary);
-  position: relative;
   overflow: hidden;
+  min-height: 0;
 }
 
-.task-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: transparent;
-  transition: all 0.2s ease;
+/* Kanban Board */
+.kanban-board {
+  display: flex;
+  flex: 1;
+  padding: 16px;
+  gap: 16px;
+  overflow-x: auto;
+  min-height: 0;
 }
 
-.task-item:hover {
-  transform: translateX(2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: var(--border-color);
-}
-
-.task-item:hover::before {
-  background: var(--accent-color);
-}
-
-.task-item.task-selected {
-  background: linear-gradient(135deg, rgba(92, 92, 255, 0.08) 0%, rgba(92, 92, 255, 0.03) 100%);
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 1px var(--accent-color);
-}
-
-.task-item.task-selected::before {
-  background: var(--accent-color);
-}
-
-.task-item.task-running {
-  border-color: #22c55e;
-  animation: pulse-border 2s infinite;
-}
-
-.task-item.task-running::before {
-  background: #22c55e;
-}
-
-@keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.2); }
-  50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1); }
-}
-
-.task-item-content {
+/* Kanban Column */
+.kanban-column {
+  min-width: 280px;
+  width: 280px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
-.task-item-main {
+.column-header {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(180deg, var(--bg-tertiary) 0%, transparent 100%);
+  border-radius: 12px 12px 0 0;
 }
 
-.task-item-status {
+.column-status {
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -835,33 +1066,102 @@ onUnmounted(() => {
 }
 
 .status-todo { background: #6b7280; color: #6b7280; }
-.status-progress { background: #3b82f6; color: #3b82f6; }
-.status-review { background: #a78bfa; color: #a78bfa; }
+.status-design { background: #8b5cf6; color: #8b5cf6; }
+.status-development { background: #3b82f6; color: #3b82f6; }
+.status-testing { background: #f59e0b; color: #f59e0b; }
+.status-release { background: #f97316; color: #f97316; }
 .status-done { background: #22c55e; color: #22c55e; }
-.status-blocked { background: #ef4444; color: #ef4444; }
 
-.task-item-title {
+.column-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.column-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.column-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 0;
+}
+
+/* Task Card */
+.task-card {
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  cursor: grab;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--border-color);
+}
+
+.task-card:active {
+  cursor: grabbing;
+}
+
+.task-card.task-selected {
+  background: linear-gradient(135deg, rgba(92, 92, 255, 0.08) 0%, rgba(92, 92, 255, 0.03) 100%);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.task-card.task-running {
+  border-color: #22c55e;
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.2); }
+  50% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1); }
+}
+
+.task-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.task-card-title {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.4;
   flex: 1;
+  word-break: break-word;
 }
 
-.task-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 16px;
-}
-
-.task-item-priority {
+.task-card-priority {
   font-size: 10px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .priority-low { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
@@ -869,9 +1169,16 @@ onUnmounted(() => {
 .priority-high { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
 .priority-critical { background: rgba(239, 68, 68, 0.2); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
 
-.edit-btn {
-  background: rgba(92, 92, 255, 0.1);
-  border: 1px solid rgba(92, 92, 255, 0.2);
+.task-card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.edit-btn,
+.delete-btn {
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 6px;
   width: 26px;
   height: 26px;
@@ -880,82 +1187,111 @@ onUnmounted(() => {
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.edit-btn {
   color: var(--accent-color);
 }
 
 .edit-btn:hover {
-  background: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
-  transform: scale(1.05);
+  background: rgba(92, 92, 255, 0.1);
+  border-color: rgba(92, 92, 255, 0.2);
+  opacity: 1;
 }
 
 .delete-btn {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 6px;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
   color: #ef4444;
 }
 
 .delete-btn:hover {
-  background: #ef4444;
-  color: white;
-  border-color: #ef4444;
-  transform: scale(1.05);
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  opacity: 1;
 }
 
-.run-btn {
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.2);
-  border-radius: 6px;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #22c55e;
+/* Drag and drop styles */
+.ghost-card {
+  opacity: 0.5;
+  background: var(--accent-color) !important;
+  border: 2px dashed var(--accent-color) !important;
 }
 
-.run-btn:hover {
-  background: #22c55e;
-  color: white;
-  border-color: #22c55e;
-  transform: scale(1.05);
+.drag-card {
+  transform: rotate(3deg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2) !important;
 }
 
-.running-indicator {
-  color: #3b82f6;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.empty-tasks {
+.empty-column {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 16px;
   color: var(--text-muted);
   font-size: 13px;
 }
 
-/* Chat Main */
-.chat-main {
+.empty-board {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Chat Container */
+.chat-container {
+  width: 500px;
+  min-width: 400px;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
+  border-left: 1px solid var(--border-color);
   background: var(--bg-primary);
+  flex-shrink: 0;
+  transition: width 0.3s ease, min-width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-container.collapsed {
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+}
+
+.chat-container.collapsed .chat-welcome,
+.chat-container.collapsed .chat-content {
+  display: none;
+}
+
+/* Chat toggle button - on the left edge */
+.chat-toggle-btn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-color);
+  z-index: 10;
+  transition: background-color 0.2s ease;
+}
+
+.chat-toggle-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.chat-toggle-btn svg {
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.chat-toggle-btn:hover svg {
+  color: var(--text-primary);
 }
 
 .chat-welcome {
@@ -963,9 +1299,9 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  flex: 1;
   color: var(--text-muted);
-  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  padding: 24px;
 }
 
 .welcome-icon {
@@ -981,7 +1317,7 @@ onUnmounted(() => {
 }
 
 .chat-welcome h2 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 8px;
@@ -989,291 +1325,21 @@ onUnmounted(() => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  text-align: center;
 }
 
 .chat-welcome p {
   font-size: 14px;
   color: var(--text-secondary);
-}
-
-/* Chat Container */
-.chat-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, var(--bg-secondary) 0%, transparent 100%);
-}
-
-.chat-header-info {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.chat-task-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.chat-session-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 4px 10px;
-  background: var(--bg-tertiary);
-  border-radius: 20px;
-  width: fit-content;
-}
-
-
-
-
-
-
-
-/* Task Summary */
-.task-summary {
-  padding: 16px 24px;
-  margin: 0 24px;
-  background: linear-gradient(135deg, rgba(92, 92, 255, 0.05) 0%, rgba(92, 92, 255, 0.02) 100%);
-  border: 1px solid rgba(92, 92, 255, 0.15);
-  border-radius: 12px;
-}
-
-.task-summary-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.task-summary-title{
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.task-summary-meta{
-  display: flex;
-  gap: 8px;
-}
-
-.task-summary-status{
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 10px;
-  border-radius: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.task-summary-status.status-todo{
-  background: rgba(107, 114, 128, 0.15);
-  color: #6b7280;
-}
-
-.task-summary-status.status-progress{
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-}
-
-.task-summary-status.status-review{
-  background: rgba(167, 139, 250, 0.15);
-  color: #a78bfa;
-}
-
-.task-summary-status.status-done{
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.task-summary-status.status-blocked{
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
-.task-summary-priority{
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 10px;
-  border-radius: 20px;
-}
-
-.task-summary-description{
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.task-summary-description .description-label {
-  color: var(--text-muted);
-  margin-right: 4px;
-}
-
-
-
-
-
-
-
-
-
-/* Changes Panel */
-.changes-panel {
-  width: 320px;
-  min-width: 320px;
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  box-shadow: -2px 0 20px rgba(0, 0, 0, 0.1);
-}
-
-.changes-panel.panel-collapsed {
-  width: 48px;
-  min-width: 48px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, var(--bg-tertiary) 0%, transparent 100%);
-}
-
-.panel-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.collapse-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.collapse-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border-color: var(--accent-color);
-}
-
-.panel-content {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.panel-empty {
   text-align: center;
-  color: var(--text-muted);
-  padding: 60px 20px;
-  font-size: 13px;
 }
 
-.file-changes {
-  padding: 12px;
-}
-
-.file-change {
-  margin-bottom: 8px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-}
-
-.file-header {
+.chat-content {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--bg-tertiary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.file-header:hover {
-  background: var(--hover-bg);
-}
-
-.file-path {
+  flex-direction: column;
   flex: 1;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-status {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.file-status.added {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
-}
-
-.file-status.modified {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.file-status.deleted {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.file-diff {
-  background: var(--bg-primary);
-  border-radius: 0 0 10px 10px;
-}
-
-.diff-content {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  margin: 0;
-  padding: 14px;
-  overflow-x: auto;
-  white-space: pre;
+  padding-left: 24px;
 }
 
 /* Modal */
@@ -1442,87 +1508,78 @@ onUnmounted(() => {
 }
 
 /* Mobile responsive styles */
-@media (max-width: 1024px) {
-  .changes-panel {
-    position: fixed;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 99;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+@media (max-width: 1200px) {
+  .chat-container {
+    width: 400px;
+    min-width: 350px;
   }
 
-  .changes-panel.panel-collapsed {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
+  .chat-container.collapsed {
+    width: 24px;
+    min-width: 24px;
+  }
+
+  .kanban-column {
+    min-width: 250px;
+    width: 250px;
   }
 }
 
-@media (max-width: 768px) {
-  .app-container{
+@media (max-width: 900px) {
+  .main-content {
     flex-direction: column;
   }
 
-  .sidebar{
+  .kanban-board {
+    min-height: 400px;
+    overflow-x: auto;
+    overflow-y: auto;
+    flex-wrap: nowrap;
+  }
+
+  .chat-container {
     width: 100%;
     min-width: 100%;
-    height: 220px;
-    min-height: 220px;
+    max-width: 100%;
+    height: 300px;
+    min-height: 200px;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .chat-container.collapsed {
+    width: 100%;
+    min-width: 100%;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .chat-toggle-btn {
+    width: 100%;
+    height: 32px;
     border-right: none;
     border-bottom: 1px solid var(--border-color);
   }
+}
 
-  .task-list{
-    padding: 8px;
+@media (max-width: 600px) {
+  .kanban-column {
+    min-width: 220px;
+    width: 220px;
   }
 
-  .task-item{
-    padding: 12px 14px;
-    border-radius: 10px;
-  }
-
-  .task-item-title{
-    font-size: 12px;
-  }
-
-  
-
-  .chat-task-title{
-    font-size: 15px;
-  }
-
-  
-
-  
-
-  .message{
-    max-width: 92%;
-  }
-
-  
-
-  .modal{
+  .modal {
     max-width: calc(100% - 32px);
     margin: 16px;
     border-radius: 14px;
   }
 
-  .form-row{
+  .form-row {
     flex-direction: column;
     gap: 0;
   }
 
-  .changes-panel{
-    width: 100%;
-    min-width: 100%;
-  }
-
-  .changes-panel.panel-collapsed{
-    height: 48px;
-  }
-
-  .welcome-icon svg{
+  .welcome-icon svg {
     width: 48px;
     height: 48px;
   }

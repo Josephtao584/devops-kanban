@@ -55,11 +55,12 @@ export default {
     addTask: '+ 添加任务'
   },
   status: {
-    TODO: '待办',
-    IN_PROGRESS: '进行中',
-    IN_REVIEW: '审核中',
-    DONE: '已完成',
-    BLOCKED: '阻塞'
+    TODO: '待处理',
+    DESIGN: '设计',
+    DEVELOPMENT: '开发',
+    TESTING: '测试',
+    RELEASE: '发布',
+    DONE: '已完成'
   },
   priority: {
     LOW: '低',

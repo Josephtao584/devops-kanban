@@ -24,6 +24,13 @@
 - **Claude Code** - 使用 Claude CLI 执行任务
 - **OpenAI Codex** - 使用 Codex 执行任务
 - 可扩展 SPI 接口，支持添加更多 AI 代理
+- 支持会话恢复（Session Resume），多轮对话无障碍
+
+### 💬 实时交互终端
+- WebSocket 实时双向通信
+- 终端风格输出显示
+- 支持多轮对话和会话恢复
+- 自动检测进程状态并恢复会话
 
 ### 🌳 Git Worktree 隔离
 - 每个任务在独立的 Git worktree 中执行
@@ -41,6 +48,8 @@
 | HTTP 客户端 | Axios |
 | 数据存储 | 文件存储 (JSON) |
 | 路由 | Vue Router 4 |
+| 实时通信 | WebSocket (STOMP) |
+| UI 组件库 | Element Plus |
 
 ## 🚀 快速开始
 
@@ -166,12 +175,15 @@ devops-kanban/
 │   │   ├── TaskController.java
 │   │   ├── TaskSourceController.java
 │   │   ├── AgentController.java
+│   │   ├── SessionController.java
 │   │   └── ExecutionController.java
 │   ├── service/                         # 业务逻辑层
 │   │   ├── ProjectService.java
 │   │   ├── TaskService.java
 │   │   ├── GitService.java
 │   │   ├── AgentService.java
+│   │   ├── SessionService.java
+│   │   ├── ClaudeCodeExecutor.java
 │   │   └── AgentExecutionService.java
 │   ├── repository/                      # 数据访问层
 │   │   └── impl/                        # 文件存储实现
@@ -180,6 +192,7 @@ devops-kanban/
 │   │   ├── Task.java
 │   │   ├── TaskSource.java
 │   │   ├── Agent.java
+│   │   ├── Session.java
 │   │   └── Execution.java
 │   ├── dto/                             # 数据传输对象
 │   ├── spi/                             # SPI 接口
@@ -219,7 +232,9 @@ devops-kanban/
 | `/api/tasks` | GET, POST, PUT | 任务管理 |
 | `/api/task-sources` | GET, POST | 任务源配置 |
 | `/api/agents` | GET, POST | AI 代理配置 |
+| `/api/sessions` | POST, GET, DELETE | 会话管理 |
 | `/api/executions` | POST, GET | 执行任务 |
+| `/ws` | WebSocket | 实时通信 (STOMP) |
 
 ## ⚙️ 配置说明
 
@@ -329,6 +344,18 @@ Agent (AI代理)
 ├── type: CLAUDE | CODEX...
 ├── command: String
 └── config: JSON
+
+Session (会话)
+├── id: Long
+├── taskId: Long
+├── agentId: Long
+├── status: CREATED | RUNNING | IDLE | STOPPED | ERROR
+├── claudeSessionId: String        # Claude CLI 会话ID，用于恢复
+├── worktreePath: String
+├── branch: String
+├── output: String
+├── initialPrompt: String
+└── startedAt, stoppedAt, lastHeartbeat...
 
 Execution (执行记录)
 ├── id: Long

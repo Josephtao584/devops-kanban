@@ -3,6 +3,7 @@
     :model-value="true"
     :title="isNew ? 'Create Task' : 'Task Details'"
     width="600px"
+    top="5vh"
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
@@ -29,11 +30,12 @@
         <el-col :span="12">
           <el-form-item label="Status">
             <el-select v-model="form.status" style="width: 100%">
-              <el-option label="To Do" value="TODO" />
-              <el-option label="In Progress" value="IN_PROGRESS" />
-              <el-option label="In Review" value="IN_REVIEW" />
-              <el-option label="Done" value="DONE" />
-              <el-option label="Blocked" value="BLOCKED" />
+              <el-option label="待处理" value="TODO" />
+              <el-option label="设计" value="DESIGN" />
+              <el-option label="开发" value="DEVELOPMENT" />
+              <el-option label="测试" value="TESTING" />
+              <el-option label="发布" value="RELEASE" />
+              <el-option label="已完成" value="DONE" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -227,7 +229,7 @@ const hasActiveSession = computed(() => {
   return false
 })
 
-watch(() => props.task, (newTask) => {
+watch(() => props.task, (newTask, oldTask) => {
   if (newTask) {
     form.value = {
       title: newTask.title || '',
@@ -236,27 +238,48 @@ watch(() => props.task, (newTask) => {
       priority: newTask.priority || 'MEDIUM',
       assignee: newTask.assignee || ''
     }
+    // Reset session when task changes
+    if (oldTask && newTask.id !== oldTask.id) {
+      sessionHistory.value = []
+      // Load session for new task
+      loadSessionForTask(newTask)
+    }
   }
 }, { immediate: true })
 
+const loadSessionForTask = async (task) => {
+  if (!task?.id) return
+  console.log('[TaskDetail] loadSessionForTask, task:', task.id)
+  try {
+    const response = await agentApi.getByProject(props.projectId)
+    agents.value = response.data || []
+    console.log('[TaskDetail] Loaded agents:', agents.value.length)
+
+    // Check for active session
+    const sessionResponse = await sessionApi.getActiveByTask(task.id)
+    console.log('[TaskDetail] Active session response:', sessionResponse.data ? sessionResponse.data.id : null)
+    if (sessionResponse.data) {
+      localSession.value = sessionResponse.data
+      selectedAgentId.value = sessionResponse.data.agentId
+      console.log('[TaskDetail] Set localSession to active session:', localSession.value.id)
+    } else if (agents.value.length > 0) {
+      // Auto-select first agent and create session
+      selectedAgentId.value = agents.value[0].id
+      console.log('[TaskDetail] No active session, creating new session with agent:', selectedAgentId.value)
+      await createNewSession()
+      console.log('[TaskDetail] Created new session:', localSession.value?.id)
+    }
+
+    // Load session history
+    loadSessionHistory()
+  } catch (e) {
+    console.error('Failed to load agents:', e)
+  }
+}
+
 onMounted(async () => {
   if (!isNew.value) {
-    try {
-      const response = await agentApi.getByProject(props.projectId)
-      agents.value = response.data || []
-
-      // Check for active session
-      const sessionResponse = await sessionApi.getActiveByTask(props.task.id)
-      if (sessionResponse.data) {
-        localSession.value = sessionResponse.data
-        selectedAgentId.value = sessionResponse.data.agentId
-      }
-
-      // Load session history
-      loadSessionHistory()
-    } catch (e) {
-      console.error('Failed to load agents:', e)
-    }
+    await loadSessionForTask(props.task)
   }
 })
 
@@ -430,14 +453,31 @@ const getHistoryMessages = (session) => {
 </script>
 
 <style scoped>
+/* 限制 dialog body 高度，使其可滚动 */
+:deep(.el-dialog__body) {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-bottom: 16px;
+}
+
 .session-section {
   margin-top: 8px;
+  height: 350px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.session-section .chat-box {
+  flex: 1;
+  min-height: 0;
 }
 
 .agent-select-row {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .history-section {

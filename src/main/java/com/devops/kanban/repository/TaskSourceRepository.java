@@ -9,5 +9,6 @@ public interface TaskSourceRepository {
     Optional<TaskSource> findById(Long id);
     TaskSource save(TaskSource source);
     void deleteById(Long id);
+    void deleteByProjectId(Long projectId);
     Long getNextId();
 }

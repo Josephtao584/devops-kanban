@@ -28,7 +28,7 @@ public class Task {
     private LocalDateTime updatedAt;
 
     public enum TaskStatus {
-        TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED
+        TODO, DESIGN, DEVELOPMENT, TESTING, RELEASE, DONE
     }
 
     public enum TaskPriority {

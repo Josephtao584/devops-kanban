@@ -36,6 +36,7 @@ public class ClaudeCodeExecutor {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final SessionRepository sessionRepository;
+    private final SessionBroadcaster sessionBroadcaster;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     private final ConcurrentHashMap<Long, PtyProcess> activeProcesses = new ConcurrentHashMap<>();
@@ -45,9 +46,12 @@ public class ClaudeCodeExecutor {
     private final ConcurrentHashMap<Long, Long> sessionStartTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Boolean> sessionIdExtracted = new ConcurrentHashMap<>();
 
-    public ClaudeCodeExecutor(SimpMessagingTemplate messagingTemplate, SessionRepository sessionRepository) {
+    public ClaudeCodeExecutor(SimpMessagingTemplate messagingTemplate,
+                               SessionRepository sessionRepository,
+                               SessionBroadcaster sessionBroadcaster) {
         this.messagingTemplate = messagingTemplate;
         this.sessionRepository = sessionRepository;
+        this.sessionBroadcaster = sessionBroadcaster;
         log.info("[ClaudeCodeExecutor] Initialized with PTY support");
     }
 
@@ -150,8 +154,15 @@ public class ClaudeCodeExecutor {
 
             activeProcesses.put(sessionId, process);
             sessionStartTimes.put(sessionId, System.currentTimeMillis());
-            sessionOutputs.put(sessionId, new StringBuilder());
+            StringBuilder outputBuilder = new StringBuilder();
+            sessionOutputs.put(sessionId, outputBuilder);
             sessionRawJson.put(sessionId, new StringBuilder());
+
+            // Record initial prompt as user input (for message parsing)
+            if (initialPrompt != null && !initialPrompt.isEmpty()) {
+                outputBuilder.append("> ").append(initialPrompt).append("\n");
+                log.info("[Session-{}] Recorded initial prompt as user input ({} chars)", sessionId, initialPrompt.length());
+            }
 
             OutputStream stdin = process.getOutputStream();
             sessionStdins.put(sessionId, stdin);
@@ -247,6 +258,8 @@ public class ClaudeCodeExecutor {
                                 session.setClaudeSessionId(claudeSessionId);
                                 sessionRepository.save(session);
                                 log.info("[Session-{}] Saved Claude session ID to session entity", sessionId);
+                                // Broadcast to frontend so it can update the display
+                                sessionBroadcaster.broadcastClaudeSessionId(sessionId, claudeSessionId);
                             });
                         }
 
@@ -319,6 +332,12 @@ public class ClaudeCodeExecutor {
         }
 
         try {
+            // Record user input to output buffer (prefix with "> " for parsing)
+            StringBuilder output = sessionOutputs.get(sessionId);
+            if (output != null) {
+                output.append("> ").append(input).append("\n");
+            }
+
             stdin.write((input + "\n").getBytes(StandardCharsets.UTF_8));
             stdin.flush();
             log.info("[Session-{}] Sent input: {} chars", sessionId, input.length());

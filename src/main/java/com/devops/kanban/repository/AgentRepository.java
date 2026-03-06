@@ -9,5 +9,6 @@ public interface AgentRepository {
     Optional<Agent> findById(Long id);
     Agent save(Agent agent);
     void deleteById(Long id);
+    void deleteByProjectId(Long projectId);
     Long getNextId();
 }

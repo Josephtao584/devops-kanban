@@ -1,7 +1,9 @@
 package com.devops.kanban.service;
 
+import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.TaskDTO;
 import com.devops.kanban.entity.*;
+import com.devops.kanban.exception.EntityNotFoundException;
 import com.devops.kanban.repository.AgentRepository;
 import com.devops.kanban.repository.ExecutionRepository;
 import com.devops.kanban.repository.TaskRepository;
@@ -18,12 +20,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Manages AI agent execution for tasks.
+ * Refactored to use AdapterRegistry and EntityDTOConverter.
  */
 @Service
 @Slf4j
@@ -33,20 +33,22 @@ public class AgentExecutionService {
     private final TaskRepository taskRepository;
     private final ExecutionRepository executionRepository;
     private final GitService gitService;
-    private final Map<Agent.AgentType, AgentAdapter> adapters;
+    private final AdapterRegistry adapterRegistry;
+    private final EntityDTOConverter converter;
 
     public AgentExecutionService(
             AgentRepository agentRepository,
             TaskRepository taskRepository,
             ExecutionRepository executionRepository,
             GitService gitService,
-            List<AgentAdapter> adapterList) {
+            AdapterRegistry adapterRegistry,
+            EntityDTOConverter converter) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
         this.executionRepository = executionRepository;
         this.gitService = gitService;
-        this.adapters = adapterList.stream()
-                .collect(Collectors.toMap(AgentAdapter::getType, Function.identity()));
+        this.adapterRegistry = adapterRegistry;
+        this.converter = converter;
     }
 
     /**
@@ -54,19 +56,17 @@ public class AgentExecutionService {
      */
     public Execution startExecution(Long taskId, Long agentId) {
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: " + taskId));
+                .orElseThrow(() -> new EntityNotFoundException("Task", taskId));
         Agent agent = agentRepository.findById(agentId)
-                .orElseThrow(() -> new IllegalArgumentException("Agent not found: " + agentId));
+                .orElseThrow(() -> new EntityNotFoundException("Agent", agentId));
 
         if (!agent.isEnabled()) {
             throw new IllegalStateException("Agent is disabled: " + agentId);
         }
 
-        // Create worktree for isolation
         String branch = "task-" + taskId + "-" + System.currentTimeMillis();
         Path worktree = gitService.createWorktree(task.getProjectId(), branch);
 
-        // Create execution record
         Execution execution = Execution.builder()
                 .taskId(taskId)
                 .agentId(agentId)
@@ -77,8 +77,7 @@ public class AgentExecutionService {
                 .build();
         execution = executionRepository.save(execution);
 
-        // Execute asynchronously
-        executeAsync(execution, agent, toDTO(task), worktree);
+        executeAsync(execution, agent, converter.toDTO(task), worktree);
 
         return execution;
     }
@@ -88,14 +87,13 @@ public class AgentExecutionService {
      */
     public void stopExecution(Long executionId) {
         Execution execution = executionRepository.findById(executionId)
-                .orElseThrow(() -> new IllegalArgumentException("Execution not found: " + executionId));
+                .orElseThrow(() -> new EntityNotFoundException("Execution", executionId));
 
         if (execution.getStatus() == Execution.ExecutionStatus.RUNNING) {
             execution.setStatus(Execution.ExecutionStatus.CANCELLED);
             execution.setCompletedAt(LocalDateTime.now());
             executionRepository.save(execution);
 
-            // Cleanup worktree
             gitService.removeWorktree(Path.of(execution.getWorktreePath()));
         }
     }
@@ -105,7 +103,7 @@ public class AgentExecutionService {
      */
     public Execution getExecution(Long executionId) {
         return executionRepository.findById(executionId)
-                .orElseThrow(() -> new IllegalArgumentException("Execution not found: " + executionId));
+                .orElseThrow(() -> new EntityNotFoundException("Execution", executionId));
     }
 
     /**
@@ -118,20 +116,16 @@ public class AgentExecutionService {
     @Async
     protected void executeAsync(Execution execution, Agent agent, TaskDTO task, Path worktree) {
         try {
-            AgentAdapter adapter = getAdapter(agent.getType());
+            AgentAdapter adapter = adapterRegistry.getAgentAdapter(agent.getType());
 
-            // Update status to running
             execution.setStatus(Execution.ExecutionStatus.RUNNING);
             executionRepository.save(execution);
 
-            // Prepare worktree
             adapter.prepare(task, worktree);
 
-            // Build command
             String command = adapter.buildCommand(agent, task, worktree);
             log.info("Executing command: {}", command);
 
-            // Execute command with platform-appropriate shell
             List<String> shellCommand = new ArrayList<>();
             shellCommand.addAll(Arrays.asList(PlatformUtils.getShellPrefix()));
             shellCommand.add(command);
@@ -141,7 +135,6 @@ public class AgentExecutionService {
 
             Process process = pb.start();
 
-            // Read output
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
@@ -152,13 +145,11 @@ public class AgentExecutionService {
 
             int exitCode = process.waitFor();
 
-            // Parse result
             AgentAdapter.ExecutionResult result = adapter.parseResult(exitCode, output.toString());
 
             execution.setOutput(output.toString());
             execution.setStatus(result.success() ? Execution.ExecutionStatus.SUCCESS : Execution.ExecutionStatus.FAILED);
 
-            // Update task status on success
             if (result.success()) {
                 Task taskEntity = taskRepository.findById(execution.getTaskId()).orElse(null);
                 if (taskEntity != null) {
@@ -175,37 +166,11 @@ public class AgentExecutionService {
             execution.setCompletedAt(LocalDateTime.now());
             executionRepository.save(execution);
 
-            // Cleanup
             try {
                 gitService.removeWorktree(worktree);
             } catch (Exception e) {
                 log.warn("Failed to cleanup worktree", e);
             }
         }
-    }
-
-    private AgentAdapter getAdapter(Agent.AgentType type) {
-        AgentAdapter adapter = adapters.get(type);
-        if (adapter == null) {
-            throw new IllegalArgumentException("No adapter found for agent type: " + type);
-        }
-        return adapter;
-    }
-
-    private TaskDTO toDTO(Task task) {
-        return TaskDTO.builder()
-                .id(task.getId())
-                .projectId(task.getProjectId())
-                .title(task.getTitle())
-                .description(task.getDescription())
-                .status(task.getStatus().name())
-                .priority(task.getPriority().name())
-                .assignee(task.getAssignee())
-                .sourceId(task.getSourceId())
-                .externalId(task.getExternalId())
-                .syncedAt(task.getSyncedAt())
-                .createdAt(task.getCreatedAt())
-                .updatedAt(task.getUpdatedAt())
-                .build();
     }
 }

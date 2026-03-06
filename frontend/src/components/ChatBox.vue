@@ -1,13 +1,17 @@
 <template>
-  <div class="chat-box">
-    <!-- Debug info (temporary) -->
-    <div style="padding: 4px 8px; background: #f0f0f0; font-size: 11px; color: #666;">
-      Debug: status={{ session?.status }} | canSend={{ canSendMessage }} | claudeId={{ session?.claudeSessionId?.substring(0, 8) || 'none' }}
-    </div>
+  <div class="chat-box" :class="{ collapsed: isCollapsed }">
+    <!-- DevTools (only in development) -->
+    <DevTools
+      v-if="isDev"
+      :session="session"
+      :ws-connected="isConnected"
+      :agent-id="agentId"
+    />
+
     <!-- Header -->
     <div class="chat-header">
       <div class="header-left">
-        <span class="header-title">Agent Chat</span>
+        <span class="header-title">{{ task?.title || 'Agent Chat' }}</span>
         <span class="header-status" :class="statusClass">
           <span class="status-dot"></span>
           {{ statusText }}
@@ -18,11 +22,20 @@
       </div>
       <div class="header-actions">
         <el-button
-          v-if="!session || session.status === 'CREATED' || session.status === 'STOPPED'"
+          v-if="!session && !agentId"
+          type="warning"
+          size="small"
+          :loading="isStarting"
+          @click="handleButtonClick"
+        >
+          <el-icon><VideoPlay /></el-icon> Create
+        </el-button>
+        <el-button
+          v-if="(!session && agentId) || (session && session.status === 'CREATED')"
           type="primary"
           size="small"
           :loading="isStarting"
-          @click="startSession"
+          @click="handleButtonClick"
         >
           <el-icon><VideoPlay /></el-icon> Start
         </el-button>
@@ -36,9 +49,10 @@
           <el-icon><VideoPause /></el-icon> Stop
         </el-button>
         <el-button
-          v-if="session && messages.length > 0"
+          v-if="session && session.id"
+          type="danger"
           size="small"
-          @click="clearMessages"
+          @click="confirmDeleteSession"
         >
           <el-icon><Delete /></el-icon>
         </el-button>
@@ -46,14 +60,14 @@
     </div>
 
     <!-- Task summary -->
-    <div class="task-summary" v-if="task && task.description">
+    <div class="task-summary" v-if="task && task.description && !isCollapsed">
       <div class="task-description">
         <span class="description-label">简介：</span>{{ task.description }}
       </div>
     </div>
 
     <!-- Messages Area -->
-    <div ref="messagesContainer" class="messages-area">
+    <div ref="messagesContainer" class="messages-area" v-show="!isCollapsed">
       <div v-if="!session" class="chat-empty">
         <div class="empty-icon">
           <el-icon :size="48"><ChatDotRound /></el-icon>
@@ -85,8 +99,7 @@
     </div>
 
     <!-- Input Area -->
-    <div class="chat-input-container">
-
+    <div class="chat-input-container" v-show="!isCollapsed">
       <div class="chat-input-wrapper">
         <el-input
           v-model="inputText"
@@ -111,12 +124,16 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Position, VideoPlay, VideoPause, Delete, ChatDotRound, ChatLineRound } from '@element-plus/icons-vue'
-import wsService from '../services/websocket'
-import sessionApi from '../api/session'
-import { createMessage } from '../types/chat'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Position, VideoPlay, VideoPause, Delete, ChatDotRound, ChatLineRound, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import DevTools from './DevTools.vue'
+import { useSessionManager } from '../composables/useSessionManager'
+import { useWebSocketConnection } from '../composables/useWebSocketConnection'
+import { useMessageFilter } from '../composables/useMessageFilter'
 import { parseOutputToMessages } from '../utils/messageParser'
+
+// Dev mode flag for template
+const isDev = import.meta.env.DEV
 
 const props = defineProps({
   task: {
@@ -133,44 +150,62 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['session-created', 'session-stopped', 'status-change', 'request-agent-select'])
+const emit = defineEmits(['session-created', 'session-stopped', 'session-deleted', 'status-change', 'request-agent-select'])
 
-// State
-const session = ref(null)
+// Use composables
+const {
+  session,
+  isStarting,
+  isStopping,
+  setSession,
+  loadActiveSession: loadSession,
+  startSession: startExistingSession,
+  stopSession: stopExistingSession,
+  continueSession,
+  refreshSession
+} = useSessionManager()
+
+const {
+  isConnected,
+  connect: connectWebSocket,
+  disconnect: disconnectWebSocket,
+  sendInput: wsSendInput,
+  isServiceConnected
+} = useWebSocketConnection()
+
+const {
+  initialPrompt,
+  initialPromptFiltered,
+  setInitialPrompt,
+  shouldFilterContent,
+  getContentWithoutInitialPrompt,
+  resetFilter
+} = useMessageFilter()
+
+// Local state
 const messages = ref([])
 const inputText = ref('')
-const isStarting = ref(false)
-const isStopping = ref(false)
-const isConnected = ref(false)
 const messagesContainer = ref(null)
-
-// Store initial prompt for filtering
-const initialPrompt = ref(null)
-const initialPromptFiltered = ref(false)
+const isCollapsed = ref(false)
 
 // Waiting state and timer
 const isWaitingForResponse = ref(false)
-const waitingStartTime = ref(null)
 const elapsedSeconds = ref(0)
 let waitingTimer = null
 
 // Start waiting timer
 const startWaitingTimer = () => {
   isWaitingForResponse.value = true
-  waitingStartTime.value = Date.now()
   elapsedSeconds.value = 0
   if (waitingTimer) clearInterval(waitingTimer)
   waitingTimer = setInterval(() => {
-    if (waitingStartTime.value) {
-      elapsedSeconds.value = Math.floor((Date.now() - waitingStartTime.value) / 1000)
-    }
+    elapsedSeconds.value++
   }, 1000)
 }
 
 // Stop waiting timer
 const stopWaitingTimer = () => {
   isWaitingForResponse.value = false
-  waitingStartTime.value = null
   if (waitingTimer) {
     clearInterval(waitingTimer)
     waitingTimer = null
@@ -180,9 +215,7 @@ const stopWaitingTimer = () => {
 // Format elapsed time
 const formatElapsedTime = computed(() => {
   const seconds = elapsedSeconds.value
-  if (seconds < 60) {
-    return `${seconds}s`
-  }
+  if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes}m ${remainingSeconds}s`
@@ -202,87 +235,18 @@ const statusClass = computed(() => {
 
 const statusText = computed(() => {
   if (!session.value) return 'No Session'
-  if (isWaitingForResponse.value) {
-    return `运行中 ${formatElapsedTime.value}`
-  }
+  if (isWaitingForResponse.value) return `运行中 ${formatElapsedTime.value}`
   return session.value.status || 'Unknown'
 })
 
 // Check if user can send messages
 const canSendMessage = computed(() => {
-  if (!session.value) {
-    console.log('[canSendMessage] No session')
-    return false
-  }
+  if (!session.value) return false
   const status = session.value.status
   const claudeSessionId = session.value.claudeSessionId
-  console.log('[canSendMessage] status:', status, 'claudeSessionId:', claudeSessionId)
-  // Can send if running/idle, or if stopped but has claudeSessionId (can resume)
   if (['RUNNING', 'IDLE'].includes(status)) return true
   if (['STOPPED', 'COMPLETED'].includes(status) && claudeSessionId) return true
-  console.log('[canSendMessage] returning false')
   return false
-})
-
-// Reason why input is disabled
-const inputDisabledReason = computed(() => {
-  if (!session.value) return 'No active session'
-  const status = session.value.status
-  if (['RUNNING', 'IDLE'].includes(status)) return ''
-  if (['STOPPED', 'COMPLETED'].includes(status) && !session.value.claudeSessionId) {
-    return 'Session ended - no resume capability (session ID not found)'
-  }
-  if (['STOPPED', 'COMPLETED'].includes(status)) {
-    return '' // Can resume
-  }
-  return 'Start the session to send messages'
-})
-
-// Task status and priority display
-const taskStatusText = computed(() => {
-  if (!props.task?.status) return ''
-  const statusMap = {
-    'TODO': 'To Do',
-    'IN_PROGRESS': 'In Progress',
-    'IN_REVIEW': 'In Review',
-    'DONE': 'Done',
-    'BLOCKED': 'Blocked'
-  }
-  return statusMap[props.task.status] || props.task.status
-})
-
-const statusTagType = computed(() => {
-  if (!props.task?.status) return 'info'
-  const typeMap = {
-    'TODO': 'info',
-    'IN_PROGRESS': 'warning',
-    'IN_REVIEW': '',
-    'DONE': 'success',
-    'BLOCKED': 'danger'
-  }
-  return typeMap[props.task.status] || 'info'
-})
-
-const taskPriorityText = computed(() => {
-  if (!props.task?.priority) return ''
-  const priorityMap = {
-    'LOW': 'Low',
-    'MEDIUM': 'Medium',
-    'HIGH': 'High',
-    'CRITICAL': 'Critical'
-  }
-  return priorityMap[props.task.priority] || props.task.priority
-})
-
-const priorityTagType = computed(() => {
-  if (!props.task?.priority) return 'info'
-  const typeMap = {
-    'LOW': 'info',
-    'MEDIUM': '',
-    'HIGH': 'warning',
-    'CRITICAL': 'danger'
-  }
-  return typeMap[props.task.priority] || 'info'
 })
 
 // Methods
@@ -292,88 +256,96 @@ const formatMessageTime = (timestamp) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// Get display role name for messages
 const getMessageRole = (role) => {
-  if (role === 'user') return 'You'
-  return 'Assistant'
+  return role === 'user' ? 'You' : 'Assistant'
 }
 
-// Check if content is the initial prompt (should be filtered out)
-const isInitialPrompt = (content) => {
-  if (!initialPrompt.value) return false
-  if (initialPromptFiltered.value) return false
+// Unified session initialization function
+const initializeSession = async (sessionData, isHistory = false) => {
+  console.log('[ChatBox] Initializing session:', sessionData?.id, sessionData?.status, 'isHistory:', isHistory)
 
-  const normalizedContent = content.trim()
-  const normalizedPrompt = initialPrompt.value.trim()
+  setSession(sessionData)
 
-  // Exact match or content starts with the full prompt
-  if (normalizedContent === normalizedPrompt || normalizedContent.startsWith(normalizedPrompt)) {
-    return true
+  // Set initialPrompt BEFORE processing messages
+  if (sessionData.initialPrompt) {
+    setInitialPrompt(sessionData.initialPrompt)
+  } else {
+    resetFilter()
   }
 
-  // Check if content starts with the first line of prompt (for chunked messages)
-  const promptFirstLine = initialPrompt.value.split('\n')[0]?.trim()
-  if (promptFirstLine && normalizedContent.startsWith(promptFirstLine)) {
-    return true
+  // Process messages (after initialPrompt is set)
+  let output = sessionData.output
+  // If output is empty and this is a history session, try to fetch it from API
+  if ((!output || !output.trim()) && isHistory && sessionData.id) {
+    console.log('[ChatBox] Output is empty, fetching from API for session:', sessionData.id)
+    try {
+      const response = await fetch(`/api/sessions/${sessionData.id}/output`).then(r => r.json())
+      if (response.success && response.data) {
+        output = response.data
+      }
+    } catch (e) {
+      console.error('[ChatBox] Failed to fetch output from API:', e)
+    }
   }
 
-  return false
-}
+  if (output && output.trim()) {
+    const parsedMessages = parseOutputToMessages(output)
+    // If loading history session, don't filter messages (they are already complete)
+    if (isHistory) {
+      initialPromptFiltered.value = true
+      messages.value = parsedMessages
+    } else {
+      messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
+    }
 
-// Filter out initial prompt from content (only filter once)
-const shouldFilterContent = (content) => {
-  if (!isInitialPrompt(content)) return false
+    // Add initialPrompt as user message at the beginning if there are messages
+    // Check if already exists to avoid duplicate
+    const hasInitialPrompt = messages.value.some(msg =>
+      msg.role === 'user' && msg.content === sessionData.initialPrompt
+    )
+    if (sessionData.initialPrompt && messages.value.length > 0 && !hasInitialPrompt) {
+      messages.value.unshift({
+        id: `initial-prompt-${sessionData.id}`,
+        role: 'user',
+        content: sessionData.initialPrompt,
+        timestamp: sessionData.startedAt
+      })
+    }
 
-  // Mark as filtered after detecting initial prompt
-  initialPromptFiltered.value = true
-  return true
-}
-
-// Get content with initial prompt removed (for partial filtering)
-const getContentWithoutInitialPrompt = (content) => {
-  if (!initialPrompt.value) return content
-  if (!isInitialPrompt(content)) return content
-
-  // Mark as filtered
-  initialPromptFiltered.value = true
-
-  const normalizedContent = content.trim()
-  const normalizedPrompt = initialPrompt.value.trim()
-
-  // Remove full prompt prefix
-  if (normalizedContent.startsWith(normalizedPrompt)) {
-    const rest = normalizedContent.slice(normalizedPrompt.length).trim()
-    return rest
+    scrollToBottom()
   }
 
-  // Remove first line prefix (for chunked messages)
-  const promptFirstLine = initialPrompt.value.split('\n')[0]?.trim()
-  if (promptFirstLine && normalizedContent.startsWith(promptFirstLine)) {
-    const rest = normalizedContent.slice(promptFirstLine.length).trim()
-    return rest
+  // If session is active, connect WebSocket
+  if (['RUNNING', 'IDLE'].includes(sessionData.status)) {
+    setupWebSocket(sessionData.id)
   }
-
-  return content
 }
 
 const loadActiveSession = async () => {
+  const sessionData = await loadSession(props.task.id)
+  if (sessionData) {
+    initializeSession(sessionData)
+    return sessionData
+  }
+  return null
+}
+
+const loadLastHistorySession = async () => {
   try {
-    const response = await sessionApi.getActiveByTask(props.task.id)
-    if (response.success && response.data) {
-      session.value = response.data
-      if (response.data.initialPrompt) {
-        initialPrompt.value = response.data.initialPrompt
-      }
-      if (response.data.output) {
-        messages.value = parseOutputToMessages(response.data.output)
-        scrollToBottom()
-      }
-      if (['RUNNING', 'IDLE'].includes(response.data.status)) {
-        connectWebSocket()
-      }
+    const response = await fetch(`/api/sessions/task/${props.task.id}/history?includeOutput=true`)
+      .then(r => r.json())
+    if (response.success && response.data && response.data.length > 0) {
+      // Sort by startedAt descending and get the most recent session
+      const sortedSessions = response.data.sort((a, b) => {
+        const timeA = new Date(a.startedAt || 0).getTime()
+        const timeB = new Date(b.startedAt || 0).getTime()
+        return timeB - timeA
+      })
+      const lastSession = sortedSessions[0]
+      initializeSession(lastSession, true) // isHistory = true
     }
   } catch (e) {
-    console.error('Failed to load active session:', e)
+    console.error('[ChatBox] Failed to load history session:', e)
   }
 }
 
@@ -384,16 +356,25 @@ const createSession = async () => {
     return null
   }
 
+  if (session.value) {
+    console.log('[ChatBox] Session already exists:', session.value.id)
+    return session.value
+  }
+
   try {
-    const response = await sessionApi.create(props.task.id, props.agentId)
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: props.task.id, agentId: props.agentId })
+    }).then(r => r.json())
+
     if (response.success && response.data) {
-      session.value = response.data
+      setSession(response.data)
       if (response.data.initialPrompt) {
-        initialPrompt.value = response.data.initialPrompt
-        initialPromptFiltered.value = false
+        setInitialPrompt(response.data.initialPrompt)
       }
       emit('session-created', session.value)
-      connectWebSocket()
+      setupWebSocket(session.value.id)
       return session.value
     } else {
       ElMessage.error(response.message || 'Failed to create session')
@@ -406,10 +387,25 @@ const createSession = async () => {
   }
 }
 
+const handleButtonClick = async () => {
+  if (!session.value && !props.agentId) {
+    // No agent selected, trigger agent selection dialog
+    emit('request-agent-select', props.task)
+    return
+  }
+  // No session but has agentId, create and start session
+  if (!session.value && props.agentId) {
+    const newSession = await createSession()
+    if (!newSession) return
+  }
+  await startSession()
+}
+
 const startSession = async () => {
-  if (!session.value) {
-    session.value = await createSession()
-    if (!session.value) return
+  // If no session but has agentId, create session first
+  if (!session.value && props.agentId) {
+    const newSession = await createSession()
+    if (!newSession) return
   }
 
   if (isStarting.value) {
@@ -418,17 +414,19 @@ const startSession = async () => {
   }
 
   isStarting.value = true
-  messages.value.push(createMessage('system', 'Starting session...'))
+  messages.value.push({ id: Date.now(), role: 'system', content: 'Starting session...' })
 
   try {
-    const response = await sessionApi.start(session.value.id)
+    const response = await fetch(`/api/sessions/${session.value.id}/start`, {
+      method: 'POST'
+    }).then(r => r.json())
+
     if (response.success && response.data) {
-      session.value = response.data
+      setSession(response.data)
       emit('status-change', session.value.status)
 
       if (response.data.initialPrompt) {
-        initialPrompt.value = response.data.initialPrompt
-        initialPromptFiltered.value = false
+        setInitialPrompt(response.data.initialPrompt)
       }
 
       messages.value = messages.value.filter(m => m.role !== 'system')
@@ -436,21 +434,36 @@ const startSession = async () => {
       if (response.data.output) {
         const parsedMessages = parseOutputToMessages(response.data.output)
         messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
+
+        // Add initialPrompt as user message at the beginning if there are messages
+        // Check if already exists to avoid duplicate
+        const hasInitialPrompt = messages.value.some(msg =>
+          msg.role === 'user' && msg.content === response.data.initialPrompt
+        )
+        if (response.data.initialPrompt && messages.value.length > 0 && !hasInitialPrompt) {
+          messages.value.unshift({
+            id: `initial-prompt-${response.data.id}`,
+            role: 'user',
+            content: response.data.initialPrompt,
+            timestamp: response.data.startedAt
+          })
+        }
+
         scrollToBottom()
       }
 
-      await connectWebSocket()
+      await setupWebSocket(session.value.id)
 
       if (messages.value.length === 0) {
-        messages.value.push(createMessage('assistant', 'Session started. Waiting for output...'))
+        messages.value.push({ id: Date.now(), role: 'assistant', content: 'Session started. Waiting for output...' })
       }
     } else {
-      messages.value.push(createMessage('system', 'Error: ' + (response.message || 'Failed to start session')))
+      messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (response.message || 'Failed to start session') })
       ElMessage.error(response.message || 'Failed to start session')
     }
   } catch (e) {
     console.error('Failed to start session:', e)
-    messages.value.push(createMessage('system', 'Error: ' + (e.response?.data?.message || e.message || 'Failed to start session')))
+    messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (e.response?.data?.message || e.message || 'Failed to start session') })
     ElMessage.error(e.response?.data?.message || e.message || 'Failed to start session')
   } finally {
     isStarting.value = false
@@ -460,18 +473,14 @@ const startSession = async () => {
 const stopSession = async () => {
   if (!session.value) return
 
-  isStopping.value = true
-  try {
-    const response = await sessionApi.stop(session.value.id)
-    session.value = response.data
-    emit('status-change', session.value.status)
-    emit('session-stopped')
-  } catch (e) {
-    console.error('Failed to stop session:', e)
-    ElMessage.error('Failed to stop session')
-  } finally {
-    isStopping.value = false
-  }
+  const status = session.value.status
+  emit('status-change', status)
+  emit('session-stopped')
+
+  await stopExistingSession(
+    (newStatus) => emit('status-change', newStatus),
+    () => emit('session-stopped')
+  )
 }
 
 const sendMessage = async () => {
@@ -480,52 +489,93 @@ const sendMessage = async () => {
   const input = inputText.value.trim()
   inputText.value = ''
 
-  messages.value.push(createMessage('user', input))
+  messages.value.push({ id: Date.now(), role: 'user', content: input })
   scrollToBottom()
 
-  // Start waiting timer
   startWaitingTimer()
 
   try {
     const status = session.value.status
-    // If session is stopped/completed but has claudeSessionId, use continue API
     if (['STOPPED', 'COMPLETED'].includes(status) && session.value.claudeSessionId) {
       console.log('Resuming session with claudeSessionId:', session.value.claudeSessionId)
-      const response = await sessionApi.continue(session.value.id, input)
-      if (response.success && response.data) {
-        // Update session data to get new status (RUNNING)
-        session.value = response.data
-        emit('status-change', session.value.status)
-        // Force reconnect WebSocket to receive new output
-        disconnectWebSocket()
-        if (['RUNNING', 'IDLE'].includes(response.data.status)) {
-          await connectWebSocket()
+      const success = await continueSession(input, (newStatus) => {
+        emit('status-change', newStatus)
+      })
+
+      if (success) {
+        disconnectWebSocket(session.value.id)
+        if (['RUNNING', 'IDLE'].includes(session.value.status)) {
+          await setupWebSocket(session.value.id)
         }
       } else {
         stopWaitingTimer()
-        ElMessage.error(response.message || 'Failed to continue session')
-        // Restore input on failure
+        ElMessage.error('Failed to continue session')
         inputText.value = input
         messages.value.pop()
       }
     } else if (isConnected.value) {
-      wsService.sendInput(session.value.id, input)
+      wsSendInput(session.value.id, input)
     } else {
-      await sessionApi.sendInput(session.value.id, input)
+      const response = await fetch(`/api/sessions/${session.value.id}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input })
+      }).then(r => r.json())
+
+      if (!response.success) {
+        stopWaitingTimer()
+        ElMessage.error('Failed to send message')
+        inputText.value = input
+        messages.value.pop()
+      }
     }
   } catch (e) {
     stopWaitingTimer()
     console.error('Failed to send message:', e)
     ElMessage.error('Failed to send message')
-    // Restore input on error
     inputText.value = input
     messages.value.pop()
   }
 }
 
-const clearMessages = () => {
-  messages.value = []
-  initialPromptFiltered.value = false
+const confirmDeleteSession = async () => {
+  if (!session.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除当前会话吗？删除后将无法恢复。',
+      '删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    // User confirmed, delete the session
+    const response = await fetch(`/api/sessions/${session.value.id}`, {
+      method: 'DELETE'
+    }).then(r => r.json())
+
+    if (response.success) {
+      ElMessage.success('会话已删除')
+      // Disconnect WebSocket
+      disconnectWebSocket(session.value.id)
+      // Clear local state
+      setSession(null)
+      messages.value = []
+      resetFilter()
+      emit('session-deleted')
+    } else {
+      ElMessage.error(response.message || '删除失败')
+    }
+  } catch (e) {
+    // User cancelled or error
+    if (e !== 'cancel') {
+      console.error('Failed to delete session:', e)
+      ElMessage.error('删除失败')
+    }
+  }
 }
 
 const scrollToBottom = () => {
@@ -536,38 +586,13 @@ const scrollToBottom = () => {
   })
 }
 
-const connectWebSocket = async () => {
-  if (!session.value) return
-
-  if (isConnected.value) {
-    console.log('WebSocket already connected for session', session.value.id)
-    return
-  }
-
-  try {
-    // 确保连接建立
-    if (!wsService.isConnected()) {
-      console.log('[ChatBox] Connecting WebSocket...')
-      await wsService.connect()
-      // 等待一小段时间确保连接稳定
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-
-    // 再次检查连接状态
-    if (!wsService.isConnected()) {
-      console.warn('[ChatBox] WebSocket not connected after connect()')
-      return
-    }
-
-    isConnected.value = true
-    console.log('[ChatBox] WebSocket connected, subscribing to session', session.value.id)
-
-    wsService.subscribeToOutput(session.value.id, (data) => {
+const setupWebSocket = async (sessionId) => {
+  await connectWebSocket(sessionId, {
+    onOutput: (data) => {
       console.log('Received output:', data)
       if (data.type === 'chunk') {
         const role = data.stream === 'stdin' ? 'user' : 'assistant'
         if (role !== 'user') {
-          // Stop waiting timer when receiving response
           stopWaitingTimer()
 
           if (shouldFilterContent(data.content)) {
@@ -596,16 +621,19 @@ const connectWebSocket = async () => {
           }
         }
       }
-    })
-
-    wsService.subscribeToStatus(session.value.id, async (data) => {
+    },
+    onStatus: async (data) => {
       if (data.type === 'status' && session.value) {
         session.value.status = data.status
         emit('status-change', data.status)
-        // Stop waiting timer when status changes to IDLE
         if (data.status === 'IDLE') {
           stopWaitingTimer()
         }
+      }
+      if (data.type === 'claude_session_id' && session.value) {
+        // Update claudeSessionId when received from backend
+        session.value.claudeSessionId = data.claudeSessionId
+        console.log('[ChatBox] Received claudeSessionId:', data.claudeSessionId)
       }
       if (data.type === 'exit') {
         stopWaitingTimer()
@@ -613,93 +641,109 @@ const connectWebSocket = async () => {
           session.value.status = data.status
         }
         emit('status-change', data.status)
-        // Refresh session data to get claudeSessionId for resume capability
-        try {
-          const response = await sessionApi.getById(session.value.id)
-          if (response.success && response.data) {
-            // Use Object.assign to ensure reactivity
-            Object.assign(session.value, response.data)
-            console.log('Session refreshed, claudeSessionId:', session.value.claudeSessionId)
-          }
-        } catch (e) {
-          console.error('Failed to refresh session:', e)
+        const refreshed = await refreshSession()
+        if (refreshed) {
+          console.log('Session refreshed, claudeSessionId:', session.value?.claudeSessionId)
         }
       }
-    })
-  } catch (e) {
-    console.error('Failed to connect WebSocket:', e)
-    isConnected.value = false
-  }
-}
-
-const disconnectWebSocket = () => {
-  if (session.value) {
-    wsService.unsubscribeFromSession(session.value.id)
-  }
-  isConnected.value = false
+    }
+  })
 }
 
 // Lifecycle
-onMounted(() => {
+// Note: watch(props.task) handles initialization when task changes,
+// so onMounted only needs to handle the case when component is first rendered
+// with a task that was already set (not changed)
+onMounted(async () => {
+  console.log('[ChatBox] onMounted, initialSession:', props.initialSession ? props.initialSession.id : null, 'task:', props.task?.id, 'session:', session.value?.id)
+  // If session is already initialized (by watch(props.task)), skip
+  if (session.value) {
+    console.log('[ChatBox] Session already initialized, skipping onMounted')
+    return
+  }
   if (props.initialSession) {
-    session.value = props.initialSession
-    if (props.initialSession.initialPrompt) {
-      initialPrompt.value = props.initialSession.initialPrompt
-      initialPromptFiltered.value = false
-    }
-    if (props.initialSession.output) {
-      const parsedMessages = parseOutputToMessages(props.initialSession.output)
-      messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
-      scrollToBottom()
-    }
-    if (['RUNNING', 'IDLE'].includes(props.initialSession.status)) {
-      connectWebSocket()
-    }
+    console.log('[ChatBox] Initializing with initialSession:', props.initialSession)
+    initializeSession(props.initialSession)
   } else {
-    loadActiveSession()
+    console.log('[ChatBox] No initialSession, loading from server')
+    await loadActiveSession()
   }
 })
 
 onUnmounted(() => {
-  disconnectWebSocket()
+  if (session.value) {
+    disconnectWebSocket(session.value.id)
+  }
   stopWaitingTimer()
 })
 
 // Watch for agent changes
 watch(() => props.agentId, async (newAgentId, oldAgentId) => {
   console.log('[ChatBox] agentId changed:', oldAgentId, '->', newAgentId)
-  // If agentId changes from null/undefined to a value, create a session
+
+  if (session.value) {
+    console.log('[ChatBox] Session exists, skip creating new session')
+    return
+  }
+
   if ((oldAgentId == null || oldAgentId === undefined) && newAgentId != null) {
     console.log('[ChatBox] Agent selected, creating session...')
     await createSession()
     return
   }
 
-  // If changing to a different agent and there's an existing session, stop it
   if (oldAgentId && newAgentId !== oldAgentId && session.value) {
     await stopSession()
-    session.value = null
+    setSession(null)
     messages.value = []
-    initialPrompt.value = null
-    initialPromptFiltered.value = false
+    resetFilter()
   }
 })
 
 // Watch for initialSession changes from parent
-watch(() => props.initialSession, (newSession) => {
+watch(() => props.initialSession, (newSession, oldSession) => {
   if (newSession) {
-    session.value = newSession
-    if (newSession.initialPrompt) {
-      initialPrompt.value = newSession.initialPrompt
-      initialPromptFiltered.value = false
+    if (!oldSession || oldSession.id !== newSession.id || messages.value.length === 0) {
+      // initialSession is from parent, treat as history (already complete)
+      initializeSession(newSession, true)
     }
-    if (newSession.output && messages.value.length === 0) {
-      const parsedMessages = parseOutputToMessages(newSession.output)
-      messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
-      scrollToBottom()
+  }
+}, { deep: true })
+
+// Watch for task changes
+watch(() => props.task, async (newTask, oldTask) => {
+  console.log('[ChatBox] watch(props.task) triggered:', { oldTaskId: oldTask?.id, newTaskId: newTask?.id, initialSessionId: props.initialSession?.id, sessionId: session.value?.id })
+  if (!newTask) {
+    // Task cleared
+    return
+  }
+  // Load session when task changes (including first time load when oldTask is null)
+  if (!oldTask || newTask.id !== oldTask.id) {
+    console.log('[ChatBox] Task changed:', oldTask?.id, '->', newTask.id)
+    // Clear old messages
+    messages.value = []
+    resetFilter()
+    // Disconnect WebSocket from old session
+    if (session.value) {
+      disconnectWebSocket(session.value.id)
+      setSession(null)
     }
-    if (['RUNNING', 'IDLE'].includes(newSession.status) && !isConnected.value) {
-      connectWebSocket()
+    // Use initialSession if available, otherwise load from server
+    // Note: initialSession may be null initially if parent is still loading,
+    // in that case we'll load from server
+    if (props.initialSession) {
+      console.log('[ChatBox] Using initialSession for task:', props.initialSession.id)
+      // initialSession is from parent, treat as history (already complete)
+      initializeSession(props.initialSession, true)
+    } else {
+      console.log('[ChatBox] No initialSession, loading from server')
+      // No initialSession, load from server
+      const activeSession = await loadActiveSession()
+      if (!activeSession) {
+        // No active session, load last history session
+        console.log('[ChatBox] No active session, loading last history session')
+        await loadLastHistorySession()
+      }
     }
   }
 }, { deep: true })
@@ -714,7 +758,7 @@ defineExpose({
   createSession,
   startSession,
   stopSession,
-  clearMessages,
+  confirmDeleteSession,
   session
 })
 </script>
@@ -723,13 +767,16 @@ defineExpose({
 .chat-box {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   background-color: var(--bg-secondary);
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chat-box.collapsed {
+  flex: 0 0 auto;
 }
 
 .chat-header {
@@ -745,12 +792,21 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.collapse-btn {
+  flex-shrink: 0;
 }
 
 .header-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-status {
@@ -759,6 +815,8 @@ defineExpose({
   gap: 6px;
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .claude-session-id {
@@ -768,6 +826,9 @@ defineExpose({
   padding: 2px 6px;
   background: rgba(144, 147, 153, 0.1);
   border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-dot {
@@ -777,7 +838,7 @@ defineExpose({
   background: #9ca3af;
 }
 
-.status-running .status-dot {  /* 柔和绿色 */
+.status-running .status-dot {
   background: #86efac;
   animation: pulse 1.5s infinite;
 }
@@ -802,6 +863,7 @@ defineExpose({
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .header-actions .el-button {
@@ -809,35 +871,10 @@ defineExpose({
   padding: 6px 12px;
 }
 
-/* Task summary styles */
 .task-summary {
   padding: 8px 16px;
   background-color: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
-}
-
-.task-summary-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.task-title {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-primary);
-  flex: 1;
-  margin-right: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-meta {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
 }
 
 .task-description {
@@ -859,7 +896,7 @@ defineExpose({
 
 .messages-area {
   flex: 1;
-  min-height: 0;  /* 关键：允许 flex 收缩 */
+  min-height: 0;
   overflow-y: auto;
   padding: 12px;
   background-color: var(--bg-secondary);
@@ -978,7 +1015,6 @@ defineExpose({
   background-color: var(--bg-tertiary);
 }
 
-
 .chat-input-wrapper .el-textarea {
   flex: 1;
 }
@@ -1004,7 +1040,6 @@ defineExpose({
   border-radius: 8px;
 }
 
-/* Scrollbar styling */
 .messages-area::-webkit-scrollbar {
   width: 8px;
 }
