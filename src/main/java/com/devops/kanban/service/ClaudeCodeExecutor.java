@@ -107,13 +107,25 @@ public class ClaudeCodeExecutor {
             if (PlatformUtils.isWindows()) {
                 // On Windows: wrap with cmd /c to set UTF-8 code page (65001) before running command
                 // This ensures PTY output is UTF-8 encoded instead of default GBK/CP936
+                // Note: Must pass as single string to cmd /c for shell operators (>nul, &&) to work
+                String innerCommandStr = String.join(" ", innerCommand);
+                // Quote the inner command if it contains spaces (e.g., paths with spaces)
+                if (innerCommandStr.contains(" ") && !innerCommandStr.startsWith("\"")) {
+                    // More robust quoting: quote individual path arguments that contain spaces
+                    StringBuilder quotedCmd = new StringBuilder();
+                    for (String part : innerCommand) {
+                        if (part.contains(" ") || part.contains("(") || part.contains(")")) {
+                            quotedCmd.append("\"").append(part).append("\"");
+                        } else {
+                            quotedCmd.append(part);
+                        }
+                        quotedCmd.append(" ");
+                    }
+                    innerCommandStr = quotedCmd.toString().trim();
+                }
                 command.add("cmd");
                 command.add("/c");
-                command.add("chcp");
-                command.add("65001");
-                command.add(">nul");
-                command.add("&&");
-                command.addAll(innerCommand);
+                command.add("chcp 65001 >nul && " + innerCommandStr);
                 log.info("[Session-{}] Using Windows UTF-8 code page wrapper (chcp 65001)", sessionId);
             } else {
                 // On Unix: use command directly (UTF-8 is default)
@@ -256,13 +268,14 @@ public class ClaudeCodeExecutor {
             }
 
             while ((bytesRead = inputStream.read(buffer)) != -1) {
+                // Decode as UTF-8 (chcp 65001 should make PTY output UTF-8 on Windows)
                 String chunk = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
                 totalBytes += bytesRead;
 
                 // Detect encoding issues (replacement character indicates UTF-8 decode failure)
                 if (chunk.contains("\uFFFD")) {
                     log.warn("[Session-{}] Encoding issue detected: replacement character (U+FFFD) found in output. " +
-                        "This usually means the PTY is not using UTF-8 encoding.", sessionId);
+                        "PTY may not be using UTF-8 encoding despite chcp 65001.", sessionId);
                 }
 
                 // Log raw chunk for debugging (first 10KB only)

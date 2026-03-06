@@ -338,6 +338,18 @@ const initializeSession = async (sessionData, isHistory = false) => {
     scrollToBottom()
   }
 
+  // Handle initialPrompt for sessions with empty output (e.g., CREATED status)
+  // This must be OUTSIDE the output block so it works even when output is empty
+  if (sessionData.initialPrompt && messages.value.length === 0) {
+    messages.value.push({
+      id: `initial-prompt-${sessionData.id}`,
+      role: 'user',
+      content: sessionData.initialPrompt,
+      timestamp: sessionData.startedAt || new Date().toISOString()
+    })
+    scrollToBottom()
+  }
+
   // If session is active, connect WebSocket
   if (['RUNNING', 'IDLE'].includes(sessionData.status)) {
     setupWebSocket(sessionData.id)
