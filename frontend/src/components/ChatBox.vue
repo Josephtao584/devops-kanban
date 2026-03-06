@@ -338,9 +338,12 @@ const initializeSession = async (sessionData, isHistory = false) => {
     scrollToBottom()
   }
 
-  // Handle initialPrompt for sessions with empty output (e.g., CREATED status)
-  // This must be OUTSIDE the output block so it works even when output is empty
-  if (sessionData.initialPrompt && messages.value.length === 0) {
+  // Handle initialPrompt for sessions with empty output
+  // Only add for non-CREATED sessions (RUNNING, STOPPED, etc.)
+  // CREATED sessions will add the message when Start is clicked
+  if (sessionData.initialPrompt &&
+      messages.value.length === 0 &&
+      sessionData.status !== 'CREATED') {
     messages.value.push({
       id: `initial-prompt-${sessionData.id}`,
       role: 'user',
@@ -405,9 +408,7 @@ const createSession = async () => {
 
     if (response.success && response.data) {
       setSession(response.data)
-      if (response.data.initialPrompt) {
-        setInitialPrompt(response.data.initialPrompt)
-      }
+      // Don't set initialPrompt here - it will be added when Start is clicked
       emit('session-created', session.value)
       setupWebSocket(session.value.id)
       return session.value
@@ -428,12 +429,28 @@ const handleButtonClick = async () => {
     emit('request-agent-select', props.task)
     return
   }
-  // No session but has agentId, create and start session
-  if (!session.value && props.agentId) {
-    const newSession = await createSession()
-    if (!newSession) return
+
+  // Prevent double-clicks by setting isStarting immediately
+  if (isStarting.value) {
+    console.warn('Session is already starting')
+    return
   }
-  await startSession()
+  isStarting.value = true
+
+  try {
+    // No session but has agentId, create and start session
+    if (!session.value && props.agentId) {
+      const newSession = await createSession()
+      if (!newSession) {
+        isStarting.value = false
+        return
+      }
+    }
+    await startSession()
+  } catch (e) {
+    console.error('handleButtonClick error:', e)
+    isStarting.value = false
+  }
 }
 
 const startSession = async () => {
@@ -443,24 +460,33 @@ const startSession = async () => {
     if (!newSession) return
   }
 
-  if (isStarting.value) {
-    console.warn('Session is already starting')
-    return
+  // Note: isStarting is already set by handleButtonClick, but check here too
+  // in case startSession is called directly
+  if (!isStarting.value) {
+    isStarting.value = true
   }
 
-  isStarting.value = true
   messages.value.push({ id: Date.now(), role: 'system', content: 'Starting session...' })
 
   // Add initialPrompt as user message immediately (don't wait for API response)
   if (session.value.initialPrompt) {
-    messages.value.push({
-      id: `initial-prompt-${session.value.id}`,
-      role: 'user',
-      content: session.value.initialPrompt,
-      timestamp: new Date().toISOString()
-    })
+    // Check if message already exists to avoid duplicates
+    const existingMsg = messages.value.find(m =>
+      m.id === `initial-prompt-${session.value.id}`
+    )
+    if (!existingMsg) {
+      messages.value.push({
+        id: `initial-prompt-${session.value.id}`,
+        role: 'user',
+        content: session.value.initialPrompt,
+        timestamp: new Date().toISOString()
+      })
+    }
     setInitialPrompt(session.value.initialPrompt)
   }
+
+  // Start waiting timer to show waiting time
+  startWaitingTimer()
 
   try {
     const response = await fetch(`/api/sessions/${session.value.id}/start`, {
@@ -492,10 +518,12 @@ const startSession = async () => {
 
       await setupWebSocket(session.value.id)
     } else {
+      stopWaitingTimer()
       messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (response.message || 'Failed to start session') })
       ElMessage.error(response.message || 'Failed to start session')
     }
   } catch (e) {
+    stopWaitingTimer()
     console.error('Failed to start session:', e)
     messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (e.response?.data?.message || e.message || 'Failed to start session') })
     ElMessage.error(e.response?.data?.message || e.message || 'Failed to start session')
@@ -523,7 +551,12 @@ const sendMessage = async () => {
   const input = inputText.value.trim()
   inputText.value = ''
 
-  messages.value.push({ id: Date.now(), role: 'user', content: input })
+  messages.value.push({
+    id: Date.now(),
+    role: 'user',
+    content: input,
+    timestamp: new Date().toISOString()
+  })
   scrollToBottom()
 
   startWaitingTimer()
