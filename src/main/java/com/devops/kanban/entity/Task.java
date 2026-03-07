@@ -27,6 +27,9 @@ public class Task {
     // Phase transition control
     private Boolean autoTransitionEnabled;
 
+    // Optimistic locking version for concurrent modification detection
+    private Long version;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

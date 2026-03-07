@@ -3,6 +3,7 @@ package com.devops.kanban.service;
 import com.devops.kanban.entity.PhaseTransitionRule;
 import com.devops.kanban.entity.Session;
 import com.devops.kanban.entity.Task;
+import com.devops.kanban.event.SessionEndedEvent;
 import com.devops.kanban.repository.PhaseTransitionRuleRepository;
 import com.devops.kanban.repository.SessionRepository;
 import com.devops.kanban.repository.TaskRepository;
@@ -11,13 +12,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Service for analyzing AI agent output and triggering automatic phase transitions.
@@ -28,6 +34,16 @@ import java.util.Optional;
 @Slf4j
 @RequiredArgsConstructor
 public class PhaseTransitionService {
+
+    // Structured markers for explicit phase completion/failure signals
+    // AI can output these to avoid false positives from keyword matching
+    public static final String PHASE_COMPLETE_MARKER = "[PHASE_COMPLETE:";
+    public static final String PHASE_FAILED_MARKER = "[PHASE_FAILED:";
+    public static final String MARKER_END = "]";
+
+    // Regex patterns for structured markers
+    private static final Pattern PHASE_COMPLETE_PATTERN = Pattern.compile("\\[PHASE_COMPLETE:([A-Z_]+)\\]");
+    private static final Pattern PHASE_FAILED_PATTERN = Pattern.compile("\\[PHASE_FAILED:([A-Z_]+)\\]");
 
     private final PhaseTransitionRuleRepository ruleRepository;
     private final TaskRepository taskRepository;
@@ -57,6 +73,25 @@ public class PhaseTransitionService {
 
         public static TransitionResult rollback(String from, String to, String reason) {
             return new TransitionResult(true, from, to, reason, true);
+        }
+    }
+
+    /**
+     * Event listener for session ended events.
+     * This replaces direct dependency on HeartbeatMonitor.
+     * Uses @Async to avoid blocking the event publisher.
+     *
+     * @param event the session ended event
+     */
+    @EventListener
+    @Async
+    public void onSessionEnded(SessionEndedEvent event) {
+        log.info("[PhaseTransition] Received SessionEndedEvent for session {}", event.getSessionId());
+        try {
+            analyzeAndTransition(event.getSessionId(), event.getExitCode(), event.getOutput());
+        } catch (Exception e) {
+            log.error("[PhaseTransition] Failed to process SessionEndedEvent for session {}",
+                    event.getSessionId(), e);
         }
     }
 
@@ -129,9 +164,48 @@ public class PhaseTransitionService {
 
     /**
      * Evaluate a single rule against the session output.
+     * Priority: Structured markers > Keywords
      */
     private TransitionResult evaluateRule(PhaseTransitionRule rule, int exitCode, String lowerOutput) {
-        // First check for failure keywords (higher priority for rollback)
+        String originalOutput = lowerOutput.toUpperCase();
+
+        // 1. First check for structured markers (highest priority - explicit signals)
+        // Check for explicit failure marker: [PHASE_FAILED:CURRENT_PHASE]
+        if (rule.isAutoRollback() && rule.getRollbackPhase() != null) {
+            Matcher failedMatcher = PHASE_FAILED_PATTERN.matcher(originalOutput);
+            if (failedMatcher.find()) {
+                String failedPhase = failedMatcher.group(1);
+                if (rule.getFromPhase().equalsIgnoreCase(failedPhase)) {
+                    log.info("[PhaseTransition] Structured failure marker found: [PHASE_FAILED:{}] -> rolling back to {}",
+                            failedPhase, rule.getRollbackPhase());
+                    return TransitionResult.rollback(
+                            rule.getFromPhase(),
+                            rule.getRollbackPhase(),
+                            "Explicit failure marker: [PHASE_FAILED:" + failedPhase + "]"
+                    );
+                }
+            }
+        }
+
+        // Check for explicit completion marker: [PHASE_COMPLETE:TARGET_PHASE]
+        if (rule.isAutoTransition() && rule.getToPhase() != null) {
+            Matcher completeMatcher = PHASE_COMPLETE_PATTERN.matcher(originalOutput);
+            if (completeMatcher.find()) {
+                String targetPhase = completeMatcher.group(1);
+                if (rule.getToPhase().equalsIgnoreCase(targetPhase)) {
+                    log.info("[PhaseTransition] Structured completion marker found: [PHASE_COMPLETE:{}] -> transitioning",
+                            targetPhase);
+                    return TransitionResult.forward(
+                            rule.getFromPhase(),
+                            rule.getToPhase(),
+                            "Explicit completion marker: [PHASE_COMPLETE:" + targetPhase + "]"
+                    );
+                }
+            }
+        }
+
+        // 2. Fallback to keyword matching (legacy behavior)
+        // Check for failure keywords
         if (rule.isAutoRollback() && rule.getRollbackPhase() != null) {
             List<String> failureKeywords = parseKeywords(rule.getFailureKeywords());
             for (String keyword : failureKeywords) {
@@ -147,7 +221,7 @@ public class PhaseTransitionService {
             }
         }
 
-        // Then check for completion keywords
+        // Check for completion keywords
         if (rule.isAutoTransition() && rule.getToPhase() != null) {
             List<String> completionKeywords = parseKeywords(rule.getCompletionKeywords());
             for (String keyword : completionKeywords) {
@@ -167,24 +241,44 @@ public class PhaseTransitionService {
     }
 
     /**
-     * Execute the phase transition.
+     * Execute the phase transition with transaction and optimistic locking.
      */
-    private void executeTransition(Task task, TransitionResult result, Session session) {
+    @Transactional
+    protected void executeTransition(Task task, TransitionResult result, Session session) {
         try {
+            // Re-fetch task to get latest version for optimistic locking
+            Long taskId = task.getId();
+            Task freshTask = taskRepository.findById(taskId).orElse(null);
+            if (freshTask == null) {
+                log.error("[PhaseTransition] Task {} not found during transition", taskId);
+                return;
+            }
+
+            // Check version for optimistic locking
+            if (task.getVersion() != null && freshTask.getVersion() != null
+                    && !task.getVersion().equals(freshTask.getVersion())) {
+                log.warn("[PhaseTransition] Task {} was modified by another process (expected version: {}, actual: {}), skipping transition",
+                        taskId, task.getVersion(), freshTask.getVersion());
+                return;
+            }
+
             // Update task status
             Task.TaskStatus newStatus = Task.TaskStatus.valueOf(result.getToPhase());
-            task.setStatus(newStatus);
-            taskRepository.save(task);
+            freshTask.setStatus(newStatus);
+            taskRepository.save(freshTask);
 
             log.info("[PhaseTransition] Task {} transitioned: {} -> {} ({})",
-                    task.getId(), result.getFromPhase(), result.getToPhase(),
+                    freshTask.getId(), result.getFromPhase(), result.getToPhase(),
                     result.isRollback() ? "ROLLBACK" : "FORWARD");
 
             // Broadcast transition event via WebSocket
-            broadcastTransition(task.getId(), result, session.getId());
+            broadcastTransition(freshTask.getId(), result, session.getId());
 
         } catch (IllegalArgumentException e) {
             log.error("[PhaseTransition] Invalid target phase: {}", result.getToPhase(), e);
+        } catch (Exception e) {
+            log.error("[PhaseTransition] Failed to transition task {}", task.getId(), e);
+            throw e; // Re-throw to trigger transaction rollback
         }
     }
 

@@ -1,10 +1,12 @@
 package com.devops.kanban.service;
 
 import com.devops.kanban.entity.Session;
+import com.devops.kanban.event.SessionEndedEvent;
 import com.devops.kanban.infrastructure.process.ProcessExecutor;
 import com.devops.kanban.repository.SessionRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -13,27 +15,17 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Manages heartbeat monitoring for active sessions.
  * Extracted from SessionService to improve separation of concerns.
+ * Uses event-driven architecture to avoid circular dependencies.
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class HeartbeatMonitor {
 
     private final SessionRepository sessionRepository;
     private final ProcessExecutor processExecutor;
+    private final ApplicationEventPublisher eventPublisher;
     private final ConcurrentHashMap<Long, Thread> activeMonitors = new ConcurrentHashMap<>();
-
-    // Use lazy injection to avoid circular dependency
-    private PhaseTransitionService phaseTransitionService;
-
-    public HeartbeatMonitor(SessionRepository sessionRepository, ProcessExecutor processExecutor) {
-        this.sessionRepository = sessionRepository;
-        this.processExecutor = processExecutor;
-    }
-
-    @Autowired
-    public void setPhaseTransitionService(PhaseTransitionService phaseTransitionService) {
-        this.phaseTransitionService = phaseTransitionService;
-    }
 
     /**
      * Start heartbeat monitoring for a session.
@@ -121,13 +113,13 @@ public class HeartbeatMonitor {
             log.info("[Heartbeat] Final status updated | SessionId: {} | Status: {} | ExitCode: {}",
                 sessionId, session.getStatus(), exitCode);
 
-            // Trigger phase transition analysis
-            if (phaseTransitionService != null) {
-                try {
-                    phaseTransitionService.analyzeAndTransition(sessionId, exitCode, session.getOutput());
-                } catch (Exception e) {
-                    log.error("[Heartbeat] Phase transition analysis failed for session {}", sessionId, e);
-                }
+            // Publish event for phase transition analysis (loose coupling)
+            try {
+                SessionEndedEvent event = new SessionEndedEvent(this, sessionId, exitCode, session.getOutput());
+                eventPublisher.publishEvent(event);
+                log.debug("[Heartbeat] Published SessionEndedEvent for session {}", sessionId);
+            } catch (Exception e) {
+                log.error("[Heartbeat] Failed to publish SessionEndedEvent for session {}", sessionId, e);
             }
         });
     }

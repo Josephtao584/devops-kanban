@@ -34,6 +34,9 @@ public class TaskDTO {
     // Phase transition control
     private Boolean autoTransitionEnabled;
 
+    // Optimistic locking version
+    private Long version;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

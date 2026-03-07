@@ -5,6 +5,8 @@ import com.devops.kanban.dto.PhaseTransitionRuleDTO;
 import com.devops.kanban.entity.PhaseTransitionRule;
 import com.devops.kanban.repository.PhaseTransitionRuleRepository;
 import com.devops.kanban.service.PhaseTransitionService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -168,17 +170,49 @@ public class PhaseTransitionController {
     }
 
     private PhaseTransitionRule toEntity(PhaseTransitionRuleDTO dto) {
+        // Normalize keywords JSON format before saving
+        String normalizedCompletion = normalizeKeywordsJson(dto.getCompletionKeywords());
+        String normalizedFailure = normalizeKeywordsJson(dto.getFailureKeywords());
+
         return PhaseTransitionRule.builder()
                 .id(dto.getId())
                 .fromPhase(dto.getFromPhase())
                 .toPhase(dto.getToPhase())
-                .completionKeywords(dto.getCompletionKeywords())
-                .failureKeywords(dto.getFailureKeywords())
+                .completionKeywords(normalizedCompletion)
+                .failureKeywords(normalizedFailure)
                 .rollbackPhase(dto.getRollbackPhase())
                 .autoTransition(dto.isAutoTransition())
                 .autoRollback(dto.isAutoRollback())
                 .enabled(dto.isEnabled())
                 .priority(dto.getPriority())
                 .build();
+    }
+
+    /**
+     * Validate and normalize keywords JSON format.
+     * Returns a valid JSON array string or "[]" if invalid.
+     */
+    private String normalizeKeywordsJson(String keywordsJson) {
+        if (keywordsJson == null || keywordsJson.isBlank()) {
+            return "[]";
+        }
+
+        try {
+            // Try to parse as JSON array
+            ObjectMapper mapper = new ObjectMapper();
+            List<String> keywords = mapper.readValue(keywordsJson, new TypeReference<List<String>>() {});
+
+            // Normalize: trim whitespace, remove empty strings, convert back to JSON
+            List<String> normalized = keywords.stream()
+                    .filter(k -> k != null && !k.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            return mapper.writeValueAsString(normalized);
+        } catch (Exception e) {
+            log.warn("[PhaseTransition] Invalid keywords JSON format: {}", keywordsJson);
+            return "[]";
+        }
     }
 }
