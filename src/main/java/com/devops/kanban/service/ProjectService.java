@@ -1,5 +1,6 @@
 package com.devops.kanban.service;
 
+import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.ProjectDTO;
 import com.devops.kanban.entity.Project;
 import com.devops.kanban.repository.AgentRepository;
@@ -26,23 +27,24 @@ public class ProjectService {
     private final TaskSourceRepository taskSourceRepository;
     private final ExecutionRepository executionRepository;
     private final SessionRepository sessionRepository;
+    private final EntityDTOConverter converter;
 
     public List<ProjectDTO> findAll() {
         return projectRepository.findAll().stream()
-                .map(this::toDTO)
+                .map(converter::toDTO)
                 .collect(Collectors.toList());
     }
 
     public ProjectDTO findById(Long id) {
         return projectRepository.findById(id)
-                .map(this::toDTO)
+                .map(converter::toDTO)
                 .orElse(null);
     }
 
     public ProjectDTO create(ProjectDTO dto) {
-        Project project = toEntity(dto);
+        Project project = converter.toEntity(dto);
         project = projectRepository.save(project);
-        return toDTO(project);
+        return converter.toDTO(project);
     }
 
     public ProjectDTO update(Long id, ProjectDTO dto) {
@@ -55,7 +57,7 @@ public class ProjectService {
         project.setLocalPath(dto.getLocalPath());
 
         project = projectRepository.save(project);
-        return toDTO(project);
+        return converter.toDTO(project);
     }
 
     public void delete(Long id) {
@@ -93,27 +95,5 @@ public class ProjectService {
         // 7. Finally, delete the project itself
         projectRepository.deleteById(id);
         log.info("Completed cascade deletion for project ID: {}", id);
-    }
-
-    private ProjectDTO toDTO(Project project) {
-        return ProjectDTO.builder()
-                .id(project.getId())
-                .name(project.getName())
-                .description(project.getDescription())
-                .repoUrl(project.getRepositoryUrl())
-                .localPath(project.getLocalPath())
-                .createdAt(project.getCreatedAt())
-                .updatedAt(project.getUpdatedAt())
-                .build();
-    }
-
-    private Project toEntity(ProjectDTO dto) {
-        return Project.builder()
-                .id(dto.getId())
-                .name(dto.getName())
-                .description(dto.getDescription())
-                .repositoryUrl(dto.getRepoUrl())
-                .localPath(dto.getLocalPath())
-                .build();
     }
 }

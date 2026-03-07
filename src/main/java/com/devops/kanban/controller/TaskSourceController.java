@@ -1,5 +1,6 @@
 package com.devops.kanban.controller;
 
+import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.dto.TaskSourceDTO;
 import com.devops.kanban.entity.TaskSource;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 public class TaskSourceController {
 
     private final TaskSourceManager taskSourceManager;
+    private final EntityDTOConverter converter;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<TaskSourceDTO>>> getTaskSources(
@@ -27,7 +29,7 @@ public class TaskSourceController {
             return ResponseEntity.ok(ApiResponse.error("projectId is required"));
         }
         List<TaskSourceDTO> sources = taskSourceManager.getSourcesByProjectId(projectId).stream()
-                .map(this::toDTO)
+                .map(converter::toDTO)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.success(sources));
     }
@@ -41,14 +43,14 @@ public class TaskSourceController {
         if (source == null) {
             return ResponseEntity.ok(ApiResponse.error("Task source not found"));
         }
-        return ResponseEntity.ok(ApiResponse.success(toDTO(source)));
+        return ResponseEntity.ok(ApiResponse.success(converter.toDTO(source)));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<TaskSourceDTO>> createTaskSource(@Valid @RequestBody TaskSourceDTO dto) {
-        TaskSource source = toEntity(dto);
+        TaskSource source = converter.toEntity(dto);
         source = taskSourceManager.createSource(source);
-        return ResponseEntity.ok(ApiResponse.success("Task source created successfully", toDTO(source)));
+        return ResponseEntity.ok(ApiResponse.success("Task source created successfully", converter.toDTO(source)));
     }
 
     @PostMapping("/{id}/sync")
@@ -69,31 +71,5 @@ public class TaskSourceController {
     public ResponseEntity<ApiResponse<Void>> deleteTaskSource(@PathVariable Long id) {
         taskSourceManager.deleteSource(id);
         return ResponseEntity.ok(ApiResponse.success("Task source deleted successfully", null));
-    }
-
-    private TaskSourceDTO toDTO(TaskSource source) {
-        return TaskSourceDTO.builder()
-                .id(source.getId())
-                .projectId(source.getProjectId())
-                .name(source.getName())
-                .type(source.getType() != null ? source.getType().name() : "LOCAL")
-                .config(source.getConfig())
-                .enabled(source.isEnabled())
-                .syncInterval(source.getSyncInterval())
-                .lastSyncAt(source.getLastSyncAt())
-                .createdAt(source.getCreatedAt())
-                .build();
-    }
-
-    private TaskSource toEntity(TaskSourceDTO dto) {
-        return TaskSource.builder()
-                .id(dto.getId())
-                .projectId(dto.getProjectId())
-                .name(dto.getName())
-                .type(dto.getType() != null ? TaskSource.TaskSourceType.valueOf(dto.getType()) : TaskSource.TaskSourceType.LOCAL)
-                .config(dto.getConfig())
-                .enabled(dto.isEnabled())
-                .syncInterval(dto.getSyncInterval())
-                .build();
     }
 }

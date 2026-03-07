@@ -4,11 +4,12 @@ import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.TaskDTO;
 import com.devops.kanban.entity.*;
 import com.devops.kanban.exception.EntityNotFoundException;
+import com.devops.kanban.infrastructure.git.GitOperations;
+import com.devops.kanban.infrastructure.util.PlatformUtils;
 import com.devops.kanban.repository.AgentRepository;
 import com.devops.kanban.repository.ExecutionRepository;
 import com.devops.kanban.repository.TaskRepository;
 import com.devops.kanban.spi.AgentAdapter;
-import com.devops.kanban.util.PlatformUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class AgentExecutionService {
     private final AgentRepository agentRepository;
     private final TaskRepository taskRepository;
     private final ExecutionRepository executionRepository;
-    private final GitService gitService;
+    private final GitOperations gitOperations;
     private final AdapterRegistry adapterRegistry;
     private final EntityDTOConverter converter;
 
@@ -40,13 +41,13 @@ public class AgentExecutionService {
             AgentRepository agentRepository,
             TaskRepository taskRepository,
             ExecutionRepository executionRepository,
-            GitService gitService,
+            GitOperations gitOperations,
             AdapterRegistry adapterRegistry,
             EntityDTOConverter converter) {
         this.agentRepository = agentRepository;
         this.taskRepository = taskRepository;
         this.executionRepository = executionRepository;
-        this.gitService = gitService;
+        this.gitOperations = gitOperations;
         this.adapterRegistry = adapterRegistry;
         this.converter = converter;
     }
@@ -65,7 +66,7 @@ public class AgentExecutionService {
         }
 
         String branch = "task-" + taskId + "-" + System.currentTimeMillis();
-        Path worktree = gitService.createWorktree(task.getProjectId(), branch);
+        Path worktree = gitOperations.createWorktree(task.getProjectId(), branch);
 
         Execution execution = Execution.builder()
                 .taskId(taskId)
@@ -94,7 +95,7 @@ public class AgentExecutionService {
             execution.setCompletedAt(LocalDateTime.now());
             executionRepository.save(execution);
 
-            gitService.removeWorktree(Path.of(execution.getWorktreePath()));
+            gitOperations.removeWorktree(Path.of(execution.getWorktreePath()));
         }
     }
 
@@ -167,7 +168,7 @@ public class AgentExecutionService {
             executionRepository.save(execution);
 
             try {
-                gitService.removeWorktree(worktree);
+                gitOperations.removeWorktree(worktree);
             } catch (Exception e) {
                 log.warn("Failed to cleanup worktree", e);
             }

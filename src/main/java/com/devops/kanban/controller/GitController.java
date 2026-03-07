@@ -2,8 +2,8 @@ package com.devops.kanban.controller;
 
 import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.entity.Project;
+import com.devops.kanban.infrastructure.git.GitOperations;
 import com.devops.kanban.repository.ProjectRepository;
-import com.devops.kanban.service.GitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,7 +20,7 @@ import java.util.Map;
 @CrossOrigin(origins = "${app.cors.origins:http://localhost:5173}")
 public class GitController {
 
-    private final GitService gitService;
+    private final GitOperations gitOperations;
     private final ProjectRepository projectRepository;
 
     @GetMapping("/diff")
@@ -33,12 +33,12 @@ public class GitController {
                     .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
             Path repoPath = getRepoPath(project);
-            if (!gitService.isGitRepository(repoPath)) {
+            if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
 
-            String diff = gitService.getDiff(repoPath, source, target);
-            var diffEntries = gitService.getDiffEntries(repoPath, source, target);
+            String diff = gitOperations.getDiff(repoPath, source, target);
+            var diffEntries = gitOperations.getDiffEntries(repoPath, source, target);
 
             Map<String, Object> result = new HashMap<>();
             result.put("content", diff);
@@ -59,11 +59,11 @@ public class GitController {
                     .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
             Path repoPath = getRepoPath(project);
-            if (!gitService.isGitRepository(repoPath)) {
+            if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
 
-            List<String> branches = gitService.listBranches(repoPath);
+            List<String> branches = gitOperations.listBranches(repoPath);
             return ResponseEntity.ok(ApiResponse.success(branches));
         } catch (Exception e) {
             return ResponseEntity.ok(ApiResponse.error("Failed to list branches: " + e.getMessage()));
@@ -80,11 +80,11 @@ public class GitController {
                     .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
             Path repoPath = getRepoPath(project);
-            if (!gitService.isGitRepository(repoPath)) {
+            if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
 
-            String result = gitService.mergeBranch(repoPath, source, target);
+            String result = gitOperations.mergeBranch(repoPath, source, target);
             return ResponseEntity.ok(ApiResponse.success(result));
         } catch (Exception e) {
             return ResponseEntity.ok(ApiResponse.error("Failed to merge: " + e.getMessage()));
@@ -98,11 +98,11 @@ public class GitController {
                     .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
             Path repoPath = getRepoPath(project);
-            if (!gitService.isGitRepository(repoPath)) {
+            if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
 
-            List<String> worktrees = gitService.listWorktrees(repoPath);
+            List<String> worktrees = gitOperations.listWorktrees(repoPath);
             return ResponseEntity.ok(ApiResponse.success(worktrees));
         } catch (Exception e) {
             return ResponseEntity.ok(ApiResponse.error("Failed to list worktrees: " + e.getMessage()));

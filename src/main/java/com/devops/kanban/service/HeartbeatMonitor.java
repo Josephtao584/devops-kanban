@@ -1,6 +1,7 @@
 package com.devops.kanban.service;
 
 import com.devops.kanban.entity.Session;
+import com.devops.kanban.infrastructure.process.ProcessExecutor;
 import com.devops.kanban.repository.SessionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,12 +18,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class HeartbeatMonitor {
 
     private final SessionRepository sessionRepository;
-    private final ClaudeCodeExecutor claudeCodeExecutor;
+    private final ProcessExecutor processExecutor;
     private final ConcurrentHashMap<Long, Thread> activeMonitors = new ConcurrentHashMap<>();
 
-    public HeartbeatMonitor(SessionRepository sessionRepository, ClaudeCodeExecutor claudeCodeExecutor) {
+    public HeartbeatMonitor(SessionRepository sessionRepository, ProcessExecutor processExecutor) {
         this.sessionRepository = sessionRepository;
-        this.claudeCodeExecutor = claudeCodeExecutor;
+        this.processExecutor = processExecutor;
     }
 
     /**
@@ -42,7 +43,7 @@ public class HeartbeatMonitor {
             Thread.currentThread().setName("session-" + sessionId + "-heartbeat");
             log.debug("[Heartbeat] Monitor started | Thread: {}", Thread.currentThread().getName());
 
-            while (claudeCodeExecutor.isAlive(sessionId)) {
+            while (processExecutor.isRunning(sessionId)) {
                 try {
                     Thread.sleep(5000); // 5 seconds
                     updateHeartbeat(sessionId);
@@ -97,7 +98,7 @@ public class HeartbeatMonitor {
     }
 
     private void handleProcessEnd(Long sessionId) {
-        int exitCode = claudeCodeExecutor.getExitCode(sessionId);
+        int exitCode = processExecutor.getExitCode(sessionId);
         log.info("[Heartbeat] Process ended for session {} | ExitCode: {}", sessionId, exitCode);
 
         sessionRepository.findById(sessionId).ifPresent(session -> {

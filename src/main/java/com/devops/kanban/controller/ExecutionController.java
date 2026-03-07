@@ -1,5 +1,6 @@
 package com.devops.kanban.controller;
 
+import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.dto.ExecutionDTO;
 import com.devops.kanban.entity.Execution;
@@ -26,19 +27,20 @@ import java.util.stream.Collectors;
 public class ExecutionController {
 
     private final AgentExecutionService executionService;
+    private final EntityDTOConverter converter;
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     @PostMapping
     public ResponseEntity<ApiResponse<ExecutionDTO>> startExecution(@Valid @RequestBody ExecutionDTO dto) {
         Execution execution = executionService.startExecution(dto.getTaskId(), dto.getAgentId());
-        return ResponseEntity.ok(ApiResponse.success("Execution started", toDTO(execution)));
+        return ResponseEntity.ok(ApiResponse.success("Execution started", converter.toDTO(execution)));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ExecutionDTO>> getExecution(@PathVariable Long id) {
         Execution execution = executionService.getExecution(id);
-        return ResponseEntity.ok(ApiResponse.success(toDTO(execution)));
+        return ResponseEntity.ok(ApiResponse.success(converter.toDTO(execution)));
     }
 
     @GetMapping
@@ -48,7 +50,7 @@ public class ExecutionController {
             return ResponseEntity.ok(ApiResponse.error("taskId is required"));
         }
         List<ExecutionDTO> executions = executionService.getExecutionsByTaskId(taskId).stream()
-                .map(this::toDTO)
+                .map(converter::toDTO)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.success(executions));
     }
@@ -88,19 +90,5 @@ public class ExecutionController {
         });
 
         return emitter;
-    }
-
-    private ExecutionDTO toDTO(Execution execution) {
-        return ExecutionDTO.builder()
-                .id(execution.getId())
-                .taskId(execution.getTaskId())
-                .agentId(execution.getAgentId())
-                .status(execution.getStatus() != null ? execution.getStatus().name() : "PENDING")
-                .worktreePath(execution.getWorktreePath())
-                .branch(execution.getBranch())
-                .output(execution.getOutput())
-                .startedAt(execution.getStartedAt())
-                .completedAt(execution.getCompletedAt())
-                .build();
     }
 }

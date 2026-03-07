@@ -1,5 +1,6 @@
 package com.devops.kanban.controller;
 
+import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.dto.SessionDTO;
 import com.devops.kanban.entity.Session;
@@ -14,7 +15,6 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 public class SessionController {
 
     private final SessionService sessionService;
+    private final EntityDTOConverter converter;
 
     // ==================== REST API ====================
 
@@ -275,29 +276,12 @@ public class SessionController {
     }
 
     private SessionDTO toDTO(Session session, boolean includeOutput) {
-        SessionDTO.SessionDTOBuilder builder = SessionDTO.builder()
-                .id(session.getId())
-                .taskId(session.getTaskId())
-                .agentId(session.getAgentId())
-                .status(session.getStatus() != null ? session.getStatus().name() : "CREATED")
-                .worktreePath(session.getWorktreePath())
-                .branch(session.getBranch())
-                .sessionId(session.getSessionId())
-                .startedAt(session.getStartedAt())
-                .lastHeartbeat(session.getLastHeartbeat())
-                .stoppedAt(session.getStoppedAt())
-                .initialPrompt(session.getInitialPrompt())
-                .claudeSessionId(session.getClaudeSessionId());
-
-        if (includeOutput) {
-            // First check session entity output, then fall back to process manager
-            String output = session.getOutput();
-            if (output == null || output.isEmpty()) {
-                output = sessionService.getSessionOutput(session.getId());
-            }
-            builder.output(output);
+        SessionDTO dto = converter.toDTO(session, includeOutput);
+        if (includeOutput && (dto.getOutput() == null || dto.getOutput().isEmpty())) {
+            // Fall back to process manager output
+            String output = sessionService.getSessionOutput(session.getId());
+            dto.setOutput(output);
         }
-
-        return builder.build();
+        return dto;
     }
 }

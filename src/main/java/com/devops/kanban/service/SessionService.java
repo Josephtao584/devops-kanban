@@ -4,12 +4,14 @@ import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.TaskDTO;
 import com.devops.kanban.entity.*;
 import com.devops.kanban.exception.EntityNotFoundException;
+import com.devops.kanban.infrastructure.git.GitOperations;
+import com.devops.kanban.infrastructure.process.ProcessExecutor;
+import com.devops.kanban.infrastructure.util.PlatformUtils;
 import com.devops.kanban.repository.AgentRepository;
 import com.devops.kanban.repository.ProjectRepository;
 import com.devops.kanban.repository.SessionRepository;
 import com.devops.kanban.repository.TaskRepository;
 import com.devops.kanban.spi.AgentAdapter;
-import com.devops.kanban.util.PlatformUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -33,8 +35,8 @@ public class SessionService {
     private final TaskRepository taskRepository;
     private final AgentRepository agentRepository;
     private final ProjectRepository projectRepository;
-    private final GitService gitService;
-    private final ClaudeCodeExecutor claudeCodeExecutor;
+    private final GitOperations gitOperations;
+    private final ProcessExecutor processExecutor;
     private final AdapterRegistry adapterRegistry;
     private final EntityDTOConverter converter;
     private final PromptBuilder promptBuilder;
@@ -45,8 +47,8 @@ public class SessionService {
             TaskRepository taskRepository,
             AgentRepository agentRepository,
             ProjectRepository projectRepository,
-            GitService gitService,
-            ClaudeCodeExecutor claudeCodeExecutor,
+            GitOperations gitOperations,
+            ProcessExecutor processExecutor,
             AdapterRegistry adapterRegistry,
             EntityDTOConverter converter,
             PromptBuilder promptBuilder,
@@ -55,8 +57,8 @@ public class SessionService {
         this.taskRepository = taskRepository;
         this.agentRepository = agentRepository;
         this.projectRepository = projectRepository;
-        this.gitService = gitService;
-        this.claudeCodeExecutor = claudeCodeExecutor;
+        this.gitOperations = gitOperations;
+        this.processExecutor = processExecutor;
         this.adapterRegistry = adapterRegistry;
         this.converter = converter;
         this.promptBuilder = promptBuilder;
@@ -119,7 +121,7 @@ public class SessionService {
             // Create new worktree for isolation
             branch = "task-" + taskId + "-" + System.currentTimeMillis();
             log.debug("[Session] Creating new worktree | LocalPath: {} | Branch: {}", localPath, branch);
-            Path worktree = gitService.createWorktree(localPath, task.getProjectId(), branch);
+            Path worktree = gitOperations.createWorktree(localPath, task.getProjectId(), branch);
             worktreePath = worktree.toString();
             log.info("[Session] Created new worktree for task {} | Worktree: {}", taskId, worktreePath);
         }
@@ -163,7 +165,7 @@ public class SessionService {
             throw new IllegalStateException("Session is not in a startable state: " + session.getStatus());
         }
 
-        if (claudeCodeExecutor.isAlive(sessionId)) {
+        if (processExecutor.isRunning(sessionId)) {
             log.warn("[Session-{}] Cannot start - process already running", sessionId);
             throw new IllegalStateException("Session process is already running");
         }
@@ -194,7 +196,7 @@ public class SessionService {
 
             log.info("[Session-{}] Starting fresh session (no Claude session ID yet)", sessionId);
 
-            boolean started = claudeCodeExecutor.spawn(
+            boolean started = processExecutor.start(
                 sessionId,
                 claudeCliPath,
                 Paths.get(session.getWorktreePath()),
@@ -264,10 +266,10 @@ public class SessionService {
             throw new IllegalStateException("Session is not running: " + session.getStatus());
         }
 
-        String finalOutput = claudeCodeExecutor.getOutput(sessionId);
+        String finalOutput = processExecutor.getOutput(sessionId);
         log.debug("[Session-{}] Final output length: {} chars", sessionId, finalOutput != null ? finalOutput.length() : 0);
 
-        claudeCodeExecutor.stop(sessionId);
+        processExecutor.stop(sessionId);
         heartbeatMonitor.stopMonitoring(sessionId);
 
         session.setStatus(Session.SessionStatus.STOPPED);
@@ -287,10 +289,10 @@ public class SessionService {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Session", sessionId));
 
-        if (claudeCodeExecutor.isAlive(sessionId)) {
+        if (processExecutor.isRunning(sessionId)) {
             log.debug("[Session-{}] Sending input to running process: {}",
                 sessionId, input.length() > 50 ? input.substring(0, 50) + "..." : input);
-            return claudeCodeExecutor.sendInput(sessionId, input);
+            return processExecutor.sendInput(sessionId, input);
         }
 
         String claudeSessionId = session.getClaudeSessionId();
@@ -334,7 +336,7 @@ public class SessionService {
         try {
             adapter.prepare(null, Paths.get(session.getWorktreePath()));
 
-            boolean started = claudeCodeExecutor.spawn(
+            boolean started = processExecutor.start(
                 sessionId,
                 claudeCliPath,
                 Paths.get(session.getWorktreePath()),
@@ -411,7 +413,7 @@ public class SessionService {
     }
 
     public String getSessionOutput(Long sessionId) {
-        String output = claudeCodeExecutor.getOutput(sessionId);
+        String output = processExecutor.getOutput(sessionId);
         if (output != null && !output.isEmpty()) {
             return output;
         }
@@ -430,19 +432,19 @@ public class SessionService {
         if (session.getStatus() == Session.SessionStatus.RUNNING ||
             session.getStatus() == Session.SessionStatus.IDLE) {
             log.debug("[Session-{}] Stopping running process before deletion", sessionId);
-            claudeCodeExecutor.stop(sessionId);
+            processExecutor.stop(sessionId);
             heartbeatMonitor.stopMonitoring(sessionId);
         }
 
         try {
             log.debug("[Session-{}] Removing worktree: {}", sessionId, session.getWorktreePath());
-            gitService.removeWorktree(Paths.get(session.getWorktreePath()));
+            gitOperations.removeWorktree(Paths.get(session.getWorktreePath()));
         } catch (Exception e) {
             log.warn("[Session-{}] Failed to cleanup worktree: {} | Error: {}",
                 sessionId, session.getWorktreePath(), e.getMessage());
         }
 
-        claudeCodeExecutor.cleanup(sessionId);
+        processExecutor.cleanup(sessionId);
         sessionRepository.delete(sessionId);
         log.info("[Session-{}] Session deleted successfully", sessionId);
     }
