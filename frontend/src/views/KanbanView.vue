@@ -22,7 +22,7 @@
         class="btn btn-primary btn-icon"
         @click="openTaskModal()"
         :disabled="!selectedProjectId"
-        title="New Task"
+        :title="$t('task.newTaskButton')"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -36,10 +36,11 @@
       <!-- Kanban Board -->
       <div class="kanban-board">
         <!-- TODO Column -->
+        <!-- TODO Column -->
         <div class="kanban-column" data-status="TODO">
           <div class="column-header">
             <span class="column-status status-todo"></span>
-            <span class="column-title">待处理</span>
+            <span class="column-title">{{ $t('status.TODO') }}</span>
             <span class="column-count">{{ localTodoTasks.length }}</span>
           </div>
           <div class="column-content">
@@ -78,7 +79,7 @@
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
-                        title="Edit Task"
+                        :title="$t('common.edit')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -88,7 +89,7 @@
                       <button
                         class="delete-btn"
                         @click.stop="deleteTask(element.id)"
-                        title="Delete Task"
+                        :title="$t('common.delete')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -101,7 +102,7 @@
               </template>
             </draggable>
             <div v-if="localTodoTasks.length === 0" class="empty-column">
-              <p>暂无待处理任务</p>
+              <p>{{ $t('task.noTodoTasks') }}</p>
             </div>
           </div>
         </div>
@@ -110,7 +111,7 @@
         <div class="kanban-column" data-status="DESIGN">
           <div class="column-header">
             <span class="column-status status-design"></span>
-            <span class="column-title">设计</span>
+            <span class="column-title">{{ $t('status.DESIGN') }}</span>
             <span class="column-count">{{ localDesignTasks.length }}</span>
           </div>
           <div class="column-content">
@@ -149,7 +150,7 @@
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
-                        title="Edit Task"
+                        :title="$t('common.edit')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -159,7 +160,7 @@
                       <button
                         class="delete-btn"
                         @click.stop="deleteTask(element.id)"
-                        title="Delete Task"
+                        :title="$t('common.delete')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -172,7 +173,7 @@
               </template>
             </draggable>
             <div v-if="localDesignTasks.length === 0" class="empty-column">
-              <p>暂无设计任务</p>
+              <p>{{ $t('task.noDesignTasks') }}</p>
             </div>
           </div>
         </div>
@@ -181,7 +182,7 @@
         <div class="kanban-column" data-status="DEVELOPMENT">
           <div class="column-header">
             <span class="column-status status-development"></span>
-            <span class="column-title">开发</span>
+            <span class="column-title">{{ $t('status.DEVELOPMENT') }}</span>
             <span class="column-count">{{ localDevelopmentTasks.length }}</span>
           </div>
           <div class="column-content">
@@ -220,7 +221,7 @@
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
-                        title="Edit Task"
+                        :title="$t('common.edit')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -230,7 +231,7 @@
                       <button
                         class="delete-btn"
                         @click.stop="deleteTask(element.id)"
-                        title="Delete Task"
+                        :title="$t('common.delete')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -243,7 +244,7 @@
               </template>
             </draggable>
             <div v-if="localDevelopmentTasks.length === 0" class="empty-column">
-              <p>暂无开发任务</p>
+              <p>{{ $t('task.noDevelopmentTasks') }}</p>
             </div>
           </div>
         </div>
@@ -252,7 +253,7 @@
         <div class="kanban-column" data-status="TESTING">
           <div class="column-header">
             <span class="column-status status-testing"></span>
-            <span class="column-title">测试</span>
+            <span class="column-title">{{ $t('status.TESTING') }}</span>
             <span class="column-count">{{ localTestingTasks.length }}</span>
           </div>
           <div class="column-content">
@@ -291,7 +292,7 @@
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
-                        title="Edit Task"
+                        :title="$t('common.edit')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -301,7 +302,7 @@
                       <button
                         class="delete-btn"
                         @click.stop="deleteTask(element.id)"
-                        title="Delete Task"
+                        :title="$t('common.delete')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -314,7 +315,7 @@
               </template>
             </draggable>
             <div v-if="localTestingTasks.length === 0" class="empty-column">
-              <p>暂无测试任务</p>
+              <p>{{ $t('task.noTestingTasks') }}</p>
             </div>
           </div>
         </div>
@@ -323,7 +324,7 @@
         <div class="kanban-column" data-status="RELEASE">
           <div class="column-header">
             <span class="column-status status-release"></span>
-            <span class="column-title">发布</span>
+            <span class="column-title">{{ $t('status.RELEASE') }}</span>
             <span class="column-count">{{ localReleaseTasks.length }}</span>
           </div>
           <div class="column-content">
@@ -362,7 +363,7 @@
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
-                        title="Edit Task"
+                        :title="$t('common.edit')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -372,7 +373,7 @@
                       <button
                         class="delete-btn"
                         @click.stop="deleteTask(element.id)"
-                        title="Delete Task"
+                        :title="$t('common.delete')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -385,7 +386,7 @@
               </template>
             </draggable>
             <div v-if="localReleaseTasks.length === 0" class="empty-column">
-              <p>暂无发布任务</p>
+              <p>{{ $t('task.noReleaseTasks') }}</p>
             </div>
           </div>
         </div>
@@ -394,7 +395,7 @@
         <div class="kanban-column" data-status="DONE">
           <div class="column-header">
             <span class="column-status status-done"></span>
-            <span class="column-title">已完成</span>
+            <span class="column-title">{{ $t('status.DONE') }}</span>
             <span class="column-count">{{ localDoneTasks.length }}</span>
           </div>
           <div class="column-content">
@@ -433,7 +434,7 @@
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
-                        title="Edit Task"
+                        :title="$t('common.edit')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -443,7 +444,7 @@
                       <button
                         class="delete-btn"
                         @click.stop="deleteTask(element.id)"
-                        title="Delete Task"
+                        :title="$t('common.delete')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -456,7 +457,7 @@
               </template>
             </draggable>
             <div v-if="localDoneTasks.length === 0" class="empty-column">
-              <p>暂无已完成任务</p>
+              <p>{{ $t('task.noDoneTasks') }}</p>
             </div>
           </div>
         </div>
@@ -505,53 +506,53 @@
     <div v-if="showTaskModal" class="modal-overlay" @click.self="closeTaskModal">
       <div class="modal">
         <div class="modal-header">
-          <h2>{{ isEditing ? 'Edit Task' : 'New Task' }}</h2>
+          <h2>{{ isEditing ? $t('task.editTask') : $t('task.newTask') }}</h2>
           <button class="modal-close" @click="closeTaskModal">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Title</label>
+            <label>{{ $t('task.taskTitle') }}</label>
             <input
               v-model="taskForm.title"
               type="text"
-              placeholder="Task title"
+              :placeholder="$t('task.taskTitlePlaceholder')"
             />
           </div>
           <div class="form-group">
-            <label>Description</label>
+            <label>{{ $t('task.taskDescription') }}</label>
             <textarea
               v-model="taskForm.description"
               rows="4"
-              placeholder="Task description"
+              :placeholder="$t('task.taskDescriptionPlaceholder')"
             ></textarea>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Status</label>
+              <label>{{ $t('task.status') }}</label>
               <select v-model="taskForm.status">
-                <option value="TODO">待处理</option>
-                <option value="DESIGN">设计</option>
-                <option value="DEVELOPMENT">开发</option>
-                <option value="TESTING">测试</option>
-                <option value="RELEASE">发布</option>
-                <option value="DONE">已完成</option>
+                <option value="TODO">{{ $t('status.TODO') }}</option>
+                <option value="DESIGN">{{ $t('status.DESIGN') }}</option>
+                <option value="DEVELOPMENT">{{ $t('status.DEVELOPMENT') }}</option>
+                <option value="TESTING">{{ $t('status.TESTING') }}</option>
+                <option value="RELEASE">{{ $t('status.RELEASE') }}</option>
+                <option value="DONE">{{ $t('status.DONE') }}</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Priority</label>
+              <label>{{ $t('task.priority') }}</label>
               <select v-model="taskForm.priority">
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="CRITICAL">Critical</option>
+                <option value="LOW">{{ $t('priority.LOW') }}</option>
+                <option value="MEDIUM">{{ $t('priority.MEDIUM') }}</option>
+                <option value="HIGH">{{ $t('priority.HIGH') }}</option>
+                <option value="CRITICAL">{{ $t('priority.CRITICAL') }}</option>
               </select>
             </div>
           </div>
         </div>
         <div class="modal-footer">
           <div class="modal-actions">
-            <button class="btn btn-secondary" @click="closeTaskModal">Cancel</button>
-            <button class="btn btn-primary" @click="saveTask">Save</button>
+            <button class="btn btn-secondary" @click="closeTaskModal">{{ $t('common.cancel') }}</button>
+            <button class="btn btn-primary" @click="saveTask">{{ $t('common.save') }}</button>
           </div>
         </div>
       </div>
@@ -571,6 +572,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '../stores/projectStore'
@@ -579,6 +581,7 @@ import { createSession, startSession, stopSession, getActiveSessionByTask, getSe
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -671,15 +674,7 @@ const getStatusClass = (status) => {
 }
 
 const getStatusLabel = (status) => {
-  const labels = {
-    TODO: '待处理',
-    DESIGN: '设计',
-    DEVELOPMENT: '开发',
-    TESTING: '测试',
-    RELEASE: '发布',
-    DONE: '已完成'
-  }
-  return labels[status] || status
+  return t(`status.${status}`)
 }
 
 const getPriorityClass = (priority) => {
@@ -693,13 +688,7 @@ const getPriorityClass = (priority) => {
 }
 
 const getPriorityLabel = (priority) => {
-  const labels = {
-    LOW: '低',
-    MEDIUM: '中',
-    HIGH: '高',
-    CRITICAL: '紧急'
-  }
-  return labels[priority] || 'M'
+  return t(`priority.${priority}`)
 }
 
 const fetchProjects = async () => {
@@ -718,7 +707,7 @@ const fetchProjects = async () => {
     }
   } catch (error) {
     console.error('Failed to fetch projects:', error)
-    ElMessage.error('Failed to load projects')
+    ElMessage.error(t('project.loadFailed'))
   }
 }
 
@@ -731,7 +720,7 @@ const fetchTasks = async () => {
     await loadActiveSession()
   } catch (error) {
     console.error('Failed to fetch tasks:', error)
-    ElMessage.error('Failed to load tasks')
+    ElMessage.error(t('task.loadFailed'))
   }
 }
 
@@ -794,10 +783,10 @@ const saveTask = async () => {
     }
 
     closeTaskModal()
-    ElMessage.success(isEditing.value ? 'Task updated' : 'Task created')
+    ElMessage.success(isEditing.value ? t('task.updated') : t('task.created'))
   } catch (error) {
     console.error('Failed to save task:', error)
-    ElMessage.error('Failed to save task')
+    ElMessage.error(t('task.saveFailed'))
   } finally {
     loading.saving = false
   }
@@ -806,11 +795,11 @@ const saveTask = async () => {
 const deleteTask = async (taskId) => {
   try {
     await ElMessageBox.confirm(
-      'Are you sure you want to delete this task? This action cannot be undone.',
-      'Delete Task',
+      t('task.deleteConfirmMessage'),
+      t('task.deleteConfirmTitle'),
       {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -825,10 +814,10 @@ const deleteTask = async (taskId) => {
       selectedTask.value = null
     }
     closeTaskModal()
-    ElMessage.success('Task deleted successfully')
+    ElMessage.success(t('task.deleted'))
   } catch (error) {
     console.error('Failed to delete task:', error)
-    ElMessage.error('Failed to delete task')
+    ElMessage.error(t('task.deleteFailed'))
   } finally {
     loading.saving = false
   }
@@ -841,7 +830,7 @@ const onDragEnd = async (evt) => {
   const newStatus = evt.to?.closest('.kanban-column')?.getAttribute('data-status')
 
   if (!newStatus) {
-    ElMessage.error('无法确定目标列状态')
+    ElMessage.error(t('task.cannotDetermineStatus'))
     return
   }
 
@@ -849,14 +838,14 @@ const onDragEnd = async (evt) => {
   const taskId = evt.item?.getAttribute('data-id')
 
   if (!taskId) {
-    ElMessage.error('无法获取任务 ID')
+    ElMessage.error(t('task.cannotGetTaskId'))
     return
   }
 
   // Find the task
   const task = taskStore.tasks.find(t => String(t.id) === String(taskId))
   if (!task) {
-    ElMessage.error('找不到任务')
+    ElMessage.error(t('task.taskNotFound'))
     return
   }
 
@@ -868,12 +857,12 @@ const onDragEnd = async (evt) => {
   // Call API to persist (vuedraggable already updated the local arrays)
   try {
     await taskStore.updateTaskStatus(taskId, newStatus)
-    ElMessage.success(`任务已移动到 ${getStatusLabel(newStatus)}`)
+    ElMessage.success(t('task.taskMoved', { status: t(`status.${newStatus}`) }))
   } catch (error) {
     // Revert on error - sync local arrays back from store
     updateColumnRefs()
     console.error('Failed to update task status:', error)
-    ElMessage.error('更新任务状态失败')
+    ElMessage.error(t('task.statusUpdateFailed'))
   }
 }
 

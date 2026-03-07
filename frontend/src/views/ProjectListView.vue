@@ -2,20 +2,20 @@
   <div class="project-list-view">
     <el-page-header @back="router.push('/')">
       <template #content>
-        <span class="page-title">Projects</span>
+        <span class="page-title">{{ $t('project.title') }}</span>
       </template>
       <template #extra>
         <el-button type="primary" @click="showCreateDialog">
           <el-icon><Plus /></el-icon>
-          New Project
+          {{ $t('project.newProject') }}
         </el-button>
       </template>
     </el-page-header>
 
     <el-skeleton v-if="loading" :rows="5" animated />
 
-    <el-empty v-else-if="projects.length === 0" description="No projects yet">
-      <el-button type="primary" @click="showCreateDialog">Create First Project</el-button>
+    <el-empty v-else-if="projects.length === 0" :description="$t('project.noProjects')">
+      <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
     </el-empty>
 
     <el-row v-else :gutter="20" class="project-grid">
@@ -32,11 +32,11 @@
                   <el-dropdown-menu>
                     <el-dropdown-item @click="showEditDialog(project)">
                       <el-icon><Edit /></el-icon>
-                      Edit
+                      {{ $t('common.edit') }}
                     </el-dropdown-item>
                     <el-dropdown-item divided @click="handleDelete(project)">
                       <el-icon><Delete /></el-icon>
-                      Delete
+                      {{ $t('common.delete') }}
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -45,7 +45,7 @@
           </template>
 
           <h3 class="project-name">{{ project.name }}</h3>
-          <p class="project-description">{{ project.description || 'No description' }}</p>
+          <p class="project-description">{{ project.description || $t('project.noDescription') }}</p>
 
           <template #footer>
             <div class="card-footer">
@@ -65,7 +65,7 @@
     <!-- Create/Edit Dialog -->
     <el-dialog
       v-model="dialogVisible"
-      :title="isEditing ? 'Edit Project' : 'Create Project'"
+      :title="isEditing ? $t('project.editProject') : $t('project.createProject')"
       width="500px"
       :close-on-click-modal="false"
     >
@@ -75,25 +75,25 @@
         :rules="rules"
         label-position="top"
       >
-        <el-form-item label="Project Name" prop="name">
-          <el-input v-model="form.name" placeholder="Enter project name" />
+        <el-form-item :label="$t('project.projectName')" prop="name">
+          <el-input v-model="form.name" :placeholder="$t('project.enterName')" />
         </el-form-item>
 
-        <el-form-item label="Description">
+        <el-form-item :label="$t('project.description')">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="3"
-            placeholder="Enter project description"
+            :placeholder="$t('project.enterDescription')"
           />
         </el-form-item>
 
         <el-divider>
           <el-icon><Link /></el-icon>
-          Git Repository (Optional)
+          {{ $t('project.gitRepositoryOptional') }}
         </el-divider>
 
-        <el-form-item label="Repository URL">
+        <el-form-item :label="$t('project.repositoryUrl')">
           <el-input
             v-model="form.repoUrl"
             placeholder="https://github.com/user/repo.git"
@@ -105,7 +105,7 @@
           </el-input>
         </el-form-item>
 
-        <el-form-item label="Local Path">
+        <el-form-item :label="$t('project.localPath')">
           <el-input
             v-model="form.localPath"
             placeholder="/path/to/local/repo"
@@ -119,9 +119,9 @@
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ isEditing ? 'Save' : 'Create' }}
+          {{ isEditing ? $t('common.save') : $t('common.create') }}
         </el-button>
       </template>
     </el-dialog>
@@ -131,10 +131,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Folder, FolderOpened, Edit, Delete, MoreFilled, Link } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
 
+const { t } = useI18n()
 const router = useRouter()
 const projectStore = useProjectStore()
 
@@ -156,7 +158,7 @@ const form = ref({
 
 const rules = {
   name: [
-    { required: true, message: 'Project name is required', trigger: 'blur' }
+    { required: true, message: t('validation.required'), trigger: 'blur' }
   ]
 }
 
@@ -209,15 +211,15 @@ const handleSubmit = async () => {
   try {
     if (isEditing.value) {
       await projectStore.updateProject(editingId.value, form.value)
-      ElMessage.success('Project updated')
+      ElMessage.success(t('project.updated'))
     } else {
       await projectStore.createProject(form.value)
-      ElMessage.success('Project created')
+      ElMessage.success(t('project.created'))
     }
     dialogVisible.value = false
     resetForm()
   } catch (e) {
-    ElMessage.error(isEditing.value ? 'Failed to update project' : 'Failed to create project')
+    ElMessage.error(isEditing.value ? t('project.updateFailed') : t('project.createFailed'))
   } finally {
     submitting.value = false
   }
@@ -226,11 +228,11 @@ const handleSubmit = async () => {
 const handleDelete = async (project) => {
   try {
     await ElMessageBox.confirm(
-      `Are you sure you want to delete "${project.name}"? This will also delete all tasks and data associated with this project.`,
-      'Delete Project',
+      t('project.deleteConfirmMessage', { name: project.name }),
+      t('project.deleteConfirmTitle'),
       {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -240,9 +242,9 @@ const handleDelete = async (project) => {
 
   try {
     await projectStore.deleteProject(project.id)
-    ElMessage.success('Project deleted')
+    ElMessage.success(t('project.deleted'))
   } catch (e) {
-    ElMessage.error('Failed to delete project')
+    ElMessage.error(t('project.deleteFailed'))
   }
 }
 

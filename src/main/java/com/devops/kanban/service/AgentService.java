@@ -5,6 +5,7 @@ import com.devops.kanban.dto.AgentDTO;
 import com.devops.kanban.entity.Agent;
 import com.devops.kanban.repository.AgentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,15 +13,16 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AgentService {
 
     private final AgentRepository agentRepository;
     private final EntityDTOConverter converter;
 
     public List<AgentDTO> findByProjectId(Long projectId) {
-        System.out.println("[AgentService] findByProjectId called with projectId: " + projectId);
+        log.debug("[AgentService] findByProjectId called with projectId: {}", projectId);
         List<Agent> agents = agentRepository.findByProjectId(projectId);
-        System.out.println("[AgentService] Found " + agents.size() + " agents in repository");
+        log.debug("[AgentService] Found {} agents in repository", agents.size());
         return agents.stream()
                 .map(converter::toDTO)
                 .collect(Collectors.toList());

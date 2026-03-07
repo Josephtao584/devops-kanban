@@ -11,7 +11,7 @@
 
     <!-- Project Selector -->
     <div class="project-selector">
-      <label>{{ $t('project.selectProject') }}label>
+      <label>{{ $t('project.selectProject') }}</label>
       <select v-model="selectedProjectId" @change="loadTemplates">
         <option value="">{{ $t('project.selectProject') }}</option>
         <option v-for="project in projects" :key="project.id" :value="project.id">
@@ -351,9 +351,9 @@ export default {
 
 .templates-grid{
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
-    }
+}
 
 .template-card{
     border: 1px solid #e2e8f0;
@@ -545,12 +545,16 @@ export default {
     }
 .toast.error{
     background: #fc8181;
-    }
-.toast{
-      bottom: 2rem;
-      right: 1rem;
-      opacity: 0;
-      transform: translateY(0.3s ease-out);
-    }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 </style>

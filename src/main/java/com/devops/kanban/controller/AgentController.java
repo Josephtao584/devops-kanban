@@ -5,6 +5,7 @@ import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.service.AgentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,7 @@ import java.util.List;
 @RequestMapping("/api/agents")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "${app.cors.origins:http://localhost:5173}")
+@Slf4j
 public class AgentController {
 
     private final AgentService agentService;
@@ -21,13 +23,13 @@ public class AgentController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<AgentDTO>>> getAgents(
             @RequestParam(required = false) Long projectId) {
-        System.out.println("[AgentController] getAgents called with projectId: " + projectId);
+        log.debug("[AgentController] getAgents called with projectId: {}", projectId);
         if (projectId == null) {
-            System.out.println("[AgentController] projectId is null, returning error");
+            log.warn("[AgentController] projectId is null, returning error");
             return ResponseEntity.ok(ApiResponse.error("projectId is required"));
         }
         List<AgentDTO> agents = agentService.findByProjectId(projectId);
-        System.out.println("[AgentController] Found " + agents.size() + " agents for project " + projectId);
+        log.debug("[AgentController] Found {} agents for project {}", agents.size(), projectId);
         return ResponseEntity.ok(ApiResponse.success(agents));
     }
 
