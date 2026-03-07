@@ -1,6 +1,5 @@
 package com.devops.kanban.controller;
 
-import com.devops.kanban.converter.EntityDTOConverter;
 import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.dto.SessionDTO;
 import com.devops.kanban.entity.Session;
@@ -31,7 +30,6 @@ import java.util.stream.Collectors;
 public class SessionController {
 
     private final SessionService sessionService;
-    private final EntityDTOConverter converter;
 
     // ==================== REST API ====================
 
@@ -45,7 +43,7 @@ public class SessionController {
         try {
             Session session = sessionService.createSession(dto.getTaskId(), dto.getAgentId());
             log.info("[API] Session created | SessionId: {} | TaskId: {}", session.getId(), dto.getTaskId());
-            return ResponseEntity.ok(ApiResponse.success("Session created", toDTO(session)));
+            return ResponseEntity.ok(ApiResponse.success("Session created", sessionService.toDTO(session)));
         } catch (IllegalArgumentException e) {
             log.warn("[API] Invalid session request | TaskId: {} | Error: {}", dto.getTaskId(), e.getMessage());
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
@@ -70,7 +68,7 @@ public class SessionController {
     public ResponseEntity<ApiResponse<SessionDTO>> getSession(@PathVariable Long id) {
         log.debug("[API] GET /api/sessions/{}", id);
         return sessionService.getSession(id)
-                .map(session -> ResponseEntity.ok(ApiResponse.success(toDTO(session))))
+                .map(session -> ResponseEntity.ok(ApiResponse.success(sessionService.toDTO(session))))
                 .orElse(ResponseEntity.ok(ApiResponse.error("Session not found")));
     }
 
@@ -91,12 +89,12 @@ public class SessionController {
         List<SessionDTO> sessions;
         if (activeOnly) {
             sessions = sessionService.getActiveSessionByTaskId(taskId)
-                    .map(this::toDTO)
+                    .map(sessionService::toDTO)
                     .stream()
                     .collect(Collectors.toList());
         } else {
             sessions = sessionService.getSessionsByTaskId(taskId).stream()
-                    .map(this::toDTO)
+                    .map(sessionService::toDTO)
                     .collect(Collectors.toList());
         }
 
@@ -111,7 +109,7 @@ public class SessionController {
     public ResponseEntity<ApiResponse<SessionDTO>> getActiveSession(@PathVariable Long taskId) {
         log.debug("[API] GET /api/sessions/task/{}/active", taskId);
         return sessionService.getActiveSessionByTaskId(taskId)
-                .map(session -> ResponseEntity.ok(ApiResponse.success(toDTO(session))))
+                .map(session -> ResponseEntity.ok(ApiResponse.success(sessionService.toDTO(session))))
                 .orElse(ResponseEntity.ok(ApiResponse.success(null)));
     }
 
@@ -125,7 +123,7 @@ public class SessionController {
         log.debug("[API] GET /api/sessions/task/{}/history | IncludeOutput: {}", taskId, includeOutput);
         List<Session> sessions = sessionService.getSessionsWithOutputByTaskId(taskId);
         List<SessionDTO> dtos = sessions.stream()
-                .map(session -> toDTO(session, includeOutput))
+                .map(session -> sessionService.toDTO(session, includeOutput))
                 .collect(Collectors.toList());
         log.debug("[API] Retrieved {} session history entries for TaskId: {}", dtos.size(), taskId);
         return ResponseEntity.ok(ApiResponse.success(dtos));
@@ -140,7 +138,7 @@ public class SessionController {
         try {
             Session session = sessionService.startSession(id);
             log.info("[API] Session started | SessionId: {} | Status: {}", id, session.getStatus());
-            return ResponseEntity.ok(ApiResponse.success("Session started", toDTO(session)));
+            return ResponseEntity.ok(ApiResponse.success("Session started", sessionService.toDTO(session)));
         } catch (Exception e) {
             log.error("[API] Failed to start session | SessionId: {} | Error: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.error("Failed to start session: " + e.getMessage()));
@@ -156,7 +154,7 @@ public class SessionController {
         try {
             Session session = sessionService.stopSession(id);
             log.info("[API] Session stopped | SessionId: {} | Status: {}", id, session.getStatus());
-            return ResponseEntity.ok(ApiResponse.success("Session stopped", toDTO(session)));
+            return ResponseEntity.ok(ApiResponse.success("Session stopped", sessionService.toDTO(session)));
         } catch (Exception e) {
             log.error("[API] Failed to stop session | SessionId: {} | Error: {}", id, e.getMessage());
             return ResponseEntity.ok(ApiResponse.error("Failed to stop session: " + e.getMessage()));
@@ -208,7 +206,7 @@ public class SessionController {
                 Session session = sessionService.getSession(id)
                         .orElseThrow(() -> new IllegalStateException("Session not found after continue"));
                 log.info("[API] Session continued successfully | SessionId: {} | Status: {}", id, session.getStatus());
-                return ResponseEntity.ok(ApiResponse.success("Session continued", toDTO(session)));
+                return ResponseEntity.ok(ApiResponse.success("Session continued", sessionService.toDTO(session)));
             } else {
                 log.warn("[API] Failed to continue session | SessionId: {}", id);
                 return ResponseEntity.ok(ApiResponse.error("Failed to continue session"));
@@ -271,17 +269,5 @@ public class SessionController {
 
     // ==================== DTO Conversion ====================
 
-    private SessionDTO toDTO(Session session) {
-        return toDTO(session, true);
-    }
-
-    private SessionDTO toDTO(Session session, boolean includeOutput) {
-        SessionDTO dto = converter.toDTO(session, includeOutput);
-        if (includeOutput && (dto.getOutput() == null || dto.getOutput().isEmpty())) {
-            // Fall back to process manager output
-            String output = sessionService.getSessionOutput(session.getId());
-            dto.setOutput(output);
-        }
-        return dto;
-    }
+    // DTO conversion is handled by SessionService.toDTO() method
 }

@@ -9,7 +9,7 @@
               <el-icon><Plus /></el-icon>
               {{ $t('phaseTransition.newRule') }}
             </el-button>
-            <el-button type="primary" size="small" @click="initializeDefaults" :loading="initializing">
+            <el-button type="primary" size="small" @click="initializeDefaults" :loading="phaseTransitionStore.initializing">
               {{ $t('phaseTransition.initializeDefaults') }}
             </el-button>
           </div>
@@ -33,7 +33,7 @@
         </el-select>
       </div>
 
-      <el-table :data="paginatedRules" v-loading="loading" stripe>
+      <el-table :data="paginatedRules" v-loading="phaseTransitionStore.loading" stripe>
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="fromPhase" :label="$t('phaseTransition.fromPhase')" width="120">
           <template #default="{ row }">
@@ -178,21 +178,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
-import {
-  getRules,
-  createRule,
-  updateRule as updateRuleApi,
-  deleteRule as deleteRuleApi,
-  initializeDefaultRules
-} from '@/api/phaseTransition'
+import { usePhaseTransitionStore } from '@/stores/phaseTransitionStore'
 
 const { t } = useI18n()
+const phaseTransitionStore = usePhaseTransitionStore()
 const formRef = ref(null)
 
-const rules = ref([])
-const loading = ref(false)
 const saving = ref(false)
-const initializing = ref(false)
 const dialogVisible = ref(false)
 const isNewRule = ref(false)
 const editingRule = ref({})
@@ -224,7 +216,7 @@ const formRules = {
 
 // Filtered rules
 const filteredRules = computed(() => {
-  let result = rules.value
+  let result = phaseTransitionStore.rules
   if (searchText.value) {
     const search = searchText.value.toLowerCase()
     result = result.filter(r =>
@@ -248,51 +240,24 @@ const paginatedRules = computed(() => {
 })
 
 const loadRules = async () => {
-  loading.value = true
-  try {
-    const response = await getRules()
-    if (response.success) {
-      // Handle both direct array and wrapped response
-      rules.value = Array.isArray(response.data)
-        ? response.data
-        : (response.data?.rules || [])
-    }
-  } catch (error) {
-    ElMessage.error(t('phaseTransition.loadFailed'))
-  } finally {
-    loading.value = false
-  }
+  await phaseTransitionStore.fetchRules()
 }
 
 const initializeDefaults = async () => {
-  initializing.value = true
-  try {
-    const response = await initializeDefaultRules()
-    if (response.success) {
-      ElMessage.success(t('phaseTransition.initializeSuccess'))
-      loadRules()
-    } else {
-      ElMessage.error(response.message || t('phaseTransition.initializeFailed'))
-    }
-  } catch (error) {
-    ElMessage.error(t('phaseTransition.initializeFailed'))
-  } finally {
-    initializing.value = false
+  const success = await phaseTransitionStore.initializeDefaultRules()
+  if (success) {
+    ElMessage.success(t('phaseTransition.initializeSuccess'))
+  } else {
+    ElMessage.error(phaseTransitionStore.error || t('phaseTransition.initializeFailed'))
   }
 }
 
 const parseKeywords = (keywordsJson) => {
-  if (!keywordsJson) return []
-  try {
-    return JSON.parse(keywordsJson)
-  } catch {
-    return []
-  }
+  return phaseTransitionStore.parseKeywords(keywordsJson)
 }
 
 const keywordsToJson = (keywords) => {
-  if (!keywords || keywords.length === 0) return '[]'
-  return JSON.stringify(keywords)
+  return phaseTransitionStore.keywordsToJson(keywords)
 }
 
 const resetForm = () => {
@@ -347,24 +312,16 @@ const saveRule = async () => {
 
   saving.value = true
   try {
-    let response
     if (isNewRule.value) {
-      response = await createRule(editingRule.value)
+      await phaseTransitionStore.createRule(editingRule.value)
+      ElMessage.success(t('phaseTransition.createSuccess'))
     } else {
-      response = await updateRuleApi(editingRule.value.id, editingRule.value)
+      await phaseTransitionStore.updateRule(editingRule.value.id, editingRule.value)
+      ElMessage.success(t('phaseTransition.updateSuccess'))
     }
-
-    if (response.success) {
-      ElMessage.success(isNewRule.value
-        ? t('phaseTransition.createSuccess')
-        : t('phaseTransition.updateSuccess'))
-      dialogVisible.value = false
-      loadRules()
-    } else {
-      ElMessage.error(response.message || t('phaseTransition.updateFailed'))
-    }
+    dialogVisible.value = false
   } catch (error) {
-    ElMessage.error(t('phaseTransition.updateFailed'))
+    ElMessage.error(phaseTransitionStore.error || t('phaseTransition.updateFailed'))
   } finally {
     saving.value = false
   }
@@ -372,14 +329,10 @@ const saveRule = async () => {
 
 const handleToggleUpdate = async (rule) => {
   try {
-    const response = await updateRuleApi(rule.id, rule)
-    if (!response.success) {
-      ElMessage.error(response.message || t('phaseTransition.updateFailed'))
-      loadRules()
-    }
+    await phaseTransitionStore.updateRule(rule.id, rule)
   } catch (error) {
-    ElMessage.error(t('phaseTransition.updateFailed'))
-    loadRules()
+    ElMessage.error(phaseTransitionStore.error || t('phaseTransition.updateFailed'))
+    loadRules() // Reload to reset state
   }
 }
 
@@ -391,16 +344,11 @@ const deleteRule = async (rule) => {
       { type: 'warning' }
     )
 
-    const response = await deleteRuleApi(rule.id)
-    if (response.success) {
-      ElMessage.success(t('phaseTransition.deleteSuccess'))
-      loadRules()
-    } else {
-      ElMessage.error(response.message || t('phaseTransition.deleteFailed'))
-    }
+    await phaseTransitionStore.deleteRule(rule.id)
+    ElMessage.success(t('phaseTransition.deleteSuccess'))
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('phaseTransition.deleteFailed'))
+      ElMessage.error(phaseTransitionStore.error || t('phaseTransition.deleteFailed'))
     }
   }
 }

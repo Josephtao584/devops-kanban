@@ -10,9 +10,9 @@
     <!-- Project Selector -->
     <div class="project-selector">
       <label for="project">{{ $t('project.selectProject') }}:</label>
-      <select id="project" v-model="selectedProjectId" @change="loadAgents">
+      <select id="project" v-model="selectedProjectId" @change="onProjectChange">
         <option value="">-- {{ $t('project.selectProject') }} --</option>
-        <option v-for="project in projects" :key="project.id" :value="project.id">
+        <option v-for="project in projectStore.projectList" :key="project.id" :value="project.id">
           {{ project.name }}
         </option>
       </select>
@@ -20,14 +20,14 @@
 
     <!-- Agents List -->
     <div class="agents-list" v-if="selectedProjectId">
-      <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
+      <div v-if="agentStore.loading" class="loading">{{ $t('common.loading') }}</div>
 
-      <div v-else-if="agents.length === 0" class="empty-state">
+      <div v-else-if="agentStore.agents.length === 0" class="empty-state">
         {{ $t('agent.createAgent') }}
       </div>
 
       <div v-else class="agents-grid">
-        <div v-for="agent in agents" :key="agent.id" class="agent-card">
+        <div v-for="agent in agentStore.agents" :key="agent.id" class="agent-card">
           <div class="agent-header">
             <h3>{{ agent.name }}</h3>
             <span class="agent-type-badge">{{ $t(`agent.types.${agent.type}`) }}</span>
@@ -128,17 +128,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getProjects } from '../api/project'
-import { getAgents, createAgent, updateAgent, deleteAgent } from '../api/agent'
+import { useProjectStore } from '../stores/projectStore'
+import { useAgentStore } from '../stores/agentStore'
 
 const { t } = useI18n()
+const projectStore = useProjectStore()
+const agentStore = useAgentStore()
 
-const projects = ref([])
-const agents = ref([])
 const selectedProjectId = ref('')
-const loading = ref(false)
 const saving = ref(false)
 const showForm = ref(false)
 const editingAgent = ref(null)
@@ -160,27 +159,21 @@ const showToast = (message, type = 'success') => {
 
 const loadProjects = async () => {
   try {
-    const res = await getProjects()
-    projects.value = res.data || res || []
-    if (projects.value.length > 0) {
-      selectedProjectId.value = projects.value[0].id
-      loadAgents()
+    await projectStore.fetchProjects()
+    if (projectStore.projectList.length > 0) {
+      selectedProjectId.value = projectStore.projectList[0].id
+      await agentStore.fetchAgents(selectedProjectId.value)
     }
   } catch (e) {
     console.error('Failed to load projects:', e)
   }
 }
 
-const loadAgents = async () => {
-  if (!selectedProjectId.value) return
-  loading.value = true
-  try {
-    const res = await getAgents(selectedProjectId.value)
-    agents.value = res.data || res || []
-  } catch (e) {
-    console.error('Failed to load agents:', e)
-  } finally {
-    loading.value = false
+const onProjectChange = async () => {
+  if (selectedProjectId.value) {
+    await agentStore.fetchAgents(selectedProjectId.value)
+  } else {
+    agentStore.clearAgents()
   }
 }
 
@@ -210,12 +203,11 @@ const saveAgent = async () => {
       projectId: selectedProjectId.value
     }
     if (editingAgent.value) {
-      await updateAgent(editingAgent.value.id, data)
+      await agentStore.updateAgent(editingAgent.value.id, data)
     } else {
-      await createAgent(data)
+      await agentStore.createAgent(data)
     }
     closeForm()
-    loadAgents()
     showToast(t('messages.saved', { name: t('agent.title') }))
   } catch (e) {
     console.error('Failed to save:', e)
@@ -227,8 +219,7 @@ const saveAgent = async () => {
 
 const toggleEnabled = async (agent) => {
   try {
-    await updateAgent(agent.id, { ...agent, enabled: !agent.enabled })
-    agent.enabled = !agent.enabled
+    await agentStore.toggleAgentEnabled(agent.id)
     showToast(t('messages.updated', { name: t('agent.title') }))
   } catch (e) {
     showToast(t('messages.updateFailed', { name: t('agent.title') }), 'error')
@@ -238,8 +229,7 @@ const toggleEnabled = async (agent) => {
 const confirmDelete = async (agent) => {
   if (!confirm(t('agent.deleteConfirm'))) return
   try {
-    await deleteAgent(agent.id)
-    loadAgents()
+    await agentStore.deleteAgent(agent.id)
     showToast(t('messages.deleted', { name: t('agent.title') }))
   } catch (e) {
     showToast(t('messages.deleteFailed', { name: t('agent.title') }), 'error')

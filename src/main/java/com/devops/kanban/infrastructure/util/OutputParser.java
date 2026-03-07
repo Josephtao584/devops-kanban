@@ -3,13 +3,13 @@ package com.devops.kanban.infrastructure.util;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 /**
  * Parses output from Claude Code CLI.
  * Handles JSON parsing and ANSI code stripping.
  */
-@Service
+@Component
 @Slf4j
 public class OutputParser {
 

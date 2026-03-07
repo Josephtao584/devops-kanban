@@ -456,4 +456,32 @@ public class SessionService {
             sessionRepository.save(session);
         });
     }
+
+    /**
+     * Convert Session entity to DTO with optional output inclusion.
+     * Falls back to process executor output if entity output is empty.
+     *
+     * @param session the session entity
+     * @param includeOutput whether to include output
+     * @return the SessionDTO
+     */
+    public com.devops.kanban.dto.SessionDTO toDTO(Session session, boolean includeOutput) {
+        com.devops.kanban.dto.SessionDTO dto = converter.toDTO(session, includeOutput);
+        if (includeOutput && (dto.getOutput() == null || dto.getOutput().isEmpty())) {
+            // Fall back to process manager output
+            String output = getSessionOutput(session.getId());
+            dto.setOutput(output);
+        }
+        return dto;
+    }
+
+    /**
+     * Convert Session entity to DTO with output.
+     *
+     * @param session the session entity
+     * @return the SessionDTO
+     */
+    public com.devops.kanban.dto.SessionDTO toDTO(Session session) {
+        return toDTO(session, true);
+    }
 }

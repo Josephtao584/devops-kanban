@@ -10,9 +10,9 @@
     <!-- Project Selector -->
     <div class="project-selector">
       <label for="project">{{ $t('project.selectProject') }}:</label>
-      <select id="project" v-model="selectedProjectId" @change="loadTaskSources">
+      <select id="project" v-model="selectedProjectId" @change="onProjectChange">
         <option value="">-- {{ $t('project.selectProject') }} --</option>
-        <option v-for="project in projects" :key="project.id" :value="project.id">
+        <option v-for="project in projectStore.projectList" :key="project.id" :value="project.id">
           {{ project.name }}
         </option>
       </select>
@@ -20,14 +20,14 @@
 
     <!-- Task Sources List -->
     <div class="task-sources-list" v-if="selectedProjectId">
-      <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
+      <div v-if="taskSourceStore.loading" class="loading">{{ $t('common.loading') }}</div>
 
-      <div v-else-if="taskSources.length === 0" class="empty-state">
+      <div v-else-if="taskSourceStore.taskSources.length === 0" class="empty-state">
         {{ $t('taskSource.createSource') }}
       </div>
 
       <div v-else class="sources-grid">
-        <div v-for="source in taskSources" :key="source.id" class="source-card">
+        <div v-for="source in taskSourceStore.taskSources" :key="source.id" class="source-card">
           <div class="source-header">
             <h3>{{ source.name }}</h3>
             <span class="source-type-badge">{{ $t(`taskSource.types.${source.type}`) }}</span>
@@ -54,16 +54,16 @@
             <button
               class="btn btn-secondary"
               @click="testConnection(source)"
-              :disabled="testingConnection === source.id"
+              :disabled="taskSourceStore.testing === source.id"
             >
-              {{ testingConnection === source.id ? $t('common.loading') : $t('taskSource.testConnection') }}
+              {{ taskSourceStore.testing === source.id ? $t('common.loading') : $t('taskSource.testConnection') }}
             </button>
             <button
               class="btn btn-secondary"
               @click="syncSource(source)"
-              :disabled="syncingSource === source.id"
+              :disabled="taskSourceStore.syncing === source.id"
             >
-              {{ syncingSource === source.id ? $t('taskSource.syncing') : $t('taskSource.syncNow') }}
+              {{ taskSourceStore.syncing === source.id ? $t('taskSource.syncing') : $t('taskSource.syncNow') }}
             </button>
             <button class="btn btn-danger" @click="confirmDelete(source)">
               {{ $t('common.delete') }}
@@ -148,21 +148,18 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getProjects } from '../api/project'
-import { getTaskSources, createTaskSource, updateTaskSource, syncTaskSource, testTaskSourceConnection, deleteTaskSource } from '../api/taskSource'
+import { useProjectStore } from '../stores/projectStore'
+import { useTaskSourceStore } from '../stores/taskSourceStore'
 import GitHubSourceConfig from '../components/GitHubSourceConfig.vue'
 
 const { t } = useI18n()
+const projectStore = useProjectStore()
+const taskSourceStore = useTaskSourceStore()
 
-const projects = ref([])
-const taskSources = ref([])
 const selectedProjectId = ref('')
-const loading = ref(false)
 const saving = ref(false)
 const showAddForm = ref(false)
 const editingSource = ref(null)
-const testingConnection = ref(null)
-const syncingSource = ref(null)
 
 const form = ref({
   name: '',
@@ -185,27 +182,21 @@ const formatDateTime = (dateStr) => {
 
 const loadProjects = async () => {
   try {
-    const res = await getProjects()
-    projects.value = res.data || res || []
-    if (projects.value.length > 0) {
-      selectedProjectId.value = projects.value[0].id
-      loadTaskSources()
+    await projectStore.fetchProjects()
+    if (projectStore.projectList.length > 0) {
+      selectedProjectId.value = projectStore.projectList[0].id
+      await taskSourceStore.fetchTaskSources(selectedProjectId.value)
     }
   } catch (e) {
     console.error('Failed to load projects:', e)
   }
 }
 
-const loadTaskSources = async () => {
-  if (!selectedProjectId.value) return
-  loading.value = true
-  try {
-    const res = await getTaskSources(selectedProjectId.value)
-    taskSources.value = res.data || res || []
-  } catch (e) {
-    console.error('Failed to load task sources:', e)
-  } finally {
-    loading.value = false
+const onProjectChange = async () => {
+  if (selectedProjectId.value) {
+    await taskSourceStore.fetchTaskSources(selectedProjectId.value)
+  } else {
+    taskSourceStore.clearTaskSources()
   }
 }
 
@@ -217,12 +208,11 @@ const saveSource = async () => {
       projectId: selectedProjectId.value
     }
     if (editingSource.value) {
-      await updateTaskSource(editingSource.value.id, data)
+      await taskSourceStore.updateTaskSource(editingSource.value.id, data)
     } else {
-      await createTaskSource(data)
+      await taskSourceStore.createTaskSource(data)
     }
     closeForm()
-    loadTaskSources()
     showToast(t('messages.saved', { name: t('taskSource.title') }))
   } catch (e) {
     console.error('Failed to save:', e)
@@ -233,36 +223,26 @@ const saveSource = async () => {
 }
 
 const testConnection = async (source) => {
-  testingConnection.value = source.id
-  try {
-    const res = await testTaskSourceConnection(source.id)
-    const success = res.data || res
-    showToast(success ? t('taskSource.connectionSuccess') : t('taskSource.connectionFailed'), success ? 'success' : 'error')
-  } catch (e) {
-    showToast(t('taskSource.connectionFailed'), 'error')
-  } finally {
-    testingConnection.value = null
-  }
+  const success = await taskSourceStore.testConnection(source.id)
+  showToast(
+    success ? t('taskSource.connectionSuccess') : t('taskSource.connectionFailed'),
+    success ? 'success' : 'error'
+  )
 }
 
 const syncSource = async (source) => {
-  syncingSource.value = source.id
-  try {
-    await syncTaskSource(source.id)
+  const success = await taskSourceStore.syncTaskSource(source.id)
+  if (success) {
     showToast(t('taskSource.syncNow') + ' ' + t('common.success'))
-    loadTaskSources()
-  } catch (e) {
+  } else {
     showToast(t('common.error'), 'error')
-  } finally {
-    syncingSource.value = null
   }
 }
 
 const confirmDelete = async (source) => {
   if (!confirm(t('common.delete') + '?')) return
   try {
-    await deleteTaskSource(source.id)
-    loadTaskSources()
+    await taskSourceStore.deleteTaskSource(source.id)
     showToast(t('messages.deleted', { name: t('taskSource.title') }))
   } catch (e) {
     showToast(t('messages.deleteFailed', { name: t('taskSource.title') }), 'error')

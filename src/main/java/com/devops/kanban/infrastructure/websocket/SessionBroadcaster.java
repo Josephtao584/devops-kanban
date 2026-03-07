@@ -2,7 +2,7 @@ package com.devops.kanban.infrastructure.websocket;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -11,7 +11,7 @@ import java.util.Map;
  * Handles WebSocket broadcasting for session output and status.
  * Provides centralized message broadcasting for AI agent sessions.
  */
-@Service
+@Component
 @Slf4j
 public class SessionBroadcaster {
 

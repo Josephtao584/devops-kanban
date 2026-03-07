@@ -10,7 +10,7 @@ import com.pty4j.PtyProcess;
 import com.pty4j.PtyProcessBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * Executes Claude Code CLI using PTY.
  * Uses interactive mode with --dangerously-skip-permissions for non-interactive execution.
  */
-@Service
+@Component
 @Slf4j
 public class ClaudeCodeProcessExecutor implements ProcessExecutor {
 

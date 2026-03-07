@@ -1,9 +1,8 @@
 package com.devops.kanban.controller;
 
 import com.devops.kanban.dto.*;
-import com.devops.kanban.entity.Project;
 import com.devops.kanban.infrastructure.git.GitOperations;
-import com.devops.kanban.repository.ProjectRepository;
+import com.devops.kanban.service.GitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,17 +20,14 @@ import java.util.Map;
 public class GitController {
 
     private final GitOperations gitOperations;
-    private final ProjectRepository projectRepository;
+    private final GitService gitService;
 
     // ==================== Worktree Management ====================
 
     @GetMapping("/worktrees")
     public ResponseEntity<ApiResponse<List<WorktreeDTO>>> listWorktreesDetailed(@RequestParam Long projectId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -48,10 +44,7 @@ public class GitController {
             @RequestParam Long projectId,
             @PathVariable Long taskId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -75,10 +68,7 @@ public class GitController {
     @PostMapping("/worktrees/prune")
     public ResponseEntity<ApiResponse<String>> pruneWorktrees(@RequestParam Long projectId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -98,10 +88,7 @@ public class GitController {
             @PathVariable Long taskId,
             @RequestBody CommitRequestDTO request) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -139,10 +126,7 @@ public class GitController {
             @RequestParam Long projectId,
             @PathVariable Long taskId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -171,10 +155,7 @@ public class GitController {
     @GetMapping("/branches")
     public ResponseEntity<ApiResponse<List<BranchDTO>>> getBranchesDetailed(@RequestParam Long projectId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -192,10 +173,7 @@ public class GitController {
             @RequestParam String name,
             @RequestParam(required = false) String startPoint) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -214,10 +192,7 @@ public class GitController {
             @PathVariable String branchName,
             @RequestParam(required = false, defaultValue = "false") boolean force) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -235,10 +210,7 @@ public class GitController {
             @PathVariable String source,
             @PathVariable String target) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -255,10 +227,7 @@ public class GitController {
     @GetMapping("/remotes")
     public ResponseEntity<ApiResponse<List<RemoteDTO>>> listRemotes(@RequestParam Long projectId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -276,10 +245,7 @@ public class GitController {
             @RequestParam String name,
             @RequestParam String url) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -296,10 +262,7 @@ public class GitController {
             @RequestParam Long projectId,
             @PathVariable String name) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -317,10 +280,7 @@ public class GitController {
             @PathVariable Long taskId,
             @RequestBody(required = false) Map<String, Object> body) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -353,10 +313,7 @@ public class GitController {
             @PathVariable Long taskId,
             @RequestBody(required = false) Map<String, Object> body) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -389,10 +346,7 @@ public class GitController {
             @RequestParam Long projectId,
             @PathVariable Long taskId) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -423,10 +377,7 @@ public class GitController {
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String target) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -466,10 +417,7 @@ public class GitController {
             @PathVariable Long taskId,
             @RequestParam(required = false, defaultValue = "10") int limit) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -500,10 +448,7 @@ public class GitController {
             @RequestParam String source,
             @RequestParam String target) {
         try {
-            Project project = projectRepository.findById(projectId)
-                    .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-            Path repoPath = getRepoPath(project);
+            Path repoPath = gitService.getProjectLocalPath(projectId);
             if (!gitOperations.isGitRepository(repoPath)) {
                 return ResponseEntity.ok(ApiResponse.error("Not a valid Git repository"));
             }
@@ -521,12 +466,5 @@ public class GitController {
         } catch (Exception e) {
             return ResponseEntity.ok(ApiResponse.error("Failed to get diff: " + e.getMessage()));
         }
-    }
-
-    private Path getRepoPath(Project project) {
-        if (project.getLocalPath() != null && !project.getLocalPath().isEmpty()) {
-            return Paths.get(project.getLocalPath());
-        }
-        return Paths.get(".");
     }
 }

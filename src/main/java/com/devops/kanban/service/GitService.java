@@ -1,30 +1,75 @@
 package com.devops.kanban.service;
 
+import com.devops.kanban.entity.Project;
 import com.devops.kanban.infrastructure.git.GitOperations;
+import com.devops.kanban.repository.ProjectRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 
 import org.eclipse.jgit.diff.DiffEntry;
 
 /**
- * Backward-compatible wrapper for GitOperations.
- * Delegates all calls to GitOperations.
- *
- * @deprecated Use {@link com.devops.kanban.infrastructure.git.GitOperations} instead.
+ * Service for Git operations with project context.
+ * Provides business methods that combine project lookup with git operations.
  */
 @Service
-@Deprecated
 public class GitService {
 
     private final GitOperations gitOperations;
+    private final ProjectRepository projectRepository;
 
     @Autowired
-    public GitService(GitOperations gitOperations) {
+    public GitService(GitOperations gitOperations, ProjectRepository projectRepository) {
         this.gitOperations = gitOperations;
+        this.projectRepository = projectRepository;
     }
+
+    // ==================== Business Methods ====================
+
+    /**
+     * Get the local repository path for a project.
+     * @param projectId the project ID
+     * @return the Path to the local repository, or current directory if not configured
+     * @throws IllegalArgumentException if project not found
+     */
+    public Path getProjectLocalPath(Long projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        return getRepoPath(project);
+    }
+
+    /**
+     * Get a project by ID.
+     * @param projectId the project ID
+     * @return Optional containing the project
+     */
+    public Optional<Project> getProject(Long projectId) {
+        return projectRepository.findById(projectId);
+    }
+
+    /**
+     * Check if a project has a valid git repository.
+     * @param projectId the project ID
+     * @return true if the project's local path is a git repository
+     */
+    public boolean isProjectGitRepository(Long projectId) {
+        Path repoPath = getProjectLocalPath(projectId);
+        return gitOperations.isGitRepository(repoPath);
+    }
+
+    private Path getRepoPath(Project project) {
+        if (project.getLocalPath() != null && !project.getLocalPath().isEmpty()) {
+            return Paths.get(project.getLocalPath());
+        }
+        return Paths.get(".");
+    }
+
+    // ==================== Delegated Git Operations ====================
 
     public Path createWorktree(Path mainRepoPath, Long projectId, String branch) {
         return gitOperations.createWorktree(mainRepoPath, projectId, branch);

@@ -3,10 +3,8 @@ package com.devops.kanban.controller;
 import com.devops.kanban.dto.ApiResponse;
 import com.devops.kanban.dto.PhaseTransitionRuleDTO;
 import com.devops.kanban.entity.PhaseTransitionRule;
-import com.devops.kanban.repository.PhaseTransitionRuleRepository;
+import com.devops.kanban.service.PhaseTransitionRuleService;
 import com.devops.kanban.service.PhaseTransitionService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,16 +27,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PhaseTransitionController {
 
-    private final PhaseTransitionRuleRepository ruleRepository;
+    private final PhaseTransitionRuleService ruleService;
     private final PhaseTransitionService phaseTransitionService;
 
     @GetMapping("/rules")
     public ResponseEntity<ApiResponse<List<PhaseTransitionRuleDTO>>> getAllRules(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        List<PhaseTransitionRuleDTO> allRules = ruleRepository.findAll().stream()
-                .map(this::toDTO)
-                .sorted((a, b) -> Integer.compare(b.getPriority(), a.getPriority())) // Sort by priority desc
+        List<PhaseTransitionRuleDTO> allRules = ruleService.getAllRulesSortedByPriority().stream()
+                .map(ruleService::toDTO)
                 .collect(Collectors.toList());
 
         // Support pagination if requested
@@ -59,8 +56,8 @@ public class PhaseTransitionController {
 
     @GetMapping("/rules/{id}")
     public ResponseEntity<ApiResponse<PhaseTransitionRuleDTO>> getRuleById(@PathVariable Long id) {
-        return ruleRepository.findById(id)
-                .map(rule -> ResponseEntity.ok(ApiResponse.success(toDTO(rule))))
+        return ruleService.getRuleById(id)
+                .map(rule -> ResponseEntity.ok(ApiResponse.success(ruleService.toDTO(rule))))
                 .orElse(ResponseEntity.ok(ApiResponse.error("Rule not found: " + id)));
     }
 
@@ -76,16 +73,12 @@ public class PhaseTransitionController {
             return ResponseEntity.badRequest().body(ApiResponse.error("Validation failed: " + errorMessage));
         }
 
-        // Validate phase transition logic
-        if (dto.getFromPhase().equals(dto.getToPhase())) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Target phase must be different from source phase"));
+        try {
+            PhaseTransitionRule rule = ruleService.createRule(dto);
+            return ResponseEntity.ok(ApiResponse.success("Rule created successfully", ruleService.toDTO(rule)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
-
-        PhaseTransitionRule rule = toEntity(dto);
-        rule = ruleRepository.save(rule);
-        log.info("[PhaseTransition] Created rule: {} -> {}", rule.getFromPhase(), rule.getToPhase());
-        return ResponseEntity.ok(ApiResponse.success("Rule created successfully", toDTO(rule)));
     }
 
     @PutMapping("/rules/{id}")
@@ -101,32 +94,20 @@ public class PhaseTransitionController {
             return ResponseEntity.badRequest().body(ApiResponse.error("Validation failed: " + errorMessage));
         }
 
-        Optional<PhaseTransitionRule> existing = ruleRepository.findById(id);
-        if (existing.isEmpty()) {
+        try {
+            PhaseTransitionRule rule = ruleService.updateRule(id, dto);
+            return ResponseEntity.ok(ApiResponse.success("Rule updated successfully", ruleService.toDTO(rule)));
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.ok(ApiResponse.error("Rule not found: " + id));
         }
-
-        // Validate phase transition logic
-        if (dto.getFromPhase().equals(dto.getToPhase())) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Target phase must be different from source phase"));
-        }
-
-        PhaseTransitionRule rule = toEntity(dto);
-        rule.setId(id);
-        rule = ruleRepository.save(rule);
-        log.info("[PhaseTransition] Updated rule {}: {} -> {}", id, rule.getFromPhase(), rule.getToPhase());
-        return ResponseEntity.ok(ApiResponse.success("Rule updated successfully", toDTO(rule)));
     }
 
     @DeleteMapping("/rules/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteRule(@PathVariable Long id) {
-        if (ruleRepository.findById(id).isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.error("Rule not found: " + id));
+        if (ruleService.deleteRule(id)) {
+            return ResponseEntity.ok(ApiResponse.success("Rule deleted successfully", null));
         }
-        ruleRepository.deleteById(id);
-        log.info("[PhaseTransition] Deleted rule {}", id);
-        return ResponseEntity.ok(ApiResponse.success("Rule deleted successfully", null));
+        return ResponseEntity.ok(ApiResponse.error("Rule not found: " + id));
     }
 
     @PostMapping("/rules/initialize")
@@ -151,68 +132,6 @@ public class PhaseTransitionController {
             return ResponseEntity.ok(ApiResponse.success("Transition triggered", data));
         } else {
             return ResponseEntity.ok(ApiResponse.success("No transition occurred", Map.of("transitioned", false)));
-        }
-    }
-
-    private PhaseTransitionRuleDTO toDTO(PhaseTransitionRule rule) {
-        return PhaseTransitionRuleDTO.builder()
-                .id(rule.getId())
-                .fromPhase(rule.getFromPhase())
-                .toPhase(rule.getToPhase())
-                .completionKeywords(rule.getCompletionKeywords())
-                .failureKeywords(rule.getFailureKeywords())
-                .rollbackPhase(rule.getRollbackPhase())
-                .autoTransition(rule.isAutoTransition())
-                .autoRollback(rule.isAutoRollback())
-                .enabled(rule.isEnabled())
-                .priority(rule.getPriority())
-                .build();
-    }
-
-    private PhaseTransitionRule toEntity(PhaseTransitionRuleDTO dto) {
-        // Normalize keywords JSON format before saving
-        String normalizedCompletion = normalizeKeywordsJson(dto.getCompletionKeywords());
-        String normalizedFailure = normalizeKeywordsJson(dto.getFailureKeywords());
-
-        return PhaseTransitionRule.builder()
-                .id(dto.getId())
-                .fromPhase(dto.getFromPhase())
-                .toPhase(dto.getToPhase())
-                .completionKeywords(normalizedCompletion)
-                .failureKeywords(normalizedFailure)
-                .rollbackPhase(dto.getRollbackPhase())
-                .autoTransition(dto.isAutoTransition())
-                .autoRollback(dto.isAutoRollback())
-                .enabled(dto.isEnabled())
-                .priority(dto.getPriority())
-                .build();
-    }
-
-    /**
-     * Validate and normalize keywords JSON format.
-     * Returns a valid JSON array string or "[]" if invalid.
-     */
-    private String normalizeKeywordsJson(String keywordsJson) {
-        if (keywordsJson == null || keywordsJson.isBlank()) {
-            return "[]";
-        }
-
-        try {
-            // Try to parse as JSON array
-            ObjectMapper mapper = new ObjectMapper();
-            List<String> keywords = mapper.readValue(keywordsJson, new TypeReference<List<String>>() {});
-
-            // Normalize: trim whitespace, remove empty strings, convert back to JSON
-            List<String> normalized = keywords.stream()
-                    .filter(k -> k != null && !k.isBlank())
-                    .map(String::trim)
-                    .distinct()
-                    .collect(Collectors.toList());
-
-            return mapper.writeValueAsString(normalized);
-        } catch (Exception e) {
-            log.warn("[PhaseTransition] Invalid keywords JSON format: {}", keywordsJson);
-            return "[]";
         }
     }
 }
