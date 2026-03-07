@@ -6,6 +6,7 @@
         <router-link to="/task-sources">{{ $t('nav.taskSources') }}</router-link>
         <router-link to="/agents">{{ $t('nav.agents') }}</router-link>
         <router-link to="/prompt-templates">{{ $t('nav.promptTemplates') }}</router-link>
+        <router-link to="/phase-transitions">{{ $t('phaseTransition.navTitle') }}</router-link>
       </div>
       <div class="nav-actions">
         <button @click="toggleTheme" class="theme-toggle" :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'">

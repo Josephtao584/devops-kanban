@@ -4,6 +4,7 @@ import com.devops.kanban.entity.Session;
 import com.devops.kanban.infrastructure.process.ProcessExecutor;
 import com.devops.kanban.repository.SessionRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,9 +22,17 @@ public class HeartbeatMonitor {
     private final ProcessExecutor processExecutor;
     private final ConcurrentHashMap<Long, Thread> activeMonitors = new ConcurrentHashMap<>();
 
+    // Use lazy injection to avoid circular dependency
+    private PhaseTransitionService phaseTransitionService;
+
     public HeartbeatMonitor(SessionRepository sessionRepository, ProcessExecutor processExecutor) {
         this.sessionRepository = sessionRepository;
         this.processExecutor = processExecutor;
+    }
+
+    @Autowired
+    public void setPhaseTransitionService(PhaseTransitionService phaseTransitionService) {
+        this.phaseTransitionService = phaseTransitionService;
     }
 
     /**
@@ -111,6 +120,15 @@ public class HeartbeatMonitor {
             sessionRepository.save(session);
             log.info("[Heartbeat] Final status updated | SessionId: {} | Status: {} | ExitCode: {}",
                 sessionId, session.getStatus(), exitCode);
+
+            // Trigger phase transition analysis
+            if (phaseTransitionService != null) {
+                try {
+                    phaseTransitionService.analyzeAndTransition(sessionId, exitCode, session.getOutput());
+                } catch (Exception e) {
+                    log.error("[Heartbeat] Phase transition analysis failed for session {}", sessionId, e);
+                }
+            }
         });
     }
 }

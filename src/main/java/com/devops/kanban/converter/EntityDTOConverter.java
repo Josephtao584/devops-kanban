@@ -28,6 +28,7 @@ public class EntityDTOConverter {
                 .sourceId(task.getSourceId())
                 .externalId(task.getExternalId())
                 .syncedAt(task.getSyncedAt())
+                .autoTransitionEnabled(task.getAutoTransitionEnabled())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .build();
@@ -48,6 +49,7 @@ public class EntityDTOConverter {
                 .sourceId(dto.getSourceId())
                 .externalId(dto.getExternalId())
                 .syncedAt(dto.getSyncedAt())
+                .autoTransitionEnabled(dto.getAutoTransitionEnabled())
                 .build();
     }
 

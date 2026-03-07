@@ -25,6 +25,11 @@ const routes = [
     path: '/prompt-templates',
     name: 'PromptTemplateConfig',
     component: () => import('../views/PromptTemplateConfig.vue')
+  },
+  {
+    path: '/phase-transitions',
+    name: 'PhaseTransitionConfig',
+    component: () => import('../views/PhaseTransitionConfig.vue')
   }
 ]
 

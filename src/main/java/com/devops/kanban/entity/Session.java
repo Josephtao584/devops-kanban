@@ -25,6 +25,10 @@ public class Session {
     private String output;  // Conversation history/output buffer
     private String initialPrompt;  // Initial prompt passed to Claude CLI (for frontend filtering)
 
+    // Phase transition fields
+    private Boolean phaseCompleteSignal;  // Whether AI has signaled phase completion
+    private String targetPhase;            // AI-suggested next phase
+
     public enum SessionStatus {
         CREATED,    // Session created but not started
         RUNNING,    // Agent process is actively running

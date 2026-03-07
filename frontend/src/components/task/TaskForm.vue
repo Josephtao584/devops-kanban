@@ -45,6 +45,15 @@
       <el-input v-model="formData.assignee" :placeholder="$t('task.assigneePlaceholder')" />
     </el-form-item>
 
+    <el-form-item :label="$t('task.autoTransitionLabel')">
+      <el-switch
+        v-model="formData.autoTransitionEnabled"
+        :active-text="$t('common.enabled')"
+        :inactive-text="$t('common.disabled')"
+      />
+      <div class="form-item-hint">{{ $t('task.autoTransitionHint') }}</div>
+    </el-form-item>
+
     <el-form-item>
       <el-button type="primary" @click="handleSubmit" :loading="loading">
         {{ isNew ? $t('task.create') : $t('task.save') }}
@@ -82,7 +91,8 @@ const formData = reactive({
   description: '',
   status: TASK_STATUS.TODO,
   priority: TASK_PRIORITY.MEDIUM,
-  assignee: ''
+  assignee: '',
+  autoTransitionEnabled: true
 })
 
 const rules = {
@@ -115,6 +125,7 @@ watch(() => props.task, (newTask) => {
     formData.status = newTask.status || TASK_STATUS.TODO
     formData.priority = newTask.priority || TASK_PRIORITY.MEDIUM
     formData.assignee = newTask.assignee || ''
+    formData.autoTransitionEnabled = newTask.autoTransitionEnabled !== false
   }
 }, { immediate: true })
 
@@ -135,3 +146,12 @@ defineExpose({
   resetFields: () => formRef.value?.resetFields()
 })
 </script>
+
+<style scoped>
+.form-item-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+</style>

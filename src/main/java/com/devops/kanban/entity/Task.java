@@ -24,6 +24,9 @@ public class Task {
     private String externalId;
     private LocalDateTime syncedAt;
 
+    // Phase transition control
+    private Boolean autoTransitionEnabled;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
