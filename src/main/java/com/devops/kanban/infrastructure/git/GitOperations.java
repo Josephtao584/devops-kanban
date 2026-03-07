@@ -24,6 +24,7 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
@@ -550,9 +551,12 @@ public class GitOperations {
                         if (trackingStatus != null) {
                             aheadCount = trackingStatus.getAheadCount();
                             behindCount = trackingStatus.getBehindCount();
-                            upstream = trackingStatus.getUpstream() != null
-                                    ? trackingStatus.getUpstream().replace("refs/remotes/", "")
-                                    : null;
+                            // Get upstream from repository config
+                            String mergeBranch = repository.getConfig().getString("branch", shortName, "merge");
+                            String remoteName = repository.getConfig().getString("branch", shortName, "remote");
+                            if (remoteName != null && mergeBranch != null) {
+                                upstream = remoteName + "/" + mergeBranch.replace("refs/heads/", "");
+                            }
                         }
                     }
 
@@ -613,9 +617,14 @@ public class GitOperations {
                 if (branch != null && !branch.isEmpty()) {
                     // Push specific branch
                     String fullBranchName = "refs/heads/" + branch;
-                    pushCmd.setRefSpecs(fullBranchName + ":" + fullBranchName);
+                    RefSpec refSpec = new RefSpec(fullBranchName + ":" + fullBranchName);
+                    pushCmd.setRefSpecs(refSpec);
                     if (setUpstream) {
-                        pushCmd.setRemoteBranchName(branch);
+                        // Configure upstream tracking in repository config
+                        StoredConfig config = repository.getConfig();
+                        config.setString("branch", branch, "remote", remote);
+                        config.setString("branch", branch, "merge", fullBranchName);
+                        config.save();
                     }
                 } else if (setUpstream) {
                     pushCmd.setPushAll();
@@ -684,7 +693,7 @@ public class GitOperations {
                 // Get remote branches
                 List<String> remoteBranches = new ArrayList<>();
                 try (Git git = new Git(repository)) {
-                    List<Ref> refs = git.lsRemote().setRemote(remoteName).callAsMap();
+                    Map<String, Ref> refs = git.lsRemote().setRemote(remoteName).callAsMap();
                     for (Map.Entry<String, Ref> entry : refs.entrySet()) {
                         if (entry.getKey().startsWith("refs/heads/")) {
                             remoteBranches.add(entry.getKey().replace("refs/heads/", ""));
