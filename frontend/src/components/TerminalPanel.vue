@@ -80,7 +80,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { ArrowUp, ArrowDown, Close, VideoPause } from '@element-plus/icons-vue'
-import sessionApi from '../api/session'
+import { sendSessionInput, stopSession, getSessionOutput } from '../api/session'
 import wsService from '../services/websocket'
 
 const props = defineProps({
@@ -155,7 +155,7 @@ const sendInput = async () => {
     if (wsService.isConnected()) {
       wsService.sendInput(props.currentSessionId, input)
     } else {
-      await sessionApi.sendInput(props.currentSessionId, input)
+      await sendSessionInput(props.currentSessionId, input)
     }
   } catch (e) {
     console.error('Failed to send input:', e)
@@ -267,7 +267,7 @@ watch(() => props.currentSessionId, async (newId, oldId) => {
     const existingOutput = sessionOutputs.value[newId]
     if (!existingOutput || existingOutput.lines.length === 0) {
       try {
-        const response = await sessionApi.getOutput(newId)
+        const response = await getSessionOutput(newId)
         console.log('[TerminalPanel] Output response:', response)
         // Handle string output (split by newlines)
         const outputStr = response.data || response || ''

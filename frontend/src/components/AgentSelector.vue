@@ -67,7 +67,7 @@ import {
   Connection,
   User
 } from '@element-plus/icons-vue'
-import agentApi from '../api/agent'
+import { getAgents } from '../api/agent'
 
 const props = defineProps({
   modelValue: {
@@ -106,8 +106,8 @@ const loadAgents = async () => {
 
   loading.value = true
   try {
-    const response = await agentApi.getAll(props.projectId)
-    console.log('[AgentSelector] agentApi.getAll response:', response)
+    const response = await getAgents(props.projectId)
+    console.log('[AgentSelector] getAgents response:', response)
     // Backend returns ApiResponse { success, data, message }
     agents.value = Array.isArray(response) ? response : (response.data || [])
     console.log('[AgentSelector] agents.value:', agents.value)

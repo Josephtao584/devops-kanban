@@ -1,29 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import ProjectListView from '../views/ProjectListView.vue'
-import KanbanView from '../views/KanbanView.vue'
-import TaskSourceConfig from '../views/TaskSourceConfig.vue'
-import AgentConfig from '../views/AgentConfig.vue'
 
 const routes = [
   {
     path: '/',
     name: 'ProjectList',
-    component: ProjectListView
+    component: () => import('../views/ProjectListView.vue')
   },
   {
     path: '/kanban/:projectId?',
     name: 'KanbanView',
-    component: KanbanView
+    component: () => import('../views/KanbanView.vue')
   },
   {
     path: '/task-sources/:projectId?',
     name: 'TaskSourceConfig',
-    component: TaskSourceConfig
+    component: () => import('../views/TaskSourceConfig.vue')
   },
   {
     path: '/agents/:projectId?',
     name: 'AgentConfig',
-    component: AgentConfig
+    component: () => import('../views/AgentConfig.vue')
   }
 ]
 

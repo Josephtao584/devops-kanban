@@ -144,7 +144,16 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Folder, Key } from '@element-plus/icons-vue'
 import wsService from '../services/websocket'
-import sessionApi from '../api/session'
+import {
+  createSession as apiCreateSession,
+  startSession as apiStartSession,
+  stopSession as apiStopSession,
+  continueSession as apiContinueSession,
+  getSession as apiGetSession,
+  sendSessionInput as apiSendSessionInput,
+  getActiveSessionByTask as apiGetActiveSessionByTask,
+  getSessionOutput as apiGetSessionOutput
+} from '../api/session'
 
 const props = defineProps({
   task: {
@@ -278,7 +287,7 @@ const addOutputLine = (data, stream, timestamp) => {
 // Methods
 const loadActiveSession = async () => {
   try {
-    const response = await sessionApi.getActiveByTask(props.task.id)
+    const response = await apiGetActiveSessionByTask(props.task.id)
     console.log('Load active session response:', response)
     if (response.success && response.data) {
       session.value = response.data
@@ -315,7 +324,7 @@ const createSession = async () => {
 
   try {
     console.log('Creating session for task:', props.task.id, 'agent:', props.agentId)
-    const response = await sessionApi.create(props.task.id, props.agentId)
+    const response = await apiCreateSession(props.task.id, props.agentId)
     console.log('Create session response:', response)
 
     if (response.success && response.data) {
@@ -361,7 +370,7 @@ const startSession = async () => {
   })
 
   try {
-    const response = await sessionApi.start(session.value.id)
+    const response = await apiStartSession(session.value.id)
     console.log('Start session response:', response)
     if (response.success && response.data) {
       session.value = response.data
@@ -432,7 +441,7 @@ const stopSession = async () => {
 
   isStopping.value = true
   try {
-    const response = await sessionApi.stop(session.value.id)
+    const response = await apiStopSession(session.value.id)
     session.value = response.data
     emit('status-change', session.value.status)
     emit('session-stopped')
@@ -460,7 +469,7 @@ const continueSession = async () => {
   })
 
   try {
-    const response = await sessionApi.continue(session.value.id, input)
+    const response = await apiContinueSession(session.value.id, input)
     console.log('Continue session response:', response)
     if (response.success && response.data) {
       session.value = response.data
@@ -508,7 +517,7 @@ const continueSession = async () => {
       wsService.sendInput(session.value.id, input)
     } else {
       // Fallback to REST API
-      await sessionApi.sendInput(session.value.id, input)
+      await apiSendSessionInput(session.value.id, input)
     }
   } catch (e) {
     console.error('Failed to send input:', e)
@@ -591,7 +600,7 @@ const startOutputPolling = () => {
     if (!session.value || !session.value.id) return
 
     try {
-      const response = await sessionApi.getOutput(session.value.id)
+      const response = await apiGetSessionOutput(session.value.id)
       if (response.success && response.data) {
         const currentOutput = outputLines.value.map(l => l.data).join('\n')
         if (response.data && response.data !== currentOutput) {

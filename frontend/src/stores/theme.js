@@ -1,33 +1,42 @@
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
-export const useThemeStore = defineStore('theme', {
-  state: () => ({
-    isDark: localStorage.getItem('theme') !== 'light'
-  }),
+export const useThemeStore = defineStore('theme', () => {
+  // State
+  const isDark = ref(localStorage.getItem('theme') !== 'light')
 
-  getters: {
-    themeClass: (state) => state.isDark ? 'theme-dark' : 'theme-light'
-  },
+  // Getters
+  const themeClass = computed(() => isDark.value ? 'theme-dark' : 'theme-light')
 
-  actions: {
-    toggleTheme() {
-      this.isDark = !this.isDark
-      localStorage.setItem('theme', this.isDark ? 'dark' : 'light')
-      this.applyTheme()
-    },
-
-    applyTheme() {
-      if (this.isDark) {
-        document.documentElement.classList.remove('theme-light')
-        document.documentElement.classList.add('theme-dark')
-      } else {
-        document.documentElement.classList.remove('theme-dark')
-        document.documentElement.classList.add('theme-light')
-      }
-    },
-
-    initTheme() {
-      this.applyTheme()
+  // Actions
+  function applyTheme() {
+    if (isDark.value) {
+      document.documentElement.classList.remove('theme-light')
+      document.documentElement.classList.add('theme-dark')
+    } else {
+      document.documentElement.classList.remove('theme-dark')
+      document.documentElement.classList.add('theme-light')
     }
+  }
+
+  function toggleTheme() {
+    isDark.value = !isDark.value
+    localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+    applyTheme()
+  }
+
+  function initTheme() {
+    applyTheme()
+  }
+
+  return {
+    // State
+    isDark,
+    // Getters
+    themeClass,
+    // Actions
+    toggleTheme,
+    applyTheme,
+    initTheme
   }
 })

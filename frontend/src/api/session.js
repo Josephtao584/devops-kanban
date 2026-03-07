@@ -1,52 +1,38 @@
 import api from './index.js'
 
-const sessionApi = {
-  // Create a new session
-  create: (taskId, agentId) => api.post('/sessions', { taskId, agentId }),
+// Session API - named exports only
 
-  // Get session by ID
-  getById: (id) => api.get(`/sessions/${id}`),
+// Create a new session
+export const createSession = (taskId, agentId) => api.post('/sessions', { taskId, agentId })
 
-  // Get sessions by task ID
-  getByTask: (taskId, activeOnly = false) =>
-    api.get('/sessions', { params: { taskId, activeOnly } }),
+// Get session by ID
+export const getSession = (id) => api.get(`/sessions/${id}`)
 
-  // Get active session for a task
-  getActiveByTask: (taskId) => api.get(`/sessions/task/${taskId}/active`),
+// Get sessions by task ID
+export const getSessionsByTask = (taskId, activeOnly = false) =>
+  api.get('/sessions', { params: { taskId, activeOnly } })
 
-  // Get session history for a task (with output)
-  getHistory: (taskId, includeOutput = true) =>
-    api.get(`/sessions/task/${taskId}/history`, { params: { includeOutput } }),
+// Get active session for a task
+export const getActiveSessionByTask = (taskId) => api.get(`/sessions/task/${taskId}/active`)
 
-  // Start a session
-  start: (id) => api.post(`/sessions/${id}/start`),
+// Get session history for a task (with output)
+export const getSessionHistory = (taskId, includeOutput = true) =>
+  api.get(`/sessions/task/${taskId}/history`, { params: { includeOutput } })
 
-  // Stop a session
-  stop: (id) => api.post(`/sessions/${id}/stop`),
+// Start a session
+export const startSession = (id) => api.post(`/sessions/${id}/start`)
 
-  // Send input to a session
-  sendInput: (id, input) => api.post(`/sessions/${id}/input`, { input }),
+// Stop a session
+export const stopSession = (id) => api.post(`/sessions/${id}/stop`)
 
-  // Continue a stopped session (resume with --resume flag)
-  continue: (id, input) => api.post(`/sessions/${id}/continue`, { input }),
+// Send input to a session
+export const sendSessionInput = (id, input) => api.post(`/sessions/${id}/input`, { input })
 
-  // Get session output
-  getOutput: (id) => api.get(`/sessions/${id}/output`),
+// Continue a stopped session (resume with --resume flag)
+export const continueSession = (id, input) => api.post(`/sessions/${id}/continue`, { input })
 
-  // Delete a session
-  delete: (id) => api.delete(`/sessions/${id}`)
-}
+// Get session output
+export const getSessionOutput = (id) => api.get(`/sessions/${id}/output`)
 
-export const createSession = (taskId, agentId) => sessionApi.create(taskId, agentId)
-export const getSession = (id) => sessionApi.getById(id)
-export const getSessionsByTask = (taskId, activeOnly = false) => sessionApi.getByTask(taskId, activeOnly)
-export const getActiveSessionByTask = (taskId) => sessionApi.getActiveByTask(taskId)
-export const getSessionHistory = (taskId, includeOutput = true) => sessionApi.getHistory(taskId, includeOutput)
-export const startSession = (id) => sessionApi.start(id)
-export const stopSession = (id) => sessionApi.stop(id)
-export const sendSessionInput = (id, input) => sessionApi.sendInput(id, input)
-export const continueSession = (id, input) => sessionApi.continue(id, input)
-export const getSessionOutput = (id) => sessionApi.getOutput(id)
-export const deleteSession = (id) => sessionApi.delete(id)
-
-export default sessionApi
+// Delete a session
+export const deleteSession = (id) => api.delete(`/sessions/${id}`)

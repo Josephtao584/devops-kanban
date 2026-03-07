@@ -575,7 +575,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
-import sessionApi from '../api/session.js'
+import { createSession, startSession, stopSession, getActiveSessionByTask, getSessionsByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 
@@ -923,7 +923,7 @@ const handleRequestAgentSelect = (task) => {
 const loadActiveSession = async () => {
   if (!selectedTask.value) return
   try {
-    const response = await sessionApi.getActiveByTask(selectedTask.value.id)
+    const response = await getActiveSessionByTask(selectedTask.value.id)
     if (response.success && response.data) {
       activeSession.value = response.data
     } else {

@@ -1,80 +1,33 @@
 <template>
   <el-dialog
     :model-value="true"
-    :title="isNew ? 'Create Task' : 'Task Details'"
+    :title="isNew ? $t('task.createTask') : $t('task.editTask')"
     width="600px"
     top="5vh"
     :close-on-click-modal="false"
     @close="$emit('close')"
   >
-    <el-form
+    <TaskForm
+      v-if="showForm"
       ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-position="top"
-    >
-      <el-form-item label="Title" prop="title">
-        <el-input v-model="form.title" placeholder="Enter task title" />
-      </el-form-item>
+      :task="task"
+      @submit="handleSave"
+      @cancel="$emit('close')"
+    />
 
-      <el-form-item label="Description">
-        <el-input
-          v-model="form.description"
-          type="textarea"
-          :rows="3"
-          placeholder="Enter task description"
-        />
-      </el-form-item>
-
-      <el-row :gutter="16">
-        <el-col :span="12">
-          <el-form-item label="Status">
-            <el-select v-model="form.status" style="width: 100%">
-              <el-option label="待处理" value="TODO" />
-              <el-option label="设计" value="DESIGN" />
-              <el-option label="开发" value="DEVELOPMENT" />
-              <el-option label="测试" value="TESTING" />
-              <el-option label="发布" value="RELEASE" />
-              <el-option label="已完成" value="DONE" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="Priority">
-            <el-select v-model="form.priority" style="width: 100%">
-              <el-option label="Low" value="LOW">
-                <el-tag type="info" size="small">Low</el-tag>
-              </el-option>
-              <el-option label="Medium" value="MEDIUM">
-                <el-tag type="primary" size="small">Medium</el-tag>
-              </el-option>
-              <el-option label="High" value="HIGH">
-                <el-tag type="warning" size="small">High</el-tag>
-              </el-option>
-              <el-option label="Critical" value="CRITICAL">
-                <el-tag type="danger" size="small">Critical</el-tag>
-              </el-option>
-            </el-select>
-          </el-form-item>
-        </el-col>
-      </el-row>
-
-      <el-form-item label="Assignee">
-        <el-input v-model="form.assignee" placeholder="Enter assignee name" />
-      </el-form-item>
-
-      <!-- AI Session Section -->
-      <el-divider v-if="!isNew && agents.length > 0">
+    <!-- AI Session Section -->
+    <template v-if="!isNew && agents.length > 0">
+      <el-divider>
         <el-icon><Cpu /></el-icon>
-        AI Session
+        {{ $t('session.title', 'AI Session') }}
       </el-divider>
 
-      <div v-if="!isNew && agents.length > 0" class="session-section">
+      <div class="session-section">
         <!-- Agent Selection -->
         <div class="agent-select-row">
           <el-select
             v-model="selectedAgentId"
-            placeholder="Select an agent..."
+            :placeholder="$t('execution.selectAgent')"
             style="flex: 1"
             :disabled="hasActiveSession"
           >
@@ -91,14 +44,14 @@
             :disabled="!selectedAgentId"
             @click="createNewSession"
           >
-            Create Session
+            {{ $t('session.createSession') }}
           </el-button>
           <el-button
             v-else
             type="danger"
             @click="deleteCurrentSession"
           >
-            Delete Session
+            {{ $t('session.deleteSession') }}
           </el-button>
         </div>
 
@@ -116,58 +69,25 @@
       </div>
 
       <!-- Session History -->
-      <el-divider v-if="!isNew && sessionHistory.length > 0">
-        <el-icon><Clock /></el-icon>
-        Session History
-      </el-divider>
-
-      <div v-if="!isNew && sessionHistory.length > 0" class="history-section">
-        <el-collapse v-loading="historyLoading">
-          <el-collapse-item
-            v-for="session in sessionHistory"
-            :key="session.id"
-            :name="session.id"
-          >
-            <template #title>
-              <div class="history-item-title">
-                <el-tag :type="getStatusTagType(session.status)" size="small">
-                  {{ session.status }}
-                </el-tag>
-                <span class="history-time">
-                  {{ formatTime(session.startedAt) }}
-                </span>
-                <span v-if="session.stoppedAt" class="history-duration">
-                  ({{ formatDuration(session.startedAt, session.stoppedAt) }})
-                </span>
-              </div>
-            </template>
-            <div class="history-output">
-              <div v-if="getHistoryMessages(session).length > 0" class="history-messages">
-                <div
-                  v-for="msg in getHistoryMessages(session)"
-                  :key="msg.id"
-                  class="history-message"
-                  :class="`message-${msg.role}`"
-                >
-                  <div class="history-bubble">{{ msg.content }}</div>
-                </div>
-              </div>
-              <el-empty v-else description="No output recorded" :image-size="40" />
-            </div>
-          </el-collapse-item>
-        </el-collapse>
-      </div>
-    </el-form>
+      <TaskHistory
+        v-if="sessionHistory.length > 0"
+        :sessions="sessionHistory"
+        :active-session-id="localSession?.id"
+        :loading="historyLoading"
+        @select="onSelectHistory"
+        @refresh="loadSessionHistory"
+      />
+    </template>
 
     <template #footer>
       <div class="dialog-footer">
         <el-button v-if="!isNew" type="danger" @click="handleDelete">
-          Delete
+          {{ $t('common.delete') }}
         </el-button>
         <div class="spacer"></div>
-        <el-button @click="$emit('close')">Cancel</el-button>
-        <el-button type="primary" @click="handleSave">
-          {{ isNew ? 'Create' : 'Save' }}
+        <el-button @click="$emit('close')">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="submitForm">
+          {{ isNew ? $t('common.create') : $t('common.save') }}
         </el-button>
       </div>
     </template>
@@ -175,14 +95,20 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Cpu, Clock } from '@element-plus/icons-vue'
-import { taskApi } from '../api/task'
-import { agentApi } from '../api/agent'
-import sessionApi from '../api/session'
+import { Cpu } from '@element-plus/icons-vue'
+import { createTask, updateTask, deleteTask } from '../api/task'
+import { getAgents } from '../api/agent'
+import { getActiveSessionByTask, getSessionHistory, createSession, deleteSession } from '../api/session'
 import ChatBox from './ChatBox.vue'
-import { parseOutputToMessages } from '../utils/messageParser'
+import TaskForm from './task/TaskForm.vue'
+import TaskHistory from './task/TaskHistory.vue'
+import { useToast } from '../composables/ui/useToast'
+
+const { t } = useI18n()
+const toast = useToast()
 
 const props = defineProps({
   task: {
@@ -200,20 +126,7 @@ const emit = defineEmits(['close', 'saved', 'deleted'])
 const formRef = ref(null)
 const terminalRef = ref(null)
 const isNew = computed(() => !props.task?.id)
-
-const form = ref({
-  title: '',
-  description: '',
-  status: 'TODO',
-  priority: 'MEDIUM',
-  assignee: ''
-})
-
-const rules = {
-  title: [
-    { required: true, message: 'Title is required', trigger: 'blur' }
-  ]
-}
+const showForm = ref(true)
 
 const agents = ref([])
 const selectedAgentId = ref(null)
@@ -230,47 +143,30 @@ const hasActiveSession = computed(() => {
 })
 
 watch(() => props.task, (newTask, oldTask) => {
-  if (newTask) {
-    form.value = {
-      title: newTask.title || '',
-      description: newTask.description || '',
-      status: newTask.status || 'TODO',
-      priority: newTask.priority || 'MEDIUM',
-      assignee: newTask.assignee || ''
-    }
-    // Reset session when task changes
-    if (oldTask && newTask.id !== oldTask.id) {
-      sessionHistory.value = []
-      // Load session for new task
-      loadSessionForTask(newTask)
-    }
+  if (newTask && oldTask && newTask.id !== oldTask.id) {
+    sessionHistory.value = []
+    loadSessionForTask(newTask)
   }
-}, { immediate: true })
+}, { immediate: false })
 
 const loadSessionForTask = async (task) => {
   if (!task?.id) return
   console.log('[TaskDetail] loadSessionForTask, task:', task.id)
   try {
-    const response = await agentApi.getByProject(props.projectId)
+    const response = await getAgents(props.projectId)
     agents.value = response.data || []
     console.log('[TaskDetail] Loaded agents:', agents.value.length)
 
-    // Check for active session
-    const sessionResponse = await sessionApi.getActiveByTask(task.id)
+    const sessionResponse = await getActiveSessionByTask(task.id)
     console.log('[TaskDetail] Active session response:', sessionResponse.data ? sessionResponse.data.id : null)
     if (sessionResponse.data) {
       localSession.value = sessionResponse.data
       selectedAgentId.value = sessionResponse.data.agentId
-      console.log('[TaskDetail] Set localSession to active session:', localSession.value.id, 'claudeSessionId:', localSession.value.claudeSessionId, 'output:', localSession.value.output ? 'has output' : 'no output')
     } else if (agents.value.length > 0) {
-      // Auto-select first agent and create session
       selectedAgentId.value = agents.value[0].id
-      console.log('[TaskDetail] No active session, creating new session with agent:', selectedAgentId.value)
       await createNewSession()
-      console.log('[TaskDetail] Created new session:', localSession.value?.id)
     }
 
-    // Load session history
     loadSessionHistory()
   } catch (e) {
     console.error('Failed to load agents:', e)
@@ -287,9 +183,8 @@ const loadSessionHistory = async () => {
   if (!props.task?.id) return
   historyLoading.value = true
   try {
-    const response = await sessionApi.getHistory(props.task.id)
+    const response = await getSessionHistory(props.task.id)
     if (response.success && response.data) {
-      // Filter out active session and sort by startedAt descending
       sessionHistory.value = response.data
         .filter(s => !localSession.value || s.id !== localSession.value.id)
         .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
@@ -301,38 +196,38 @@ const loadSessionHistory = async () => {
   }
 }
 
-const handleSave = async () => {
-  try {
-    await formRef.value.validate()
-  } catch {
-    return
-  }
+const submitForm = () => {
+  formRef.value?.validate().then(() => {
+    formRef.value?.$emit('submit')
+  }).catch(() => {})
+}
 
+const handleSave = async (formData) => {
   const data = {
-    ...form.value,
+    ...formData,
     projectId: props.projectId
   }
 
   try {
     if (isNew.value) {
-      await taskApi.create(data)
+      await createTask(data)
     } else {
-      await taskApi.update(props.task.id, data)
+      await updateTask(props.task.id, data)
     }
-    ElMessage.success(isNew.value ? 'Task created' : 'Task saved')
+    toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
     emit('saved')
     emit('close')
   } catch (e) {
     console.error('Failed to save task:', e)
-    ElMessage.error('Failed to save task')
+    toast.apiError(e, t('messages.saveFailed', { name: t('task.title') }))
   }
 }
 
 const handleDelete = async () => {
   try {
-    await ElMessageBox.confirm('Are you sure you want to delete this task?', 'Delete Task', {
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
+    await ElMessageBox.confirm(t('task.deleteConfirm'), t('common.delete'), {
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning'
     })
   } catch {
@@ -340,36 +235,34 @@ const handleDelete = async () => {
   }
 
   try {
-    await taskApi.delete(props.task.id)
-    ElMessage.success('Task deleted')
+    await deleteTask(props.task.id)
+    toast.success(t('messages.deleted', { name: t('task.title') }))
     emit('deleted')
     emit('close')
   } catch (e) {
     console.error('Failed to delete task:', e)
-    ElMessage.error('Failed to delete task')
+    toast.apiError(e, t('messages.deleteFailed', { name: t('task.title') }))
   }
 }
 
 const createNewSession = async () => {
   if (!selectedAgentId.value) {
-    ElMessage.warning('Please select an agent first')
+    toast.warning(t('agent.selectFirst', 'Please select an agent first'))
     return
   }
 
   try {
     console.log('Creating session for task:', props.task.id, 'agent:', selectedAgentId.value)
-    const response = await sessionApi.create(props.task.id, selectedAgentId.value)
-    console.log('Create session response:', response)
+    const response = await createSession(props.task.id, selectedAgentId.value)
     if (response.success && response.data) {
       localSession.value = response.data
-      console.log('[TaskDetail] Created new session:', localSession.value.id, 'claudeSessionId:', localSession.value.claudeSessionId, 'output:', localSession.value.output ? 'has output' : 'no output')
-      ElMessage.success('Session created')
+      toast.success(t('messages.created', { name: t('session.title') }))
     } else {
-      ElMessage.error(response.message || 'Failed to create session')
+      toast.error(response.message || t('messages.createFailed', { name: t('session.title') }))
     }
   } catch (e) {
     console.error('Failed to create session:', e)
-    ElMessage.error(e.response?.data?.message || e.message || 'Failed to create session')
+    toast.apiError(e, t('messages.createFailed', { name: t('session.title') }))
   }
 }
 
@@ -378,11 +271,11 @@ const deleteCurrentSession = async () => {
 
   try {
     await ElMessageBox.confirm(
-      'Are you sure you want to delete this session? All output will be lost.',
-      'Delete Session',
+      t('session.deleteConfirm', 'Are you sure you want to delete this session?'),
+      t('session.deleteSession'),
       {
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -391,12 +284,12 @@ const deleteCurrentSession = async () => {
   }
 
   try {
-    await sessionApi.delete(localSession.value.id)
+    await deleteSession(localSession.value.id)
     localSession.value = null
-    ElMessage.success('Session deleted')
+    toast.success(t('messages.deleted', { name: t('session.title') }))
   } catch (e) {
     console.error('Failed to delete session:', e)
-    ElMessage.error('Failed to delete session')
+    toast.apiError(e, t('messages.deleteFailed', { name: t('session.title') }))
   }
 }
 
@@ -405,7 +298,6 @@ const onSessionCreated = (session) => {
 }
 
 const onSessionStopped = () => {
-  // Session stopped, refresh history
   loadSessionHistory()
 }
 
@@ -415,46 +307,13 @@ const onStatusChange = (status) => {
   }
 }
 
-// Helper functions for history display
-const getStatusTagType = (status) => {
-  const types = {
-    'CREATED': 'info',
-    'RUNNING': 'success',
-    'IDLE': 'warning',
-    'STOPPED': '',
-    'ERROR': 'danger'
-  }
-  return types[status] || 'info'
-}
-
-const formatTime = (dateStr) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleString()
-}
-
-const formatDuration = (startStr, endStr) => {
-  if (!startStr || !endStr) return ''
-  const start = new Date(startStr)
-  const end = new Date(endStr)
-  const diffMs = end - start
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffSecs = Math.floor((diffMs % 60000) / 1000)
-  if (diffMins > 0) {
-    return `${diffMins}m ${diffSecs}s`
-  }
-  return `${diffSecs}s`
-}
-
-// Parse history session output into messages
-const getHistoryMessages = (session) => {
-  if (!session.output) return []
-  return parseOutputToMessages(session.output)
+const onSelectHistory = (session) => {
+  // Load selected history session into view
+  console.log('Selected history session:', session.id)
 }
 </script>
 
 <style scoped>
-/* 限制 dialog body 高度，使其可滚动 */
 :deep(.el-dialog__body) {
   max-height: 70vh;
   overflow-y: auto;
@@ -479,77 +338,6 @@ const getHistoryMessages = (session) => {
   gap: 8px;
   margin-bottom: 12px;
   flex-shrink: 0;
-}
-
-.history-section {
-  margin-top: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.history-item-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.history-time {
-  color: #606266;
-  font-size: 12px;
-}
-
-.history-duration {
-  color: #909399;
-  font-size: 11px;
-}
-
-.history-output {
-  background: #f5f7fa;
-  border-radius: 4px;
-  padding: 8px 12px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.history-messages {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.history-message {
-  display: flex;
-  max-width: 85%;
-}
-
-.history-message.message-user {
-  align-self: flex-end;
-}
-
-.history-message.message-assistant {
-  align-self: flex-start;
-}
-
-.history-bubble {
-  padding: 6px 10px;
-  border-radius: 10px;
-  font-size: 12px;
-  max-width: 100%;
-  word-break: break-word;
-}
-
-.history-message.message-user .history-bubble {
-  background: #409eff;
-  color: white;
-  border-radius: 10px 10px 4px 10px;
-}
-
-.history-message.message-assistant .history-bubble {
-  background: #fff;
-  color: #303133;
-  border-radius: 10px 10px 10px 4px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .dialog-footer {

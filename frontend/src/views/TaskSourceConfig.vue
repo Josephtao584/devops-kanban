@@ -129,8 +129,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import projectApi from '../api/project'
-import taskSourceApi from '../api/taskSource'
+import { getProjects } from '../api/project'
+import { getTaskSources, createTaskSource, updateTaskSource, syncTaskSource, testTaskSourceConnection, deleteTaskSource } from '../api/taskSource'
 
 const { t } = useI18n()
 
@@ -165,7 +165,7 @@ const formatDateTime = (dateStr) => {
 
 const loadProjects = async () => {
   try {
-    const res = await projectApi.getAll()
+    const res = await getProjects()
     projects.value = res.data || res || []
     if (projects.value.length > 0) {
       selectedProjectId.value = projects.value[0].id
@@ -180,7 +180,7 @@ const loadTaskSources = async () => {
   if (!selectedProjectId.value) return
   loading.value = true
   try {
-    const res = await taskSourceApi.getByProject(selectedProjectId.value)
+    const res = await getTaskSources(selectedProjectId.value)
     taskSources.value = res.data || res || []
   } catch (e) {
     console.error('Failed to load task sources:', e)
@@ -197,9 +197,9 @@ const saveSource = async () => {
       projectId: selectedProjectId.value
     }
     if (editingSource.value) {
-      await taskSourceApi.update(editingSource.value.id, data)
+      await updateTaskSource(editingSource.value.id, data)
     } else {
-      await taskSourceApi.create(data)
+      await createTaskSource(data)
     }
     closeForm()
     loadTaskSources()
@@ -215,7 +215,7 @@ const saveSource = async () => {
 const testConnection = async (source) => {
   testingConnection.value = source.id
   try {
-    const res = await taskSourceApi.testConnection(source.id)
+    const res = await testTaskSourceConnection(source.id)
     const success = res.data || res
     showToast(success ? t('taskSource.connectionSuccess') : t('taskSource.connectionFailed'), success ? 'success' : 'error')
   } catch (e) {
@@ -228,7 +228,7 @@ const testConnection = async (source) => {
 const syncSource = async (source) => {
   syncingSource.value = source.id
   try {
-    await taskSourceApi.sync(source.id)
+    await syncTaskSource(source.id)
     showToast(t('taskSource.syncNow') + ' ' + t('common.success'))
     loadTaskSources()
   } catch (e) {
@@ -241,7 +241,7 @@ const syncSource = async (source) => {
 const confirmDelete = async (source) => {
   if (!confirm(t('common.delete') + '?')) return
   try {
-    await taskSourceApi.delete(source.id)
+    await deleteTaskSource(source.id)
     loadTaskSources()
     showToast(t('messages.deleted', { name: t('taskSource.title') }))
   } catch (e) {

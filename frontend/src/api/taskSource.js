@@ -1,29 +1,10 @@
 import api from './index.js'
 
-const getByProject = (projectId) => {
-  return api.get(`/task-sources`, { params: { projectId } })
-}
-
-const create = (data) => {
-  return api.post('/task-sources', data)
-}
-
-const sync = (id) => {
-  return api.post(`/task-sources/${id}/sync`)
-}
-
-const testConnection = (id) => {
-  return api.get(`/task-sources/${id}/test`)
-}
-
-const deleteTaskSource = (id) => {
-  return api.delete(`/task-sources/${id}`)
-}
-
-export default {
-  getByProject,
-  create,
-  sync,
-  testConnection,
-  delete: deleteTaskSource
-}
+// TaskSource API - named exports only
+export const getTaskSources = (projectId) => api.get('/task-sources', { params: { projectId } })
+export const getTaskSource = (id) => api.get(`/task-sources/${id}`)
+export const createTaskSource = (data) => api.post('/task-sources', data)
+export const updateTaskSource = (id, data) => api.put(`/task-sources/${id}`, data)
+export const syncTaskSource = (id) => api.post(`/task-sources/${id}/sync`)
+export const testTaskSourceConnection = (id) => api.get(`/task-sources/${id}/test`)
+export const deleteTaskSource = (id) => api.delete(`/task-sources/${id}`)

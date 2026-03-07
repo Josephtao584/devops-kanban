@@ -8,129 +8,65 @@
       :agent-id="agentId"
     />
 
-    <!-- Header -->
-    <div class="chat-header">
-      <div class="header-left">
-        <span class="header-title">{{ task?.title || 'Agent Chat' }}</span>
-        <span class="header-status" :class="statusClass">
-          <span class="status-dot"></span>
-          {{ statusText }}
-        </span>
-        <span v-if="session?.claudeSessionId" class="claude-session-id">
-          Session: {{ session.claudeSessionId }}
-        </span>
-        <span v-if="session?.worktreePath" class="worktree-info" :title="session.worktreePath">
-          <Folder style="width: 12px; height: 12px;" />
-          {{ getWorktreeName(session.worktreePath) }}
-        </span>
-      </div>
-      <div class="header-actions">
-        <el-button
-          v-if="!session && !agentId"
-          type="warning"
-          size="small"
-          :loading="isStarting"
-          @click="handleButtonClick"
-        >
-          <el-icon><VideoPlay /></el-icon> Create
-        </el-button>
-        <el-button
-          v-if="(!session && agentId) || (session && session.status === 'CREATED')"
-          type="primary"
-          size="small"
-          :loading="isStarting"
-          @click="handleButtonClick"
-        >
-          <el-icon><VideoPlay /></el-icon> Start
-        </el-button>
-        <el-button
-          v-if="session && (session.status === 'RUNNING' || session.status === 'IDLE')"
-          type="danger"
-          size="small"
-          :loading="isStopping"
-          @click="stopSession"
-        >
-          <el-icon><VideoPause /></el-icon> Stop
-        </el-button>
-        <el-button
-          v-if="session && session.id"
-          type="danger"
-          size="small"
-          @click="confirmDeleteSession"
-        >
-          <el-icon><Delete /></el-icon>
-        </el-button>
-      </div>
-    </div>
+    <!-- Header using extracted component -->
+    <SessionHeader
+      :title="task?.title || 'Agent Chat'"
+      :status="sessionStatus"
+      :status-text="statusText"
+      :session-id="session?.claudeSessionId"
+      :worktree-path="session?.worktreePath"
+    >
+      <template #actions>
+        <SessionControls
+          :status="session?.status"
+          :has-agent="!!agentId"
+          :has-session="!!session"
+          :loading="isStarting || isStopping"
+          @create="handleButtonClick"
+          @start="handleButtonClick"
+          @stop="stopSession"
+          @delete="confirmDeleteSession"
+        />
+      </template>
+    </SessionHeader>
 
     <!-- Task summary -->
     <div class="task-summary" v-if="task && task.description && !isCollapsed">
       <div class="task-description">
-        <span class="description-label">简介：</span>{{ task.description }}
+        <span class="description-label">{{ $t('chat.taskSummary', '简介：') }}</span>{{ task.description }}
       </div>
     </div>
 
-    <!-- Messages Area -->
-    <div ref="messagesContainer" class="messages-area" v-show="!isCollapsed">
-      <div v-if="!session" class="chat-empty">
-        <div class="empty-icon">
-          <el-icon :size="48"><ChatDotRound /></el-icon>
-        </div>
-        <p class="empty-text">No active session</p>
-        <p class="empty-hint">Select an agent and start a session to begin chatting</p>
-      </div>
-      <div v-else-if="messages.length === 0" class="chat-empty">
-        <div class="empty-icon">
-          <el-icon :size="48"><ChatLineRound /></el-icon>
-        </div>
-        <p class="empty-text">Ready to chat</p>
-        <p class="empty-hint">Click "Start" to begin the conversation</p>
-      </div>
-      <div v-else class="messages-list">
-        <div
-          v-for="msg in messages"
-          :key="msg.id"
-          class="message"
-          :class="`message-${msg.role}`"
-        >
-          <div class="message-header">
-            <span class="message-role">{{ getMessageRole(msg.role) }}</span>
-            <span class="message-time">{{ formatMessageTime(msg.timestamp) }}</span>
-          </div>
-          <div class="message-content">{{ msg.content }}</div>
-        </div>
-      </div>
-    </div>
+    <!-- Messages Area using extracted component -->
+    <MessageList
+      ref="messageListRef"
+      :messages="messages"
+      :has-session="!!session"
+      :empty-title="$t('chat.noSession', 'No active session')"
+      :empty-hint="$t('chat.noSessionHint', 'Select an agent and start a session to begin')"
+      :ready-title="$t('chat.readyTitle', 'Ready to chat')"
+      :ready-hint="$t('chat.readyHint', 'Click Start to begin')"
+    />
 
-    <!-- Input Area -->
-    <div class="chat-input-container" v-show="!isCollapsed">
-      <div class="chat-input-wrapper">
-        <el-input
-          v-model="inputText"
-          type="textarea"
-          :rows="1"
-          :autosize="{ minRows: 1, maxRows: 4 }"
-          placeholder="Type a message... (Enter to send)"
-          :disabled="false"
-          @keyup.enter.exact="sendMessage"
-        />
-        <el-button
-          type="primary"
-          :disabled="!inputText.trim()"
-          @click="sendMessage"
-        >
-          <el-icon><Position /></el-icon>
-        </el-button>
-      </div>
-    </div>
+    <!-- Input Area using extracted component -->
+    <MessageInput
+      v-show="!isCollapsed"
+      v-model="inputText"
+      :placeholder="$t('chat.inputPlaceholder', 'Type a message... (Enter to send)')"
+      @send="sendMessage"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Position, VideoPlay, VideoPause, Delete, ChatDotRound, ChatLineRound, ArrowUp, ArrowDown, Folder } from '@element-plus/icons-vue'
 import DevTools from './DevTools.vue'
+import SessionHeader from './session/SessionHeader.vue'
+import SessionControls from './session/SessionControls.vue'
+import MessageList from './session/MessageList.vue'
+import MessageInput from './session/MessageInput.vue'
 import { useSessionManager } from '../composables/useSessionManager'
 import { useWebSocketConnection } from '../composables/useWebSocketConnection'
 import { useMessageFilter } from '../composables/useMessageFilter'
@@ -138,6 +74,7 @@ import { parseOutputToMessages } from '../utils/messageParser'
 
 // Dev mode flag for template
 const isDev = import.meta.env.DEV
+const { t } = useI18n()
 
 const props = defineProps({
   task: {
@@ -189,7 +126,7 @@ const {
 // Local state
 const messages = ref([])
 const inputText = ref('')
-const messagesContainer = ref(null)
+const messageListRef = ref(null)
 const isCollapsed = ref(false)
 
 // Waiting state and timer
@@ -225,61 +162,21 @@ const formatElapsedTime = computed(() => {
   return `${minutes}m ${remainingSeconds}s`
 })
 
-// Computed
-const statusClass = computed(() => {
-  if (!session.value) return 'status-none'
-  if (isWaitingForResponse.value) return 'status-running'
-  const status = session.value.status?.toLowerCase()
-  if (status === 'running') return 'status-running'
-  if (status === 'idle') return 'status-idle'
-  if (status === 'stopped') return 'status-stopped'
-  if (status === 'error') return 'status-error'
-  return 'status-created'
+// Computed status for header
+const sessionStatus = computed(() => {
+  if (isWaitingForResponse.value) return 'RUNNING'
+  return session.value?.status || ''
 })
 
 const statusText = computed(() => {
-  if (!session.value) return 'No Session'
-  if (isWaitingForResponse.value) return `运行中 ${formatElapsedTime.value}`
-  return session.value.status || 'Unknown'
+  if (!session.value) return t('session.status.none', 'No Session')
+  if (isWaitingForResponse.value) return `${t('session.status.running', 'Running')} ${formatElapsedTime.value}`
+  return t(`session.status.${session.value.status?.toLowerCase()}`, session.value.status || 'Unknown')
 })
-
-// Check if user can send messages
-const canSendMessage = computed(() => {
-  if (!session.value) return false
-  const status = session.value.status
-  const claudeSessionId = session.value.claudeSessionId
-  if (['RUNNING', 'IDLE'].includes(status)) return true
-  if (['STOPPED', 'COMPLETED'].includes(status) && claudeSessionId) return true
-  return false
-})
-
-// Methods
-const formatMessageTime = (timestamp) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-const getMessageRole = (role) => {
-  return role === 'user' ? 'You' : 'Assistant'
-}
-
-// Extract worktree name from full path
-const getWorktreeName = (path) => {
-  if (!path) return ''
-  const parts = path.replace(/\\/g, '/').split('/')
-  return parts[parts.length - 1] || path
-}
 
 // Unified session initialization function
 const initializeSession = async (sessionData, isHistory = false) => {
   console.log('[ChatBox] Initializing session:', sessionData?.id, sessionData?.status, 'isHistory:', isHistory)
-  console.log('[ChatBox] Session data:', {
-    id: sessionData?.id,
-    claudeSessionId: sessionData?.claudeSessionId,
-    output: sessionData?.output ? 'has output (' + sessionData.output.length + ' chars)' : 'no output',
-    initialPrompt: sessionData?.initialPrompt ? 'has initial prompt' : 'no initial prompt'
-  })
 
   setSession(sessionData)
 
@@ -290,9 +187,8 @@ const initializeSession = async (sessionData, isHistory = false) => {
     resetFilter()
   }
 
-  // Process messages (after initialPrompt is set)
+  // Process messages
   let output = sessionData.output
-  // If output is empty and this is a history session, try to fetch it from API
   if ((!output || !output.trim()) && isHistory && sessionData.id) {
     console.log('[ChatBox] Output is empty, fetching from API for session:', sessionData.id)
     try {
@@ -307,7 +203,6 @@ const initializeSession = async (sessionData, isHistory = false) => {
 
   if (output && output.trim()) {
     const parsedMessages = parseOutputToMessages(output)
-    // If loading history session, don't filter messages (they are already complete)
     if (isHistory) {
       initialPromptFiltered.value = true
       messages.value = parsedMessages
@@ -315,27 +210,22 @@ const initializeSession = async (sessionData, isHistory = false) => {
       messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
     }
 
-    // Handle initialPrompt: check if it was parsed as assistant message (wrong role)
-    // and convert it to user message, or add it if not present
+    // Handle initialPrompt
     if (sessionData.initialPrompt) {
       const initialPromptContent = sessionData.initialPrompt
-      // Check if initialPrompt already exists with correct role
       const hasUserInitialPrompt = messages.value.some(msg =>
         msg.role === 'user' && msg.content === initialPromptContent
       )
 
       if (!hasUserInitialPrompt) {
-        // Check if initialPrompt was wrongly parsed as assistant message
         const assistantMsgIndex = messages.value.findIndex(msg =>
           msg.role === 'assistant' && msg.content === initialPromptContent
         )
 
         if (assistantMsgIndex !== -1) {
-          // Convert the assistant message to user message
           messages.value[assistantMsgIndex].role = 'user'
           messages.value[assistantMsgIndex].id = `initial-prompt-${sessionData.id}`
         } else {
-          // initialPrompt not found in parsed messages, add it as user message
           messages.value.unshift({
             id: `initial-prompt-${sessionData.id}`,
             role: 'user',
@@ -350,8 +240,6 @@ const initializeSession = async (sessionData, isHistory = false) => {
   }
 
   // Handle initialPrompt for sessions with empty output
-  // Only add for non-CREATED sessions (RUNNING, STOPPED, etc.)
-  // CREATED sessions will add the message when Start is clicked
   if (sessionData.initialPrompt &&
       messages.value.length === 0 &&
       sessionData.status !== 'CREATED') {
@@ -384,14 +272,13 @@ const loadLastHistorySession = async () => {
     const response = await fetch(`/api/sessions/task/${props.task.id}/history?includeOutput=true`)
       .then(r => r.json())
     if (response.success && response.data && response.data.length > 0) {
-      // Sort by startedAt descending and get the most recent session
       const sortedSessions = response.data.sort((a, b) => {
         const timeA = new Date(a.startedAt || 0).getTime()
         const timeB = new Date(b.startedAt || 0).getTime()
         return timeB - timeA
       })
       const lastSession = sortedSessions[0]
-      initializeSession(lastSession, true) // isHistory = true
+      initializeSession(lastSession, true)
     }
   } catch (e) {
     console.error('[ChatBox] Failed to load history session:', e)
@@ -419,7 +306,6 @@ const createSession = async () => {
 
     if (response.success && response.data) {
       setSession(response.data)
-      // Don't set initialPrompt here - it will be added when Start is clicked
       emit('session-created', session.value)
       setupWebSocket(session.value.id)
       return session.value
@@ -436,12 +322,10 @@ const createSession = async () => {
 
 const handleButtonClick = async () => {
   if (!session.value && !props.agentId) {
-    // No agent selected, trigger agent selection dialog
     emit('request-agent-select', props.task)
     return
   }
 
-  // Prevent double-clicks by setting isStarting immediately
   if (isStarting.value) {
     console.warn('Session is already starting')
     return
@@ -449,7 +333,6 @@ const handleButtonClick = async () => {
   isStarting.value = true
 
   try {
-    // No session but has agentId, create and start session
     if (!session.value && props.agentId) {
       const newSession = await createSession()
       if (!newSession) {
@@ -465,26 +348,19 @@ const handleButtonClick = async () => {
 }
 
 const startSession = async () => {
-  // If no session but has agentId, create session first
   if (!session.value && props.agentId) {
     const newSession = await createSession()
     if (!newSession) return
   }
 
-  // Note: isStarting is already set by handleButtonClick, but check here too
-  // in case startSession is called directly
   if (!isStarting.value) {
     isStarting.value = true
   }
 
   messages.value.push({ id: Date.now(), role: 'system', content: 'Starting session...' })
 
-  // Add initialPrompt as user message immediately (don't wait for API response)
   if (session.value.initialPrompt) {
-    // Check if message already exists to avoid duplicates
-    const existingMsg = messages.value.find(m =>
-      m.id === `initial-prompt-${session.value.id}`
-    )
+    const existingMsg = messages.value.find(m => m.id === `initial-prompt-${session.value.id}`)
     if (!existingMsg) {
       messages.value.push({
         id: `initial-prompt-${session.value.id}`,
@@ -496,7 +372,6 @@ const startSession = async () => {
     setInitialPrompt(session.value.initialPrompt)
   }
 
-  // Start waiting timer to show waiting time
   startWaitingTimer()
 
   try {
@@ -506,20 +381,16 @@ const startSession = async () => {
 
     if (response.success && response.data) {
       setSession(response.data)
-      // Emit status change immediately after setting session status
       emit('status-change', session.value.status)
 
       if (response.data.initialPrompt) {
         setInitialPrompt(response.data.initialPrompt)
       }
 
-      // Remove the "Starting session..." system message
       messages.value = messages.value.filter(m => m.role !== 'system')
 
-      // Process output if available (only add assistant messages, user message already added)
       if (response.data.output) {
         const parsedMessages = parseOutputToMessages(response.data.output)
-        // Only add assistant messages, filter out user messages to avoid duplicates
         const assistantMessages = parsedMessages.filter(msg =>
           msg.role === 'assistant' && !shouldFilterContent(msg.content)
         )
@@ -546,8 +417,7 @@ const startSession = async () => {
 const stopSession = async () => {
   if (!session.value) return
 
-  const status = session.value.status
-  emit('status-change', status)
+  emit('status-change', session.value.status)
   emit('session-stopped')
 
   await stopExistingSession(
@@ -621,45 +491,41 @@ const confirmDeleteSession = async () => {
 
   try {
     await ElMessageBox.confirm(
-      '确定要删除当前会话吗？删除后将无法恢复。',
-      '删除确认',
+      t('session.deleteConfirm', '确定要删除当前会话吗？删除后将无法恢复。'),
+      t('common.confirm', '删除确认'),
       {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.delete', '删除'),
+        cancelButtonText: t('common.cancel', '取消'),
         type: 'warning'
       }
     )
 
-    // User confirmed, delete the session
     const response = await fetch(`/api/sessions/${session.value.id}`, {
       method: 'DELETE'
     }).then(r => r.json())
 
     if (response.success) {
-      ElMessage.success('会话已删除')
-      // Disconnect WebSocket
+      ElMessage.success(t('messages.deleted', { name: t('session.title', '会话') }))
       disconnectWebSocket(session.value.id)
-      // Clear local state
       setSession(null)
       messages.value = []
       resetFilter()
       emit('session-deleted')
     } else {
-      ElMessage.error(response.message || '删除失败')
+      ElMessage.error(response.message || t('messages.deleteFailed', { name: t('session.title') }))
     }
   } catch (e) {
-    // User cancelled or error
     if (e !== 'cancel') {
       console.error('Failed to delete session:', e)
-      ElMessage.error('删除失败')
+      ElMessage.error(t('messages.deleteFailed', { name: t('session.title') }))
     }
   }
 }
 
 const scrollToBottom = () => {
   nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    if (messageListRef.value) {
+      messageListRef.value.scrollToBottom()
     }
   })
 }
@@ -709,7 +575,6 @@ const setupWebSocket = async (sessionId) => {
         }
       }
       if (data.type === 'claude_session_id' && session.value) {
-        // Update claudeSessionId when received from backend
         session.value.claudeSessionId = data.claudeSessionId
         console.log('[ChatBox] Received claudeSessionId:', data.claudeSessionId)
       }
@@ -729,25 +594,17 @@ const setupWebSocket = async (sessionId) => {
 }
 
 // Lifecycle
-// Note: watch(props.task) handles initialization when task changes,
-// so onMounted only needs to handle the case when component is first rendered
-// with a task that was already set (not changed)
 onMounted(async () => {
-  console.log('[ChatBox] onMounted, initialSession:', props.initialSession ? props.initialSession.id : null, 'task:', props.task?.id, 'session:', session.value?.id)
-  // If session is already initialized (by watch(props.task)), skip
+  console.log('[ChatBox] onMounted, initialSession:', props.initialSession?.id, 'task:', props.task?.id)
   if (session.value) {
-    console.log('[ChatBox] Session already initialized, skipping onMounted')
+    console.log('[ChatBox] Session already initialized, skipping')
     return
   }
   if (props.initialSession) {
-    console.log('[ChatBox] Initializing with initialSession:', props.initialSession)
     initializeSession(props.initialSession)
   } else {
-    console.log('[ChatBox] No initialSession, loading from server')
     const activeSession = await loadActiveSession()
     if (!activeSession) {
-      // No active session, load last history session
-      console.log('[ChatBox] No active session, loading last history session')
       await loadLastHistorySession()
     }
   }
@@ -764,10 +621,7 @@ onUnmounted(() => {
 watch(() => props.agentId, async (newAgentId, oldAgentId) => {
   console.log('[ChatBox] agentId changed:', oldAgentId, '->', newAgentId)
 
-  if (session.value) {
-    console.log('[ChatBox] Session exists, skip creating new session')
-    return
-  }
+  if (session.value) return
 
   if ((oldAgentId == null || oldAgentId === undefined) && newAgentId != null) {
     console.log('[ChatBox] Agent selected, creating session...')
@@ -783,11 +637,10 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
   }
 })
 
-// Watch for initialSession changes from parent
+// Watch for initialSession changes
 watch(() => props.initialSession, (newSession, oldSession) => {
   if (newSession) {
     if (!oldSession || oldSession.id !== newSession.id || messages.value.length === 0) {
-      // initialSession is from parent, treat as history (already complete)
       initializeSession(newSession, true)
     }
   }
@@ -795,36 +648,22 @@ watch(() => props.initialSession, (newSession, oldSession) => {
 
 // Watch for task changes
 watch(() => props.task, async (newTask, oldTask) => {
-  console.log('[ChatBox] watch(props.task) triggered:', { oldTaskId: oldTask?.id, newTaskId: newTask?.id, initialSessionId: props.initialSession?.id, sessionId: session.value?.id })
-  if (!newTask) {
-    // Task cleared
-    return
-  }
-  // Load session when task changes (including first time load when oldTask is null)
+  console.log('[ChatBox] watch(props.task):', oldTask?.id, '->', newTask?.id)
+  if (!newTask) return
+
   if (!oldTask || newTask.id !== oldTask.id) {
-    console.log('[ChatBox] Task changed:', oldTask?.id, '->', newTask.id)
-    // Clear old messages
     messages.value = []
     resetFilter()
-    // Disconnect WebSocket from old session
     if (session.value) {
       disconnectWebSocket(session.value.id)
       setSession(null)
     }
-    // Use initialSession if available, otherwise load from server
-    // Note: initialSession may be null initially if parent is still loading,
-    // in that case we'll load from server
+
     if (props.initialSession) {
-      console.log('[ChatBox] Using initialSession for task:', props.initialSession.id)
-      // initialSession is from parent, treat as history (already complete)
       initializeSession(props.initialSession, true)
     } else {
-      console.log('[ChatBox] No initialSession, loading from server')
-      // No initialSession, load from server
       const activeSession = await loadActiveSession()
       if (!activeSession) {
-        // No active session, load last history session
-        console.log('[ChatBox] No active session, loading last history session')
         await loadLastHistorySession()
       }
     }
@@ -862,111 +701,6 @@ defineExpose({
   flex: 0 0 auto;
 }
 
-.chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
-  background-color: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.collapse-btn {
-  flex-shrink: 0;
-}
-
-.header-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.header-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.claude-session-id {
-  font-size: 11px;
-  font-family: monospace;
-  color: var(--text-muted);
-  padding: 2px 6px;
-  background: rgba(144, 147, 153, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.worktree-info {
-  font-size: 11px;
-  font-family: monospace;
-  color: var(--text-muted);
-  padding: 2px 6px;
-  background: rgba(103, 194, 58, 0.1);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: default;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #9ca3af;
-}
-
-.status-running .status-dot {
-  background: #86efac;
-  animation: pulse 1.5s infinite;
-}
-
-.status-idle .status-dot {
-  background: #fcd34d;
-}
-
-.status-stopped .status-dot {
-  background: #6b7280;
-}
-
-.status-error .status-dot {
-  background: #f87171;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.header-actions .el-button {
-  font-size: 12px;
-  padding: 6px 12px;
-}
-
 .task-summary {
   padding: 8px 16px;
   background-color: var(--bg-tertiary);
@@ -988,173 +722,5 @@ defineExpose({
 .description-label {
   color: var(--text-muted);
   margin-right: 4px;
-}
-
-.messages-area {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px;
-  background-color: var(--bg-secondary);
-}
-
-.chat-empty {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  flex: 1;
-  min-height: 0;
-  color: var(--text-muted);
-}
-
-.empty-icon {
-  color: var(--text-muted);
-  margin-bottom: 16px;
-}
-
-.empty-text {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.empty-hint {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.messages-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  tab-size: 2;
-  -moz-tab-size: 2;
-}
-
-.message {
-  display: flex;
-  flex-direction: column;
-  max-width: 85%;
-}
-
-.message-user {
-  align-self: flex-end;
-  align-items: flex-end;
-}
-
-.message-assistant,
-.message-system {
-  align-self: flex-start;
-  align-items: flex-start;
-}
-
-.message-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.message-user .message-header {
-  flex-direction: row-reverse;
-}
-
-.message-role {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.message-user .message-role {
-  color: #2563eb;
-}
-
-.message-time {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.message-content {
-  padding: 8px 16px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif;
-  letter-spacing: 0;
-  tab-size: 2;
-  -moz-tab-size: 2;
-}
-
-.message-user .message-content {
-  background: #2563eb;
-  color: #ffffff;
-  border-radius: 12px 12px 4px 12px;
-}
-
-.message-assistant .message-content,
-.message-system .message-content {
-  background-color: var(--message-bg);
-  color: var(--text-primary);
-  border-radius: 12px 12px 12px 4px;
-}
-
-.chat-input-container {
-  position: relative;
-  border-top: 1px solid var(--border-color);
-  background-color: var(--bg-tertiary);
-  flex-shrink: 0;
-}
-
-.chat-input-wrapper {
-  display: flex;
-  gap: 8px;
-  padding: 10px 16px;
-  background-color: var(--bg-tertiary);
-}
-
-.chat-input-wrapper .el-textarea {
-  flex: 1;
-}
-
-.chat-input-wrapper .el-textarea :deep(textarea) {
-  resize: none;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  padding: 8px 12px;
-  font-size: 14px;
-}
-
-.chat-input-wrapper .el-textarea :deep(textarea:focus) {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
-}
-
-.chat-input-wrapper .el-button {
-  height: auto;
-  align-self: flex-end;
-  border-radius: 8px;
-}
-
-.messages-area::-webkit-scrollbar {
-  width: 8px;
-}
-
-.messages-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.messages-area::-webkit-scrollbar-thumb {
-  background-color: var(--border-color);
-  border-radius: 4px;
-}
-
-.messages-area::-webkit-scrollbar-thumb:hover {
-  background-color: var(--scrollbar-thumb);
 }
 </style>

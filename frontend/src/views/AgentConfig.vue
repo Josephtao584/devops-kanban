@@ -130,8 +130,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import projectApi from '../api/project'
-import agentApi from '../api/agent'
+import { getProjects } from '../api/project'
+import { getAgents, createAgent, updateAgent, deleteAgent } from '../api/agent'
 
 const { t } = useI18n()
 
@@ -160,7 +160,7 @@ const showToast = (message, type = 'success') => {
 
 const loadProjects = async () => {
   try {
-    const res = await projectApi.getAll()
+    const res = await getProjects()
     projects.value = res.data || res || []
     if (projects.value.length > 0) {
       selectedProjectId.value = projects.value[0].id
@@ -175,7 +175,7 @@ const loadAgents = async () => {
   if (!selectedProjectId.value) return
   loading.value = true
   try {
-    const res = await agentApi.getByProject(selectedProjectId.value)
+    const res = await getAgents(selectedProjectId.value)
     agents.value = res.data || res || []
   } catch (e) {
     console.error('Failed to load agents:', e)
@@ -210,9 +210,9 @@ const saveAgent = async () => {
       projectId: selectedProjectId.value
     }
     if (editingAgent.value) {
-      await agentApi.update(editingAgent.value.id, data)
+      await updateAgent(editingAgent.value.id, data)
     } else {
-      await agentApi.create(data)
+      await createAgent(data)
     }
     closeForm()
     loadAgents()
@@ -227,7 +227,7 @@ const saveAgent = async () => {
 
 const toggleEnabled = async (agent) => {
   try {
-    await agentApi.update(agent.id, { ...agent, enabled: !agent.enabled })
+    await updateAgent(agent.id, { ...agent, enabled: !agent.enabled })
     agent.enabled = !agent.enabled
     showToast(t('messages.updated', { name: t('agent.title') }))
   } catch (e) {
@@ -238,7 +238,7 @@ const toggleEnabled = async (agent) => {
 const confirmDelete = async (agent) => {
   if (!confirm(t('agent.deleteConfirm'))) return
   try {
-    await agentApi.delete(agent.id)
+    await deleteAgent(agent.id)
     loadAgents()
     showToast(t('messages.deleted', { name: t('agent.title') }))
   } catch (e) {

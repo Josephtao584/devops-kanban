@@ -125,6 +125,41 @@ export default {
       CANCELLED: '已取消'
     }
   },
+  session: {
+    title: '会话',
+    createSession: '创建会话',
+    startSession: '启动会话',
+    stopSession: '停止会话',
+    deleteSession: '删除会话',
+    continueSession: '继续',
+    status: {
+      none: '无会话',
+      created: '已创建',
+      running: '运行中',
+      idle: '空闲',
+      stopped: '已停止',
+      error: '错误',
+      completed: '已完成'
+    }
+  },
+  chat: {
+    title: '聊天',
+    you: '你',
+    assistant: '助手',
+    inputPlaceholder: '输入消息... (回车发送)',
+    noSession: '无活动会话',
+    noSessionHint: '选择一个代理并启动会话以开始聊天',
+    readyTitle: '准备就绪',
+    readyHint: '点击"启动"开始对话',
+    taskSummary: '简介'
+  },
+  validation: {
+    required: '此字段必填',
+    titleRequired: '标题必填',
+    minLength: '最少需要 {min} 个字符',
+    maxLength: '最多允许 {max} 个字符',
+    invalid: '无效的值'
+  },
   messages: {
     created: '{name} 创建成功',
     updated: '{name} 更新成功',

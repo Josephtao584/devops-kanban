@@ -1,5 +1,12 @@
 import { ref } from 'vue'
-import sessionApi from '../api/session'
+import {
+  createSession as apiCreateSession,
+  getSession as apiGetSession,
+  startSession as apiStartSession,
+  stopSession as apiStopSession,
+  continueSession as apiContinueSession,
+  getActiveSessionByTask as apiGetActiveSessionByTask
+} from '../api/session'
 import { ElMessage } from 'element-plus'
 
 /**
@@ -24,7 +31,7 @@ export function useSessionManager() {
     }
 
     try {
-      const response = await sessionApi.create(taskId, agentId)
+      const response = await apiCreateSession(taskId, agentId)
       if (response.success && response.data) {
         session.value = response.data
         return session.value
@@ -53,7 +60,7 @@ export function useSessionManager() {
     isStarting.value = true
 
     try {
-      const response = await sessionApi.start(session.value.id)
+      const response = await apiStartSession(session.value.id)
       if (response.success && response.data) {
         session.value = response.data
         if (onStatusChange) {
@@ -81,7 +88,7 @@ export function useSessionManager() {
 
     isStopping.value = true
     try {
-      const response = await sessionApi.stop(session.value.id)
+      const response = await apiStopSession(session.value.id)
       if (response.success && response.data) {
         session.value = response.data
         if (onStatusChange) {
@@ -106,7 +113,7 @@ export function useSessionManager() {
    */
   async function loadActiveSession(taskId) {
     try {
-      const response = await sessionApi.getActiveByTask(taskId)
+      const response = await apiGetActiveSessionByTask(taskId)
       if (response.success && response.data) {
         session.value = response.data
         return response.data
@@ -124,7 +131,7 @@ export function useSessionManager() {
     if (!session.value) return false
 
     try {
-      const response = await sessionApi.continue(session.value.id, input)
+      const response = await apiContinueSession(session.value.id, input)
       if (response.success && response.data) {
         session.value = response.data
         if (onStatusChange) {
@@ -149,7 +156,7 @@ export function useSessionManager() {
     if (!session.value) return null
 
     try {
-      const response = await sessionApi.getById(session.value.id)
+      const response = await apiGetSession(session.value.id)
       if (response.success && response.data) {
         session.value = response.data
         return response.data

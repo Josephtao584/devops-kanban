@@ -63,60 +63,7 @@ const changeLocale = () => {
 </script>
 
 <style>
-/* CSS Variables for themes - Modern DesignSystem */
-.theme-dark {
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #171717;
-  --bg-tertiary: #242424;
-  --text-primary: #f0f0f0;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
-  --border-color: #262626;
-  --border-hover: #363636;
-  --accent-color: #6366f1;
-  --accent-hover: #5558e8;
-  --accent-light: rgba(99, 102, 241, 0.1);
-  --scrollbar-thumb: #363636;
-  --scrollbar-thumb-hover: #4b5563;
-  --navbar-bg: #171s17;
-  --message-bg: #171717;
-  --modal-bg: #171717;
-  --modal-border: #363636;
-  --input-bg: #242424;
-  --input-border: #363636;
-  --input-text: #f0f0f0;
-  --panel-bg: #171717;
-  --success-color: #22c55e;
-  --warning-color: #f59e0b;
-  --error-color: #ef4444;
-}
-
-.theme-light {
-  --bg-primary: #f5f5f5;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f4f4f5;
-  --text-primary: #18181b;
-  --text-secondary: #71717a;
-  --text-muted: #a1a1aa;
-  --border-color: #e4e4e7;
-  --border-hover: #d4d4d8;
-  --accent-color: #6366f1;
-  --accent-hover: #5558e8;
-  --accent-light: rgba(99, 102, 241, 0.08);
-  --scrollbar-thumb: #d4d4d8;
-  --scrollbar-thumb-hover: #a1a1aa;
-  --navbar-bg: #ffffff;
-  --message-bg: #f4f4f5;
-  --modal-bg: #ffffff;
-  --modal-border: #e4e4e7;
-  --input-bg: #ffffff;
-  --input-border: #d4d4d8;
-  --input-text: #18181b;
-  --panel-bg: #ffffff;
-  --success-color: #22c55e;
-  --warning-color: #f59e0b;
-  --error-color: #ef4444;
-}
+/* Theme variables are defined in src/styles/theme-variables.css */
 
 * {
   margin: 0;

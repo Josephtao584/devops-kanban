@@ -125,6 +125,41 @@ export default {
       CANCELLED: 'Cancelled'
     }
   },
+  session: {
+    title: 'Session',
+    createSession: 'Create Session',
+    startSession: 'Start Session',
+    stopSession: 'Stop Session',
+    deleteSession: 'Delete Session',
+    continueSession: 'Continue',
+    status: {
+      none: 'No Session',
+      created: 'Created',
+      running: 'Running',
+      idle: 'Idle',
+      stopped: 'Stopped',
+      error: 'Error',
+      completed: 'Completed'
+    }
+  },
+  chat: {
+    title: 'Chat',
+    you: 'You',
+    assistant: 'Assistant',
+    inputPlaceholder: 'Type a message... (Enter to send)',
+    noSession: 'No active session',
+    noSessionHint: 'Select an agent and start a session to begin chatting',
+    readyTitle: 'Ready to chat',
+    readyHint: 'Click "Start" to begin the conversation',
+    taskSummary: 'Summary'
+  },
+  validation: {
+    required: 'This field is required',
+    titleRequired: 'Title is required',
+    minLength: 'Minimum {min} characters required',
+    maxLength: 'Maximum {max} characters allowed',
+    invalid: 'Invalid value'
+  },
   messages: {
     created: '{name} created successfully',
     updated: '{name} updated successfully',
