@@ -102,6 +102,12 @@ public class SessionService {
      * Add a message to session history
      */
     private Session addMessage(Session session, String role, String content) {
+        // Debug: log user/assistant input
+        if ("user".equals(role)) {
+            log.debug("[Session-{}] USER input ({} chars): {}", session.getId(),
+                content.length(), content.length() > 500 ? content.substring(0, 500) + "..." : content);
+        }
+
         List<ChatMessageDTO> messages = parseMessages(session);
         ChatMessageDTO message = ChatMessageDTO.builder()
                 .id(String.valueOf(System.currentTimeMillis()))
@@ -387,20 +393,28 @@ public class SessionService {
         // Reload session after addMessage
         session = sessionRepository.findById(sessionId).orElseThrow();
 
+        String claudeSessionId = session.getClaudeSessionId();
+
+        // Print mode (-p) does NOT accept stdin input. We must always use --resume.
+        // If process is running, we need to wait for it to finish first.
         if (processExecutor.isRunning(sessionId)) {
-            log.debug("[Session-{}] Sending input to running process: {}",
-                sessionId, input.length() > 50 ? input.substring(0, 50) + "..." : input);
-            return processExecutor.sendInput(sessionId, input);
+            log.info("[Session-{}] Process still running in print mode, waiting for completion...", sessionId);
+            // Wait for process to complete (with timeout)
+            boolean waited = processExecutor.waitForCompletion(sessionId, 30);
+            if (!waited) {
+                log.warn("[Session-{}] Process did not complete in time, stopping it", sessionId);
+                processExecutor.stop(sessionId);
+                heartbeatMonitor.stopMonitoring(sessionId);
+            }
         }
 
-        String claudeSessionId = session.getClaudeSessionId();
+        // Now process should be stopped, use --resume to continue
         if (claudeSessionId != null && !claudeSessionId.isEmpty()) {
             if (session.getStatus() == Session.SessionStatus.RUNNING) {
-                log.info("[Session-{}] Process ended but status is RUNNING, updating to STOPPED", sessionId);
                 session.setStatus(Session.SessionStatus.STOPPED);
                 session = sessionRepository.save(session);
             }
-            log.info("[Session-{}] Process ended, resuming with new input", sessionId);
+            log.info("[Session-{}] Resuming session with new input", sessionId);
             return resumeSession(session, input);
         }
 
@@ -433,6 +447,8 @@ public class SessionService {
 
         try {
             adapter.prepare(null, Paths.get(session.getWorktreePath()));
+
+            // Note: User message is already added by sendInput() before calling resumeSession
 
             boolean started = processExecutor.start(
                 sessionId,
@@ -478,6 +494,11 @@ public class SessionService {
             log.warn("[Session-{}] Cannot continue - session not stopped or idle: {}", sessionId, session.getStatus());
             throw new IllegalStateException("Session can only be continued when STOPPED or IDLE, current status: " + session.getStatus());
         }
+
+        // Add user message before resuming
+        addMessage(session, "user", input);
+        // Reload session after addMessage
+        session = sessionRepository.findById(sessionId).orElseThrow();
 
         return resumeSession(session, input);
     }

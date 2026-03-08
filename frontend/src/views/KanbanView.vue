@@ -77,6 +77,18 @@
                     </div>
                     <div class="task-card-actions">
                       <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled !== false }"
+                        @click.stop="toggleAutoTransition(element, $event)"
+                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M23 4v6h-6"></path>
+                          <path d="M1 20v-6h6"></path>
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                      </button>
+                      <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
                         :title="$t('common.edit')"
@@ -147,6 +159,18 @@
                       </span>
                     </div>
                     <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled !== false }"
+                        @click.stop="toggleAutoTransition(element, $event)"
+                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M23 4v6h-6"></path>
+                          <path d="M1 20v-6h6"></path>
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -219,6 +243,18 @@
                     </div>
                     <div class="task-card-actions">
                       <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled !== false }"
+                        @click.stop="toggleAutoTransition(element, $event)"
+                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M23 4v6h-6"></path>
+                          <path d="M1 20v-6h6"></path>
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                      </button>
+                      <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
                         :title="$t('common.edit')"
@@ -289,6 +325,18 @@
                       </span>
                     </div>
                     <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled !== false }"
+                        @click.stop="toggleAutoTransition(element, $event)"
+                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M23 4v6h-6"></path>
+                          <path d="M1 20v-6h6"></path>
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -361,6 +409,18 @@
                     </div>
                     <div class="task-card-actions">
                       <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled !== false }"
+                        @click.stop="toggleAutoTransition(element, $event)"
+                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M23 4v6h-6"></path>
+                          <path d="M1 20v-6h6"></path>
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                      </button>
+                      <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
                         :title="$t('common.edit')"
@@ -431,6 +491,18 @@
                       </span>
                     </div>
                     <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled !== false }"
+                        @click.stop="toggleAutoTransition(element, $event)"
+                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M23 4v6h-6"></path>
+                          <path d="M1 20v-6h6"></path>
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -838,6 +910,35 @@ const deleteTask = async (taskId) => {
     ElMessage.error(t('task.deleteFailed'))
   } finally {
     loading.saving = false
+  }
+}
+
+// Toggle auto-transition for a task
+const toggleAutoTransition = async (task, event) => {
+  if (event) {
+    event.stopPropagation()
+  }
+
+  const newValue = task.autoTransitionEnabled === false ? true : false
+  const statusKey = newValue ? 'task.autoTransitionEnabled' : 'task.autoTransitionDisabled'
+
+  try {
+    // 只传递必要的字段
+    const updatedTask = await taskStore.updateTask(task.id, {
+      title: task.title,
+      projectId: task.projectId,
+      autoTransitionEnabled: newValue
+    })
+    if (updatedTask) {
+      // Update selectedTask if it's the same task
+      if (selectedTask.value?.id === task.id) {
+        selectedTask.value = updatedTask
+      }
+      ElMessage.success(t(statusKey))
+    }
+  } catch (error) {
+    console.error('Failed to toggle auto-transition:', error)
+    ElMessage.error(t('task.updateFailed'))
   }
 }
 
@@ -1303,6 +1404,31 @@ onUnmounted(() => {
 @keyframes pulse-green {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.auto-transition-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auto-transition-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.auto-transition-btn.active {
+  color: var(--primary-color, #3b82f6);
+}
+
+.auto-transition-btn.active:hover {
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .task-card-actions {

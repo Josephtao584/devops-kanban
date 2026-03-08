@@ -27,6 +27,9 @@
   --success-color: #22c55e;
   --warning-color: #f59e0b;
   --error-color: #ef4444;
+  --thinking-bg: #1a3a1a;
+  --thinking-border: #2a5a2a;
+  --thinking-text: #6a9955;
 }
 
 :root.theme-light,
@@ -57,4 +60,7 @@
   --success-color: #22c55e;
   --warning-color: #f59e0b;
   --error-color: #ef4444;
+  --thinking-bg: #e8f5e9;
+  --thinking-border: #c6e6c6;
+  --thinking-text: #2d6a2d;
 }

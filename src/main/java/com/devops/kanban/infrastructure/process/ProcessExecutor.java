@@ -85,4 +85,13 @@ public interface ProcessExecutor {
      * @param sessionId the session ID
      */
     void persistOutput(Long sessionId);
+
+    /**
+     * Wait for a process to complete.
+     *
+     * @param sessionId the session ID
+     * @param timeoutSeconds maximum time to wait in seconds
+     * @return true if process completed within timeout, false if still running or timed out
+     */
+    boolean waitForCompletion(Long sessionId, int timeoutSeconds);
 }

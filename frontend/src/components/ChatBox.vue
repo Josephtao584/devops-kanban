@@ -17,6 +17,16 @@
       :worktree-path="effectiveWorktreePath"
     >
       <template #actions>
+        <!-- Thinking toggle switch -->
+        <div class="thinking-toggle" :title="showThinking ? $t('chat.hideThinking', 'Hide thinking') : $t('chat.showThinking', 'Show thinking')">
+          <span class="thinking-toggle-label">{{ $t('chat.thinking', 'Thinking') }}</span>
+          <el-switch
+            v-model="showThinking"
+            size="small"
+            :active-icon="Cpu"
+            :inactive-icon="Hide"
+          />
+        </div>
         <SessionControls
           :status="session?.status"
           :has-agent="!!agentId"
@@ -40,8 +50,9 @@
     <!-- Messages Area using extracted component -->
     <MessageList
       ref="messageListRef"
-      :messages="messages"
+      :messages="filteredMessages"
       :has-session="!!session"
+      :show-thinking="showThinking"
       :empty-title="$t('chat.noSession', 'No active session')"
       :empty-hint="$t('chat.noSessionHint', 'Select an agent and start a session to begin')"
       :ready-title="$t('chat.readyTitle', 'Ready to chat')"
@@ -62,6 +73,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Cpu, Hide } from '@element-plus/icons-vue'
 import DevTools from './DevTools.vue'
 import SessionHeader from './session/SessionHeader.vue'
 import SessionControls from './session/SessionControls.vue'
@@ -128,6 +140,7 @@ const messages = ref([])
 const inputText = ref('')
 const messageListRef = ref(null)
 const isCollapsed = ref(false)
+const showThinking = ref(true)  // Toggle for showing thinking messages
 
 // Waiting state and timer
 const isWaitingForResponse = ref(false)
@@ -179,9 +192,23 @@ const effectiveWorktreePath = computed(() => {
   return props.task?.worktreePath || session.value?.worktreePath || ''
 })
 
+// Filter messages based on showThinking toggle
+const filteredMessages = computed(() => {
+  if (showThinking.value) {
+    return messages.value
+  }
+  // Filter out thinking messages, but always show tool messages and permission denials
+  return messages.value.filter(msg =>
+    msg.contentType !== 'thinking'
+  )
+})
+
 // Unified session initialization function
 const initializeSession = async (sessionData, isHistory = false) => {
   console.log('[ChatBox] Initializing session:', sessionData?.id, sessionData?.status, 'isHistory:', isHistory)
+
+  // Reset streaming state
+  streamingMessages.value = {}
 
   setSession(sessionData)
 
@@ -200,7 +227,17 @@ const initializeSession = async (sessionData, isHistory = false) => {
         id: msg.id || `msg-${Date.now()}-${Math.random()}`,
         role: msg.role,
         content: msg.content,
-        timestamp: msg.timestamp
+        contentType: msg.contentType,  // Preserve contentType for thinking/tool messages
+        timestamp: msg.timestamp,
+        // Tool fields (if present)
+        toolCallId: msg.toolCallId,
+        toolName: msg.toolName,
+        toolInput: msg.toolInput,
+        toolUseId: msg.toolUseId,
+        toolIsError: msg.toolIsError,
+        // Permission denial fields (if present)
+        resource: msg.resource,
+        reason: msg.reason
       }))
       .sort((a, b) => {
         // Sort by timestamp ascending (oldest first)
@@ -535,6 +572,7 @@ const confirmDeleteSession = async () => {
       disconnectWebSocket(session.value.id)
       setSession(null)
       messages.value = []
+      streamingMessages.value = {}
       resetFilter()
       emit('session-deleted')
     } else {
@@ -556,11 +594,176 @@ const scrollToBottom = () => {
   })
 }
 
+// Handle streaming chunks with content type differentiation
+const streamingMessages = ref({})  // Track streaming messages by block key
+
+const handleStreamingChunk = (data) => {
+  const { contentType, content, blockIndex } = data
+
+  if (contentType === 'thinking') {
+    // For thinking content, append to or create a thinking message
+    const blockKey = `thinking-${blockIndex}`
+    const existingMsg = streamingMessages.value[blockKey]
+
+    if (existingMsg) {
+      // Append to existing thinking message
+      const msgIndex = messages.value.findIndex(m => m.id === existingMsg.id)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].content += content
+      }
+    } else {
+      // Create new thinking message
+      const newMsg = {
+        id: `${blockKey}-${Date.now()}`,
+        role: 'assistant',
+        content: content,
+        contentType: 'thinking',
+        timestamp: data.timestamp || new Date().toISOString()
+      }
+      messages.value.push(newMsg)
+      streamingMessages.value[blockKey] = { id: newMsg.id }
+    }
+  } else if (contentType === 'text') {
+    // For text content, append to the main assistant message
+    const blockKey = `text-${blockIndex}`
+    const existingMsg = streamingMessages.value[blockKey]
+
+    stopWaitingTimer()
+
+    if (shouldFilterContent(content)) {
+      return
+    }
+
+    const cleanedContent = getContentWithoutInitialPrompt(content)
+
+    if (existingMsg) {
+      // Append to existing text message
+      const msgIndex = messages.value.findIndex(m => m.id === existingMsg.id)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].content += cleanedContent || content
+      }
+    } else {
+      // Create new text message
+      const newMsg = {
+        id: `${blockKey}-${Date.now()}`,
+        role: 'assistant',
+        content: cleanedContent || content,
+        contentType: 'text',
+        timestamp: data.timestamp || new Date().toISOString()
+      }
+      messages.value.push(newMsg)
+      streamingMessages.value[blockKey] = { id: newMsg.id }
+    }
+  }
+
+  scrollToBottom()
+}
+
+// Handle tool_use event from backend
+const handleToolUse = (data) => {
+  const { toolCallId, toolName, toolInput, blockIndex, timestamp } = data
+
+  const newMsg = {
+    id: `tool-use-${toolCallId || Date.now()}`,
+    role: 'assistant',
+    content: '',
+    contentType: 'tool_use',
+    toolCallId,
+    toolName,
+    toolInput: toolInput || {},
+    timestamp: timestamp || new Date().toISOString()
+  }
+  messages.value.push(newMsg)
+
+  // Track for potential updates
+  const blockKey = `tool-use-${blockIndex || toolCallId}`
+  streamingMessages.value[blockKey] = { id: newMsg.id, toolCallId }
+
+  scrollToBottom()
+}
+
+// Handle tool_result event from backend
+const handleToolResult = (data) => {
+  const { toolUseId, content, isError, timestamp } = data
+
+  // Find the corresponding tool_use message to link the result
+  let linkedToolCallId = toolUseId
+  for (const [key, value] of Object.entries(streamingMessages.value)) {
+    if (value.toolCallId === toolUseId) {
+      linkedToolCallId = value.toolCallId
+      break
+    }
+  }
+
+  const newMsg = {
+    id: `tool-result-${toolUseId || Date.now()}`,
+    role: 'user',
+    content: content || '',
+    contentType: 'tool_result',
+    toolUseId: linkedToolCallId,
+    toolIsError: isError || false,
+    timestamp: timestamp || new Date().toISOString()
+  }
+  messages.value.push(newMsg)
+
+  scrollToBottom()
+}
+
+// Handle permission_denial event from backend
+const handlePermissionDenial = (data) => {
+  const { resource, reason, timestamp } = data
+
+  const newMsg = {
+    id: `permission-${Date.now()}`,
+    role: 'system',
+    content: resource || '',
+    contentType: 'permission_denied',
+    resource,
+    reason,
+    timestamp: timestamp || new Date().toISOString()
+  }
+  messages.value.push(newMsg)
+
+  stopWaitingTimer()
+  scrollToBottom()
+}
+
 const setupWebSocket = async (sessionId) => {
   await connectWebSocket(sessionId, {
     onOutput: (data) => {
+      // Handle message_start: clear streaming state for new messages in multi-turn conversations
+      if (data.type === 'message_start') {
+        streamingMessages.value = {}
+        return
+      }
+
+      // Handle tool_use event
+      if (data.type === 'tool_use') {
+        handleToolUse(data)
+        return
+      }
+
+      // Handle tool_result event
+      if (data.type === 'tool_result') {
+        handleToolResult(data)
+        return
+      }
+
+      // Handle permission_denial event
+      if (data.type === 'permission_denial') {
+        handlePermissionDenial(data)
+        return
+      }
+
       console.log('Received output:', data)
       if (data.type === 'chunk') {
+        // Check if this is streaming with contentType
+        if (data.contentType) {
+          handleStreamingChunk(data)
+          return
+        }
+
+        // Legacy handling for non-streaming chunks
         const role = data.stream === 'stdin' ? 'user' : 'assistant'
         if (role !== 'user') {
           stopWaitingTimer()
@@ -659,6 +862,7 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
     await stopSession()
     setSession(null)
     messages.value = []
+    streamingMessages.value = {}
     resetFilter()
   }
 })
@@ -679,6 +883,7 @@ watch(() => props.task, async (newTask, oldTask) => {
 
   if (!oldTask || newTask.id !== oldTask.id) {
     messages.value = []
+    streamingMessages.value = {}
     resetFilter()
     if (session.value) {
       disconnectWebSocket(session.value.id)
@@ -748,5 +953,21 @@ defineExpose({
 .description-label {
   color: var(--text-muted);
   margin-right: 4px;
+}
+
+.thinking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.thinking-toggle-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 </style>

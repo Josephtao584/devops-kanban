@@ -97,4 +97,101 @@ public class SessionBroadcaster {
         messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/status", payload);
         log.info("[Broadcast] Session {} Claude session ID: {}", sessionId, claudeSessionId);
     }
+
+    /**
+     * Broadcast message_start event to clear frontend streaming state.
+     * Called when a new message begins in multi-turn conversations.
+     *
+     * @param sessionId the session ID
+     */
+    public void broadcastMessageStart(Long sessionId) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "message_start");
+        payload.put("timestamp", System.currentTimeMillis());
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/output", payload);
+        log.debug("[Broadcast] Session {} message started", sessionId);
+    }
+
+    /**
+     * Broadcast a streaming chunk with content type differentiation.
+     * Used for real-time streaming output with thinking vs text content.
+     *
+     * @param sessionId the session ID
+     * @param contentType the content type ("thinking" or "text")
+     * @param content the content to broadcast
+     * @param blockIndex the content block index for message grouping
+     */
+    public void broadcastStreamingChunk(Long sessionId, String contentType, String content, int blockIndex) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "chunk");
+        payload.put("contentType", contentType);
+        payload.put("content", content);
+        payload.put("blockIndex", blockIndex);
+        payload.put("timestamp", System.currentTimeMillis());
+
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/output", payload);
+        log.debug("[Broadcast] Session {} streaming {} chars (contentType={}, blockIndex={})",
+            sessionId, content.length(), contentType, blockIndex);
+    }
+
+    /**
+     * Broadcast tool use event when Claude calls a tool.
+     *
+     * @param sessionId the session ID
+     * @param toolCallId the tool call ID
+     * @param toolName the tool name (Bash, Read, Edit, etc.)
+     * @param toolInput the tool input parameters
+     * @param blockIndex the content block index
+     */
+    public void broadcastToolUse(Long sessionId, String toolCallId, String toolName,
+                                  Map<String, Object> toolInput, int blockIndex) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "tool_use");
+        payload.put("toolCallId", toolCallId);
+        payload.put("toolName", toolName);
+        payload.put("toolInput", toolInput);
+        payload.put("blockIndex", blockIndex);
+        payload.put("timestamp", System.currentTimeMillis());
+
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/output", payload);
+        log.info("[Broadcast] Session {} tool use: {} (id={})", sessionId, toolName, toolCallId);
+    }
+
+    /**
+     * Broadcast tool result event when tool execution completes.
+     *
+     * @param sessionId the session ID
+     * @param toolUseId the tool use ID (matches toolCallId)
+     * @param content the tool execution result content
+     * @param isError whether the tool execution failed
+     */
+    public void broadcastToolResult(Long sessionId, String toolUseId, String content, boolean isError) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "tool_result");
+        payload.put("toolUseId", toolUseId);
+        payload.put("content", content);
+        payload.put("isError", isError);
+        payload.put("timestamp", System.currentTimeMillis());
+
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/output", payload);
+        log.info("[Broadcast] Session {} tool result: {} (error={})", sessionId, toolUseId, isError);
+    }
+
+    /**
+     * Broadcast permission denial event when a tool call is denied.
+     *
+     * @param sessionId the session ID
+     * @param resource the denied resource
+     * @param reason the denial reason
+     */
+    public void broadcastPermissionDenial(Long sessionId, String resource, String reason) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "permission_denial");
+        payload.put("resource", resource);
+        payload.put("reason", reason);
+        payload.put("timestamp", System.currentTimeMillis());
+
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/output", payload);
+        log.info("[Broadcast] Session {} permission denied: {} - {}", sessionId, resource, reason);
+    }
 }

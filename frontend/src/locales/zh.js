@@ -100,7 +100,10 @@ export default {
     taskNotFound: '找不到任务',
     newTaskButton: '新建任务',
     autoTransitionLabel: '自动流转',
-    autoTransitionHint: '启用后，AI Agent 完成工作时将自动流转到下一阶段'
+    autoTransitionHint: '启用后，AI Agent 完成工作时将自动流转到下一阶段',
+    autoTransitionEnabled: '自动流转已启用',
+    autoTransitionDisabled: '自动流转已禁用',
+    updateFailed: '更新任务失败'
   },
   status: {
     TODO: '待处理',
@@ -205,12 +208,15 @@ export default {
     title: '聊天',
     you: '你',
     assistant: '助手',
+    thinking: '思考',
     inputPlaceholder: '输入消息... (回车发送)',
     noSession: '无活动会话',
     noSessionHint: '选择一个代理并启动会话以开始聊天',
     readyTitle: '准备就绪',
     readyHint: '点击"启动"开始对话',
-    taskSummary: '简介'
+    taskSummary: '简介',
+    showThinking: '显示思考',
+    hideThinking: '隐藏思考'
   },
   validation: {
     required: '此字段必填',
