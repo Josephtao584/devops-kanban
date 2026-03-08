@@ -885,7 +885,10 @@ const saveTask = async () => {
 const toggleAutoTransition = async (task) => {
   const newValue = task.autoTransitionEnabled === true ? false : true
   try {
-    await taskStore.updateTask(task.id, { autoTransitionEnabled: newValue })
+    await taskStore.updateTask(task.id, {
+      ...task,
+      autoTransitionEnabled: newValue
+    })
     ElMessage.success(newValue ? t('task.autoTransitionEnabled') : t('task.autoTransitionDisabled'))
   } catch (e) {
     console.error('Failed to toggle auto transition:', e)
