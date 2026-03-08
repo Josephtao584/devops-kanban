@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 public class AgentDTO {
     private Long id;
 
-    @NotNull(message = "Project ID is required")
+    // Agents are global, not project-specific
     private Long projectId;
 
     @NotBlank(message = "Name is required")
