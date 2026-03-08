@@ -71,23 +71,23 @@
                       <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                         {{ getPriorityLabel(element.priority) }}
                       </span>
-                      <span
-                        class="auto-transition-icon"
-                        :class="{ 'disabled': element.autoTransitionEnabled === false }"
+                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                        {{ formatTaskElapsedTime(element.id) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled === true }"
                         @click.stop="toggleAutoTransition(element)"
-                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                        :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M23 4v6h-6"></path>
                           <path d="M1 20v-6h6"></path>
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                      </span>
-                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                        {{ formatTaskElapsedTime(element.id) }}
-                      </span>
-                    </div>
-                    <div class="task-card-actions">
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -154,23 +154,23 @@
                       <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                         {{ getPriorityLabel(element.priority) }}
                       </span>
-                      <span
-                        class="auto-transition-icon"
-                        :class="{ 'disabled': element.autoTransitionEnabled === false }"
+                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                        {{ formatTaskElapsedTime(element.id) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled === true }"
                         @click.stop="toggleAutoTransition(element)"
-                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                        :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M23 4v6h-6"></path>
                           <path d="M1 20v-6h6"></path>
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                      </span>
-                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                        {{ formatTaskElapsedTime(element.id) }}
-                      </span>
-                    </div>
-                    <div class="task-card-actions">
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -237,23 +237,23 @@
                       <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                         {{ getPriorityLabel(element.priority) }}
                       </span>
-                      <span
-                        class="auto-transition-icon"
-                        :class="{ 'disabled': element.autoTransitionEnabled === false }"
+                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                        {{ formatTaskElapsedTime(element.id) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled === true }"
                         @click.stop="toggleAutoTransition(element)"
-                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                        :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M23 4v6h-6"></path>
                           <path d="M1 20v-6h6"></path>
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                      </span>
-                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                        {{ formatTaskElapsedTime(element.id) }}
-                      </span>
-                    </div>
-                    <div class="task-card-actions">
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -320,23 +320,23 @@
                       <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                         {{ getPriorityLabel(element.priority) }}
                       </span>
-                      <span
-                        class="auto-transition-icon"
-                        :class="{ 'disabled': element.autoTransitionEnabled === false }"
+                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                        {{ formatTaskElapsedTime(element.id) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled === true }"
                         @click.stop="toggleAutoTransition(element)"
-                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                        :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M23 4v6h-6"></path>
                           <path d="M1 20v-6h6"></path>
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                      </span>
-                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                        {{ formatTaskElapsedTime(element.id) }}
-                      </span>
-                    </div>
-                    <div class="task-card-actions">
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -403,23 +403,23 @@
                       <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                         {{ getPriorityLabel(element.priority) }}
                       </span>
-                      <span
-                        class="auto-transition-icon"
-                        :class="{ 'disabled': element.autoTransitionEnabled === false }"
+                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                        {{ formatTaskElapsedTime(element.id) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled === true }"
                         @click.stop="toggleAutoTransition(element)"
-                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                        :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M23 4v6h-6"></path>
                           <path d="M1 20v-6h6"></path>
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                      </span>
-                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                        {{ formatTaskElapsedTime(element.id) }}
-                      </span>
-                    </div>
-                    <div class="task-card-actions">
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -486,23 +486,23 @@
                       <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                         {{ getPriorityLabel(element.priority) }}
                       </span>
-                      <span
-                        class="auto-transition-icon"
-                        :class="{ 'disabled': element.autoTransitionEnabled === false }"
+                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                        {{ formatTaskElapsedTime(element.id) }}
+                      </span>
+                    </div>
+                    <div class="task-card-actions">
+                      <button
+                        class="auto-transition-btn"
+                        :class="{ 'active': element.autoTransitionEnabled === true }"
                         @click.stop="toggleAutoTransition(element)"
-                        :title="element.autoTransitionEnabled !== false ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                        :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M23 4v6h-6"></path>
                           <path d="M1 20v-6h6"></path>
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                      </span>
-                      <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                        {{ formatTaskElapsedTime(element.id) }}
-                      </span>
-                    </div>
-                    <div class="task-card-actions">
+                      </button>
                       <button
                         class="edit-btn"
                         @click.stop="openTaskModal(element)"
@@ -883,7 +883,7 @@ const saveTask = async () => {
 }
 
 const toggleAutoTransition = async (task) => {
-  const newValue = task.autoTransitionEnabled === false ? true : false
+  const newValue = task.autoTransitionEnabled === true ? false : true
   try {
     await taskStore.updateTask(task.id, { autoTransitionEnabled: newValue })
     ElMessage.success(newValue ? t('task.autoTransitionEnabled') : t('task.autoTransitionDisabled'))
@@ -1371,26 +1371,26 @@ onUnmounted(() => {
 .priority-high { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
 .priority-critical { background: rgba(239, 68, 68, 0.2); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
 
-.auto-transition-icon {
-  display: inline-flex;
+.auto-transition-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--el-text-color-placeholder);
+  transition: all 0.2s;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--el-color-primary);
-  transition: all 0.2s;
-  flex-shrink: 0;
 }
 
-.auto-transition-icon:hover {
+.auto-transition-btn:hover {
   background: rgba(64, 158, 255, 0.1);
+  color: var(--el-color-primary);
 }
 
-.auto-transition-icon.disabled {
-  color: var(--el-text-color-placeholder);
-  opacity: 0.5;
+.auto-transition-btn.active {
+  color: var(--el-color-primary);
 }
 
 .task-running-time {
