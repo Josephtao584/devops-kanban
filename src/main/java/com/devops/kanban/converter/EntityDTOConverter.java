@@ -73,11 +73,8 @@ public class EntityDTOConverter {
         }
         return AgentDTO.builder()
                 .id(agent.getId())
-                .projectId(agent.getProjectId())
                 .name(agent.getName())
                 .type(agent.getType() != null ? agent.getType().name() : Agent.AgentType.CLAUDE.name())
-                .command(agent.getCommand())
-                .config(agent.getConfig())
                 .enabled(agent.isEnabled())
                 .createdAt(agent.getCreatedAt())
                 .build();
@@ -89,12 +86,11 @@ public class EntityDTOConverter {
         }
         return Agent.builder()
                 .id(dto.getId())
-                .projectId(dto.getProjectId())
                 .name(dto.getName())
                 .type(dto.getType() != null ? Agent.AgentType.valueOf(dto.getType()) : Agent.AgentType.CLAUDE)
-                .command(dto.getCommand())
-                .config(dto.getConfig())
                 .enabled(dto.isEnabled())
+                .build();
+    }
                 .build();
     }
 

@@ -24,10 +24,6 @@
 
           <div class="agent-details">
             <div class="detail-row">
-              <span class="label">{{ $t('agent.command') }}:</span>
-              <span class="value code">{{ agent.command || '-' }}</span>
-            </div>
-            <div class="detail-row">
               <span class="label">{{ $t('common.enabled') }}:</span>
               <label class="toggle">
                 <input type="checkbox" :checked="agent.enabled" @change="toggleEnabled(agent)" />
@@ -75,17 +71,6 @@
             </div>
 
             <div class="form-group">
-              <label>{{ $t('agent.command') }}</label>
-              <input v-model="form.command" type="text" :placeholder="$t('agent.commandHint')" />
-              <small class="hint">{{ $t('agent.commandHint') }}</small>
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('agent.config') }} (JSON)</label>
-              <textarea v-model="form.config" rows="3" placeholder='{"model": "claude-sonnet-4-6"}'></textarea>
-            </div>
-
-            <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" v-model="form.enabled" />
                 {{ $t('common.enabled') }}
@@ -113,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
 
@@ -127,8 +112,6 @@ const editingAgent = ref(null)
 const form = ref({
   name: '',
   type: 'CLAUDE',
-  command: '',
-  config: '{}',
   enabled: true
 })
 
@@ -149,7 +132,7 @@ const loadAgents = async () => {
 
 const openAddForm = () => {
   editingAgent.value = null
-  form.value = { name: '', type: 'CLAUDE', command: '', config: '{}', enabled: true }
+  form.value = { name: '', type: 'CLAUDE', enabled: true }
   showForm.value = true
 }
 
@@ -158,8 +141,6 @@ const openEditForm = (agent) => {
   form.value = {
     name: agent.name,
     type: agent.type,
-    command: agent.command || '',
-    config: agent.config || '{}',
     enabled: agent.enabled
   }
   showForm.value = true
@@ -284,18 +265,6 @@ onMounted(loadAgents)
   color: #718096;
 }
 
-.detail-row .value.code {
-  font-family: monospace;
-  font-size: 0.75rem;
-  background: #f7fafc;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .toggle {
   position: relative;
   display: inline-block;
@@ -392,7 +361,7 @@ onMounted(loadAgents)
   background: white;
   border-radius: 8px;
   width: 100%;
-  max-width: 500px;
+  max-width: 400px;
   max-height: 90vh;
   overflow: auto;
 }
@@ -434,19 +403,11 @@ onMounted(loadAgents)
 }
 
 .form-group input,
-.form-group select,
-.form-group textarea {
+.form-group select {
   width: 100%;
   padding: 0.5rem;
   border: 1px solid #cbd5e0;
   border-radius: 4px;
-}
-
-.hint {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: #718096;
 }
 
 .checkbox-label {

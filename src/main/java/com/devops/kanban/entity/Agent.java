@@ -12,11 +12,8 @@ import java.time.LocalDateTime;
 @Builder
 public class Agent {
     private Long id;
-    private Long projectId;
     private String name;
     private AgentType type;
-    private String command; // execution command template
-    private String config; // JSON config (API key, model, etc.)
     private boolean enabled;
     private LocalDateTime createdAt;
 
