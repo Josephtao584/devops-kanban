@@ -91,8 +91,6 @@ public class EntityDTOConverter {
                 .enabled(dto.isEnabled())
                 .build();
     }
-                .build();
-    }
 
     // ==================== Project ====================
 

@@ -12,8 +12,10 @@ import java.time.LocalDateTime;
 @Builder
 public class Agent {
     private Long id;
+    private Long projectId;
     private String name;
     private AgentType type;
+    private String command;
     private boolean enabled;
     private LocalDateTime createdAt;
 
