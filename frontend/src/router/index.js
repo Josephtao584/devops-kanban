@@ -17,7 +17,7 @@ const routes = [
     component: () => import('../views/TaskSourceConfig.vue')
   },
   {
-    path: '/agents/:projectId?',
+    path: '/agents',
     name: 'AgentConfig',
     component: () => import('../views/AgentConfig.vue')
   },

@@ -1,9 +1,11 @@
 package com.devops.kanban.infrastructure.process;
 
+import com.devops.kanban.dto.ChatMessageDTO;
 import com.devops.kanban.entity.Session;
 import com.devops.kanban.infrastructure.util.PlatformUtils;
 import com.devops.kanban.infrastructure.websocket.SessionBroadcaster;
 import com.devops.kanban.repository.SessionRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pty4j.PtyProcess;
@@ -494,7 +496,49 @@ public class ClaudeCodeProcessExecutor implements ProcessExecutor {
 
         messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/output", payload);
 
+        // Save assistant message to database (only for complete responses)
+        if (isComplete && "assistant".equals(role) && content != null && !content.trim().isEmpty()) {
+            saveAssistantMessage(sessionId, content);
+        }
+
         log.debug("[Session-{}] Broadcast {} chars (stream={})", sessionId, content.length(), stream);
+    }
+
+    private void saveAssistantMessage(Long sessionId, String content) {
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            try {
+                List<ChatMessageDTO> messages;
+                String existingMessages = session.getMessages();
+
+                if (existingMessages == null || existingMessages.isEmpty()) {
+                    messages = new ArrayList<>();
+                } else {
+                    messages = objectMapper.readValue(existingMessages, new TypeReference<List<ChatMessageDTO>>() {});
+                }
+
+                // Check if this exact content already exists (avoid duplicates)
+                boolean exists = messages.stream()
+                    .anyMatch(m -> "assistant".equals(m.getRole()) && content.equals(m.getContent()));
+                if (exists) {
+                    log.debug("[Session-{}] Assistant message already exists, skipping", sessionId);
+                    return;
+                }
+
+                ChatMessageDTO message = ChatMessageDTO.builder()
+                    .id(String.valueOf(System.currentTimeMillis()))
+                    .role("assistant")
+                    .content(content)
+                    .timestamp(java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    .build();
+                messages.add(message);
+
+                session.setMessages(objectMapper.writeValueAsString(messages));
+                sessionRepository.save(session);
+                log.debug("[Session-{}] Saved assistant message ({} chars)", sessionId, content.length());
+            } catch (Exception e) {
+                log.warn("[Session-{}] Failed to save assistant message: {}", sessionId, e.getMessage());
+            }
+        });
     }
 
     private void broadcastStatus(Long sessionId, String status) {

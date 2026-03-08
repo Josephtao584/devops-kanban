@@ -106,7 +106,7 @@ const loadAgents = async () => {
 
   loading.value = true
   try {
-    const response = await getAgents(props.projectId)
+    const response = await getAgents()
     console.log('[AgentSelector] getAgents response:', response)
     // Backend returns ApiResponse { success, data, message }
     agents.value = Array.isArray(response) ? response : (response.data || [])

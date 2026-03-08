@@ -14,7 +14,7 @@
       :status="sessionStatus"
       :status-text="statusText"
       :session-id="session?.claudeSessionId"
-      :worktree-path="session?.worktreePath"
+      :worktree-path="effectiveWorktreePath"
     >
       <template #actions>
         <SessionControls
@@ -174,6 +174,11 @@ const statusText = computed(() => {
   return t(`session.status.${session.value.status?.toLowerCase()}`, session.value.status || 'Unknown')
 })
 
+// Get worktree from task first (persistent), fall back to session
+const effectiveWorktreePath = computed(() => {
+  return props.task?.worktreePath || session.value?.worktreePath || ''
+})
+
 // Unified session initialization function
 const initializeSession = async (sessionData, isHistory = false) => {
   console.log('[ChatBox] Initializing session:', sessionData?.id, sessionData?.status, 'isHistory:', isHistory)
@@ -187,69 +192,88 @@ const initializeSession = async (sessionData, isHistory = false) => {
     resetFilter()
   }
 
-  // Process messages
-  let output = sessionData.output
-  if ((!output || !output.trim()) && isHistory && sessionData.id) {
-    console.log('[ChatBox] Output is empty, fetching from API for session:', sessionData.id)
-    try {
-      const response = await fetch(`/api/sessions/${sessionData.id}/output`).then(r => r.json())
-      if (response.success && response.data) {
-        output = response.data
+  // Priority: Use messages field if available (structured chat history)
+  if (sessionData.messages && Array.isArray(sessionData.messages) && sessionData.messages.length > 0) {
+    console.log('[ChatBox] Using structured messages from backend, count:', sessionData.messages.length)
+    messages.value = sessionData.messages
+      .map(msg => ({
+        id: msg.id || `msg-${Date.now()}-${Math.random()}`,
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp
+      }))
+      .sort((a, b) => {
+        // Sort by timestamp ascending (oldest first)
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+        return timeA - timeB
+      })
+    scrollToBottom()
+  } else {
+    // Fallback: Parse output field (legacy behavior)
+    let output = sessionData.output
+    if ((!output || !output.trim()) && isHistory && sessionData.id) {
+      console.log('[ChatBox] Output is empty, fetching from API for session:', sessionData.id)
+      try {
+        const response = await fetch(`/api/sessions/${sessionData.id}/output`).then(r => r.json())
+        if (response.success && response.data) {
+          output = response.data
+        }
+      } catch (e) {
+        console.error('[ChatBox] Failed to fetch output from API:', e)
       }
-    } catch (e) {
-      console.error('[ChatBox] Failed to fetch output from API:', e)
-    }
-  }
-
-  if (output && output.trim()) {
-    const parsedMessages = parseOutputToMessages(output)
-    if (isHistory) {
-      initialPromptFiltered.value = true
-      messages.value = parsedMessages
-    } else {
-      messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
     }
 
-    // Handle initialPrompt
-    if (sessionData.initialPrompt) {
-      const initialPromptContent = sessionData.initialPrompt
-      const hasUserInitialPrompt = messages.value.some(msg =>
-        msg.role === 'user' && msg.content === initialPromptContent
-      )
+    if (output && output.trim()) {
+      const parsedMessages = parseOutputToMessages(output)
+      if (isHistory) {
+        initialPromptFiltered.value = true
+        messages.value = parsedMessages
+      } else {
+        messages.value = parsedMessages.filter(msg => !shouldFilterContent(msg.content))
+      }
 
-      if (!hasUserInitialPrompt) {
-        const assistantMsgIndex = messages.value.findIndex(msg =>
-          msg.role === 'assistant' && msg.content === initialPromptContent
+      // Handle initialPrompt
+      if (sessionData.initialPrompt) {
+        const initialPromptContent = sessionData.initialPrompt
+        const hasUserInitialPrompt = messages.value.some(msg =>
+          msg.role === 'user' && msg.content === initialPromptContent
         )
 
-        if (assistantMsgIndex !== -1) {
-          messages.value[assistantMsgIndex].role = 'user'
-          messages.value[assistantMsgIndex].id = `initial-prompt-${sessionData.id}`
-        } else {
-          messages.value.unshift({
-            id: `initial-prompt-${sessionData.id}`,
-            role: 'user',
-            content: initialPromptContent,
-            timestamp: sessionData.startedAt
-          })
+        if (!hasUserInitialPrompt) {
+          const assistantMsgIndex = messages.value.findIndex(msg =>
+            msg.role === 'assistant' && msg.content === initialPromptContent
+          )
+
+          if (assistantMsgIndex !== -1) {
+            messages.value[assistantMsgIndex].role = 'user'
+            messages.value[assistantMsgIndex].id = `initial-prompt-${sessionData.id}`
+          } else {
+            messages.value.unshift({
+              id: `initial-prompt-${sessionData.id}`,
+              role: 'user',
+              content: initialPromptContent,
+              timestamp: sessionData.startedAt
+            })
+          }
         }
       }
+
+      scrollToBottom()
     }
 
-    scrollToBottom()
-  }
-
-  // Handle initialPrompt for sessions with empty output
-  if (sessionData.initialPrompt &&
-      messages.value.length === 0 &&
-      sessionData.status !== 'CREATED') {
-    messages.value.push({
-      id: `initial-prompt-${sessionData.id}`,
-      role: 'user',
-      content: sessionData.initialPrompt,
-      timestamp: sessionData.startedAt || new Date().toISOString()
-    })
-    scrollToBottom()
+    // Handle initialPrompt for sessions with empty output
+    if (sessionData.initialPrompt &&
+        messages.value.length === 0 &&
+        sessionData.status !== 'CREATED') {
+      messages.value.push({
+        id: `initial-prompt-${sessionData.id}`,
+        role: 'user',
+        content: sessionData.initialPrompt,
+        timestamp: sessionData.startedAt || new Date().toISOString()
+      })
+      scrollToBottom()
+    }
   }
 
   // If session is active, connect WebSocket
@@ -269,7 +293,8 @@ const loadActiveSession = async () => {
 
 const loadLastHistorySession = async () => {
   try {
-    const response = await fetch(`/api/sessions/task/${props.task.id}/history?includeOutput=true`)
+    // Load session with messages but not raw output
+    const response = await fetch(`/api/sessions/task/${props.task.id}/history?includeOutput=false`)
       .then(r => r.json())
     if (response.success && response.data && response.data.length > 0) {
       const sortedSessions = response.data.sort((a, b) => {
@@ -278,6 +303,7 @@ const loadLastHistorySession = async () => {
         return timeB - timeA
       })
       const lastSession = sortedSessions[0]
+      console.log('[ChatBox] Loaded last history session:', lastSession?.id, 'worktree:', lastSession?.worktreePath)
       initializeSession(lastSession, true)
     }
   } catch (e) {

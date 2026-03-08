@@ -7,19 +7,8 @@
       </button>
     </div>
 
-    <!-- Project Selector -->
-    <div class="project-selector">
-      <label for="project">{{ $t('project.selectProject') }}:</label>
-      <select id="project" v-model="selectedProjectId" @change="onProjectChange">
-        <option value="">-- {{ $t('project.selectProject') }} --</option>
-        <option v-for="project in projectStore.projectList" :key="project.id" :value="project.id">
-          {{ project.name }}
-        </option>
-      </select>
-    </div>
-
-    <!-- Agents List -->
-    <div class="agents-list" v-if="selectedProjectId">
+    <!-- Agents List (Global) -->
+    <div class="agents-list">
       <div v-if="agentStore.loading" class="loading">{{ $t('common.loading') }}</div>
 
       <div v-else-if="agentStore.agents.length === 0" class="empty-state">
@@ -57,10 +46,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <div v-else class="select-project-prompt">
-      {{ $t('project.noProject') }}
     </div>
 
     <!-- Add/Edit Form Modal -->
@@ -130,14 +115,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useProjectStore } from '../stores/projectStore'
 import { useAgentStore } from '../stores/agentStore'
 
 const { t } = useI18n()
-const projectStore = useProjectStore()
 const agentStore = useAgentStore()
 
-const selectedProjectId = ref('')
 const saving = ref(false)
 const showForm = ref(false)
 const editingAgent = ref(null)
@@ -157,23 +139,11 @@ const showToast = (message, type = 'success') => {
   setTimeout(() => { toast.value.show = false }, 3000)
 }
 
-const loadProjects = async () => {
+const loadAgents = async () => {
   try {
-    await projectStore.fetchProjects()
-    if (projectStore.projectList.length > 0) {
-      selectedProjectId.value = projectStore.projectList[0].id
-      await agentStore.fetchAgents(selectedProjectId.value)
-    }
+    await agentStore.fetchAgents()
   } catch (e) {
-    console.error('Failed to load projects:', e)
-  }
-}
-
-const onProjectChange = async () => {
-  if (selectedProjectId.value) {
-    await agentStore.fetchAgents(selectedProjectId.value)
-  } else {
-    agentStore.clearAgents()
+    console.error('Failed to load agents:', e)
   }
 }
 
@@ -198,10 +168,7 @@ const openEditForm = (agent) => {
 const saveAgent = async () => {
   saving.value = true
   try {
-    const data = {
-      ...form.value,
-      projectId: selectedProjectId.value
-    }
+    const data = { ...form.value }
     if (editingAgent.value) {
       await agentStore.updateAgent(editingAgent.value.id, data)
     } else {
@@ -241,7 +208,7 @@ const closeForm = () => {
   editingAgent.value = null
 }
 
-onMounted(loadProjects)
+onMounted(loadAgents)
 </script>
 
 <style scoped>
@@ -261,23 +228,7 @@ onMounted(loadProjects)
   color: #2d3748;
 }
 
-.project-selector {
-  margin-bottom: 1.5rem;
-}
-
-.project-selector label {
-  margin-right: 0.5rem;
-  font-weight: 500;
-}
-
-.project-selector select {
-  padding: 0.5rem;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
-  min-width: 200px;
-}
-
-.loading, .empty-state, .select-project-prompt {
+.loading, .empty-state {
   text-align: center;
   padding: 2rem;
   color: #718096;

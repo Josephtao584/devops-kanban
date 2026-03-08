@@ -24,11 +24,11 @@ export const useAgentStore = defineStore('agent', () => {
   })
 
   // Actions
-  async function fetchAgents(projectId) {
+  async function fetchAgents() {
     loading.value = true
     error.value = null
     try {
-      const response = await agentApi.getAgents(projectId)
+      const response = await agentApi.getAgents()
       if (response.success) {
         agents.value = response.data
       }

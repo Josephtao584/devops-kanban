@@ -2,7 +2,11 @@ package com.devops.kanban.converter;
 
 import com.devops.kanban.dto.*;
 import com.devops.kanban.entity.*;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Centralized converter for entity to DTO transformations.
@@ -10,6 +14,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class EntityDTOConverter {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ==================== Task ====================
 
@@ -29,6 +35,8 @@ public class EntityDTOConverter {
                 .externalId(task.getExternalId())
                 .syncedAt(task.getSyncedAt())
                 .autoTransitionEnabled(task.getAutoTransitionEnabled())
+                .worktreePath(task.getWorktreePath())
+                .branch(task.getBranch())
                 .version(task.getVersion())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
@@ -51,6 +59,8 @@ public class EntityDTOConverter {
                 .externalId(dto.getExternalId())
                 .syncedAt(dto.getSyncedAt())
                 .autoTransitionEnabled(dto.getAutoTransitionEnabled())
+                .worktreePath(dto.getWorktreePath())
+                .branch(dto.getBranch())
                 .version(dto.getVersion())
                 .build();
     }
@@ -180,6 +190,19 @@ public class EntityDTOConverter {
             builder.output(session.getOutput());
         }
 
+        // Parse messages JSON
+        if (session.getMessages() != null && !session.getMessages().isEmpty()) {
+            try {
+                List<ChatMessageDTO> messages = objectMapper.readValue(
+                    session.getMessages(),
+                    new TypeReference<List<ChatMessageDTO>>() {}
+                );
+                builder.messages(messages);
+            } catch (Exception e) {
+                builder.messages(Collections.emptyList());
+            }
+        }
+
         return builder.build();
     }
 
@@ -187,6 +210,17 @@ public class EntityDTOConverter {
         if (dto == null) {
             return null;
         }
+
+        // Serialize messages to JSON
+        String messagesJson = null;
+        if (dto.getMessages() != null && !dto.getMessages().isEmpty()) {
+            try {
+                messagesJson = objectMapper.writeValueAsString(dto.getMessages());
+            } catch (Exception e) {
+                // Ignore serialization errors
+            }
+        }
+
         return Session.builder()
                 .id(dto.getId())
                 .taskId(dto.getTaskId())
@@ -201,6 +235,7 @@ public class EntityDTOConverter {
                 .output(dto.getOutput())
                 .initialPrompt(dto.getInitialPrompt())
                 .claudeSessionId(dto.getClaudeSessionId())
+                .messages(messagesJson)
                 .build();
     }
 

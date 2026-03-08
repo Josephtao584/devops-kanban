@@ -31,7 +31,7 @@ public class PhaseTransitionController {
     private final PhaseTransitionService phaseTransitionService;
 
     @GetMapping("/rules")
-    public ResponseEntity<ApiResponse<List<PhaseTransitionRuleDTO>>> getAllRules(
+    public ResponseEntity<ApiResponse<?>> getAllRules(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         List<PhaseTransitionRuleDTO> allRules = ruleService.getAllRulesSortedByPriority().stream()

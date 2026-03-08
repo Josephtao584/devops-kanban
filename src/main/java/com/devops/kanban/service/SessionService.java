@@ -1,6 +1,7 @@
 package com.devops.kanban.service;
 
 import com.devops.kanban.converter.EntityDTOConverter;
+import com.devops.kanban.dto.ChatMessageDTO;
 import com.devops.kanban.dto.TaskDTO;
 import com.devops.kanban.entity.*;
 import com.devops.kanban.exception.EntityNotFoundException;
@@ -12,12 +13,16 @@ import com.devops.kanban.repository.ProjectRepository;
 import com.devops.kanban.repository.SessionRepository;
 import com.devops.kanban.repository.TaskRepository;
 import com.devops.kanban.spi.AgentAdapter;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,6 +46,7 @@ public class SessionService {
     private final EntityDTOConverter converter;
     private final PromptBuilder promptBuilder;
     private final HeartbeatMonitor heartbeatMonitor;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SessionService(
             SessionRepository sessionRepository,
@@ -63,6 +69,49 @@ public class SessionService {
         this.converter = converter;
         this.promptBuilder = promptBuilder;
         this.heartbeatMonitor = heartbeatMonitor;
+    }
+
+    /**
+     * Parse messages JSON from session entity
+     */
+    private List<ChatMessageDTO> parseMessages(Session session) {
+        if (session.getMessages() == null || session.getMessages().isEmpty()) {
+            return new ArrayList<>();
+        }
+        try {
+            return objectMapper.readValue(session.getMessages(), new TypeReference<List<ChatMessageDTO>>() {});
+        } catch (Exception e) {
+            log.warn("[Session-{}] Failed to parse messages: {}", session.getId(), e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Serialize messages to JSON string
+     */
+    private String serializeMessages(List<ChatMessageDTO> messages) {
+        try {
+            return objectMapper.writeValueAsString(messages);
+        } catch (Exception e) {
+            log.warn("Failed to serialize messages: {}", e.getMessage());
+            return "[]";
+        }
+    }
+
+    /**
+     * Add a message to session history
+     */
+    private Session addMessage(Session session, String role, String content) {
+        List<ChatMessageDTO> messages = parseMessages(session);
+        ChatMessageDTO message = ChatMessageDTO.builder()
+                .id(String.valueOf(System.currentTimeMillis()))
+                .role(role)
+                .content(content)
+                .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                .build();
+        messages.add(message);
+        session.setMessages(serializeMessages(messages));
+        return sessionRepository.save(session);
     }
 
     /**
@@ -90,7 +139,7 @@ public class SessionService {
             throw new IllegalStateException("Task already has an active session: " + existingSession.get().getId());
         }
 
-        // Get project's local path for worktree creation
+        // Get project's local path
         Project project = projectRepository.findById(task.getProjectId())
                 .orElseThrow(() -> new EntityNotFoundException("Project", task.getProjectId()));
 
@@ -102,28 +151,58 @@ public class SessionService {
         }
         Path localPath = Paths.get(project.getLocalPath());
 
-        // Check for existing worktree from any previous session (including stopped ones)
+        // Check if the localPath is a Git repository
+        boolean isGitRepo = gitOperations.isGitRepository(localPath);
+        log.info("[Session] Project {} | LocalPath: {} | IsGitRepo: {}",
+            project.getName(), localPath, isGitRepo);
+
+        // Determine worktree path - first check task, then fall back to existing sessions
         String worktreePath;
         String branch;
-        List<Session> allTaskSessions = sessionRepository.findByTaskId(taskId);
-        Optional<Session> sessionWithWorktree = allTaskSessions.stream()
-            .filter(s -> s.getWorktreePath() != null && !s.getWorktreePath().isBlank())
-            .findFirst();
 
-        if (sessionWithWorktree.isPresent()) {
-            // Reuse existing worktree
-            Session priorSession = sessionWithWorktree.get();
-            worktreePath = priorSession.getWorktreePath();
-            branch = priorSession.getBranch();
-            log.info("[Session] Reusing existing worktree for task {} | Worktree: {} | Branch: {}",
+        // Priority 1: Check if task already has worktreePath
+        if (task.getWorktreePath() != null && !task.getWorktreePath().isBlank()) {
+            worktreePath = task.getWorktreePath();
+            branch = task.getBranch();
+            log.info("[Session] Reusing worktree from task {} | Worktree: {} | Branch: {}",
                 taskId, worktreePath, branch);
         } else {
-            // Create new worktree for isolation
-            branch = "task-" + taskId + "-" + System.currentTimeMillis();
-            log.debug("[Session] Creating new worktree | LocalPath: {} | Branch: {}", localPath, branch);
-            Path worktree = gitOperations.createWorktree(localPath, task.getProjectId(), branch);
-            worktreePath = worktree.toString();
-            log.info("[Session] Created new worktree for task {} | Worktree: {}", taskId, worktreePath);
+            // Priority 2: Check for existing worktree from any previous session
+            List<Session> allTaskSessions = sessionRepository.findByTaskId(taskId);
+            Optional<Session> sessionWithWorktree = allTaskSessions.stream()
+                .filter(s -> s.getWorktreePath() != null && !s.getWorktreePath().isBlank())
+                .findFirst();
+
+            if (sessionWithWorktree.isPresent()) {
+                // Reuse existing worktree from session
+                Session priorSession = sessionWithWorktree.get();
+                worktreePath = priorSession.getWorktreePath();
+                branch = priorSession.getBranch();
+                log.info("[Session] Reusing worktree from prior session for task {} | Worktree: {} | Branch: {}",
+                    taskId, worktreePath, branch);
+            } else if (isGitRepo) {
+                // Priority 3: Create new worktree for Git project isolation
+                branch = "task-" + taskId + "-" + System.currentTimeMillis();
+                log.debug("[Session] Creating new worktree | LocalPath: {} | Branch: {}", localPath, branch);
+                Path worktree = gitOperations.createWorktree(localPath, task.getProjectId(), branch);
+                worktreePath = worktree.toString();
+                log.info("[Session] Created new worktree for task {} | Worktree: {}", taskId, worktreePath);
+            } else {
+                // For non-Git project, use localPath directly (no worktree creation)
+                branch = null;
+                worktreePath = localPath.toString();
+                log.info("[Session] Using localPath directly for non-Git project {} | Worktree: {}",
+                    taskId, worktreePath);
+            }
+
+            // Save worktree info to task for future reuse (only if task doesn't have it yet)
+            if (task.getWorktreePath() == null || task.getWorktreePath().isBlank()) {
+                task.setWorktreePath(worktreePath);
+                task.setBranch(branch);
+                taskRepository.save(task);
+                log.info("[Session] Saved worktree info to task {} | Worktree: {} | Branch: {}",
+                    taskId, worktreePath, branch);
+            }
         }
 
         // Generate initialPrompt at creation time so frontend can display it
@@ -208,6 +287,9 @@ public class SessionService {
                 throw new RuntimeException("Failed to spawn Claude Code process");
             }
 
+            // Add initial user message to history
+            session = addMessage(session, "user", initialPrompt);
+
             session.setStatus(Session.SessionStatus.RUNNING);
             session.setLastHeartbeat(LocalDateTime.now());
             session = sessionRepository.save(session);
@@ -277,6 +359,8 @@ public class SessionService {
         session.setOutput(finalOutput);
         session = sessionRepository.save(session);
 
+        // Note: We don't add assistant message here anymore to avoid duplicates.
+        // Messages are added in real-time via WebSocket or during process exit.
         log.info("[Session-{}] Session stopped successfully | Status: {} | OutputLength: {}",
             sessionId, session.getStatus(), finalOutput != null ? finalOutput.length() : 0);
         return session;
@@ -288,6 +372,20 @@ public class SessionService {
     public boolean sendInput(Long sessionId, String input) {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Session", sessionId));
+
+        // If session is CREATED, start it first
+        if (session.getStatus() == Session.SessionStatus.CREATED) {
+            log.info("[Session-{}] Session not started yet, starting first", sessionId);
+            startSession(sessionId);
+            // After starting, the input will be handled when process is ready
+            // For now, return true - the initial prompt was already sent during startSession
+            return true;
+        }
+
+        // Add user message to history
+        addMessage(session, "user", input);
+        // Reload session after addMessage
+        session = sessionRepository.findById(sessionId).orElseThrow();
 
         if (processExecutor.isRunning(sessionId)) {
             log.debug("[Session-{}] Sending input to running process: {}",
@@ -436,13 +534,11 @@ public class SessionService {
             heartbeatMonitor.stopMonitoring(sessionId);
         }
 
-        try {
-            log.debug("[Session-{}] Removing worktree: {}", sessionId, session.getWorktreePath());
-            gitOperations.removeWorktree(Paths.get(session.getWorktreePath()));
-        } catch (Exception e) {
-            log.warn("[Session-{}] Failed to cleanup worktree: {} | Error: {}",
-                sessionId, session.getWorktreePath(), e.getMessage());
-        }
+        // Note: Worktree is now owned by the task, not the session.
+        // We do NOT remove the worktree when session is deleted.
+        // The worktree will be reused when a new session is created for the same task.
+        log.debug("[Session-{}] Keeping worktree for task reuse | Worktree: {}",
+            sessionId, session.getWorktreePath());
 
         processExecutor.cleanup(sessionId);
         sessionRepository.delete(sessionId);

@@ -82,10 +82,12 @@
             <el-switch v-model="row.enabled" @change="handleToggleUpdate(row)" />
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.actions')" width="120" fixed="right">
+        <el-table-column :label="$t('common.actions')" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="editRule(row)">{{ $t('common.edit') }}</el-button>
-            <el-button size="small" type="danger" @click="deleteRule(row)">{{ $t('common.delete') }}</el-button>
+            <div class="action-buttons">
+              <el-button size="small" @click="editRule(row)">{{ $t('common.edit') }}</el-button>
+              <el-button size="small" type="danger" @click="deleteRule(row)">{{ $t('common.delete') }}</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -403,5 +405,13 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+/* 操作列按钮水平排列 */
+.action-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
 }
 </style>

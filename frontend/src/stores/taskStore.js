@@ -59,6 +59,11 @@ export const useTaskStore = defineStore('task', () => {
       const response = await taskApi.getTask(id)
       if (response.success) {
         currentTask.value = response.data
+        // Also update the task in the tasks array if it exists
+        const index = tasks.value.findIndex(t => t.id === id)
+        if (index !== -1) {
+          tasks.value[index] = response.data
+        }
         return response.data
       }
     } catch (e) {

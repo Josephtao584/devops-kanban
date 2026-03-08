@@ -24,11 +24,16 @@ export default {
     optional: '可选'
   },
   nav: {
+    projects: '项目列表',
     kanban: '看板',
     taskSources: '任务源',
     agents: '智能代理',
     promptTemplates: '提示词模板',
     settings: '设置'
+  },
+  theme: {
+    light: '浅色',
+    dark: '深色'
   },
   project: {
     title: '项目',
@@ -226,6 +231,7 @@ export default {
   },
   git: {
     worktrees: '工作树',
+    worktree: '工作树',
     branches: '分支',
     branch: '分支',
     taskId: '任务ID',

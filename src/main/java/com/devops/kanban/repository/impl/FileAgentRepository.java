@@ -24,6 +24,11 @@ public class FileAgentRepository extends AbstractFileRepository<Agent, Long> imp
     }
 
     @Override
+    public List<Agent> findAll() {
+        return readAll();
+    }
+
+    @Override
     public List<Agent> findByProjectId(Long projectId) {
         return readAll().stream()
                 .filter(a -> a.getProjectId() != null && a.getProjectId().equals(projectId))

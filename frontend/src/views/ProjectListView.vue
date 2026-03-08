@@ -18,9 +18,8 @@
       <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
     </el-empty>
 
-    <el-row v-else :gutter="20" class="project-grid">
-      <el-col v-for="project in projects" :key="project.id" :xs="24" :sm="12" :md="8" :lg="6">
-        <el-card class="project-card" shadow="hover" @click="openProject(project)">
+    <div v-else class="project-grid">
+      <el-card v-for="project in projects" :key="project.id" class="project-card" shadow="hover" @click="openProject(project)">
           <template #header>
             <div class="card-header">
               <el-icon size="24"><Folder /></el-icon>
@@ -49,9 +48,9 @@
 
           <template #footer>
             <div class="card-footer">
-              <el-tag v-if="project.repoUrl" size="small" type="info">
+              <el-tag v-if="project.repoUrl" size="small" type="info" class="git-tag">
                 <el-icon><Link /></el-icon>
-                Git
+                <span>Git</span>
               </el-tag>
               <span class="created-time">
                 {{ formatDate(project.createdAt) }}
@@ -59,8 +58,7 @@
             </div>
           </template>
         </el-card>
-      </el-col>
-    </el-row>
+    </div>
 
     <!-- Create/Edit Dialog -->
     <el-dialog
@@ -259,6 +257,8 @@ const openProject = (project) => {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
 }
 
 .page-title {
@@ -268,12 +268,33 @@ const openProject = (project) => {
 
 .project-grid {
   margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
 .project-card {
   cursor: pointer;
-  height: 100%;
-  margin-bottom: 20px;
+  width: 320px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.project-card :deep(.el-card__header) {
+  padding: 16px 20px;
+}
+
+.project-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+}
+
+.project-card :deep(.el-card__footer) {
+  padding: 10px 16px;
 }
 
 .card-header {
@@ -293,12 +314,12 @@ const openProject = (project) => {
   margin: 0;
   font-size: 13px;
   color: var(--el-text-color-secondary);
-  line-height: 1.4;
-  height: 40px;
+  line-height: 1.5;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 
@@ -306,6 +327,12 @@ const openProject = (project) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.git-tag :deep(.el-tag__content) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .created-time {

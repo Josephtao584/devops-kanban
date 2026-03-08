@@ -12,6 +12,18 @@
             {{ priorityLabel }}
           </el-tag>
           <span v-if="task.externalId" class="external-id">#{{ task.externalId }}</span>
+          <el-tooltip
+            :content="task.autoTransitionEnabled !== false ? '自动流转已启用' : '自动流转已禁用'"
+            placement="top"
+          >
+            <el-icon
+              class="auto-transition-icon"
+              :class="{ 'disabled': task.autoTransitionEnabled === false }"
+              @click.stop="$emit('toggle-auto-transition', task)"
+            >
+              <Refresh />
+            </el-icon>
+          </el-tooltip>
         </div>
         <div class="header-actions">
           <el-button
@@ -51,7 +63,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Clock, VideoPlay, Loading } from '@element-plus/icons-vue'
+import { Clock, VideoPlay, Loading, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps({
   task: {
@@ -64,7 +76,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['click', 'run'])
+defineEmits(['click', 'run', 'toggle-auto-transition'])
 
 const priorityClass = computed(() => {
   return `priority-${(props.task.priority || 'MEDIUM').toLowerCase()}`
@@ -217,5 +229,21 @@ const formatTime = (dateStr) => {
   align-items: center;
   gap: 4px;
   font-style: italic;
+}
+
+.auto-transition-icon {
+  font-size: 14px;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.auto-transition-icon.disabled {
+  color: var(--el-text-color-placeholder);
+  opacity: 0.5;
+}
+
+.auto-transition-icon:hover {
+  opacity: 0.8;
 }
 </style>

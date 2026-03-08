@@ -28,6 +28,15 @@ public class AgentService {
                 .collect(Collectors.toList());
     }
 
+    public List<AgentDTO> findAll() {
+        log.debug("[AgentService] findAll called");
+        List<Agent> agents = agentRepository.findAll();
+        log.debug("[AgentService] Found {} agents (global)", agents.size());
+        return agents.stream()
+                .map(converter::toDTO)
+                .collect(Collectors.toList());
+    }
+
     public AgentDTO findById(Long id) {
         return agentRepository.findById(id)
                 .map(converter::toDTO)

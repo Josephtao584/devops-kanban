@@ -32,9 +32,9 @@
     </header>
 
     <!-- Main Content: Kanban Board + Chat -->
-    <div class="main-content">
+    <div class="kanban-layout">
       <!-- Kanban Board -->
-      <div class="kanban-board">
+      <div class="kanban-board" ref="kanbanBoardRef">
         <!-- TODO Column -->
         <!-- TODO Column -->
         <div class="kanban-column" data-status="TODO">
@@ -495,6 +495,7 @@
             :initial-session="activeSession"
             @session-created="onSessionCreated"
             @session-stopped="onSessionStopped"
+            @session-deleted="onSessionDeleted"
             @status-change="onStatusChange"
             @request-agent-select="handleRequestAgentSelect"
           />
@@ -603,6 +604,22 @@ const taskStartTimes = ref(new Map()) // Store start time for each running task
 const taskElapsedSeconds = ref({}) // Reactive object for elapsed seconds display
 let runningTimer = null
 const isChatCollapsed = ref(false)
+const kanbanBoardRef = ref(null)
+
+// Auto scroll when chat expands
+watch(isChatCollapsed, (collapsed, oldCollapsed) => {
+  // Only scroll when expanding (from collapsed to expanded)
+  if (!collapsed && oldCollapsed && kanbanBoardRef.value) {
+    // Wait for layout to update after chat expands
+    setTimeout(() => {
+      if (kanbanBoardRef.value) {
+        const board = kanbanBoardRef.value
+        board.scrollLeft = board.scrollWidth - board.clientWidth
+      }
+    }, 100)
+  }
+})
+
 const isSessionLoading = ref(false)
 
 // Agent selector
@@ -730,6 +747,7 @@ const onProjectChange = () => {
 }
 
 const selectTask = async (task) => {
+  isChatCollapsed.value = false // Auto expand chat
   isSessionLoading.value = true
   selectedTask.value = task
   await loadActiveSession()
@@ -867,11 +885,23 @@ const onDragEnd = async (evt) => {
 }
 
 // ChatBox event handlers
-const onSessionCreated = (session) => {
+const onSessionCreated = async (session) => {
   activeSession.value = session;
   // Start timer if session is already running
   if (session.status === 'RUNNING' || session.status === 'IDLE') {
     startTaskTimer(session.taskId)
+  }
+  // Refresh task to get updated worktreePath
+  if (session.taskId) {
+    try {
+      const updatedTask = await taskStore.fetchTask(session.taskId)
+      if (updatedTask && selectedTask.value?.id === updatedTask.id) {
+        selectedTask.value = updatedTask
+        updateColumnRefs()
+      }
+    } catch (e) {
+      console.error('Failed to refresh task after session creation:', e)
+    }
   }
 };
 
@@ -879,6 +909,22 @@ const onSessionStopped = () => {
   // Session stopped, stop timer for current task
   if (selectedTask.value) {
     stopTaskTimer(selectedTask.value.id)
+  }
+};
+
+const onSessionDeleted = async () => {
+  // Session deleted - refresh task to ensure worktree info is still available
+  if (selectedTask.value) {
+    stopTaskTimer(selectedTask.value.id)
+    try {
+      const updatedTask = await taskStore.fetchTask(selectedTask.value.id)
+      if (updatedTask) {
+        selectedTask.value = updatedTask
+        updateColumnRefs()
+      }
+    } catch (e) {
+      console.error('Failed to refresh task after session deletion:', e)
+    }
   }
 };
 
@@ -1083,7 +1129,7 @@ onUnmounted(() => {
 }
 
 /* Main Content: Kanban Board + Chat */
-.main-content {
+.kanban-layout {
   display: flex;
   flex: 1;
   overflow: hidden;
@@ -1094,16 +1140,18 @@ onUnmounted(() => {
 .kanban-board {
   display: flex;
   flex: 1;
-  padding: 16px;
-  gap: 16px;
+  padding: 12px;
+  gap: 12px;
   overflow-x: auto;
   min-height: 0;
+  scroll-behavior: smooth;
+  transition: flex 0.3s ease;
 }
 
 /* Kanban Column */
 .kanban-column {
-  min-width: 280px;
-  width: 280px;
+  min-width: 220px;
+  width: 220px;
   background: var(--bg-secondary);
   border-radius: 12px;
   display: flex;
@@ -1336,9 +1384,9 @@ onUnmounted(() => {
   border-left: 1px solid var(--border-color);
   background: var(--bg-primary);
   flex-shrink: 0;
-  transition: width 0.3s ease, min-width 0.3s ease;
   position: relative;
   overflow: hidden;
+  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
 }
 
 .chat-container.collapsed {
@@ -1608,13 +1656,13 @@ onUnmounted(() => {
   }
 
   .kanban-column {
-    min-width: 250px;
-    width: 250px;
+    min-width: 200px;
+    width: 200px;
   }
 }
 
 @media (max-width: 900px) {
-  .main-content {
+  .kanban-layout {
     flex-direction: column;
   }
 

@@ -24,11 +24,16 @@ export default {
     optional: 'Optional'
   },
   nav: {
+    projects: 'Projects',
     kanban: 'Kanban',
     taskSources: 'Task Sources',
     agents: 'Agents',
     promptTemplates: 'Prompt Templates',
     settings: 'Settings'
+  },
+  theme: {
+    light: 'Light',
+    dark: 'Dark'
   },
   project: {
     title: 'Projects',
@@ -226,6 +231,7 @@ export default {
   },
   git: {
     worktrees: 'Worktrees',
+    worktree: 'Worktree',
     branches: 'Branches',
     branch: 'Branch',
     taskId: 'Task ID',

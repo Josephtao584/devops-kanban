@@ -274,7 +274,7 @@ const loadSessionForTask = async (task) => {
   if (!task?.id) return
   console.log('[TaskDetail] loadSessionForTask, task:', task.id)
   try {
-    const response = await getAgents(props.projectId)
+    const response = await getAgents()
     agents.value = response.data || []
     console.log('[TaskDetail] Loaded agents:', agents.value.length)
 

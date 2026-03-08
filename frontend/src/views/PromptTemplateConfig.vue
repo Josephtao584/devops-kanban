@@ -349,6 +349,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
 }
 
 .phase-info {
@@ -359,6 +361,8 @@ export default {
 
 .card-actions {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 

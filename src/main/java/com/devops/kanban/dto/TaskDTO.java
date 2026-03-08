@@ -34,6 +34,10 @@ public class TaskDTO {
     // Phase transition control
     private Boolean autoTransitionEnabled;
 
+    // Worktree isolation for task execution
+    private String worktreePath;
+    private String branch;
+
     // Optimistic locking version
     private Long version;
 

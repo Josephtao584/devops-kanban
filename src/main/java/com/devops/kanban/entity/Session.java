@@ -15,6 +15,10 @@ public class Session {
     private Long taskId;
     private Long agentId;
     private SessionStatus status;
+    /**
+     * For Git projects: path to the isolated Git worktree.
+     * For non-Git projects: path to the project's local directory (used directly without worktree).
+     */
     private String worktreePath;
     private String branch;
     private String sessionId;      // UUID for WebSocket topic
@@ -22,8 +26,9 @@ public class Session {
     private LocalDateTime startedAt;
     private LocalDateTime lastHeartbeat;
     private LocalDateTime stoppedAt;
-    private String output;  // Conversation history/output buffer
+    private String output;  // Conversation history/output buffer (deprecated, use messages)
     private String initialPrompt;  // Initial prompt passed to Claude CLI (for frontend filtering)
+    private String messages;  // JSON array of chat messages
 
     // Phase transition fields
     private Boolean phaseCompleteSignal;  // Whether AI has signaled phase completion
