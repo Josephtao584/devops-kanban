@@ -28,9 +28,9 @@
 
     <!-- 节点时间线 - 按阶段展示 -->
     <div class="timeline-container" ref="containerRef">
-      <div class="timeline-scroll" style="position: relative;">
+      <div class="timeline-scroll" ref="scrollRef" style="position: relative;">
         <!-- 正向流程连接线层 -->
-        <svg class="forward-connectors" v-if="hasForwardConnectors">
+        <svg class="forward-connectors" v-if="hasForwardConnectors" :style="svgStyle">
           <defs>
             <marker
               id="forward-arrowhead"
@@ -76,7 +76,7 @@
 
         <div class="timeline-stages">
           <!-- 开始节点 -->
-          <div class="stage-container origin-stage">
+          <div class="stage-container origin-stage" ref="startNodeRef">
             <div class="origin-node start-node">
               <div class="origin-circle">
                 <span class="origin-icon">▶</span>
@@ -154,7 +154,7 @@
           </template>
 
           <!-- 结束节点 -->
-          <div class="stage-container origin-stage">
+          <div class="stage-container origin-stage" ref="endNodeRef">
             <div class="origin-node end-node">
               <div class="origin-circle">
                 <span class="origin-icon">✓</span>
@@ -177,7 +177,8 @@ import WorkflowNode from './WorkflowNode.vue'
 import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
 
 // Unified center Y axis for all connection points
-const CENTER_Y = 100 // 统一的中心 Y 轴位置
+// 由于所有容器高度都是 120px，中心 Y 坐标是 60px
+const CENTER_Y = 60
 
 const props = defineProps({
   workflow: {
@@ -195,12 +196,33 @@ const emit = defineEmits(['select-node', 'start-workflow', 'pause-task', 'view-d
 // Node position cache for rollback arrows
 const nodePositions = ref({})
 const containerRef = ref(null)
+const scrollRef = ref(null)
 
 // Stage refs for DOM measurement
 const stageRefs = ref([])
 
 // Store measured stage positions
 const stagePositions = ref([])
+
+// Position of start and end nodes
+const startNodePos = ref({ x: 0, y: 0, width: 0, height: 0 })
+const endNodePos = ref({ x: 0, y: 0, width: 0, height: 0 })
+
+// Refs for start and end nodes
+const startNodeRef = ref(null)
+const endNodeRef = ref(null)
+
+// SVG style for proper coordinate system
+const svgStyle = computed(() => {
+  if (!scrollRef.value) return {}
+  const width = scrollRef.value.scrollWidth || '100%'
+  // Ensure height is at least CENTER_Y * 2 to cover the coordinate system
+  const height = Math.max(scrollRef.value.scrollHeight, CENTER_Y * 2)
+  return {
+    width: width + 'px',
+    height: height + 'px'
+  }
+})
 
 const sortedStages = computed(() => {
   if (!props.workflow?.stages) return []
@@ -360,23 +382,50 @@ const setStageRef = (el, index) => {
 
 // Measure stage positions using DOM
 const measureStagePositions = () => {
-  if (!containerRef.value) return
+  if (!scrollRef.value) return
 
-  const containerRect = containerRef.value.getBoundingClientRect()
+  const scrollRect = scrollRef.value.getBoundingClientRect()
   const positions = []
 
+  // Measure start node
+  if (startNodeRef.value) {
+    const rect = startNodeRef.value.getBoundingClientRect()
+    startNodePos.value = {
+      x: rect.left - scrollRect.left,
+      y: rect.top - scrollRect.top,
+      width: rect.width,
+      height: rect.height,
+      centerX: rect.left - scrollRect.left + rect.width / 2,
+      centerY: rect.top - scrollRect.top + rect.height / 2
+    }
+  }
+
+  // Measure end node
+  if (endNodeRef.value) {
+    const rect = endNodeRef.value.getBoundingClientRect()
+    endNodePos.value = {
+      x: rect.left - scrollRect.left,
+      y: rect.top - scrollRect.top,
+      width: rect.width,
+      height: rect.height,
+      centerX: rect.left - scrollRect.left + rect.width / 2,
+      centerY: rect.top - scrollRect.top + rect.height / 2
+    }
+  }
+
+  // Measure stages
   sortedStages.value.forEach((stage, index) => {
     const stageEl = stageRefs.value[index]
     if (stageEl) {
       const rect = stageEl.getBoundingClientRect()
       positions.push({
         stageId: stage.id,
-        x: rect.left - containerRect.left,
-        y: rect.top - containerRect.top,
+        x: rect.left - scrollRect.left,
+        y: rect.top - scrollRect.top,
         width: rect.width,
         height: rect.height,
-        centerX: rect.left - containerRect.left + rect.width / 2,
-        centerY: rect.top - containerRect.top + rect.height / 2
+        centerX: rect.left - scrollRect.left + rect.width / 2,
+        centerY: rect.top - scrollRect.top + rect.height / 2
       })
     }
   })
@@ -395,24 +444,29 @@ const getForwardPath = (fromId, toId) => {
 }
 
 // Get the endpoint coordinates for a node/stage
-// Returns {x, y} position relative to the timeline container
+// Returns {x, y} position relative to the timeline scroll container
 // side: 'input' (left side) or 'output' (right side)
 const getNodeEndpoint = (id, side = 'output') => {
   if (id === 'start') {
-    // Start node: right edge of the start circle (36px diameter)
-    // Y 坐标使用统一的 CENTER_Y 值
-    return { x: 36, y: CENTER_Y }
+    // Start node: right edge of the start circle
+    // 所有节点中心 Y 轴在同一水平线上
+    const x = startNodePos.value.x + startNodePos.value.width / 2 + 18
+    return { x, y: CENTER_Y }
   }
 
   if (id === 'end') {
     // End node: left edge of the end circle
-    // Position after the last stage with gap
-    // Y 坐标使用统一的 CENTER_Y 值
+    // 所有节点中心 Y 轴在同一水平线上
+    if (endNodePos.value.x > 0) {
+      const x = endNodePos.value.x + endNodePos.value.width / 2 - 18
+      return { x, y: CENTER_Y }
+    }
+    // Fallback: position after the last stage
     const lastStagePos = stagePositions.value[stagePositions.value.length - 1]
     if (lastStagePos) {
       return { x: lastStagePos.x + lastStagePos.width + 40, y: CENTER_Y }
     }
-    return { x: 500, y: CENTER_Y } // Fallback
+    return { x: 500, y: CENTER_Y }
   }
 
   // For stage IDs, find the stage position
@@ -420,7 +474,7 @@ const getNodeEndpoint = (id, side = 'output') => {
   if (!stagePos) return { x: 0, y: 0 }
 
   // Return left or right edge based on side parameter
-  // Y 坐标统一使用 CENTER_Y 值
+  // 所有节点中心 Y 轴在同一水平线上
   if (side === 'input') {
     return {
       x: stagePos.x,  // Left edge
@@ -561,6 +615,7 @@ onMounted(() => {
   justify-content: center; /* 新增：内容垂直居中 */
   position: relative;
   padding: 0 6px;
+  height: 120px; /* 固定高度，确保所有节点中心在同一水平线 */
 }
 
 /* 原点阶段容器（开始/结束） */
@@ -569,6 +624,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 120px; /* 与阶段容器相同的固定高度 */
 }
 
 /* 原点节点（开始/结束） */
@@ -615,6 +671,8 @@ onMounted(() => {
   border-radius: 8px;
   padding: 6px 12px;
   border: 1px dashed rgba(59, 130, 246, 0.3);
+  height: 120px; /* 与其他阶段容器相同的固定高度 */
+  box-sizing: border-box; /* padding 计入高度 */
 }
 
 /* 阶段标签 */
@@ -735,6 +793,7 @@ onMounted(() => {
   pointer-events: none;
   z-index: 5;
   overflow: visible;
+  display: block;
 }
 
 .timeline-scroll {
