@@ -554,10 +554,10 @@
       <div class="modal node-detail-modal">
         <div class="modal-header">
           <div class="header-content">
-            <span class="header-icon">📋</span>
+            <el-icon class="header-icon"><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon>
             <div>
               <h2>{{ selectedNode.name }}</h2>
-              <span class="node-subtitle">{{ selectedNode.role }}</span>
+              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} • {{ selectedNode.agentName }}</span>
             </div>
           </div>
           <button class="modal-close" @click="showNodeDialog = false">&times;</button>
@@ -578,7 +578,7 @@
                 </span>
                 <span class="info-value status-badge" :class="'status-' + selectedNode.status?.toLowerCase()">
                   <span class="status-dot"></span>
-                  {{ selectedNode.status }}
+                  {{ getStatusText(selectedNode.status) }}
                 </span>
               </div>
               <div class="info-item">
@@ -590,7 +590,7 @@
                   Agent
                 </span>
                 <span class="info-value agent-badge">
-                  <span class="agent-icon">🤖</span>
+                  <el-icon class="agent-icon"><component :is="getAgentIcon(selectedNode.agentType)" /></el-icon>
                   {{ selectedNode.agentName }}
                 </span>
               </div>
@@ -605,6 +605,19 @@
                 <span class="info-value duration-value">{{ selectedNode.duration }} 分钟</span>
               </div>
             </div>
+          </div>
+
+          <!-- 打回原因（如果有） -->
+          <div v-if="selectedNode.rejectedReason" class="info-card rejected-reason-card">
+            <h3 class="info-card-title rejected-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              打回原因
+            </h3>
+            <p class="rejected-reason-text">{{ selectedNode.rejectedReason }}</p>
           </div>
 
           <!-- 对话记录 -->
@@ -646,13 +659,15 @@
                 <span class="child-status-icon">
                   <span v-if="child.status === 'DONE'">✅</span>
                   <span v-else-if="child.status === 'IN_PROGRESS'">🔄</span>
+                  <span v-else-if="child.status === 'REJECTED'">↩️</span>
+                  <span v-else-if="child.status === 'FAILED'">❌</span>
                   <span v-else>⏳</span>
                 </span>
                 <div class="child-node-info">
                   <span class="child-node-name">{{ child.name }}</span>
                   <span class="child-node-agent">{{ child.agentName }}</span>
                 </div>
-                <span class="child-node-status status-badge" :class="'status-' + child.status?.toLowerCase()">{{ child.status }}</span>
+                <span class="child-node-status status-badge" :class="'status-' + child.status?.toLowerCase()">{{ getStatusText(child.status) }}</span>
               </div>
             </div>
           </div>
@@ -671,6 +686,11 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Monitor, Desktop, Edit, Cpu,
+  OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
+  Aim, CircleCheck, View, Lock, Promotion, Box
+} from '@element-plus/icons-vue'
 import draggable from 'vuedraggable/src/vuedraggable.js'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
@@ -697,6 +717,32 @@ import {
   createNodeForTask,
   findSuitableStage
 } from '../mock/workflowAssignment'
+import { roleConfig, agentConfig, nodeStatusConfig } from '@/mock/workflowData'
+
+// Icon mapping for agent types
+const agentIconMap = {
+  Monitor,
+  Desktop,
+  Edit,
+  Cpu
+}
+
+// Icon mapping for role types
+const roleIconMap = {
+  OfficeBuilding,
+  User,
+  Setting,
+  Brush,
+  Search,
+  Coin,
+  Document,
+  Aim,
+  CircleCheck,
+  View,
+  Lock,
+  Promotion,
+  Box
+}
 
 const { t } = useI18n()
 const route = useRoute()
@@ -841,6 +887,36 @@ watch(isChatCollapsed, (collapsed, oldCollapsed) => {
     }, 100)
   }
 })
+
+// Helper functions for workflow node display
+
+// Get role icon from roleConfig
+const getNodeRoleIcon = (role) => {
+  if (!role) return Document
+  const iconName = roleConfig[role]?.icon || 'Document'
+  return roleIconMap[iconName] || Document
+}
+
+// Get agent icon from agentConfig
+const getAgentIcon = (agentType) => {
+  if (!agentType) return Monitor
+  const iconName = agentConfig[agentType]?.icon || 'Monitor'
+  return agentIconMap[iconName] || Monitor
+}
+
+// Get status text with translation support
+const getStatusText = (status) => {
+  if (!status) return 'Unknown'
+  const statusMap = {
+    'DONE': '已完成',
+    'IN_PROGRESS': '进行中',
+    'PENDING': '待处理',
+    'FAILED': '失败',
+    'REJECTED': '已打回',
+    'TODO': '待办'
+  }
+  return statusMap[status] || status
+}
 
 const isSessionLoading = ref(false)
 
@@ -1544,7 +1620,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  background: var(--bg-primary);
   color: var(--text-primary);
   overflow-y: auto;
 }
@@ -1607,7 +1683,7 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6366f1 0%, #5c5cff 100%);
+  background: #6366f1;
   color: white;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
@@ -1685,7 +1761,7 @@ onUnmounted(() => {
   gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, var(--bg-tertiary) 0%, transparent 100%);
+  background: var(--bg-tertiary);
   border-radius: 12px 12px 0 0;
 }
 
@@ -1704,7 +1780,7 @@ onUnmounted(() => {
 
 /* Requirements Column */
 .requirement-column {
-  background: linear-gradient(180deg, #fef3c7 0%, #fffbeb 100%);
+  background: #fffbeb;
   border-left: 3px solid #f59e0b;
 }
 
@@ -1740,7 +1816,7 @@ onUnmounted(() => {
 }
 
 .sync-requirements-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: #3b82f6;
   color: white;
   font-size: 11px;
   padding: 4px 8px;
@@ -1755,7 +1831,7 @@ onUnmounted(() => {
 }
 
 .sync-requirements-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: #2563eb;
 }
 
 .sync-requirements-btn:disabled {
@@ -1764,7 +1840,7 @@ onUnmounted(() => {
 }
 
 .auto-assign-btn {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  background: #f59e0b;
   color: white;
   font-size: 11px;
   padding: 4px 8px;
@@ -1776,7 +1852,7 @@ onUnmounted(() => {
 }
 
 .auto-assign-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  background: #d97706;
 }
 
 .auto-assign-btn:disabled {
@@ -1880,7 +1956,7 @@ onUnmounted(() => {
 }
 
 .task-card.task-selected {
-  background: linear-gradient(135deg, rgba(92, 92, 255, 0.08) 0%, rgba(92, 92, 255, 0.03) 100%);
+  background: rgba(99, 102, 241, 0.08);
   border-color: var(--accent-color);
   box-shadow: 0 0 0 1px var(--accent-color);
 }
@@ -2122,10 +2198,6 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 8px;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-color) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
   text-align: center;
 }
 
@@ -2246,7 +2318,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 18px 24px;
   border-bottom: 1px solid var(--border-color);
-  background: linear-gradient(180deg, var(--bg-tertiary) 0%, transparent 100%);
+  background: var(--bg-tertiary);
 }
 
 .modal-header h2 {
@@ -2622,7 +2694,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid #e5e7eb;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: #f8fafc;
   border-radius: 12px 12px 0 0;
 }
 
@@ -2768,13 +2840,41 @@ onUnmounted(() => {
   color: #64748b;
 }
 
+.node-detail-modal .status-badge.status-rejected {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.node-detail-modal .status-badge.status-failed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Rejected Reason Card */
+.node-detail-modal .rejected-reason-card {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.node-detail-modal .rejected-title {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.node-detail-modal .rejected-reason-text {
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 8px 0;
+}
+
 /* Agent Badge */
 .node-detail-modal .agent-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  background: #e0e7ff;
   color: #4338ca;
   border-radius: 6px;
   font-weight: 600;
@@ -2821,12 +2921,12 @@ onUnmounted(() => {
 }
 
 .node-detail-modal .message-item.message-from-user {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  background: #eff6ff;
   border-color: #bfdbfe;
 }
 
 .node-detail-modal .message-item.message-from-agent {
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  background: #fef2f2;
   border-color: #fecaca;
 }
 
@@ -2889,6 +2989,16 @@ onUnmounted(() => {
   border-color: #cbd5e1;
 }
 
+.node-detail-modal .child-node-item.status-rejected {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.node-detail-modal .child-node-item.status-failed {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
 .node-detail-modal .child-status-icon {
   font-size: 16px;
   flex-shrink: 0;
@@ -2937,6 +3047,16 @@ onUnmounted(() => {
   color: #64748b;
 }
 
+.node-detail-modal .child-node-status.status-rejected {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.node-detail-modal .child-node-status.status-failed {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
 .node-detail-modal .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -2951,7 +3071,7 @@ onUnmounted(() => {
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 500;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background: #6366f1;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -2960,7 +3080,7 @@ onUnmounted(() => {
 }
 
 .node-detail-modal .btn-close:hover {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  background: #4f46e5;
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
   transform: translateY(-1px);
 }

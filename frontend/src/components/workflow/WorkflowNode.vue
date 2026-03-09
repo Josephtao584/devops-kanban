@@ -25,7 +25,7 @@
         <span class="node-role">{{ node.role }}</span>
         <span class="node-separator">•</span>
         <span class="node-agent" :style="{ color: agentColor }">
-          <span class="agent-icon">{{ agentIcon }}</span>
+          <el-icon class="agent-icon"><component :is="agentIcon" /></el-icon>
           <span class="agent-name">{{ node.agentName }}</span>
         </span>
       </div>
@@ -37,7 +37,7 @@
 
       <!-- 打回原因（rejected 状态显示） -->
       <div v-if="node.rejectedReason" class="node-rejected-reason">
-        <span class="reason-icon">⚠</span>
+        <el-icon class="reason-icon"><Warning /></el-icon>
         <span class="reason-text">{{ node.rejectedReason }}</span>
       </div>
 
@@ -55,13 +55,13 @@
 
     <!-- 父节点标记 -->
     <div v-if="isParentNode" class="parent-badge">
-      <span class="parent-icon">📋</span>
+      <el-icon class="parent-icon"><Document /></el-icon>
       汇总
     </div>
 
     <!-- 打回标记 -->
     <div v-if="isRejected" class="rejected-badge">
-      <span>↩ 打回</span>
+      <el-icon><Back /></el-icon> 打回
     </div>
 
     <!-- 操作按钮 -->
@@ -72,7 +72,7 @@
         @click.stop="handleViewDetails"
         title="查看详情"
       >
-        📋 详情
+        <el-icon><Document /></el-icon> 详情
       </button>
       <!-- 运行中状态：暂停按钮 -->
       <button
@@ -81,7 +81,7 @@
         @click.stop="handlePause"
         title="暂停任务"
       >
-        ⏸ 暂停
+        <el-icon><VideoPause /></el-icon> 暂停
       </button>
     </div>
   </div>
@@ -90,6 +90,18 @@
 <script setup>
 import { computed } from 'vue'
 import { agentConfig, nodeStatusConfig } from '@/mock/workflowData'
+import {
+  Back, Warning, Document, VideoPause,
+  Monitor, Desktop, Edit, Cpu
+} from '@element-plus/icons-vue'
+
+// Icon mapping for agent types
+const agentIconMap = {
+  Monitor,
+  Desktop,
+  Edit,
+  Cpu
+}
 
 const props = defineProps({
   node: {
@@ -141,7 +153,8 @@ const agentColor = computed(() => {
 })
 
 const agentIcon = computed(() => {
-  return agentConfig[props.node.agentType]?.icon || '🤖'
+  const iconName = agentConfig[props.node.agentType]?.icon || 'Monitor'
+  return agentIconMap[iconName] || Monitor
 })
 </script>
 
@@ -174,13 +187,13 @@ const agentIcon = computed(() => {
 /* Rejected/Failed node styles */
 .workflow-node.is-rejected {
   border-color: #dc2626;
-  background: linear-gradient(to bottom, #fef2f2, #fff);
+  background: #fef2f2;
   animation: shake 0.5s ease-in-out;
 }
 
 .workflow-node.is-rejected.status-rejected {
   border-color: #f59e0b;
-  background: linear-gradient(to bottom, #fffbeb, #fff);
+  background: #fffbeb;
 }
 
 @keyframes shake {
@@ -194,7 +207,7 @@ const agentIcon = computed(() => {
   min-width: 160px;
   padding: 12px 16px;
   border-width: 2px;
-  background: linear-gradient(to bottom, #fffbeb, #fff);
+  background: #fffbeb;
   border-color: #f59e0b;
 }
 
@@ -210,23 +223,23 @@ const agentIcon = computed(() => {
 
 .workflow-node.is-parent.status-done {
   border-color: #10b981;
-  background: linear-gradient(to bottom, #f0fdf4, #fff);
+  background: #f0fdf4;
 }
 
 .workflow-node.is-parent.status-in_progress {
   border-color: #3b82f6;
-  background: linear-gradient(to bottom, #eff6ff, #fff);
+  background: #eff6ff;
 }
 
 /* 状态样式 */
 .workflow-node.status-done {
   border-color: #10b981;
-  background: linear-gradient(to bottom, #f0fdf4, #fff);
+  background: #f0fdf4;
 }
 
 .workflow-node.status-in_progress {
   border-color: #3b82f6;
-  background: linear-gradient(to bottom, #eff6ff, #fff);
+  background: #eff6ff;
 }
 
 .workflow-node.status-pending {
@@ -236,12 +249,12 @@ const agentIcon = computed(() => {
 
 .workflow-node.status-failed {
   border-color: #dc2626;
-  background: linear-gradient(to bottom, #fef2f2, #fff);
+  background: #fef2f2;
 }
 
 .workflow-node.status-rejected {
   border-color: #f59e0b;
-  background: linear-gradient(to bottom, #fffbeb, #fff);
+  background: #fffbeb;
 }
 
 /* 状态图标 */
@@ -336,7 +349,7 @@ const agentIcon = computed(() => {
 }
 
 .reason-icon {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .reason-text {
@@ -385,7 +398,7 @@ const agentIcon = computed(() => {
 }
 
 .parent-icon {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 /* 打回标记 */
@@ -441,32 +454,32 @@ const agentIcon = computed(() => {
 }
 
 .start-btn {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: #10b981;
   color: #fff;
 }
 
 .start-btn:hover {
-  background: linear-gradient(135deg, #059669, #047857);
+  background: #059669;
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
 }
 
 .view-btn {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background: #3b82f6;
   color: #fff;
 }
 
 .view-btn:hover {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: #2563eb;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
 }
 
 .pause-btn {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: #f59e0b;
   color: #fff;
 }
 
 .pause-btn:hover {
-  background: linear-gradient(135deg, #d97706, #b45309);
+  background: #d97706;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
 }
 </style>

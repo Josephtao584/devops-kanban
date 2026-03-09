@@ -6,7 +6,7 @@
     <!-- 工作流标题区 -->
     <div class="workflow-header">
       <div class="workflow-title">
-        <span class="workflow-icon">🔄</span>
+        <el-icon class="workflow-icon"><Refresh /></el-icon>
         <h3>{{ workflow?.name || '团队协作流程' }}</h3>
         <!-- 启动按钮：仅待运行状态显示 -->
         <button
@@ -27,44 +27,58 @@
     </div>
 
     <!-- 节点时间线 - 按阶段展示 -->
-    <div class="timeline-container">
-      <div class="timeline-scroll">
+    <div class="timeline-container" ref="containerRef">
+      <div class="timeline-scroll" style="position: relative;">
+        <!-- 失败打回箭头层 -->
+        <svg class="rollback-arrows" v-if="hasRollbackEdges">
+          <defs>
+            <marker
+              id="rollback-arrowhead"
+              markerWidth="10"
+              markerHeight="7"
+              refX="9"
+              refY="3.5"
+              orient="auto"
+            >
+              <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
+            </marker>
+          </defs>
+          <template v-for="edge in rollbackEdges" :key="`rollback-${edge.fromId}-${edge.toId}`">
+            <path
+              :d="getRollbackPath(edge.fromId, edge.toId)"
+              stroke="#dc2626"
+              stroke-width="2"
+              stroke-dasharray="5,5"
+              fill="none"
+              marker-end="url(#rollback-arrowhead)"
+            />
+            <text
+              :x="getRollbackTextPosition(edge.fromId, edge.toId).x"
+              :y="getRollbackTextPosition(edge.fromId, edge.toId).y"
+              fill="#dc2626"
+              font-size="10"
+              text-anchor="middle"
+              class="rollback-reason"
+            >
+              {{ edge.reason }}
+            </text>
+          </template>
+        </svg>
+
         <div class="timeline-stages">
-          <!-- 失败打回箭头层 -->
-          <svg class="rollback-arrows" v-if="hasRollbackEdges">
-            <defs>
-              <marker
-                id="rollback-arrowhead"
-                markerWidth="10"
-                markerHeight="7"
-                refX="9"
-                refY="3.5"
-                orient="auto"
-              >
-                <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
-              </marker>
-            </defs>
-            <template v-for="edge in rollbackEdges" :key="`rollback-${edge.fromId}-${edge.toId}`">
-              <path
-                :d="getRollbackPath(edge.fromId, edge.toId)"
-                stroke="#dc2626"
-                stroke-width="2"
-                stroke-dasharray="5,5"
-                fill="none"
-                marker-end="url(#rollback-arrowhead)"
-              />
-              <text
-                :x="getRollbackTextPosition(edge.fromId, edge.toId).x"
-                :y="getRollbackTextPosition(edge.fromId, edge.toId).y"
-                fill="#dc2626"
-                font-size="10"
-                text-anchor="middle"
-                class="rollback-reason"
-              >
-                {{ edge.reason }}
-              </text>
-            </template>
-          </svg>
+          <!-- 开始节点 -->
+          <div class="stage-container origin-stage">
+            <div class="origin-node start-node">
+              <div class="origin-circle">
+                <span class="origin-icon">▶</span>
+              </div>
+              <span class="origin-label">开始</span>
+            </div>
+            <!-- 连接到第一个阶段的箭头 -->
+            <div v-if="sortedStages.length > 0" class="stage-connector">
+              <div class="connector-arrow">→</div>
+            </div>
+          </div>
 
           <template v-for="(stage, stageIndex) in sortedStages" :key="stage.id">
             <!-- 阶段容器 -->
@@ -88,7 +102,7 @@
 
               <!-- 阶段标签 -->
               <div class="stage-label" v-if="stage.parallel">
-                <span class="parallel-icon">⚡</span>
+                <el-icon class="parallel-icon"><Lightning /></el-icon>
                 <span>并行</span>
               </div>
 
@@ -136,6 +150,20 @@
               </div>
             </div>
           </template>
+
+          <!-- 结束节点 -->
+          <div class="stage-container origin-stage">
+            <!-- 从最后一个阶段连接到结束节点的箭头 -->
+            <div v-if="sortedStages.length > 0" class="stage-connector">
+              <div class="connector-arrow">→</div>
+            </div>
+            <div class="origin-node end-node">
+              <div class="origin-circle">
+                <span class="origin-icon">✓</span>
+              </div>
+              <span class="origin-label">结束</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -146,6 +174,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import { Refresh, Lightning } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
 import { nodeStatusConfig, getWorkflowProgress, getAllNodes, getRollbackEdges } from '@/mock/workflowData'
 
@@ -279,41 +308,65 @@ const handleParentSelect = (parentNode, stage) => {
 }
 
 // Get node position for rollback arrow rendering
+// Returns position relative to the timeline container
 const getNodePosition = (nodeId) => {
   const cached = nodePositions.value[nodeId]
   if (cached) return cached
 
-  // Find the node element
-  let node = null
-  for (const stage of props.workflow?.stages || []) {
-    node = stage.nodes?.find(n => n.id === nodeId)
-    if (node) break
+  // Find the node and its stage index
+  let targetNode = null
+  let stageIndex = 0
+  let nodeIndexInStage = 0
+
+  for (let i = 0; i < props.workflow?.stages?.length; i++) {
+    const stage = props.workflow.stages[i]
+    const idx = stage.nodes?.findIndex(n => n.id === nodeId)
+    if (idx !== undefined && idx > -1) {
+      targetNode = stage.nodes[idx]
+      stageIndex = i
+      nodeIndexInStage = idx
+      break
+    }
   }
 
-  if (!node) return { x: 0, y: 0 }
+  if (!targetNode) return { x: 0, y: 0 }
 
-  // Calculate position based on node order
-  const allNodes = getAllNodes(props.workflow)
-  const nodeIndex = allNodes.findIndex(n => n.id === nodeId)
+  // Calculate position
+  // Each stage is approximately 160px wide (including gap)
+  // Nodes within a stage are arranged vertically
+  const stageWidth = 160
+  const nodeHeight = 100
+  const nodeGap = 10
 
-  // Approximate position (each node is about 140px wide + 12px gap)
-  const x = nodeIndex * 152 + 70
-  const y = 100 // Fixed height for simple visualization
+  const x = stageIndex * stageWidth + 80 // Center of stage
+  const y = nodeIndexInStage * (nodeHeight + nodeGap) + 50 // Center of node
 
   nodePositions.value[nodeId] = { x, y }
   return { x, y }
 }
 
-// Get curved path for rollback arrow
+// Get folded path for rollback arrow (from back to front)
+// Uses a rectangular path: up → left → down
 const getRollbackPath = (fromId, toId) => {
   const from = getNodePosition(fromId)
   const to = getNodePosition(toId)
 
-  // Create a curved path that goes upward and back
-  const midX = (from.x + to.x) / 2
-  const controlY = Math.min(from.y, to.y) - 60
+  // Calculate the horizontal distance (from right to left)
+  const horizontalDistance = from.x - to.x
+  const verticalOffset = 50 // Height of the rollback path
 
-  return `M${from.x} ${from.y} Q${midX} ${controlY} ${to.x} ${to.y}`
+  // Create a folded path: start from bottom of 'from' node
+  // Go up, then left, then down to 'to' node
+  // Path: from(x,y) → up → left → down → to(x,y)
+  const path = [
+    `M ${from.x} ${from.y + 30}`, // Start from bottom of 'from' node
+    `L ${from.x} ${from.y - verticalOffset}`, // Go up
+    `L ${to.x - 30} ${from.y - verticalOffset}`, // Go left (past the 'to' node)
+    `L ${to.x - 30} ${to.y - 20}`, // Go down to top of 'to' node
+    `L ${to.x} ${to.y - 20}` // Connect to 'to' node
+  ].join(' ')
+
+  return path
 }
 
 // Get text position for rollback reason
@@ -321,10 +374,13 @@ const getRollbackTextPosition = (fromId, toId) => {
   const from = getNodePosition(fromId)
   const to = getNodePosition(toId)
 
-  const midX = (from.x + to.x) / 2
-  const controlY = Math.min(from.y, to.y) - 60
+  const verticalOffset = 50
 
-  return { x: midX, y: controlY - 10 }
+  // Position text in the middle of the horizontal segment
+  const midX = (from.x + to.x) / 2
+  const y = from.y - verticalOffset - 8
+
+  return { x: midX, y: y }
 }
 
 // Reset node positions cache when workflow changes
@@ -336,9 +392,27 @@ const resetNodePositions = () => {
 <style scoped>
 .workflow-timeline {
   background: var(--bg-secondary, #f9fafb);
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 10px 16px;
+  padding: 16px;
+  padding-top: 20px;
   margin-bottom: 8px;
+  position: relative;
+  margin-top: 8px;
+}
+
+/* Workflow标签 */
+.workflow-label {
+  position: absolute;
+  top: -10px;
+  left: 16px;
+  background: #3b82f6;
+  color: white;
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
 /* 标题区 */
@@ -383,7 +457,7 @@ const resetNodePositions = () => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(to right, #10b981, #34d399);
+  background: #10b981;
   border-radius: 3px;
   transition: width 0.5s ease;
 }
@@ -420,8 +494,52 @@ const resetNodePositions = () => {
   padding: 0 6px;
 }
 
+/* 原点阶段容器（开始/结束） */
+.stage-container.origin-stage {
+  min-width: 60px;
+}
+
+/* 原点节点（开始/结束） */
+.origin-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 原点圆形 */
+.origin-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 开始节点样式 */
+.start-node .origin-circle {
+  background: #10b981;
+}
+
+/* 结束节点样式 */
+.end-node .origin-circle {
+  background: #3b82f6;
+}
+
+/* 原点标签 */
+.origin-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
+}
+
 .stage-container.is-parallel {
-  background: linear-gradient(to bottom, rgba(59, 130, 246, 0.05), transparent);
+  background: rgba(59, 130, 246, 0.05);
   border-radius: 8px;
   padding: 6px 12px;
   border: 1px dashed rgba(59, 130, 246, 0.3);
@@ -534,13 +652,13 @@ const resetNodePositions = () => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: #10b981;
   color: #fff;
   transition: all 0.2s ease;
 }
 
 .start-workflow-btn:hover {
-  background: linear-gradient(135deg, #059669, #047857);
+  background: #059669;
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
   transform: translateY(-1px);
 }
@@ -552,12 +670,13 @@ const resetNodePositions = () => {
   left: 0;
   width: 100%;
   height: 100%;
+  min-height: 300px;
   pointer-events: none;
   z-index: 10;
   overflow: visible;
 }
 
-.rollback-arrows line {
+.rollback-arrows path {
   animation: dash-animation 1s linear infinite;
 }
 
@@ -571,5 +690,9 @@ const resetNodePositions = () => {
   font-weight: 600;
   fill: #dc2626;
   text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+.timeline-scroll {
+  position: relative;
 }
 </style>
