@@ -46,7 +46,7 @@ export const mockWorkflows = [
     name: "OAuth 登录功能开发",
     taskId: 1,
     projectId: 1,
-    currentNodeId: 5,
+    currentNodeId: 8,
     stages: [
       {
         id: "task1-stage-1",
@@ -64,7 +64,7 @@ export const mockWorkflows = [
             task: { id: 1, title: "OAuth 方案设计", status: "DONE" },
             messages: [
               { id: 1, from: "user", content: "请设计 OAuth2.0 登录方案，需要支持 GitHub 和 Google。" },
-              { id: 2, from: "assistant", content: "OAuth2.0 方案设计完成" }
+              { id: 2, from: "assistant", content: "OAuth2.0 方案设计完成。采用 Authorization Code Flow + PKCE，支持 GitHub 和 Google 两家 provider。使用 JWT 进行会话管理，token 有效期 24 小时，refresh token 有效期 7 天。" }
             ]
           }
         ]
@@ -119,8 +119,29 @@ export const mockWorkflows = [
       },
       {
         id: "task1-stage-3",
-        name: "代码审查",
+        name: "前端开发",
         order: 3,
+        nodes: [
+          {
+            id: 4,
+            name: "登录页面开发",
+            role: "前端开发",
+            agentType: "CURSOR",
+            agentName: "Cursor Frontend",
+            status: "DONE",
+            duration: 25,
+            task: { id: 1, title: "登录页面开发", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Create login page with GitHub and Google OAuth buttons." },
+              { id: 2, from: "assistant", content: "Login page created with Vue 3. Added OAuth buttons, callback handler, and user profile display after login. Integrated with Vuex for auth state management." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task1-stage-4",
+        name: "代码审查",
+        order: 4,
         nodes: [
           {
             id: 31,
@@ -135,13 +156,27 @@ export const mockWorkflows = [
               { id: 1, from: "user", content: "Review OAuth implementation for security vulnerabilities and code quality." },
               { id: 2, from: "assistant", content: "Code review passed. Verified: 1) PKCE flow for CSRF protection, 2) Secure token storage, 3) Input validation on callbacks. LGTM." }
             ]
+          },
+          {
+            id: 32,
+            name: "Committer 审批",
+            role: "Committer",
+            agentType: "CLAUDE",
+            agentName: "Code Committer",
+            status: "DONE",
+            duration: 8,
+            task: { id: 1, title: "Committer 审批", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Approve OAuth implementation for merge." },
+              { id: 2, from: "assistant", content: "APPROVED: All review comments addressed, CI pipeline passing. Ready to merge into main branch." }
+            ]
           }
         ]
       },
       {
-        id: "task1-stage-4",
+        id: "task1-stage-5",
         name: "测试上线",
-        order: 4,
+        order: 5,
         nodes: [
           {
             id: 5,
@@ -156,6 +191,20 @@ export const mockWorkflows = [
               { id: 1, from: "user", content: "Test OAuth login flow end-to-end, including edge cases." },
               { id: 2, from: "assistant", content: "All tests passed: happy path, expired tokens, revoked access, and concurrent sessions. Ready for production." }
             ]
+          },
+          {
+            id: 6,
+            name: "发布部署",
+            role: "DevOps Engineer",
+            agentType: "CODEX",
+            agentName: "DevOps Deploy",
+            status: "DONE",
+            duration: 8,
+            task: { id: 1, title: "发布部署", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Deploy OAuth feature to production with canary release." },
+              { id: 2, from: "assistant", content: "Deployed to production with 10% canary traffic. Monitoring dashboards set up, no errors detected in first hour." }
+            ]
           }
         ]
       }
@@ -168,7 +217,7 @@ export const mockWorkflows = [
     name: "数据库性能优化",
     taskId: 2,
     projectId: 1,
-    currentNodeId: 8,
+    currentNodeId: 11,
     stages: [
       {
         id: "task2-stage-1",
@@ -202,7 +251,7 @@ export const mockWorkflows = [
           role: "Tech Lead",
           agentType: "CLAUDE",
           agentName: "Claude Lead",
-          status: "IN_PROGRESS",
+          status: "DONE",
           messages: [
             { id: 1, from: "user", content: "Review optimization plan and coordinate implementation." },
             { id: 2, from: "assistant", content: "Split optimization into parallel tasks: Index optimization (Gemini) and SQL refactoring (Codex). Setting up performance benchmarks for validation." }
@@ -229,28 +278,80 @@ export const mockWorkflows = [
             role: "后端开发",
             agentType: "CODEX",
             agentName: "Codex SQL",
-            status: "IN_PROGRESS",
-            task: { id: 2, title: "SQL 重构", status: "IN_PROGRESS" },
+            status: "DONE",
+            duration: 20,
+            task: { id: 2, title: "SQL 重构", status: "DONE" },
             messages: [
               { id: 1, from: "user", content: "Refactor N+1 queries using JOIN and eager loading." },
-              { id: 2, from: "assistant", content: "Refactored task queries with JOIN, eliminated N+1 issue. Currently optimizing the complex status filter query..." }
+              { id: 2, from: "assistant", content: "Refactored task queries with JOIN, eliminated N+1 issue. Optimized status filter query using indexed column." }
             ]
           }
         ]
       },
       {
         id: "task2-stage-3",
-        name: "效果验证",
+        name: "代码审查",
         order: 3,
         nodes: [
           {
             id: 9,
+            name: "性能优化 Review",
+            role: "Reviewer",
+            agentType: "CLAUDE",
+            agentName: "Code Reviewer",
+            status: "DONE",
+            duration: 10,
+            task: { id: 2, title: "性能优化审查", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Review database optimization changes." },
+              { id: 2, from: "assistant", content: "Review passed. Index usage verified with EXPLAIN analysis. Query execution plans improved significantly." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task2-stage-4",
+        name: "效果验证",
+        order: 4,
+        nodes: [
+          {
+            id: 10,
             name: "性能测试",
             role: "测试工程师",
             agentType: "CLAUDE",
             agentName: "Claude Perf",
+            status: "IN_PROGRESS",
+            task: { id: 2, title: "性能测试", status: "IN_PROGRESS" },
+            messages: [
+              { id: 1, from: "user", content: "Run performance benchmarks to verify optimization results." },
+              { id: 2, from: "assistant", content: "Running performance tests... Initial results show 75% improvement in average query time. Load test in progress with 1000 concurrent users..." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task2-stage-5",
+        name: "发布上线",
+        order: 5,
+        nodes: [
+          {
+            id: 11,
+            name: "灰度发布",
+            role: "DevOps Engineer",
+            agentType: "CODEX",
+            agentName: "DevOps Deploy",
             status: "PENDING",
-            task: { id: 2, title: "性能测试", status: "TODO" },
+            task: { id: 2, title: "灰度发布", status: "TODO" },
+            messages: []
+          },
+          {
+            id: 12,
+            name: "监控配置",
+            role: "DevOps Engineer",
+            agentType: "CODEX",
+            agentName: "DevOps Monitor",
+            status: "PENDING",
+            task: { id: 2, title: "监控配置", status: "TODO" },
             messages: []
           }
         ]
@@ -762,7 +863,7 @@ export const mockWorkflows = [
     name: "前端性能优化",
     taskId: 8,
     projectId: 1,
-    currentNodeId: 23,
+    currentNodeId: 25,
     stages: [
       {
         id: "task8-stage-1",
@@ -796,7 +897,7 @@ export const mockWorkflows = [
           role: "Tech Lead",
           agentType: "CLAUDE",
           agentName: "Claude Lead",
-          status: "IN_PROGRESS",
+          status: "DONE",
           messages: [
             { id: 1, from: "user", content: "Implement performance optimizations in parallel tasks." },
             { id: 2, from: "assistant", content: "Coordinating parallel optimizations: Cursor implementing code splitting, Gemini optimizing assets. Target: Lighthouse score 90+." }
@@ -823,28 +924,80 @@ export const mockWorkflows = [
             role: "前端开发",
             agentType: "GEMINI",
             agentName: "Gemini Assets",
-            status: "IN_PROGRESS",
-            task: { id: 8, title: "资源加载优化", status: "IN_PROGRESS" },
+            status: "DONE",
+            duration: 20,
+            task: { id: 8, title: "资源加载优化", status: "DONE" },
             messages: [
               { id: 1, from: "user", content: "Optimize images and implement lazy loading for assets." },
-              { id: 2, from: "assistant", content: "Optimizing: Converted images to WebP (60% smaller), added lazy loading with IntersectionObserver, preloaded critical CSS. Progress: 70%..." }
+              { id: 2, from: "assistant", content: "Optimizing: Converted images to WebP (60% smaller), added lazy loading with IntersectionObserver, preloaded critical CSS. Progress: 100% complete." }
             ]
           }
         ]
       },
       {
         id: "task8-stage-3",
-        name: "效果验证",
+        name: "代码审查",
         order: 3,
         nodes: [
           {
             id: 24,
+            name: "性能优化 Review",
+            role: "Reviewer",
+            agentType: "CLAUDE",
+            agentName: "Code Reviewer",
+            status: "DONE",
+            duration: 8,
+            task: { id: 8, title: "性能优化审查", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Review performance optimization changes." },
+              { id: 2, from: "assistant", content: "Review passed. Code splitting correctly implemented, image optimization verified. No regressions detected." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task8-stage-4",
+        name: "效果验证",
+        order: 4,
+        nodes: [
+          {
+            id: 25,
             name: "性能测试",
             role: "测试工程师",
             agentType: "CLAUDE",
             agentName: "Claude Perf",
+            status: "IN_PROGRESS",
+            task: { id: 8, title: "性能回归测试", status: "IN_PROGRESS" },
+            messages: [
+              { id: 1, from: "user", content: "Run Lighthouse and performance benchmarks after optimizations." },
+              { id: 2, from: "assistant", content: "Running tests... Initial results: Lighthouse score improved from 62 to 88! FCP: 1.2s (-62%), LCP: 1.8s (-56%). Finalizing report..." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task8-stage-5",
+        name: "发布上线",
+        order: 5,
+        nodes: [
+          {
+            id: 26,
+            name: "灰度发布",
+            role: "DevOps Engineer",
+            agentType: "CODEX",
+            agentName: "DevOps Deploy",
             status: "PENDING",
-            task: { id: 8, title: "性能回归测试", status: "TODO" },
+            task: { id: 8, title: "灰度发布", status: "TODO" },
+            messages: []
+          },
+          {
+            id: 27,
+            name: "监控配置",
+            role: "DevOps Engineer",
+            agentType: "CODEX",
+            agentName: "DevOps Monitor",
+            status: "PENDING",
+            task: { id: 8, title: "性能监控配置", status: "TODO" },
             messages: []
           }
         ]
@@ -858,7 +1011,7 @@ export const mockWorkflows = [
     name: "任务导出功能开发",
     taskId: 3,
     projectId: 1,
-    currentNodeId: null,
+    currentNodeId: 35,
     stages: [
       {
         id: "task3-stage-1",
@@ -871,56 +1024,108 @@ export const mockWorkflows = [
             role: "产品经理",
             agentType: "CLAUDE",
             agentName: "Claude PM",
-            status: "PENDING",
-            task: { id: 3, title: "导出功能需求分析", status: "TODO" },
-            messages: []
+            status: "DONE",
+            duration: 15,
+            task: { id: 3, title: "导出功能需求分析", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Define requirements for task export feature." },
+              { id: 2, from: "assistant", content: "Requirements defined: 1) Export to Excel (.xlsx) and PDF formats, 2) Support filtering by project, status, assignee, 3) Include task details: title, description, status, assignee, due date, 4) Support bulk export up to 1000 tasks." }
+            ]
           }
         ]
       },
       {
         id: "task3-stage-2",
-        name: "开发实施",
+        name: "API 设计",
         order: 2,
-        parallel: true,
-        parentNode: {
-          id: "parent-task3-stage-2",
-          name: "开发实施",
-          role: "Tech Lead",
-          agentType: "CLAUDE",
-          agentName: "Claude Lead",
-          status: "PENDING",
-          messages: []
-        },
         nodes: [
           {
             id: 32,
-            name: "Excel 导出",
-            role: "后端开发",
-            agentType: "CODEX",
-            agentName: "Codex Export",
-            status: "PENDING",
-            task: { id: 3, title: "Excel 导出功能", status: "TODO" },
-            messages: []
-          },
-          {
-            id: 33,
-            name: "PDF 导出",
-            role: "后端开发",
-            agentType: "CODEX",
-            agentName: "Codex PDF",
-            status: "PENDING",
-            task: { id: 3, title: "PDF 导出功能", status: "TODO" },
-            messages: []
+            name: "API 接口设计",
+            role: "架构师",
+            agentType: "CLAUDE",
+            agentName: "Claude Architect",
+            status: "DONE",
+            duration: 12,
+            task: { id: 3, title: "API 接口设计", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Design REST API for task export." },
+              { id: 2, from: "assistant", content: "API designed: GET /api/tasks/export?format=xlsx|pdf&projectId=&status=&assignee=. Returns file stream with appropriate Content-Type and Content-Disposition headers." }
+            ]
           }
         ]
       },
       {
         id: "task3-stage-3",
-        name: "测试验证",
+        name: "开发实施",
         order: 3,
+        parallel: true,
+        parentNode: {
+          id: "parent-task3-stage-3",
+          name: "开发实施",
+          role: "Tech Lead",
+          agentType: "CLAUDE",
+          agentName: "Claude Lead",
+          status: "IN_PROGRESS",
+          messages: [
+            { id: 1, from: "user", content: "Coordinate parallel development of Excel and PDF export." },
+            { id: 2, from: "assistant", content: "Coordinating export implementation: Codex implementing Excel export with Apache POI, Gemini implementing PDF export with iText. Both using async job queue for large exports." }
+          ]
+        },
         nodes: [
           {
+            id: 33,
+            name: "Excel 导出",
+            role: "后端开发",
+            agentType: "CODEX",
+            agentName: "Codex Export",
+            status: "DONE",
+            duration: 25,
+            task: { id: 3, title: "Excel 导出功能", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Implement Excel export with Apache POI." },
+              { id: 2, from: "assistant", content: "Excel export implemented. Created XLSX format with styled headers, auto-width columns, and filters. Supports up to 1000 tasks with progress indicator." }
+            ]
+          },
+          {
             id: 34,
+            name: "PDF 导出",
+            role: "后端开发",
+            agentType: "GEMINI",
+            agentName: "Gemini PDF",
+            status: "IN_PROGRESS",
+            task: { id: 3, title: "PDF 导出功能", status: "IN_PROGRESS" },
+            messages: [
+              { id: 1, from: "user", content: "Implement PDF export with iText library." },
+              { id: 2, from: "assistant", content: "PDF export in progress: Created table layout with proper page breaks, added header with export timestamp. Currently optimizing for large datasets..." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task3-stage-4",
+        name: "前端开发",
+        order: 4,
+        nodes: [
+          {
+            id: 35,
+            name: "导出按钮 UI",
+            role: "前端开发",
+            agentType: "CURSOR",
+            agentName: "Cursor Frontend",
+            status: "PENDING",
+            task: { id: 3, title: "导出按钮 UI", status: "TODO" },
+            messages: []
+          }
+        ]
+      },
+      {
+        id: "task3-stage-5",
+        name: "测试验证",
+        order: 5,
+        nodes: [
+          {
+            id: 36,
             name: "功能测试",
             role: "测试工程师",
             agentType: "CLAUDE",
@@ -934,13 +1139,13 @@ export const mockWorkflows = [
     ]
   },
 
-  // ========== 任务 5: 集成消息通知服务 (TODO) - 第三方集成流程 ==========
+  // ========== 任务 5: 集成消息通知服务 (IN_PROGRESS) - 第三方集成流程 ==========
   {
     id: 5,
     name: "消息通知集成",
     taskId: 5,
     projectId: 1,
-    currentNodeId: null,
+    currentNodeId: 55,
     stages: [
       {
         id: "task5-stage-1",
@@ -953,56 +1158,108 @@ export const mockWorkflows = [
             role: "架构师",
             agentType: "CLAUDE",
             agentName: "Claude Architect",
-            status: "PENDING",
-            task: { id: 5, title: "通知服务技术选型", status: "TODO" },
-            messages: []
+            status: "DONE",
+            duration: 20,
+            task: { id: 5, title: "通知服务技术选型", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Research notification services for team collaboration." },
+              { id: 2, from: "assistant", content: "Research complete: Recommend enterprise WeChat (企业微信) and DingTalk (钉钉) for Chinese market. Both support webhook bots, markdown messages, and @mentions. Integration complexity: low." }
+            ]
           }
         ]
       },
       {
         id: "task5-stage-2",
-        name: "集成开发",
+        name: "API 设计",
         order: 2,
-        parallel: true,
-        parentNode: {
-          id: "parent-task5-stage-2",
-          name: "集成开发",
-          role: "Tech Lead",
-          agentType: "CLAUDE",
-          agentName: "Claude Lead",
-          status: "PENDING",
-          messages: []
-        },
         nodes: [
           {
             id: 52,
-            name: "企业微信集成",
-            role: "后端开发",
-            agentType: "CODEX",
-            agentName: "Codex Integration",
-            status: "PENDING",
-            task: { id: 5, title: "企业微信机器人集成", status: "TODO" },
-            messages: []
-          },
-          {
-            id: 53,
-            name: "钉钉集成",
-            role: "后端开发",
-            agentType: "CODEX",
-            agentName: "Codex DingTalk",
-            status: "PENDING",
-            task: { id: 5, title: "钉钉机器人集成", status: "TODO" },
-            messages: []
+            name: "通知 API 设计",
+            role: "架构师",
+            agentType: "CLAUDE",
+            agentName: "Claude Architect",
+            status: "DONE",
+            duration: 10,
+            task: { id: 5, title: "通知 API 设计", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Design unified notification API." },
+              { id: 2, from: "assistant", content: "API designed: POST /api/notifications/send with provider (wechat|dingtalk), messageType (text|markdown|news), receivers, content. Adapter pattern for provider-specific implementations." }
+            ]
           }
         ]
       },
       {
         id: "task5-stage-3",
-        name: "测试上线",
+        name: "集成开发",
         order: 3,
+        parallel: true,
+        parentNode: {
+          id: "parent-task5-stage-3",
+          name: "集成开发",
+          role: "Tech Lead",
+          agentType: "CLAUDE",
+          agentName: "Claude Lead",
+          status: "IN_PROGRESS",
+          messages: [
+            { id: 1, from: "user", content: "Coordinate parallel integration of WeChat and DingTalk." },
+            { id: 2, from: "assistant", content: "Coordinating integrations: Codex implementing WeChat bot, Gemini implementing DingTalk bot. Both using async queue for reliable delivery." }
+          ]
+        },
         nodes: [
           {
+            id: 53,
+            name: "企业微信集成",
+            role: "后端开发",
+            agentType: "CODEX",
+            agentName: "Codex WeChat",
+            status: "DONE",
+            duration: 20,
+            task: { id: 5, title: "企业微信机器人集成", status: "DONE" },
+            messages: [
+              { id: 1, from: "user", content: "Implement enterprise WeChat webhook bot integration." },
+              { id: 2, from: "assistant", content: "WeChat integration complete: Implemented text and markdown message types, added @mention support, configured webhook URL management in admin panel." }
+            ]
+          },
+          {
             id: 54,
+            name: "钉钉集成",
+            role: "后端开发",
+            agentType: "GEMINI",
+            agentName: "Gemini DingTalk",
+            status: "IN_PROGRESS",
+            task: { id: 5, title: "钉钉机器人集成", status: "IN_PROGRESS" },
+            messages: [
+              { id: 1, from: "user", content: "Implement DingTalk webhook bot integration." },
+              { id: 2, from: "assistant", content: "DingTalk integration in progress: Implemented text and markdown messages, currently adding action card (interactive button) support. HMAC-SHA256 signature verification added." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task5-stage-4",
+        name: "通知模板",
+        order: 4,
+        nodes: [
+          {
+            id: 55,
+            name: "模板配置功能",
+            role: "前端开发",
+            agentType: "CURSOR",
+            agentName: "Cursor Frontend",
+            status: "PENDING",
+            task: { id: 5, title: "通知模板配置", status: "TODO" },
+            messages: []
+          }
+        ]
+      },
+      {
+        id: "task5-stage-5",
+        name: "测试上线",
+        order: 5,
+        nodes: [
+          {
+            id: 56,
             name: "集成测试",
             role: "测试工程师",
             agentType: "CLAUDE",
