@@ -1745,8 +1745,8 @@ onUnmounted(() => {
 
 /* Kanban Column */
 .kanban-column {
-  min-width: 260px;
-  width: 260px;
+  min-width: 280px;
+  width: 280px;
   background: var(--bg-secondary);
   border-radius: 12px;
   display: flex;
@@ -1923,7 +1923,7 @@ onUnmounted(() => {
 .column-content {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 16px;
   min-height: 200px; /* 确保空列也能接收拖拽 */
 }
 
@@ -1935,8 +1935,8 @@ onUnmounted(() => {
 
 /* Task Card */
 .task-card {
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
   border-radius: 8px;
   cursor: grab;
   transition: all 0.2s ease;
@@ -1984,18 +1984,18 @@ onUnmounted(() => {
 }
 
 .task-card-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.5;
   flex: 1;
   word-break: break-word;
 }
 
 .task-card-priority {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
