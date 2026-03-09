@@ -55,6 +55,10 @@ public class AgentService {
 
         agent.setName(dto.getName());
         agent.setType(Agent.AgentType.valueOf(dto.getType()));
+        agent.setRole(dto.getRole());
+        agent.setDescription(dto.getDescription());
+        agent.setSkills(dto.getSkills());
+        agent.setCommand(dto.getCommand());
         agent.setEnabled(dto.isEnabled());
 
         agent = agentRepository.save(agent);

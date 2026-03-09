@@ -75,6 +75,10 @@ public class EntityDTOConverter {
                 .id(agent.getId())
                 .name(agent.getName())
                 .type(agent.getType() != null ? agent.getType().name() : Agent.AgentType.CLAUDE.name())
+                .role(agent.getRole())
+                .description(agent.getDescription())
+                .skills(agent.getSkills())
+                .command(agent.getCommand())
                 .enabled(agent.isEnabled())
                 .createdAt(agent.getCreatedAt())
                 .build();
@@ -88,6 +92,10 @@ public class EntityDTOConverter {
                 .id(dto.getId())
                 .name(dto.getName())
                 .type(dto.getType() != null ? Agent.AgentType.valueOf(dto.getType()) : Agent.AgentType.CLAUDE)
+                .role(dto.getRole())
+                .description(dto.getDescription())
+                .skills(dto.getSkills())
+                .command(dto.getCommand())
                 .enabled(dto.isEnabled())
                 .build();
     }

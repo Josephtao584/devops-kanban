@@ -28,7 +28,7 @@ export default {
     projects: 'Projects',
     kanban: 'Kanban',
     taskSources: 'Task Sources',
-    agents: 'Team Members',
+    agents: 'Role Management',
     promptTemplates: 'Prompt Templates',
     settings: 'Settings'
   },
@@ -163,9 +163,9 @@ export default {
     }
   },
   agent: {
-    title: 'Team Members',
-    createAgent: 'Create Member',
-    editAgent: 'Edit Member',
+    title: 'Role Management',
+    createAgent: 'Create Role',
+    editAgent: 'Edit Role',
     agentName: 'Name',
     agentType: 'Type',
     role: 'Role',
@@ -173,12 +173,13 @@ export default {
     descriptionPlaceholder: 'Enter agent description (optional)',
     command: 'Command Template',
     config: 'Configuration',
-    deleteConfirm: 'Are you sure you want to delete this member?',
-    selectAgent: 'Select Member',
+    deleteConfirm: 'Are you sure you want to delete this role?',
+    selectAgent: 'Select Role',
     loading: 'Loading...',
-    noAgents: 'No members available',
-    pleaseConfigure: 'Please configure a member first',
+    noAgents: 'No roles available',
+    pleaseConfigure: 'Please configure a role first',
     startSession: 'Start Session',
+    skills: 'Skills',
     types: {
       CLAUDE: 'Claude Code',
       CODEX: 'OpenAI Codex',
@@ -186,7 +187,10 @@ export default {
       GEMINI: 'Gemini',
       CUSTOM: 'Custom'
     },
-    commandHint: 'Use {prompt} as placeholder for task prompt'
+    commandHint: 'Use {prompt} as placeholder for task prompt',
+    skills: 'Skills',
+    skillPlaceholder: 'Enter skill, press Enter to add',
+    recommendedSkills: 'Recommended skills'
   },
   execution: {
     title: 'Executions',

@@ -5,6 +5,7 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -15,6 +16,9 @@ public class Agent {
     private Long projectId;
     private String name;
     private AgentType type;
+    private String role;
+    private String description;
+    private List<String> skills;
     private String command;
     private boolean enabled;
     private LocalDateTime createdAt;

@@ -187,7 +187,9 @@ export default {
       CUSTOM: '自定义'
     },
     commandHint: '使用 {prompt} 作为任务提示的占位符',
-    skills: '技能'
+    skills: '技能',
+    skillPlaceholder: '输入技能，按回车添加',
+    recommendedSkills: '推荐技能'
   },
   execution: {
     title: '执行记录',

@@ -7,6 +7,7 @@ import lombok.Builder;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -21,6 +22,10 @@ public class AgentDTO {
     @NotBlank(message = "Type is required")
     private String type; // CLAUDE, CODEX, CURSOR, GEMINI, CUSTOM
 
+    private String role;
+    private String description;
+    private List<String> skills;
+    private String command;
     private boolean enabled;
     private LocalDateTime createdAt;
 }
