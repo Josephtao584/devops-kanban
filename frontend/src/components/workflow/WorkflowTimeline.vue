@@ -385,16 +385,26 @@ const measureStagePositions = () => {
   const scrollRect = scrollRef.value.getBoundingClientRect()
   const positions = []
 
-  // Measure start node
+  // Measure start node - get the circle's center position
   if (startNodeRef.value) {
     const rect = startNodeRef.value.getBoundingClientRect()
+    const relativeY = rect.top - scrollRect.top
+
+    // Measure the actual circle element
+    const circleEl = startNodeRef.value.querySelector('.origin-circle')
+    if (circleEl) {
+      const circleRect = circleEl.getBoundingClientRect()
+      const circleCenterY = (circleRect.top - scrollRect.top) + circleRect.height / 2
+      CENTER_Y = circleCenterY
+    }
+
     startNodePos.value = {
       x: rect.left - scrollRect.left,
-      y: rect.top - scrollRect.top,
+      y: relativeY,
       width: rect.width,
       height: rect.height,
       centerX: rect.left - scrollRect.left + rect.width / 2,
-      centerY: CENTER_Y // 使用统一的中心 Y 值
+      centerY: CENTER_Y
     }
   }
 
@@ -407,15 +417,27 @@ const measureStagePositions = () => {
       width: rect.width,
       height: rect.height,
       centerX: rect.left - scrollRect.left + rect.width / 2,
-      centerY: CENTER_Y // 使用统一的中心 Y 值
+      centerY: CENTER_Y
     }
   }
 
-  // Measure stages
+  // Measure stages - use the first node card's center for Y alignment
   sortedStages.value.forEach((stage, index) => {
     const stageEl = stageRefs.value[index]
     if (stageEl) {
       const rect = stageEl.getBoundingClientRect()
+
+      // Find the first WorkflowNode's vertical center
+      // WorkflowNode has class 'workflow-node' and fixed height of 160px
+      const nodeEl = stageEl.querySelector('.workflow-node')
+      let nodeCenterY = CENTER_Y // default to current CENTER_Y
+
+      if (nodeEl) {
+        const nodeRect = nodeEl.getBoundingClientRect()
+        // Use the node's center Y relative to scroll container
+        nodeCenterY = (nodeRect.top - scrollRect.top) + nodeRect.height / 2
+      }
+
       positions.push({
         stageId: stage.id,
         x: rect.left - scrollRect.left,
@@ -423,7 +445,7 @@ const measureStagePositions = () => {
         width: rect.width,
         height: rect.height,
         centerX: rect.left - scrollRect.left + rect.width / 2,
-        centerY: CENTER_Y // 使用统一的中心 Y 值
+        centerY: nodeCenterY
       })
     }
   })
@@ -447,16 +469,14 @@ const getForwardPath = (fromId, toId) => {
 const getNodeEndpoint = (id, side = 'output') => {
   if (id === 'start') {
     // Start node: right edge of the start circle
-    // 使用统一的 CENTER_Y 值
     return { x: 36, y: CENTER_Y }
   }
 
   if (id === 'end') {
     // End node: left edge of the end circle
-    // 使用统一的 CENTER_Y 值
     const lastStagePos = stagePositions.value[stagePositions.value.length - 1]
     if (lastStagePos) {
-      return { x: lastStagePos.x + lastStagePos.width + 40, y: CENTER_Y }
+      return { x: lastStagePos.x + lastStagePos.width + 40, y: lastStagePos.centerY }
     }
     return { x: 500, y: CENTER_Y }
   }
@@ -466,22 +486,22 @@ const getNodeEndpoint = (id, side = 'output') => {
   if (!stagePos) return { x: 0, y: 0 }
 
   // Return left or right edge based on side parameter
-  // 使用统一的 CENTER_Y 值
+  // Use the stage's measured centerY for accurate alignment
   if (side === 'input') {
     return {
       x: stagePos.x,  // Left edge
-      y: CENTER_Y
+      y: stagePos.centerY
     }
   } else {
     return {
       x: stagePos.x + stagePos.width,  // Right edge
-      y: CENTER_Y
+      y: stagePos.centerY
     }
   }
 }
 
-// Unified center Y-axis for all nodes
-const CENTER_Y = 85 // 统一的中心 Y 轴位置，与开始/结束节点的中心对齐
+// Dynamic center Y-axis - will be set from actual DOM measurement
+let CENTER_Y = 100 // 统一的中心 Y 轴位置，初始值会在测量后更新
 
 // Setup resize observer for responsive updates
 const setupResizeObserver = () => {
@@ -612,7 +632,7 @@ onUnmounted(() => {
 .timeline-container {
   overflow-x: auto;
   margin-bottom: 8px;
-  padding-top: 10px;
+  padding-top: 0; /* 移除 padding，避免 SVG 和 DOM 元素位置不一致 */
   max-width: 100%;
 }
 
