@@ -40,11 +40,12 @@
         <el-icon class="reason-icon"><Warning /></el-icon>
         <span class="reason-text">{{ node.rejectedReason }}</span>
       </div>
+    </div>
 
-      <!-- 耗时（已完成节点显示） -->
-      <div v-if="node.status === 'DONE' && node.duration" class="node-duration">
-        {{ node.duration }}min
-      </div>
+    <!-- 底部信息行：状态和耗时 -->
+    <div class="node-footer">
+      <span class="node-status-label" :style="{ color: statusColor }">{{ nodeStatusLabel }}</span>
+      <span v-if="node.status === 'DONE' && node.duration" class="node-duration">{{ node.duration }}min</span>
     </div>
 
     <!-- 当前进行中标记 -->
@@ -72,7 +73,7 @@
         @click.stop="handleViewDetails"
         title="查看详情"
       >
-        <el-icon><Document /></el-icon> 详情
+        <el-icon><Document /></el-icon>
       </button>
       <!-- 运行中状态：暂停按钮 -->
       <button
@@ -81,7 +82,7 @@
         @click.stop="handlePause"
         title="暂停任务"
       >
-        <el-icon><VideoPause /></el-icon> 暂停
+        <el-icon><VideoPause /></el-icon>
       </button>
     </div>
   </div>
@@ -156,6 +157,18 @@ const agentIcon = computed(() => {
   const iconName = agentConfig[props.node.agentType]?.icon || 'Monitor'
   return agentIconMap[iconName] || Monitor
 })
+
+// Status label text
+const nodeStatusLabel = computed(() => {
+  const statusMap = {
+    'DONE': '已完成',
+    'IN_PROGRESS': '进行中',
+    'PENDING': '待处理',
+    'FAILED': '失败',
+    'REJECTED': '已打回'
+  }
+  return statusMap[props.node.status] || props.node.status
+})
 </script>
 
 <style scoped>
@@ -163,9 +176,9 @@ const agentIcon = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 14px;
   width: 160px;
-  height: 140px;
+  height: 130px;
   background: #fff;
   border-radius: 8px;
   border: 2px solid #e5e7eb;
@@ -207,8 +220,8 @@ const agentIcon = computed(() => {
 /* Parent node styles */
 .workflow-node.is-parent {
   width: 180px;
-  height: 140px;
-  padding: 12px 16px;
+  height: 130px;
+  padding: 10px 14px;
   border-width: 2px;
   background: #fffbeb;
   border-color: #f59e0b;
@@ -271,8 +284,6 @@ const agentIcon = computed(() => {
   color: #fff;
   font-size: 11px;
   font-weight: bold;
-  order: 1;
-  margin: 8px 0;
   flex-shrink: 0;
 }
 
@@ -289,25 +300,24 @@ const agentIcon = computed(() => {
 .node-content {
   text-align: center;
   width: 100%;
-  order: 2;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: hidden;
-  min-height: 0; /* 允许 flex 子项缩小 */
+  min-height: 0;
 }
 
 .node-name {
   font-size: 13px;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   line-height: 1.3;
   overflow: visible;
   white-space: normal;
   width: 100%;
-  flex-shrink: 0; /* 确保节点名称不被压缩 */
+  flex-shrink: 0;
 }
 
 /* 角色和 Agent 并排显示 */
@@ -316,7 +326,7 @@ const agentIcon = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-size: 11px;
   flex-wrap: wrap;
 }
@@ -352,7 +362,7 @@ const agentIcon = computed(() => {
 .node-progress {
   font-size: 10px;
   color: #6b7280;
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 2px 6px;
   background: #f3f4f6;
   border-radius: 4px;
@@ -366,7 +376,7 @@ const agentIcon = computed(() => {
   gap: 3px;
   font-size: 9px;
   color: #dc2626;
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 2px 6px;
   background: #fef2f2;
   border-radius: 4px;
@@ -390,15 +400,27 @@ const agentIcon = computed(() => {
   white-space: nowrap;
 }
 
+/* 底部信息行：状态和耗时 */
+.node-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding-top: 6px;
+  margin-top: auto;
+  border-top: 1px solid #f3f4f6;
+}
+
+.node-status-label {
+  font-size: 10px;
+  font-weight: 500;
+}
+
 .node-duration {
   font-size: 10px;
   color: #10b981;
-  margin-top: 4px;
-  padding: 2px 6px;
-  background: #d1fae5;
-  border-radius: 4px;
   font-weight: 500;
-  flex-shrink: 0;
 }
 
 /* 当前标记 */
@@ -467,24 +489,25 @@ const agentIcon = computed(() => {
 
 /* 操作按钮 */
 .action-buttons {
-  margin-top: auto;
   display: flex;
   justify-content: center;
   gap: 6px;
-  padding-top: 8px;
+  padding-top: 6px;
   width: 100%;
-  order: 3;
 }
 
 .action-btn {
-  padding: 4px 10px;
-  font-size: 11px;
+  padding: 3px 8px;
+  font-size: 12px;
   font-weight: 500;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .action-btn:hover {
