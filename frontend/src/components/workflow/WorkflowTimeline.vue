@@ -206,7 +206,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
@@ -228,6 +228,12 @@ const emit = defineEmits(['select-node', 'start-workflow', 'pause-task', 'view-d
 // Node position cache for rollback arrows
 const nodePositions = ref({})
 const containerRef = ref(null)
+
+// Stage refs for DOM measurement
+const stageRefs = ref([])
+
+// Store measured stage positions
+const stagePositions = ref([])
 
 const sortedStages = computed(() => {
   if (!props.workflow?.stages) return []
@@ -575,7 +581,7 @@ watch(() => props.workflow, () => {
 .timeline-stages {
   display: flex;
   align-items: flex-start;
-  gap: 0;
+  gap: 40px; /* 阶段间距，用于放置箭头 */
 }
 
 /* 阶段容器 */
