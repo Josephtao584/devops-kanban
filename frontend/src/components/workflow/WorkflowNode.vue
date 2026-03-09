@@ -29,12 +29,6 @@
       <div v-if="isParentNode && node.progress" class="node-progress">
         <span class="progress-label">进度：{{ node.progress.completed }}/{{ node.progress.total }}</span>
       </div>
-
-      <!-- 打回原因（rejected 状态显示） -->
-      <div v-if="node.rejectedReason" class="node-rejected-reason">
-        <el-icon class="reason-icon"><Warning /></el-icon>
-        <span class="reason-text">{{ node.rejectedReason }}</span>
-      </div>
     </div>
 
     <!-- 底部信息行：只展示耗时 -->
@@ -311,36 +305,6 @@ const statusColor = computed(() => {
   background: #f3f4f6;
   border-radius: 4px;
   flex-shrink: 0;
-}
-
-/* 打回原因样式 */
-.node-rejected-reason {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #dc2626;
-  padding: 3px 8px;
-  background: #fef2f2;
-  border-radius: 4px;
-  border: 1px solid #fecaca;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-  flex-shrink: 0;
-}
-
-.reason-icon {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.reason-text {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 底部信息行：只展示耗时 */
