@@ -27,6 +27,42 @@
     <div class="timeline-container">
       <div class="timeline-scroll">
         <div class="timeline-stages">
+          <!-- 失败打回箭头层 -->
+          <svg class="rollback-arrows" v-if="hasRollbackEdges">
+            <defs>
+              <marker
+                id="rollback-arrowhead"
+                markerWidth="10"
+                markerHeight="7"
+                refX="9"
+                refY="3.5"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
+              </marker>
+            </defs>
+            <template v-for="edge in rollbackEdges" :key="`rollback-${edge.fromId}-${edge.toId}`">
+              <path
+                :d="getRollbackPath(edge.fromId, edge.toId)"
+                stroke="#dc2626"
+                stroke-width="2"
+                stroke-dasharray="5,5"
+                fill="none"
+                marker-end="url(#rollback-arrowhead)"
+              />
+              <text
+                :x="getRollbackTextPosition(edge.fromId, edge.toId).x"
+                :y="getRollbackTextPosition(edge.fromId, edge.toId).y"
+                fill="#dc2626"
+                font-size="10"
+                text-anchor="middle"
+                class="rollback-reason"
+              >
+                {{ edge.reason }}
+              </text>
+            </template>
+          </svg>
+
           <template v-for="(stage, stageIndex) in sortedStages" :key="stage.id">
             <!-- 阶段容器 -->
             <div class="stage-container" :class="{ 'is-parallel': stage.parallel }">
@@ -105,9 +141,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import WorkflowNode from './WorkflowNode.vue'
-import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
+import { nodeStatusConfig, getWorkflowProgress, getAllNodes, getRollbackEdges } from '@/mock/workflowData'
 
 const props = defineProps({
   workflow: {
@@ -122,6 +159,10 @@ const props = defineProps({
 
 const emit = defineEmits(['select-node', 'start-workflow', 'pause-task', 'view-details'])
 
+// Node position cache for rollback arrows
+const nodePositions = ref({})
+const containerRef = ref(null)
+
 const sortedStages = computed(() => {
   if (!props.workflow?.stages) return []
   return [...props.workflow.stages].sort((a, b) => a.order - b.order)
@@ -129,6 +170,17 @@ const sortedStages = computed(() => {
 
 const progress = computed(() => {
   return getWorkflowProgress(props.workflow)
+})
+
+// Get rollback edges from workflow
+const rollbackEdges = computed(() => {
+  if (!props.workflow) return []
+  return getRollbackEdges(props.workflow)
+})
+
+// Check if workflow has rollback edges
+const hasRollbackEdges = computed(() => {
+  return rollbackEdges.value.length > 0
 })
 
 // 判断工作流是否处于待运行状态（所有节点都是 PENDING 或 TODO）
@@ -140,8 +192,21 @@ const isWorkflowPending = computed(() => {
 })
 
 // 启动工作流
-const handleStartWorkflow = () => {
-  emit('start-workflow', props.workflow)
+const handleStartWorkflow = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要启动此工作流吗？这将开始执行所有任务节点。',
+      '启动工作流',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    emit('start-workflow', props.workflow)
+  } catch {
+    // 用户取消操作
+  }
 }
 
 const getNodeColor = (node) => {
@@ -208,6 +273,60 @@ const handleParentSelect = (parentNode, stage) => {
     isParent: true
   }
   emit('select-node', enhancedNode)
+}
+
+// Get node position for rollback arrow rendering
+const getNodePosition = (nodeId) => {
+  const cached = nodePositions.value[nodeId]
+  if (cached) return cached
+
+  // Find the node element
+  let node = null
+  for (const stage of props.workflow?.stages || []) {
+    node = stage.nodes?.find(n => n.id === nodeId)
+    if (node) break
+  }
+
+  if (!node) return { x: 0, y: 0 }
+
+  // Calculate position based on node order
+  const allNodes = getAllNodes(props.workflow)
+  const nodeIndex = allNodes.findIndex(n => n.id === nodeId)
+
+  // Approximate position (each node is about 140px wide + 12px gap)
+  const x = nodeIndex * 152 + 70
+  const y = 100 // Fixed height for simple visualization
+
+  nodePositions.value[nodeId] = { x, y }
+  return { x, y }
+}
+
+// Get curved path for rollback arrow
+const getRollbackPath = (fromId, toId) => {
+  const from = getNodePosition(fromId)
+  const to = getNodePosition(toId)
+
+  // Create a curved path that goes upward and back
+  const midX = (from.x + to.x) / 2
+  const controlY = Math.min(from.y, to.y) - 60
+
+  return `M${from.x} ${from.y} Q${midX} ${controlY} ${to.x} ${to.y}`
+}
+
+// Get text position for rollback reason
+const getRollbackTextPosition = (fromId, toId) => {
+  const from = getNodePosition(fromId)
+  const to = getNodePosition(toId)
+
+  const midX = (from.x + to.x) / 2
+  const controlY = Math.min(from.y, to.y) - 60
+
+  return { x: midX, y: controlY - 10 }
+}
+
+// Reset node positions cache when workflow changes
+const resetNodePositions = () => {
+  nodePositions.value = {}
 }
 </script>
 
@@ -421,5 +540,33 @@ const handleParentSelect = (parentNode, stage) => {
   background: linear-gradient(135deg, #059669, #047857);
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
   transform: translateY(-1px);
+}
+
+/* 失败打回箭头 SVG 层 */
+.rollback-arrows {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+  overflow: visible;
+}
+
+.rollback-arrows line {
+  animation: dash-animation 1s linear infinite;
+}
+
+@keyframes dash-animation {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+.rollback-reason {
+  font-weight: 600;
+  fill: #dc2626;
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
 }
 </style>

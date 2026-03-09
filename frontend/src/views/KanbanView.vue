@@ -42,6 +42,7 @@
           :selected-node-id="selectedNodeId"
           @select-node="onNodeSelect"
           @view-details="onNodeViewDetails"
+          @start-workflow="onStartWorkflow"
         />
 
         <!-- Kanban Board -->
@@ -700,6 +701,7 @@ import {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const emit = defineEmits(['start-workflow'])
 
 // Use Pinia stores
 const projectStore = useProjectStore()
@@ -805,6 +807,25 @@ const onNodeViewDetails = (node) => {
   selectedNodeId.value = node.id
   selectedNode.value = node
   showNodeDialog.value = true  // Open node detail dialog
+}
+
+// Handler for starting workflow
+const onStartWorkflow = (workflow) => {
+  console.log('[KanbanView] Start workflow:', workflow.id, workflow.name)
+
+  // TODO: Implement actual workflow start logic
+  // For now, just show a success message
+  ElMessage.success('工作流已启动，开始执行任务节点...')
+
+  // Update workflow status - change first node to IN_PROGRESS
+  // This is a mock implementation - replace with actual API call
+  if (workflow?.stages?.[0]?.nodes?.[0]) {
+    workflow.stages[0].nodes[0].status = 'IN_PROGRESS'
+    workflow.currentNodeId = workflow.stages[0].nodes[0].id
+  }
+
+  // Refresh workflow by incrementing version
+  workflowVersion.value++
 }
 
 // Auto scroll when chat expands

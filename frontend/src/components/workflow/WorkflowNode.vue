@@ -3,7 +3,7 @@
     class="workflow-node"
     :class="[
       `status-${node.status.toLowerCase()}`,
-      { 'is-current': isCurrent, 'is-selected': isSelected, 'is-parent': isParentNode }
+      { 'is-current': isCurrent, 'is-selected': isSelected, 'is-parent': isParentNode, 'is-rejected': isRejected }
     ]"
     @click="handleClick"
   >
@@ -11,23 +11,34 @@
     <div class="node-status-icon" :style="{ backgroundColor: statusColor }">
       <span v-if="node.status === 'DONE'">✓</span>
       <span v-else-if="node.status === 'IN_PROGRESS'" class="pulse">▶</span>
+      <span v-else-if="node.status === 'FAILED'">✗</span>
+      <span v-else-if="node.status === 'REJECTED'">↩</span>
       <span v-else>○</span>
     </div>
 
     <!-- 节点内容 -->
     <div class="node-content">
       <div class="node-name">{{ node.name }}</div>
-      <div class="node-role">{{ node.role }}</div>
 
-      <!-- Agent 信息 -->
-      <div class="node-agent" :style="{ color: agentColor }">
-        <span class="agent-icon">{{ agentIcon }}</span>
-        <span class="agent-name">{{ node.agentName }}</span>
+      <!-- 角色和 Agent 并排显示 -->
+      <div class="node-meta">
+        <span class="node-role">{{ node.role }}</span>
+        <span class="node-separator">•</span>
+        <span class="node-agent" :style="{ color: agentColor }">
+          <span class="agent-icon">{{ agentIcon }}</span>
+          <span class="agent-name">{{ node.agentName }}</span>
+        </span>
       </div>
 
       <!-- 父节点进度信息 -->
       <div v-if="isParentNode && node.progress" class="node-progress">
-        <span class="progress-label">进度: {{ node.progress.completed }}/{{ node.progress.total }}</span>
+        <span class="progress-label">进度：{{ node.progress.completed }}/{{ node.progress.total }}</span>
+      </div>
+
+      <!-- 打回原因（rejected 状态显示） -->
+      <div v-if="node.rejectedReason" class="node-rejected-reason">
+        <span class="reason-icon">⚠</span>
+        <span class="reason-text">{{ node.rejectedReason }}</span>
       </div>
 
       <!-- 耗时（已完成节点显示） -->
@@ -46,6 +57,11 @@
     <div v-if="isParentNode" class="parent-badge">
       <span class="parent-icon">📋</span>
       汇总
+    </div>
+
+    <!-- 打回标记 -->
+    <div v-if="isRejected" class="rejected-badge">
+      <span>↩ 打回</span>
     </div>
 
     <!-- 操作按钮 -->
@@ -96,6 +112,11 @@ const props = defineProps({
 
 const emit = defineEmits(['select', 'pause', 'view-details'])
 
+// Compute if node is rejected
+const isRejected = computed(() => {
+  return props.node.status === 'REJECTED' || props.node.status === 'FAILED'
+})
+
 // Handle click event
 const handleClick = () => {
   emit('select', props.node)
@@ -129,8 +150,8 @@ const agentIcon = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 14px;
-  min-width: 110px;
+  padding: 12px 16px;
+  min-width: 140px;
   background: #fff;
   border-radius: 8px;
   border: 2px solid #e5e7eb;
@@ -150,10 +171,28 @@ const agentIcon = computed(() => {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
+/* Rejected/Failed node styles */
+.workflow-node.is-rejected {
+  border-color: #dc2626;
+  background: linear-gradient(to bottom, #fef2f2, #fff);
+  animation: shake 0.5s ease-in-out;
+}
+
+.workflow-node.is-rejected.status-rejected {
+  border-color: #f59e0b;
+  background: linear-gradient(to bottom, #fffbeb, #fff);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
 /* Parent node styles */
 .workflow-node.is-parent {
-  min-width: 140px;
-  padding: 10px 14px;
+  min-width: 160px;
+  padding: 12px 16px;
   border-width: 2px;
   background: linear-gradient(to bottom, #fffbeb, #fff);
   border-color: #f59e0b;
@@ -195,18 +234,28 @@ const agentIcon = computed(() => {
   border-color: #d1d5db;
 }
 
+.workflow-node.status-failed {
+  border-color: #dc2626;
+  background: linear-gradient(to bottom, #fef2f2, #fff);
+}
+
+.workflow-node.status-rejected {
+  border-color: #f59e0b;
+  background: linear-gradient(to bottom, #fffbeb, #fff);
+}
+
 /* 状态图标 */
 .node-status-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: bold;
-  margin-bottom: 3px;
+  margin-bottom: 6px;
 }
 
 .node-status-icon .pulse {
@@ -221,42 +270,87 @@ const agentIcon = computed(() => {
 /* 节点内容 */
 .node-content {
   text-align: center;
+  width: 100%;
 }
 
 .node-name {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 2px;
-  line-height: 1.2;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+/* 角色和 Agent 并排显示 */
+.node-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  flex-wrap: wrap;
 }
 
 .node-role {
-  font-size: 9px;
   color: #6b7280;
-  margin-bottom: 2px;
+  font-weight: 500;
+}
+
+.node-separator {
+  color: #d1d5db;
 }
 
 .node-agent {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 2px;
-  font-size: 9px;
   font-weight: 500;
 }
 
 .agent-icon {
+  font-size: 12px;
+}
+
+.node-progress {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 4px;
+  padding: 2px 6px;
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+/* 打回原因样式 */
+.node-rejected-reason {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  color: #dc2626;
+  margin-top: 4px;
+  padding: 2px 6px;
+  background: #fef2f2;
+  border-radius: 4px;
+  border: 1px solid #fecaca;
+}
+
+.reason-icon {
   font-size: 10px;
 }
 
+.reason-text {
+  font-weight: 500;
+}
+
 .node-duration {
-  font-size: 8px;
+  font-size: 10px;
   color: #10b981;
-  margin-top: 3px;
-  padding: 1px 3px;
+  margin-top: 4px;
+  padding: 2px 6px;
   background: #d1fae5;
-  border-radius: 3px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
 /* 当前标记 */
@@ -267,10 +361,10 @@ const agentIcon = computed(() => {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 5px;
+  padding: 2px 6px;
   background: #3b82f6;
   color: #fff;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 500;
   border-radius: 7px;
 }
@@ -282,16 +376,32 @@ const agentIcon = computed(() => {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 5px;
+  padding: 2px 6px;
   background: #f59e0b;
   color: #fff;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 500;
   border-radius: 6px;
 }
 
 .parent-icon {
+  font-size: 10px;
+}
+
+/* 打回标记 */
+.rejected-badge {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #dc2626;
+  color: #fff;
   font-size: 9px;
+  font-weight: 500;
+  border-radius: 7px;
 }
 
 .pulse-dot {
@@ -309,15 +419,15 @@ const agentIcon = computed(() => {
 
 /* 操作按钮 */
 .action-buttons {
-  margin-top: 6px;
+  margin-top: 8px;
   display: flex;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .action-btn {
-  padding: 3px 8px;
-  font-size: 9px;
+  padding: 4px 10px;
+  font-size: 11px;
   font-weight: 500;
   border: none;
   border-radius: 4px;
