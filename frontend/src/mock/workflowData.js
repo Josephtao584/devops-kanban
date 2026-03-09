@@ -81,6 +81,10 @@ export const mockWorkflows = [
           agentType: "CLAUDE",
           agentName: "Claude Lead",
           status: "DONE",
+          messages: [
+            { id: 1, from: "user", content: "Please coordinate the OAuth backend implementation, ensure both GitHub and Google integrations follow security best practices." },
+            { id: 2, from: "assistant", content: "Coordinating OAuth implementation. Assigned GitHub OAuth to Codex and Google OAuth to Gemini. Setting up unified callback endpoints and token management." }
+          ]
         },
         nodes: [
           {
@@ -92,7 +96,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 30,
             task: { id: 1, title: "GitHub OAuth 集成", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Implement GitHub OAuth authentication with scope: user:email." },
+              { id: 2, from: "assistant", content: "GitHub OAuth implemented. Created /auth/github/callback endpoint, JWT token generation, and user session management." }
+            ]
           },
           {
             id: 3,
@@ -103,7 +110,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 25,
             task: { id: 1, title: "Google OAuth 集成", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Implement Google OAuth with OpenID Connect, request email and profile scopes." },
+              { id: 2, from: "assistant", content: "Google OAuth completed. Integrated google-auth-library, verified ID tokens, and created unified user model." }
+            ]
           }
         ]
       },
@@ -121,7 +131,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 12,
             task: { id: 1, title: "代码审查", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Review OAuth implementation for security vulnerabilities and code quality." },
+              { id: 2, from: "assistant", content: "Code review passed. Verified: 1) PKCE flow for CSRF protection, 2) Secure token storage, 3) Input validation on callbacks. LGTM." }
+            ]
           }
         ]
       },
@@ -139,7 +152,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 10,
             task: { id: 1, title: "OAuth 功能测试", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Test OAuth login flow end-to-end, including edge cases." },
+              { id: 2, from: "assistant", content: "All tests passed: happy path, expired tokens, revoked access, and concurrent sessions. Ready for production." }
+            ]
           }
         ]
       }
@@ -168,7 +184,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 15,
             task: { id: 2, title: "慢查询分析", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Analyze slow query log and identify performance bottlenecks." },
+              { id: 2, from: "assistant", content: "Found 3 slow queries: 1) Missing index on user_email (avg 2.3s), 2) N+1 in task lookup, 3) Full table scan on status filter. Recommending indexes and query refactoring." }
+            ]
           }
         ]
       },
@@ -184,7 +203,10 @@ export const mockWorkflows = [
           agentType: "CLAUDE",
           agentName: "Claude Lead",
           status: "IN_PROGRESS",
-          messages: []
+          messages: [
+            { id: 1, from: "user", content: "Review optimization plan and coordinate implementation." },
+            { id: 2, from: "assistant", content: "Split optimization into parallel tasks: Index optimization (Gemini) and SQL refactoring (Codex). Setting up performance benchmarks for validation." }
+          ]
         },
         nodes: [
           {
@@ -196,7 +218,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 10,
             task: { id: 2, title: "索引优化", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Create indexes for user_email, task_status, and project_id columns." },
+              { id: 2, from: "assistant", content: "Indexes created: idx_user_email, idx_task_status, idx_project_id. Query time reduced by 78% on average." }
+            ]
           },
           {
             id: 8,
@@ -206,7 +231,10 @@ export const mockWorkflows = [
             agentName: "Codex SQL",
             status: "IN_PROGRESS",
             task: { id: 2, title: "SQL 重构", status: "IN_PROGRESS" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Refactor N+1 queries using JOIN and eager loading." },
+              { id: 2, from: "assistant", content: "Refactored task queries with JOIN, eliminated N+1 issue. Currently optimizing the complex status filter query..." }
+            ]
           }
         ]
       },
@@ -259,7 +287,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 8,
             task: { id: 4, title: "Bug 复现与分析", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Reproduce the pagination bug when data is empty." },
+              { id: 2, from: "assistant", content: "Bug reproduced: Pagination component shows '0 of 0' and disabled prev/next buttons when data array is empty. Expected: Show 'No data' message." }
+            ]
           }
         ]
       },
@@ -277,7 +308,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 12,
             task: { id: 4, title: "分页组件修复", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Fix pagination component to handle empty data case properly." },
+              { id: 2, from: "assistant", content: "Fixed: Added v-if condition to show 'No data' placeholder when totalCount === 0. Pagination controls hidden for empty state." }
+            ]
           }
         ]
       },
@@ -296,7 +330,10 @@ export const mockWorkflows = [
             duration: 6,
             rejectedReason: "代码规范问题",
             task: { id: 4, title: "代码审查", status: "REJECTED" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Review the pagination fix for code quality and standards." },
+              { id: 2, from: "assistant", content: "REJECTED: Code style violations found - missing PropTypes, inconsistent naming (camelCase vs snake_case), and no unit tests. Please fix and resubmit." }
+            ]
           }
         ]
       },
@@ -314,8 +351,18 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 8,
             task: { id: 4, title: "规范修正", status: "DONE" },
-            messages: []
-          },
+            messages: [
+              { id: 1, from: "user", content: "Fix code style issues: add PropTypes, follow naming convention, add tests." },
+              { id: 2, from: "assistant", content: "Fixed: Added PropTypes validation, renamed variables to camelCase, added 5 unit tests covering empty/normal/edge cases." }
+            ]
+          }
+        ]
+      },
+      {
+        id: "task4-stage-5",
+        name: "Committer 审批",
+        order: 5,
+        nodes: [
           {
             id: 45,
             name: "Committer 审批",
@@ -325,14 +372,17 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 5,
             task: { id: 4, title: "Committer 审批", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Approve the pagination fix for merge." },
+              { id: 2, from: "assistant", content: "APPROVED: All code standards met, tests passing. Ready to merge into main branch." }
+            ]
           }
         ]
       },
       {
-        id: "task4-stage-5",
+        id: "task4-stage-6",
         name: "验证测试",
-        order: 5,
+        order: 6,
         nodes: [
           {
             id: 43,
@@ -344,14 +394,17 @@ export const mockWorkflows = [
             duration: 10,
             rejectedReason: "测试用例覆盖不足",
             task: { id: 4, title: "回归测试", status: "REJECTED" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Run regression tests for pagination component." },
+              { id: 2, from: "assistant", content: "REJECTED: Test coverage insufficient - missing edge cases for boundary values (page 1, last page) and rapid page switching. Need additional test scenarios." }
+            ]
           }
         ]
       },
       {
-        id: "task4-stage-6",
+        id: "task4-stage-7",
         name: "补充测试",
-        order: 6,
+        order: 7,
         nodes: [
           {
             id: 16,
@@ -361,14 +414,17 @@ export const mockWorkflows = [
             agentName: "Claude Test",
             status: "IN_PROGRESS",
             task: { id: 4, title: "补充测试", status: "IN_PROGRESS" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Add comprehensive test cases for pagination edge cases." },
+              { id: 2, from: "assistant", content: "Adding tests for: boundary pages, rapid switching, page size changes, and empty-to-data transitions. Currently running..." }
+            ]
           }
         ]
       },
       {
-        id: "task4-stage-7",
+        id: "task4-stage-8",
         name: "发布上线",
-        order: 7,
+        order: 8,
         nodes: [
           {
             id: 44,
@@ -412,7 +468,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 20,
             task: { id: 6, title: "代码债务分析", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Analyze user module code debt and identify refactoring opportunities." },
+              { id: 2, from: "assistant", content: "Analysis complete: 1) UserService has 800+ lines (SRP violation), 2) Tight coupling with auth logic, 3) Test coverage only 45%. Recommend: Extract AuthService, add integration tests." }
+            ]
           }
         ]
       },
@@ -428,7 +487,10 @@ export const mockWorkflows = [
           agentType: "CLAUDE",
           agentName: "Claude Lead",
           status: "DONE",
-          messages: []
+          messages: [
+            { id: 1, from: "user", content: "Coordinate parallel refactoring: service extraction and test coverage." },
+            { id: 2, from: "assistant", content: "Coordinating parallel tasks: Codex extracting AuthService (35min), Gemini adding tests (30min). Setting up CI pipeline for validation." }
+          ]
         },
         nodes: [
           {
@@ -440,7 +502,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 35,
             task: { id: 6, title: "服务拆分", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Extract AuthService from UserService, follow single responsibility principle." },
+              { id: 2, from: "assistant", content: "AuthService extracted: login, logout, token refresh moved. UserService now handles only user CRUD. Updated all 12 import references." }
+            ]
           },
           {
             id: 52,
@@ -451,7 +516,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 30,
             task: { id: 6, title: "测试补充", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Increase test coverage for user module to 80%+." },
+              { id: 2, from: "assistant", content: "Added 25 unit tests + 8 integration tests. Coverage increased from 45% to 87%. All tests passing." }
+            ]
           }
         ]
       },
@@ -470,7 +538,10 @@ export const mockWorkflows = [
             duration: 15,
             rejectedReason: "重构不彻底，遗留技术债务",
             task: { id: 6, title: "重构 Review", status: "REJECTED" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Review the user module refactoring." },
+              { id: 2, from: "assistant", content: "REJECTED: Refactoring incomplete - UserRepository still has business logic, and UserDTO duplication exists. Please consolidate repository layer and remove duplicate DTOs." }
+            ]
           }
         ]
       },
@@ -487,7 +558,10 @@ export const mockWorkflows = [
             agentName: "Codex Refactor",
             status: "IN_PROGRESS",
             task: { id: 6, title: "完善重构", status: "IN_PROGRESS" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Move business logic from UserRepository to Service layer, consolidate DTOs." },
+              { id: 2, from: "assistant", content: "Refactoring in progress: Moved validation logic to UserService, removed UserDTO duplication by creating BaseUser DTO. 80% complete..." }
+            ]
           }
         ]
       },
@@ -555,7 +629,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 25,
             task: { id: 7, title: "安全审计", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Perform security audit for XSS vulnerabilities in user input fields." },
+              { id: 2, from: "assistant", content: "Critical XSS found: 1) Comment form doesn't sanitize HTML, 2) User bio field vulnerable to stored XSS, 3) Search query reflected without encoding. CVSS score: 7.5 (High)." }
+            ]
           }
         ]
       },
@@ -573,7 +650,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 20,
             task: { id: 7, title: "XSS 修复", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Fix XSS vulnerabilities with proper input sanitization and output encoding." },
+              { id: 2, from: "assistant", content: "Fixed: Added DOMPurify for HTML sanitization, implemented output encoding with vue-escape-html, added CSP headers. All 3 XSS vectors patched." }
+            ]
           }
         ]
       },
@@ -592,7 +672,10 @@ export const mockWorkflows = [
             duration: 30,
             rejectedReason: "修复方案引入新问题",
             task: { id: 7, title: "渗透测试", status: "REJECTED" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Perform penetration testing to verify XSS fixes." },
+              { id: 2, from: "assistant", content: "REJECTED: Fix introduced regression - DOMPurify is too aggressive, stripping legitimate rich text formatting in comments. Need balanced approach with whitelist tags." }
+            ]
           }
         ]
       },
@@ -609,7 +692,10 @@ export const mockWorkflows = [
             agentName: "Cursor Security",
             status: "IN_PROGRESS",
             task: { id: 7, title: "修复优化", status: "IN_PROGRESS" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Refine XSS fix with tag whitelist to preserve legitimate formatting." },
+              { id: 2, from: "assistant", content: "Optimizing: Configured DOMPurify with ALLOWED_TAGS whitelist (b, i, em, code), keeping dangerous tags blocked (script, iframe, object). Testing..." }
+            ]
           }
         ]
       },
@@ -692,7 +778,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 15,
             task: { id: 8, title: "前端性能分析", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Analyze frontend performance bottlenecks using Lighthouse and Chrome DevTools." },
+              { id: 2, from: "assistant", content: "Analysis complete: Lighthouse score 62. Issues: 1) Large bundle size (1.2MB), 2) No code splitting, 3) Unoptimized images (450KB), 4) Render-blocking CSS. FCP: 3.2s, LCP: 4.1s." }
+            ]
           }
         ]
       },
@@ -708,7 +797,10 @@ export const mockWorkflows = [
           agentType: "CLAUDE",
           agentName: "Claude Lead",
           status: "IN_PROGRESS",
-          messages: []
+          messages: [
+            { id: 1, from: "user", content: "Implement performance optimizations in parallel tasks." },
+            { id: 2, from: "assistant", content: "Coordinating parallel optimizations: Cursor implementing code splitting, Gemini optimizing assets. Target: Lighthouse score 90+." }
+          ]
         },
         nodes: [
           {
@@ -720,7 +812,10 @@ export const mockWorkflows = [
             status: "DONE",
             duration: 15,
             task: { id: 8, title: "代码分割优化", status: "DONE" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Implement route-based code splitting with dynamic imports." },
+              { id: 2, from: "assistant", content: "Code splitting done: Split vendor chunks, lazy-loaded routes (Admin, Dashboard, Settings). Bundle reduced from 1.2MB to 380KB initial load." }
+            ]
           },
           {
             id: 23,
@@ -730,7 +825,10 @@ export const mockWorkflows = [
             agentName: "Gemini Assets",
             status: "IN_PROGRESS",
             task: { id: 8, title: "资源加载优化", status: "IN_PROGRESS" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Optimize images and implement lazy loading for assets." },
+              { id: 2, from: "assistant", content: "Optimizing: Converted images to WebP (60% smaller), added lazy loading with IntersectionObserver, preloaded critical CSS. Progress: 70%..." }
+            ]
           }
         ]
       },

@@ -65,6 +65,51 @@
           </template>
         </svg>
 
+        <!-- 正向流程连接线层 -->
+        <svg class="forward-connectors" v-if="hasForwardConnectors">
+          <defs>
+            <marker
+              id="forward-arrowhead"
+              markerWidth="10"
+              markerHeight="7"
+              refX="9"
+              refY="3.5"
+              orient="auto"
+            >
+              <polygon points="0 0, 10 3.5, 0 7" fill="#9ca3af" />
+            </marker>
+          </defs>
+          <!-- 开始节点到第一个阶段的连接线 -->
+          <path
+            v-if="sortedStages.length > 0"
+            :d="getForwardPath('start', sortedStages[0].id)"
+            stroke="#9ca3af"
+            stroke-width="2"
+            fill="none"
+            marker-end="url(#forward-arrowhead)"
+          />
+          <!-- 阶段间的连接线 -->
+          <template v-for="(stage, index) in sortedStages" :key="'forward-' + stage.id">
+            <path
+              v-if="index < sortedStages.length - 1"
+              :d="getForwardPath(stage.id, sortedStages[index + 1].id)"
+              stroke="#9ca3af"
+              stroke-width="2"
+              fill="none"
+              marker-end="url(#forward-arrowhead)"
+            />
+          </template>
+          <!-- 最后一个阶段到结束节点的连接线 -->
+          <path
+            v-if="sortedStages.length > 0"
+            :d="getForwardPath(sortedStages[sortedStages.length - 1].id, 'end')"
+            stroke="#9ca3af"
+            stroke-width="2"
+            fill="none"
+            marker-end="url(#forward-arrowhead)"
+          />
+        </svg>
+
         <div class="timeline-stages">
           <!-- 开始节点 -->
           <div class="stage-container origin-stage">
@@ -73,10 +118,6 @@
                 <span class="origin-icon">▶</span>
               </div>
               <span class="origin-label">开始</span>
-            </div>
-            <!-- 连接到第一个阶段的箭头 -->
-            <div v-if="sortedStages.length > 0" class="stage-connector">
-              <div class="connector-arrow">→</div>
             </div>
           </div>
 
@@ -144,10 +185,7 @@
                 </svg>
               </div>
 
-              <!-- 阶段间连接线 -->
-              <div v-if="stageIndex < sortedStages.length - 1" class="stage-connector">
-                <div class="connector-arrow">→</div>
-              </div>
+              <!-- 阶段间连接线已移除，改用 SVG 绘制 -->
             </div>
           </template>
 
@@ -159,10 +197,6 @@
               </div>
               <span class="origin-label">结束</span>
             </div>
-            <!-- 从最后一个阶段连接到结束节点的箭头 - 显示在结束节点下方 -->
-            <div v-if="sortedStages.length > 0" class="stage-connector">
-              <div class="connector-arrow">→</div>
-            </div>
           </div>
         </div>
       </div>
@@ -172,7 +206,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
@@ -213,6 +247,11 @@ const rollbackEdges = computed(() => {
 // Check if workflow has rollback edges
 const hasRollbackEdges = computed(() => {
   return rollbackEdges.value.length > 0
+})
+
+// Check if there are forward connectors to render
+const hasForwardConnectors = computed(() => {
+  return sortedStages.value.length > 0
 })
 
 // 判断工作流是否处于待运行状态（所有节点都是 PENDING 或 TODO）
@@ -346,24 +385,20 @@ const getNodePosition = (nodeId) => {
 }
 
 // Get folded path for rollback arrow (from back to front)
-// Uses a rectangular path: up → left → down
+// Uses a cubic Bezier curve for smooth, controlled path
 const getRollbackPath = (fromId, toId) => {
   const from = getNodePosition(fromId)
   const to = getNodePosition(toId)
 
-  // Calculate the horizontal distance (from right to left)
-  const horizontalDistance = from.x - to.x
-  const verticalOffset = 50 // Height of the rollback path
+  // Dynamic vertical offset based on horizontal distance, capped at 40px
+  const horizontalDistance = Math.abs(from.x - to.x)
+  const verticalOffset = Math.min(40, horizontalDistance / 3)
 
-  // Create a folded path: start from bottom of 'from' node
-  // Go up, then left, then down to 'to' node
-  // Path: from(x,y) → up → left → down → to(x,y)
+  // Use cubic Bezier curve: start from bottom of 'from' node, curve up and back to 'to' node
+  // Path: M(from.x, from.y + 30) C(from.x, from.y - verticalOffset) (to.x, to.y - verticalOffset) (to.x, to.y - 20)
   const path = [
-    `M ${from.x} ${from.y + 30}`, // Start from bottom of 'from' node
-    `L ${from.x} ${from.y - verticalOffset}`, // Go up
-    `L ${to.x - 30} ${from.y - verticalOffset}`, // Go left (past the 'to' node)
-    `L ${to.x - 30} ${to.y - 20}`, // Go down to top of 'to' node
-    `L ${to.x} ${to.y - 20}` // Connect to 'to' node
+    `M ${from.x} ${from.y + 30}`,  // Start from bottom of 'from' node
+    `C ${from.x} ${from.y - verticalOffset}, ${to.x} ${to.y - verticalOffset}, ${to.x} ${to.y - 20}`
   ].join(' ')
 
   return path
@@ -374,9 +409,11 @@ const getRollbackTextPosition = (fromId, toId) => {
   const from = getNodePosition(fromId)
   const to = getNodePosition(toId)
 
-  const verticalOffset = 50
+  // Use the same dynamic vertical offset as getRollbackPath
+  const horizontalDistance = Math.abs(from.x - to.x)
+  const verticalOffset = Math.min(40, horizontalDistance / 3)
 
-  // Position text in the middle of the horizontal segment
+  // Position text at the midpoint of the Bezier curve
   const midX = (from.x + to.x) / 2
   const y = from.y - verticalOffset - 8
 
@@ -387,6 +424,62 @@ const getRollbackTextPosition = (fromId, toId) => {
 const resetNodePositions = () => {
   nodePositions.value = {}
 }
+
+// Get forward connector path between two points
+// fromId/toId can be: 'start', 'end', or a stage ID
+const getForwardPath = (fromId, toId) => {
+  const from = getNodeEndpoint(fromId)
+  const to = getNodeEndpoint(toId)
+
+  // Simple straight line from right of 'from' to left of 'to'
+  return `M ${from.x} ${from.y} L ${to.x} ${to.y}`
+}
+
+// Get the endpoint coordinates for a node/stage
+// Returns {x, y} position relative to the timeline container
+const getNodeEndpoint = (id) => {
+  if (id === 'start') {
+    // Start node: right edge of the start circle
+    // Start node is at the leftmost position, y centered at 18px (36px circle / 2)
+    return { x: 40, y: 18 } // Right edge of 36px circle + small offset
+  }
+
+  if (id === 'end') {
+    // End node: left edge of the end circle
+    // Calculate position based on number of stages
+    const stageCount = sortedStages.value.length
+    const stageWidth = 170 // Approximate stage width including gap
+    const totalWidth = stageCount * stageWidth + 40
+    return { x: totalWidth, y: 18 } // Left edge of end circle
+  }
+
+  // For stage IDs, find the stage and calculate position
+  const stageIndex = sortedStages.value.findIndex(s => s.id === id)
+  if (stageIndex === -1) return { x: 0, y: 0 }
+
+  const stage = sortedStages.value[stageIndex]
+  const stageWidth = 170 // Approximate stage width including gap
+  const nodeHeight = 85 // Approximate node height
+  const nodeGap = 8
+
+  // Calculate based on number of nodes in the stage
+  const nodeCount = stage.nodes?.length || 1
+
+  // Calculate center Y based on number of nodes
+  const totalHeight = nodeCount * nodeHeight + (nodeCount - 1) * nodeGap
+  const centerY = totalHeight / 2
+
+  // X position: right edge of the stage (stage center + half width)
+  const stageCenterX = stageIndex * stageWidth + 85 + 40 // Offset for start node
+  const stageRightX = stageCenterX + 60
+
+  return { x: stageRightX, y: centerY + 10 } // Right side of current stage
+}
+
+// Recalculate positions when workflow or stages change
+watch(() => props.workflow, () => {
+  resetNodePositions()
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -611,19 +704,6 @@ const resetNodePositions = () => {
   gap: 12px;
 }
 
-/* 阶段连接器 */
-.stage-connector {
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  align-self: center;
-}
-
-.connector-arrow {
-  font-size: 16px;
-  color: var(--text-muted, #9ca3af);
-}
-
 /* 滚动条样式 */
 .timeline-container::-webkit-scrollbar {
   height: 6px;
@@ -673,6 +753,19 @@ const resetNodePositions = () => {
   min-height: 300px;
   pointer-events: none;
   z-index: 10;
+  overflow: visible;
+}
+
+/* 正向流程连接线 SVG 层 */
+.forward-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  pointer-events: none;
+  z-index: 5;
   overflow: visible;
 }
 
