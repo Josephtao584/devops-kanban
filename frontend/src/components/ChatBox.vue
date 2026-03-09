@@ -76,7 +76,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Monitor, Computer, Edit, Cpu } from '@element-plus/icons-vue'
+import { Monitor, VideoPlay, Edit, Cpu } from '@element-plus/icons-vue'
 import DevTools from './DevTools.vue'
 import SessionHeader from './session/SessionHeader.vue'
 import SessionControls from './session/SessionControls.vue'
@@ -95,7 +95,7 @@ const { t } = useI18n()
 // Icon mapping for agent types
 const agentIconMap = {
   Monitor,
-  Computer,
+  VideoPlay,
   Edit,
   Cpu
 }
