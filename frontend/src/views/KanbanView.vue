@@ -1290,7 +1290,8 @@ const getStatusClass = (status) => {
   const classes = {
     TODO: 'status-todo',
     IN_PROGRESS: 'status-in-progress',
-    DONE: 'status-done'
+    DONE: 'status-done',
+    BLOCKED: 'status-blocked'
   }
   return classes[status] || 'status-todo'
 }
@@ -1821,8 +1822,8 @@ onUnmounted(() => {
 .kanban-area {
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-width: 0;
+  overflow-x: auto; /* 允许横向滚动 */
 }
 
 /* Override WorkflowTimeline margin to fit in kanban-area */
