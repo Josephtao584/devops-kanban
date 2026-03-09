@@ -176,6 +176,9 @@ import { Refresh, Lightning } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
 import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
 
+// Unified center Y axis for all connection points
+const CENTER_Y = 100 // 统一的中心 Y 轴位置
+
 const props = defineProps({
   workflow: {
     type: Object,
@@ -543,7 +546,7 @@ onMounted(() => {
 
 .timeline-stages {
   display: flex;
-  align-items: flex-start;
+  align-items: center; /* 改为中心对齐，让所有阶段容器垂直居中 */
   gap: 40px; /* 阶段间距，用于放置箭头 */
 }
 
@@ -552,6 +555,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center; /* 新增：内容垂直居中 */
   position: relative;
   padding: 0 6px;
 }
@@ -559,6 +563,9 @@ onMounted(() => {
 /* 原点阶段容器（开始/结束） */
 .stage-container.origin-stage {
   min-width: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 原点节点（开始/结束） */

@@ -1994,8 +1994,8 @@ onUnmounted(() => {
 
 .task-card-title {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: #1f2937;
   line-height: 1.4;
   flex: 1;
   word-break: break-word;
