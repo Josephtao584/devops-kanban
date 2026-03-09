@@ -29,42 +29,6 @@
     <!-- 节点时间线 - 按阶段展示 -->
     <div class="timeline-container" ref="containerRef">
       <div class="timeline-scroll" style="position: relative;">
-        <!-- 失败打回箭头层 -->
-        <svg class="rollback-arrows" v-if="hasRollbackEdges">
-          <defs>
-            <marker
-              id="rollback-arrowhead"
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
-            </marker>
-          </defs>
-          <template v-for="edge in rollbackEdges" :key="`rollback-${edge.fromId}-${edge.toId}`">
-            <path
-              :d="getRollbackPath(edge.fromId, edge.toId)"
-              stroke="#dc2626"
-              stroke-width="2"
-              stroke-dasharray="5,5"
-              fill="none"
-              marker-end="url(#rollback-arrowhead)"
-            />
-            <text
-              :x="getRollbackTextPosition(edge.fromId, edge.toId).x"
-              :y="getRollbackTextPosition(edge.fromId, edge.toId).y"
-              fill="#dc2626"
-              font-size="10"
-              text-anchor="middle"
-              class="rollback-reason"
-            >
-              {{ edge.reason }}
-            </text>
-          </template>
-        </svg>
-
         <!-- 正向流程连接线层 -->
         <svg class="forward-connectors" v-if="hasForwardConnectors">
           <defs>
@@ -210,7 +174,7 @@ import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
-import { nodeStatusConfig, getWorkflowProgress, getAllNodes, getRollbackEdges } from '@/mock/workflowData'
+import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
 
 const props = defineProps({
   workflow: {
@@ -242,17 +206,6 @@ const sortedStages = computed(() => {
 
 const progress = computed(() => {
   return getWorkflowProgress(props.workflow)
-})
-
-// Get rollback edges from workflow
-const rollbackEdges = computed(() => {
-  if (!props.workflow) return []
-  return getRollbackEdges(props.workflow)
-})
-
-// Check if workflow has rollback edges
-const hasRollbackEdges = computed(() => {
-  return rollbackEdges.value.length > 0
 })
 
 // Check if there are forward connectors to render
@@ -388,42 +341,6 @@ const getNodePosition = (nodeId) => {
 
   nodePositions.value[nodeId] = { x, y }
   return { x, y }
-}
-
-// Get folded path for rollback arrow (from back to front)
-// Uses a cubic Bezier curve for smooth, controlled path
-const getRollbackPath = (fromId, toId) => {
-  const from = getNodePosition(fromId)
-  const to = getNodePosition(toId)
-
-  // Dynamic vertical offset based on horizontal distance, capped at 40px
-  const horizontalDistance = Math.abs(from.x - to.x)
-  const verticalOffset = Math.min(40, horizontalDistance / 3)
-
-  // Use cubic Bezier curve: start from bottom of 'from' node, curve up and back to 'to' node
-  // Path: M(from.x, from.y + 30) C(from.x, from.y - verticalOffset) (to.x, to.y - verticalOffset) (to.x, to.y - 20)
-  const path = [
-    `M ${from.x} ${from.y + 30}`,  // Start from bottom of 'from' node
-    `C ${from.x} ${from.y - verticalOffset}, ${to.x} ${to.y - verticalOffset}, ${to.x} ${to.y - 20}`
-  ].join(' ')
-
-  return path
-}
-
-// Get text position for rollback reason
-const getRollbackTextPosition = (fromId, toId) => {
-  const from = getNodePosition(fromId)
-  const to = getNodePosition(toId)
-
-  // Use the same dynamic vertical offset as getRollbackPath
-  const horizontalDistance = Math.abs(from.x - to.x)
-  const verticalOffset = Math.min(40, horizontalDistance / 3)
-
-  // Position text at the midpoint of the Bezier curve
-  const midX = (from.x + to.x) / 2
-  const y = from.y - verticalOffset - 8
-
-  return { x: midX, y: y }
 }
 
 // Reset node positions cache when workflow changes
@@ -797,19 +714,6 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-/* 失败打回箭头 SVG 层 */
-.rollback-arrows {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 300px;
-  pointer-events: none;
-  z-index: 10;
-  overflow: visible;
-}
-
 /* 正向流程连接线 SVG 层 */
 .forward-connectors {
   position: absolute;
@@ -821,22 +725,6 @@ onMounted(() => {
   pointer-events: none;
   z-index: 5;
   overflow: visible;
-}
-
-.rollback-arrows path {
-  animation: dash-animation 1s linear infinite;
-}
-
-@keyframes dash-animation {
-  to {
-    stroke-dashoffset: -10;
-  }
-}
-
-.rollback-reason {
-  font-weight: 600;
-  fill: #dc2626;
-  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
 }
 
 .timeline-scroll {
