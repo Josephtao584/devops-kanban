@@ -1,5 +1,8 @@
 <template>
   <div class="workflow-timeline">
+    <!-- Workflow标签 -->
+    <span class="workflow-label">WORKFLOW</span>
+
     <!-- 工作流标题区 -->
     <div class="workflow-header">
       <div class="workflow-title">
@@ -195,7 +198,7 @@ const isWorkflowPending = computed(() => {
 const handleStartWorkflow = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要启动此工作流吗？这将开始执行所有任务节点。',
+      '确定要启动此工作流吗？系统将按顺序执行各阶段任务节点。',
       '启动工作流',
       {
         confirmButtonText: '确定',
