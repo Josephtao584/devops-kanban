@@ -165,6 +165,7 @@ const agentIcon = computed(() => {
   align-items: center;
   padding: 12px 16px;
   min-width: 140px;
+  height: 100%;
   background: #fff;
   border-radius: 8px;
   border: 2px solid #e5e7eb;
@@ -434,10 +435,12 @@ const agentIcon = computed(() => {
 
 /* 操作按钮 */
 .action-buttons {
-  margin-top: 8px;
+  margin-top: auto;
   display: flex;
   justify-content: center;
   gap: 6px;
+  padding-top: 8px;
+  width: 100%;
 }
 
 .action-btn {
