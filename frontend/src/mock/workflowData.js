@@ -752,6 +752,170 @@ export const mockWorkflows = [
         ]
       }
     ]
+  },
+
+  // ========== 任务 3: 添加任务导出功能 (TODO) - 功能开发流程 ==========
+  {
+    id: 3,
+    name: "任务导出功能开发",
+    taskId: 3,
+    projectId: 1,
+    currentNodeId: null,
+    stages: [
+      {
+        id: "task3-stage-1",
+        name: "需求分析",
+        order: 1,
+        nodes: [
+          {
+            id: 31,
+            name: "导出方案设计",
+            role: "产品经理",
+            agentType: "CLAUDE",
+            agentName: "Claude PM",
+            status: "PENDING",
+            task: { id: 3, title: "导出功能需求分析", status: "TODO" },
+            messages: []
+          }
+        ]
+      },
+      {
+        id: "task3-stage-2",
+        name: "开发实施",
+        order: 2,
+        parallel: true,
+        parentNode: {
+          id: "parent-task3-stage-2",
+          name: "开发实施",
+          role: "Tech Lead",
+          agentType: "CLAUDE",
+          agentName: "Claude Lead",
+          status: "PENDING",
+          messages: []
+        },
+        nodes: [
+          {
+            id: 32,
+            name: "Excel 导出",
+            role: "后端开发",
+            agentType: "CODEX",
+            agentName: "Codex Export",
+            status: "PENDING",
+            task: { id: 3, title: "Excel 导出功能", status: "TODO" },
+            messages: []
+          },
+          {
+            id: 33,
+            name: "PDF 导出",
+            role: "后端开发",
+            agentType: "CODEX",
+            agentName: "Codex PDF",
+            status: "PENDING",
+            task: { id: 3, title: "PDF 导出功能", status: "TODO" },
+            messages: []
+          }
+        ]
+      },
+      {
+        id: "task3-stage-3",
+        name: "测试验证",
+        order: 3,
+        nodes: [
+          {
+            id: 34,
+            name: "功能测试",
+            role: "测试工程师",
+            agentType: "CLAUDE",
+            agentName: "Claude QA",
+            status: "PENDING",
+            task: { id: 3, title: "导出功能测试", status: "TODO" },
+            messages: []
+          }
+        ]
+      }
+    ]
+  },
+
+  // ========== 任务 5: 集成消息通知服务 (TODO) - 第三方集成流程 ==========
+  {
+    id: 5,
+    name: "消息通知集成",
+    taskId: 5,
+    projectId: 1,
+    currentNodeId: null,
+    stages: [
+      {
+        id: "task5-stage-1",
+        name: "方案调研",
+        order: 1,
+        nodes: [
+          {
+            id: 51,
+            name: "通知服务调研",
+            role: "架构师",
+            agentType: "CLAUDE",
+            agentName: "Claude Architect",
+            status: "PENDING",
+            task: { id: 5, title: "通知服务技术选型", status: "TODO" },
+            messages: []
+          }
+        ]
+      },
+      {
+        id: "task5-stage-2",
+        name: "集成开发",
+        order: 2,
+        parallel: true,
+        parentNode: {
+          id: "parent-task5-stage-2",
+          name: "集成开发",
+          role: "Tech Lead",
+          agentType: "CLAUDE",
+          agentName: "Claude Lead",
+          status: "PENDING",
+          messages: []
+        },
+        nodes: [
+          {
+            id: 52,
+            name: "企业微信集成",
+            role: "后端开发",
+            agentType: "CODEX",
+            agentName: "Codex Integration",
+            status: "PENDING",
+            task: { id: 5, title: "企业微信机器人集成", status: "TODO" },
+            messages: []
+          },
+          {
+            id: 53,
+            name: "钉钉集成",
+            role: "后端开发",
+            agentType: "CODEX",
+            agentName: "Codex DingTalk",
+            status: "PENDING",
+            task: { id: 5, title: "钉钉机器人集成", status: "TODO" },
+            messages: []
+          }
+        ]
+      },
+      {
+        id: "task5-stage-3",
+        name: "测试上线",
+        order: 3,
+        nodes: [
+          {
+            id: 54,
+            name: "集成测试",
+            role: "测试工程师",
+            agentType: "CLAUDE",
+            agentName: "Claude QA",
+            status: "PENDING",
+            task: { id: 5, title: "通知功能测试", status: "TODO" },
+            messages: []
+          }
+        ]
+      }
+    ]
   }
 ]
 

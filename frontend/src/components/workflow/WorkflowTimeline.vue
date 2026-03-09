@@ -153,15 +153,15 @@
 
           <!-- 结束节点 -->
           <div class="stage-container origin-stage">
-            <!-- 从最后一个阶段连接到结束节点的箭头 -->
-            <div v-if="sortedStages.length > 0" class="stage-connector">
-              <div class="connector-arrow">→</div>
-            </div>
             <div class="origin-node end-node">
               <div class="origin-circle">
                 <span class="origin-icon">✓</span>
               </div>
               <span class="origin-label">结束</span>
+            </div>
+            <!-- 从最后一个阶段连接到结束节点的箭头 - 显示在结束节点下方 -->
+            <div v-if="sortedStages.length > 0" class="stage-connector">
+              <div class="connector-arrow">→</div>
             </div>
           </div>
         </div>

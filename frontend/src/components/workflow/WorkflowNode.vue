@@ -268,7 +268,8 @@ const agentIcon = computed(() => {
   color: #fff;
   font-size: 11px;
   font-weight: bold;
-  margin-bottom: 6px;
+  order: 1;
+  margin: 8px 0;
 }
 
 .node-status-icon .pulse {
@@ -284,6 +285,7 @@ const agentIcon = computed(() => {
 .node-content {
   text-align: center;
   width: 100%;
+  order: 2;
 }
 
 .node-name {
