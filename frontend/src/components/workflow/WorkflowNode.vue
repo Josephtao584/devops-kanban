@@ -303,9 +303,8 @@ const agentIcon = computed(() => {
   color: #1f2937;
   margin-bottom: 6px;
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
   width: 100%;
 }
 
@@ -326,7 +325,7 @@ const agentIcon = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 70px;
+  max-width: 80px;
 }
 
 .node-separator {
@@ -339,10 +338,8 @@ const agentIcon = computed(() => {
   align-items: center;
   gap: 2px;
   font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
-  max-width: 80px;
 }
 
 .agent-icon {
