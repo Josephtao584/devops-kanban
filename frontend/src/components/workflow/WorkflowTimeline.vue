@@ -286,10 +286,13 @@ const getMergePath = (index, total) => {
 const getParentNode = (stage) => {
   if (!stage.parallel || !stage.parentNode) return null
 
+  // 计算进度
+  const completedCount = stage.nodes.filter(n => n.status === 'DONE').length
+  const totalCount = stage.nodes.length
+
   // 如果父节点没有设置状态，根据子节点计算
   const parentNode = { ...stage.parentNode }
   if (!parentNode.status || parentNode.status === 'PENDING') {
-    const completedCount = stage.nodes.filter(n => n.status === 'DONE').length
     const inProgressCount = stage.nodes.filter(n => n.status === 'IN_PROGRESS').length
 
     if (completedCount === stage.nodes.length) {
@@ -299,6 +302,12 @@ const getParentNode = (stage) => {
     } else {
       parentNode.status = 'PENDING'
     }
+  }
+
+  // 添加进度属性，供 WorkflowNode 显示
+  parentNode.progress = {
+    completed: completedCount,
+    total: totalCount
   }
 
   return parentNode
@@ -721,14 +730,14 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-/* 并行阶段的节点组使用绝对定位，确保中心 Y 一致 */
-.stage-container.is-parallel .stage-nodes {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  min-height: auto; /* 移除最小高度，使用实际内容高度 */
-  z-index: 10; /* 确保节点组在其他元素之上 */
+/* 并行阶段的节点组使用 flex 布局，确保节点正确排列 */
+.stage-nodes.parallel-nodes {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
 }
 
 /* 串行阶段的节点组放在容器中心 */
@@ -808,12 +817,6 @@ onUnmounted(() => {
   gap: 6px;
   align-items: stretch;
   min-height: 140px; /* 确保至少有一个节点卡片的高度 (140px) */
-}
-
-.stage-nodes.parallel-nodes {
-  flex-direction: row;
-  gap: 12px;
-  align-items: center;
 }
 
 /* 滚动条样式 */
