@@ -25,7 +25,7 @@ export const ROLE_CONFIG = {
     name: '架构师',
     nameEn: 'Architect',
     icon: '🏗️',
-    color: '#8B5CF6',
+    gradient: 'linear-gradient(135deg, #a78bfa, #8b5cf6)',
     description: '负责系统架构设计和技术选型',
     skills: ['系统设计', '技术选型', '架构评估', '微服务设计']
   },
@@ -33,7 +33,7 @@ export const ROLE_CONFIG = {
     name: '技术负责人',
     nameEn: 'Tech Lead',
     icon: '👨‍💼',
-    color: '#F59E0B',
+    gradient: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
     description: '负责技术决策和团队协调',
     skills: ['技术决策', '代码审查', '团队协调', '技术方案设计']
   },
@@ -41,7 +41,7 @@ export const ROLE_CONFIG = {
     name: '后端开发',
     nameEn: 'Backend Developer',
     icon: '⚙️',
-    color: '#10B981',
+    gradient: 'linear-gradient(135deg, #34d399, #10b981)',
     description: '负责后端服务和 API 开发',
     skills: ['Java', 'Spring Boot', 'RESTful API', '数据库设计']
   },
@@ -49,7 +49,7 @@ export const ROLE_CONFIG = {
     name: '前端开发',
     nameEn: 'Frontend Developer',
     icon: '🎨',
-    color: '#3B82F6',
+    gradient: 'linear-gradient(135deg, #60a5fa, #3b82f6)',
     description: '负责用户界面和交互开发',
     skills: ['Vue.js', 'React', 'TypeScript', 'CSS/SCSS']
   },
@@ -57,7 +57,7 @@ export const ROLE_CONFIG = {
     name: '全栈开发',
     nameEn: 'Fullstack Developer',
     icon: '🔧',
-    color: '#6366F1',
+    gradient: 'linear-gradient(135deg, #818cf8, #6366f1)',
     description: '负责前后端全栈开发',
     skills: ['前后端开发', '数据库设计', 'API 集成', 'DevOps']
   },
@@ -65,7 +65,7 @@ export const ROLE_CONFIG = {
     name: '测试工程师',
     nameEn: 'QA Engineer',
     icon: '🔍',
-    color: '#EC4899',
+    gradient: 'linear-gradient(135deg, #f472b6, #ec4899)',
     description: '负责质量保证和测试',
     skills: ['单元测试', '集成测试', '自动化测试', '性能测试']
   },
@@ -73,7 +73,7 @@ export const ROLE_CONFIG = {
     name: '数据库管理员',
     nameEn: 'DBA',
     icon: '🗄️',
-    color: '#14B8A6',
+    gradient: 'linear-gradient(135deg, #2dd4bf, #14b8a6)',
     description: '负责数据库设计和优化',
     skills: ['SQL 优化', '数据库设计', '数据迁移', '性能调优']
   },
@@ -81,7 +81,7 @@ export const ROLE_CONFIG = {
     name: '运维工程师',
     nameEn: 'DevOps Engineer',
     icon: '🚀',
-    color: '#F97316',
+    gradient: 'linear-gradient(135deg, #fb923c, #f97316)',
     description: '负责部署和运维自动化',
     skills: ['CI/CD', 'Docker', 'Kubernetes', '云原生']
   },
@@ -89,7 +89,7 @@ export const ROLE_CONFIG = {
     name: '产品经理',
     nameEn: 'Product Manager',
     icon: '📋',
-    color: '#A855F7',
+    gradient: 'linear-gradient(135deg, #c084fc, #a855f7)',
     description: '负责产品规划和需求管理',
     skills: ['需求分析', '原型设计', '用户研究', '产品规划']
   },
@@ -97,7 +97,7 @@ export const ROLE_CONFIG = {
     name: '设计师',
     nameEn: 'Designer',
     icon: '✏️',
-    color: '#D946EF',
+    gradient: 'linear-gradient(135deg, #e879f9, #d946ef)',
     description: '负责 UI/UX 设计',
     skills: ['UI 设计', 'UX 设计', '交互设计', '视觉设计']
   },
@@ -105,7 +105,7 @@ export const ROLE_CONFIG = {
     name: '安全工程师',
     nameEn: 'Security Engineer',
     icon: '🔒',
-    color: '#EF4444',
+    gradient: 'linear-gradient(135deg, #f87171, #ef4444)',
     description: '负责安全审计和防护',
     skills: ['安全审计', '渗透测试', '代码审计', '安全加固']
   },
@@ -113,7 +113,7 @@ export const ROLE_CONFIG = {
     name: '数据工程师',
     nameEn: 'Data Engineer',
     icon: '📊',
-    color: '#22C55E',
+    gradient: 'linear-gradient(135deg, #4ade80, #22c55e)',
     description: '负责数据处理和分析',
     skills: ['数据处理', 'ETL', '数据分析', '大数据技术']
   }
@@ -129,7 +129,7 @@ export function getRoleConfig(role) {
     name: role,
     nameEn: role,
     icon: '🤖',
-    color: '#6B7280',
+    gradient: 'linear-gradient(135deg, #9ca3af, #6b7280)',
     description: '',
     skills: []
   }

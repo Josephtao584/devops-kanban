@@ -25,7 +25,7 @@
           <div class="agent-details">
             <div class="detail-row">
               <span class="label">{{ $t('agent.role') }}:</span>
-              <span class="role-badge" :style="{ backgroundColor: getRoleConfig(agent.role || 'BACKEND_DEV').color }">
+              <span class="role-badge" :style="{ backgroundImage: getRoleConfig(agent.role || 'BACKEND_DEV').gradient }">
                 {{ getRoleConfig(agent.role || 'BACKEND_DEV').icon }}
                 {{ locale === 'zh' ? getRoleConfig(agent.role || 'BACKEND_DEV').name : getRoleConfig(agent.role || 'BACKEND_DEV').nameEn }}
               </span>
@@ -37,7 +37,7 @@
             <div class="skills-section">
               <div class="skills-label">{{ $t('agent.skills') }}:</div>
               <div class="skills-container">
-                <span v-for="skill in getRoleConfig(agent.role || 'BACKEND_DEV').skills" :key="skill" class="skill-tag">
+                <span v-for="skill in (agent.skills || getRoleConfig(agent.role || 'BACKEND_DEV').skills)" :key="skill" class="skill-tag">
                   {{ skill }}
                 </span>
               </div>
@@ -91,11 +91,43 @@
 
             <div class="form-group">
               <label>{{ $t('agent.role') }}</label>
-              <select v-model="form.role" required>
+              <select v-model="form.role" required @change="onRoleChange">
                 <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
                 </option>
               </select>
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('agent.skills') }}</label>
+              <div class="skills-editor">
+                <div class="skills-input-container">
+                  <span v-for="(skill, index) in form.skills" :key="index" class="skill-tag-input">
+                    {{ skill }}
+                    <button type="button" class="remove-skill-btn" @click="removeSkill(index)">&times;</button>
+                  </span>
+                  <input
+                    v-model="newSkill"
+                    type="text"
+                    :placeholder="$t('agent.skillPlaceholder')"
+                    @keyup.enter="addSkill"
+                    class="skill-input"
+                  />
+                  <button type="button" class="add-skill-btn" @click="addSkill" v-if="newSkill">+</button>
+                </div>
+                <div class="preset-skills">
+                  <span class="preset-label">{{ $t('agent.recommendedSkills') }}:</span>
+                  <button
+                    v-for="(skill, index) in presetSkills"
+                    :key="index"
+                    type="button"
+                    class="preset-skill-btn"
+                    @click="addPresetSkill(skill)"
+                  >
+                    + {{ skill }}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div class="form-group">
@@ -148,7 +180,15 @@ const form = ref({
   type: 'CLAUDE',
   role: 'BACKEND_DEV',
   description: '',
-  enabled: true
+  enabled: true,
+  skills: []
+})
+
+const newSkill = ref('')
+
+// Get preset skills based on selected role
+const presetSkills = computed(() => {
+  return getRoleConfig(form.value.role || 'BACKEND_DEV').skills || []
 })
 
 // Get role options for select dropdown
@@ -176,7 +216,7 @@ const loadAgents = async () => {
 
 const openAddForm = () => {
   editingAgent.value = null
-  form.value = { name: '', type: 'CLAUDE', role: 'BACKEND_DEV', description: '', enabled: true }
+  form.value = { name: '', type: 'CLAUDE', role: 'BACKEND_DEV', description: '', enabled: true, skills: [...presetSkills.value] }
   showForm.value = true
 }
 
@@ -187,7 +227,8 @@ const openEditForm = (agent) => {
     type: agent.type,
     role: agent.role || 'BACKEND_DEV',
     description: agent.description || '',
-    enabled: agent.enabled
+    enabled: agent.enabled,
+    skills: agent.skills || [...getRoleConfig(agent.role || 'BACKEND_DEV').skills]
   }
   showForm.value = true
 }
@@ -233,6 +274,29 @@ const confirmDelete = async (agent) => {
 const closeForm = () => {
   showForm.value = false
   editingAgent.value = null
+  newSkill.value = ''
+}
+
+const onRoleChange = () => {
+  // When role changes, reset skills to the preset skills for that role
+  form.value.skills = [...presetSkills.value]
+}
+
+const addSkill = () => {
+  if (newSkill.value && !form.value.skills.includes(newSkill.value)) {
+    form.value.skills = [...form.value.skills, newSkill.value]
+    newSkill.value = ''
+  }
+}
+
+const removeSkill = (index) => {
+  form.value.skills = form.value.skills.filter((_, i) => i !== index)
+}
+
+const addPresetSkill = (skill) => {
+  if (!form.value.skills.includes(skill)) {
+    form.value.skills = [...form.value.skills, skill]
+  }
 }
 
 onMounted(loadAgents)
@@ -345,6 +409,13 @@ onMounted(loadAgents)
   font-size: 0.75rem;
   font-weight: 500;
   color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  transition: all 0.2s;
+}
+
+.role-badge:hover {
+  box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  transform: translateY(-1px);
 }
 
 .skills-section {
@@ -524,6 +595,106 @@ onMounted(loadAgents)
   padding: 0.5rem;
   border: 1px solid #cbd5e0;
   border-radius: 4px;
+}
+
+.skills-editor {
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  padding: 0.75rem;
+  background: #f7fafc;
+}
+
+.skills-input-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.skill-tag-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #4299e1;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.remove-skill-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-skill-btn:hover {
+  color: #cbd5e0;
+}
+
+.skill-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.add-skill-btn {
+  background: #48bb78;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.add-skill-btn:hover {
+  background: #38a169;
+}
+
+.preset-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.preset-label {
+  font-size: 0.75rem;
+  color: #718096;
+  margin-right: 0.25rem;
+}
+
+.preset-skill-btn {
+  background: #edf2f7;
+  color: #4a5568;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-skill-btn:hover {
+  background: #4299e1;
+  color: white;
+  border-color: #4299e1;
 }
 
 .checkbox-label {
