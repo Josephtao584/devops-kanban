@@ -1,6 +1,6 @@
 <template>
   <div class="workflow-timeline">
-    <!-- Workflow标签 -->
+    <!-- Workflow 标签 -->
     <span class="workflow-label">WORKFLOW</span>
 
     <!-- 工作流标题区 -->
@@ -170,28 +170,13 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, nextTick } from 'vue'
+import { computed, ref, watch, onMounted, nextTick, onUnmounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
 import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
 
-import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
-
-// Refs for start and end nodes
-const startNodeRef = ref(null)
-const endNodeRef = ref(null)
-
-// SVG style for proper coordinate system
-const svgStyle = computed(() => {
-  if (!scrollRef.value) return {}
-  const width = scrollRef.value.scrollWidth || '100%'
-  const height = scrollRef.value.scrollHeight || 300
-  return {
-    width: width + 'px',
-    height: height + 'px'
-  }
-})
+const props = defineProps({
   workflow: {
     type: Object,
     default: null
@@ -223,12 +208,14 @@ const endNodePos = ref({ x: 0, y: 0, width: 0, height: 0 })
 const startNodeRef = ref(null)
 const endNodeRef = ref(null)
 
+// Resize observer for responsive updates
+let resizeObserver = null
+
 // SVG style for proper coordinate system
 const svgStyle = computed(() => {
   if (!scrollRef.value) return {}
   const width = scrollRef.value.scrollWidth || '100%'
-  // Ensure height is at least CENTER_Y * 2 to cover the coordinate system
-  const height = Math.max(scrollRef.value.scrollHeight, CENTER_Y * 2)
+  const height = scrollRef.value.scrollHeight || 300
   return {
     width: width + 'px',
     height: height + 'px'
@@ -460,24 +447,26 @@ const getForwardPath = (fromId, toId) => {
 const getNodeEndpoint = (id, side = 'output') => {
   if (id === 'start') {
     // Start node: right edge of the start circle
-    // 所有节点中心 Y 轴在同一水平线上
-    const x = startNodePos.value.x + startNodePos.value.width / 2 + 18
-    return { x, y: CENTER_Y }
+    // 使用测量的实际中心 Y 坐标
+    const x = startNodePos.value.centerX || 36
+    const y = startNodePos.value.centerY || 100
+    return { x: x + 18, y }
   }
 
   if (id === 'end') {
     // End node: left edge of the end circle
-    // 所有节点中心 Y 轴在同一水平线上
+    // 使用测量的实际中心 Y 坐标
     if (endNodePos.value.x > 0) {
-      const x = endNodePos.value.x + endNodePos.value.width / 2 - 18
-      return { x, y: CENTER_Y }
+      const x = endNodePos.value.centerX || 500
+      const y = endNodePos.value.centerY || 100
+      return { x: x - 18, y }
     }
     // Fallback: position after the last stage
     const lastStagePos = stagePositions.value[stagePositions.value.length - 1]
     if (lastStagePos) {
-      return { x: lastStagePos.x + lastStagePos.width + 40, y: CENTER_Y }
+      return { x: lastStagePos.x + lastStagePos.width + 40, y: lastStagePos.centerY || 100 }
     }
-    return { x: 500, y: CENTER_Y }
+    return { x: 500, y: 100 }
   }
 
   // For stage IDs, find the stage position
@@ -485,17 +474,35 @@ const getNodeEndpoint = (id, side = 'output') => {
   if (!stagePos) return { x: 0, y: 0 }
 
   // Return left or right edge based on side parameter
-  // 所有节点中心 Y 轴在同一水平线上
+  // 使用测量的实际中心 Y 坐标
   if (side === 'input') {
     return {
       x: stagePos.x,  // Left edge
-      y: CENTER_Y
+      y: stagePos.centerY
     }
   } else {
     return {
       x: stagePos.x + stagePos.width,  // Right edge
-      y: CENTER_Y
+      y: stagePos.centerY
     }
+  }
+}
+
+// Unified center Y-axis for all nodes
+const CENTER_Y = 100 // 统一的中心 Y 轴位置
+
+// Setup resize observer for responsive updates
+const setupResizeObserver = () => {
+  if (typeof window === 'undefined') return
+
+  resizeObserver = new ResizeObserver(() => {
+    nextTick(() => {
+      measureStagePositions()
+    })
+  })
+
+  if (scrollRef.value) {
+    resizeObserver.observe(scrollRef.value)
   }
 }
 
@@ -518,7 +525,15 @@ watch(() => stageRefs.value.length, () => {
 onMounted(() => {
   nextTick(() => {
     measureStagePositions()
+    setupResizeObserver()
   })
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
 })
 </script>
 
@@ -534,7 +549,7 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-/* Workflow标签 */
+/* Workflow 标签 */
 .workflow-label {
   position: absolute;
   top: -10px;
@@ -626,7 +641,7 @@ onMounted(() => {
   justify-content: center; /* 新增：内容垂直居中 */
   position: relative;
   padding: 0 6px;
-  min-height: 400px; /* 最小高度，确保节点卡片有足够空间 */
+  min-height: 120px; /* 最小高度，确保节点卡片有足够空间 */
 }
 
 /* 原点阶段容器（开始/结束） */
@@ -635,7 +650,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 400px; /* 与阶段容器相同的最小高度 */
+  min-height: 120px; /* 与阶段容器相同的最小高度 */
 }
 
 /* 原点节点（开始/结束） */
@@ -682,7 +697,6 @@ onMounted(() => {
   border-radius: 8px;
   padding: 6px 12px;
   border: 1px dashed rgba(59, 130, 246, 0.3);
-  height: 120px; /* 与其他阶段容器相同的固定高度 */
   box-sizing: border-box; /* padding 计入高度 */
 }
 
