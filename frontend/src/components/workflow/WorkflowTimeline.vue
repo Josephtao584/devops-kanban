@@ -385,19 +385,40 @@ const measureStagePositions = () => {
   const scrollRect = scrollRef.value.getBoundingClientRect()
   const positions = []
 
-  // Measure start node - use container center for alignment
-  // All containers have min-height: 180px and justify-content: center
+  // Use unified CENTER_Y based on first stage container center
+  // All containers have min-height: 420px and justify-content: center
+  // Node cards are 160px tall, centered in container, so center is at container top + 210px
+  let unifiedCenterY = null
+
+  // First pass: find the center Y from the first non-parallel stage (most reliable reference)
+  for (let i = 0; i < sortedStages.value.length; i++) {
+    const stageEl = stageRefs.value[i]
+    if (stageEl && !sortedStages.value[i].parallel) {
+      const rect = stageEl.getBoundingClientRect()
+      const relativeY = rect.top - scrollRect.top
+      unifiedCenterY = relativeY + rect.height / 2
+      break
+    }
+  }
+
+  // If no non-parallel stage found, use first stage or default
+  if (unifiedCenterY === null) {
+    if (stageRefs.value[0]) {
+      const rect = stageRefs.value[0].getBoundingClientRect()
+      unifiedCenterY = (rect.top - scrollRect.top) + 210 // 420px / 2
+    } else {
+      unifiedCenterY = 210 // Fallback for 420px container
+    }
+  }
+
+  CENTER_Y = unifiedCenterY
+
+  // Measure start node
   if (startNodeRef.value) {
     const rect = startNodeRef.value.getBoundingClientRect()
-    const relativeY = rect.top - scrollRect.top
-
-    // Use container center Y as the unified connection point
-    // This ensures all nodes align to the same horizontal line
-    CENTER_Y = relativeY + rect.height / 2
-
     startNodePos.value = {
       x: rect.left - scrollRect.left,
-      y: relativeY,
+      y: rect.top - scrollRect.top,
       width: rect.width,
       height: rect.height,
       centerX: rect.left - scrollRect.left + rect.width / 2,
@@ -405,7 +426,7 @@ const measureStagePositions = () => {
     }
   }
 
-  // Measure end node - use container center for alignment
+  // Measure end node
   if (endNodeRef.value) {
     const rect = endNodeRef.value.getBoundingClientRect()
     endNodePos.value = {
@@ -418,16 +439,12 @@ const measureStagePositions = () => {
     }
   }
 
-  // Measure stages - use container center for alignment
+  // Measure stages - use unified CENTER_Y for all
   sortedStages.value.forEach((stage, index) => {
     const stageEl = stageRefs.value[index]
     if (stageEl) {
       const rect = stageEl.getBoundingClientRect()
       const relativeY = rect.top - scrollRect.top
-
-      // All stage containers have min-height: 180px and justify-content: center
-      // Use container center Y for consistent horizontal alignment
-      const containerCenterY = relativeY + rect.height / 2
 
       positions.push({
         stageId: stage.id,
@@ -436,7 +453,7 @@ const measureStagePositions = () => {
         width: rect.width,
         height: rect.height,
         centerX: rect.left - scrollRect.left + rect.width / 2,
-        centerY: containerCenterY
+        centerY: CENTER_Y // Use unified center Y for all stages
       })
     }
   })
@@ -642,10 +659,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* 新增：内容垂直居中 */
+  justify-content: center; /* 内容垂直居中 */
   position: relative;
   padding: 0 6px;
-  min-height: 180px; /* 最小高度，确保节点卡片和其他元素有足够空间 */
+  min-height: 420px; /* 最小高度，确保并行阶段的内容有足够空间 (父节点 160 + 进度 20 + 标签 20 + 分支线 20 + 节点 160 + 分支线 20 + 间距) */
 }
 
 /* 原点阶段容器（开始/结束） */
@@ -654,7 +671,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 180px; /* 与阶段容器相同的最小高度 */
+  min-height: 420px; /* 与阶段容器相同的最小高度 */
 }
 
 /* 原点节点（开始/结束） */
@@ -701,7 +718,25 @@ onUnmounted(() => {
   border-radius: 8px;
   padding: 6px 12px;
   border: 1px dashed rgba(59, 130, 246, 0.3);
-  box-sizing: border-box; /* padding 计入高度 */
+  box-sizing: border-box;
+}
+
+/* 并行阶段的节点组使用绝对定位，确保中心 Y 一致 */
+.stage-container.is-parallel .stage-nodes {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-height: auto; /* 移除最小高度，使用实际内容高度 */
+  z-index: 10; /* 确保节点组在其他元素之上 */
+}
+
+/* 并行阶段的父节点包装器和标签放在顶部 */
+.stage-container.is-parallel .parent-node-wrapper,
+.stage-container.is-parallel .stage-label,
+.stage-container.is-parallel .branch-lines {
+  position: relative;
+  z-index: 5;
 }
 
 /* 阶段标签 */
@@ -763,7 +798,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 6px;
   align-items: stretch;
-  min-height: 140px; /* 确保至少有一个节点的高度 */
+  min-height: 160px; /* 确保至少有一个节点卡片的高度 (160px) */
 }
 
 .stage-nodes.parallel-nodes {
