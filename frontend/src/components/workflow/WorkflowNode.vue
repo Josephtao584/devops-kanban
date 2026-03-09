@@ -207,7 +207,7 @@ const agentIcon = computed(() => {
 /* Parent node styles */
 .workflow-node.is-parent {
   width: 180px;
-  height: 160px;
+  height: 140px;
   padding: 12px 16px;
   border-width: 2px;
   background: #fffbeb;

@@ -1740,6 +1740,7 @@ onUnmounted(() => {
 .kanban-area :deep(.workflow-timeline) {
   margin: 12px 12px 0 12px;
   flex-shrink: 0;
+  max-width: calc(100% - 24px); /* 与下方看板区域对齐 */
 }
 
 /* Kanban Board */
