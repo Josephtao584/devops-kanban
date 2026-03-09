@@ -10,7 +10,7 @@
 
     <!-- Header using extracted component -->
     <SessionHeader
-      :title="task?.title || 'Agent Chat'"
+      :title="headerTitle"
       :status="sessionStatus"
       :status-text="statusText"
       :session-id="session?.claudeSessionId"
@@ -30,8 +30,21 @@
       </template>
     </SessionHeader>
 
+    <!-- Workflow Node Info (when viewing workflow) -->
+    <div class="workflow-node-info" v-if="currentWorkflowNode && !isCollapsed">
+      <div class="node-meta">
+        <span class="node-role">{{ currentWorkflowNode.role }}</span>
+        <span class="node-agent" :style="{ color: getAgentColor(currentWorkflowNode.agentType) }">
+          {{ getAgentIcon(currentWorkflowNode.agentType) }} {{ currentWorkflowNode.agentName }}
+        </span>
+        <span class="node-status" :class="'status-' + currentWorkflowNode.status.toLowerCase()">
+          {{ getStatusLabel(currentWorkflowNode.status) }}
+        </span>
+      </div>
+    </div>
+
     <!-- Task summary -->
-    <div class="task-summary" v-if="task && task.description && !isCollapsed">
+    <div class="task-summary" v-else-if="task && task.description && !isCollapsed">
       <div class="task-description">
         <span class="description-label">{{ $t('chat.taskSummary', '简介：') }}</span>{{ task.description }}
       </div>
@@ -42,8 +55,9 @@
       ref="messageListRef"
       :messages="messages"
       :has-session="!!session"
-      :empty-title="$t('chat.noSession', 'No active session')"
-      :empty-hint="$t('chat.noSessionHint', 'Select an agent and start a session to begin')"
+      :has-workflow-node="!!currentWorkflowNode"
+      :empty-title="emptyTitle"
+      :empty-hint="emptyHint"
       :ready-title="$t('chat.readyTitle', 'Ready to chat')"
       :ready-hint="$t('chat.readyHint', 'Click Start to begin')"
     />
@@ -71,6 +85,7 @@ import { useSessionManager } from '../composables/useSessionManager'
 import { useWebSocketConnection } from '../composables/useWebSocketConnection'
 import { useMessageFilter } from '../composables/useMessageFilter'
 import { parseOutputToMessages } from '../utils/messageParser'
+import { agentConfig } from '@/mock/workflowData'
 
 // Dev mode flag for template
 const isDev = import.meta.env.DEV
@@ -139,6 +154,38 @@ const setMessages = (newMessages, node = null) => {
   }
 }
 const currentWorkflowNode = ref(null)
+
+// Helper methods for workflow node display
+const getAgentColor = (agentType) => agentConfig[agentType]?.color || '#6B7280'
+const getAgentIcon = (agentType) => agentConfig[agentType]?.icon || '🤖'
+const getStatusLabel = (status) => {
+  // Map PENDING to TODO for i18n lookup since workflow uses PENDING
+  const statusKey = status === 'PENDING' ? 'TODO' : status
+  return t(`status.${statusKey}`, status)
+}
+
+// Computed header title
+const headerTitle = computed(() => {
+  if (currentWorkflowNode.value) {
+    return currentWorkflowNode.value.name || 'Workflow Node'
+  }
+  return props.task?.title || 'Agent Chat'
+})
+
+// Computed empty state messages
+const emptyTitle = computed(() => {
+  if (currentWorkflowNode.value) {
+    return t('chat.workflowNode', 'Workflow Node Chat')
+  }
+  return t('chat.noSession', 'No active session')
+})
+
+const emptyHint = computed(() => {
+  if (currentWorkflowNode.value) {
+    return t('chat.workflowNodeHint', 'Click on a message bubble to view details')
+  }
+  return t('chat.noSessionHint', 'Select an agent and start a session to begin')
+})
 
 // Waiting state and timer
 const isWaitingForResponse = ref(false)
@@ -737,6 +784,60 @@ defineExpose({
 
 .chat-box.collapsed {
   flex: 0 0 auto;
+}
+
+/* Workflow Node Info */
+.workflow-node-info {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.node-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.node-role {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.node-agent {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-status {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.node-status.status-done {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.node-status.status-in_progress {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.node-status.status-pending {
+  background: rgba(107, 114, 128, 0.15);
+  color: #6b7280;
 }
 
 .task-summary {

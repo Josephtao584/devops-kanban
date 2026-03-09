@@ -1,20 +1,20 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="Select AI Agent"
+    :title="$t('agent.selectAgent')"
     width="450px"
     :close-on-click-modal="false"
     @close="handleClose"
   >
     <div v-if="loading" class="loading-container">
       <el-icon class="is-loading" :size="24"><Loading /></el-icon>
-      <span>Loading agents...</span>
+      <span>{{ $t('agent.loading') }}</span>
     </div>
 
     <div v-else-if="agents.length === 0" class="empty-state">
-      <el-empty description="No agents available">
+      <el-empty :description="$t('agent.noAgents')">
         <template #description>
-          <p>Please configure an agent first</p>
+          <p>{{ $t('agent.pleaseConfigure') }}</p>
         </template>
       </el-empty>
     </div>
@@ -42,14 +42,14 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">Cancel</el-button>
+        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
         <el-button
           type="primary"
           :disabled="!selectedAgentId"
           :loading="starting"
           @click="confirmSelect"
         >
-          Start Session
+          {{ $t('agent.startSession') }}
         </el-button>
       </div>
     </template>
@@ -59,6 +59,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import {
   Loading,
   Check,
@@ -68,6 +69,8 @@ import {
   User
 } from '@element-plus/icons-vue'
 import { getAgents } from '../api/agent'
+
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: {

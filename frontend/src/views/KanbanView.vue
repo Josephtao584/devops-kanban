@@ -31,18 +31,82 @@
       </button>
     </header>
 
-    <!-- Workflow Timeline -->
-    <WorkflowTimeline
-      v-if="selectedProjectId && currentWorkflow"
-      :workflow="currentWorkflow"
-      :selected-node-id="selectedNodeId"
-      @select-node="onNodeSelect"
-    />
+    <!-- Main Content: Kanban Area + Chat -->
+    <div class="main-content-wrapper">
+      <!-- Left: Workflow + Kanban Board -->
+      <div class="kanban-area">
+        <!-- Workflow Timeline - Show when a task with workflow is selected -->
+        <WorkflowTimeline
+          v-if="currentWorkflow"
+          :workflow="currentWorkflow"
+          :selected-node-id="selectedNodeId"
+          @select-node="onNodeSelect"
+          @view-details="onNodeViewDetails"
+        />
 
-    <!-- Main Content: Kanban Board + Chat -->
-    <div class="kanban-layout">
-      <!-- Kanban Board -->
-      <div class="kanban-board" ref="kanbanBoardRef">
+        <!-- Kanban Board -->
+        <div class="kanban-board" ref="kanbanBoardRef">
+        <!-- Requirements Column -->
+        <div class="kanban-column requirement-column" data-status="REQUIREMENTS">
+          <div class="column-header">
+            <span class="column-status status-requirement"></span>
+            <span class="column-title">{{ $t('requirement.title') }}</span>
+            <span class="column-count">{{ requirements.length }}</span>
+            <button
+              class="toggle-converted-btn"
+              :class="{ 'is-hiding': hideConvertedRequirements }"
+              @click="hideConvertedRequirements = !hideConvertedRequirements"
+              :title="hideConvertedRequirements ? $t('requirement.showConverted') : $t('requirement.hideConverted')"
+            >
+              <svg v-if="hideConvertedRequirements" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <div class="column-content">
+            <button class="add-requirement-btn" @click="openRequirementModal">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              {{ $t('requirement.addRequirement') }}
+            </button>
+            <div class="requirement-actions-row">
+              <button class="sync-requirements-btn" @click="syncAllRequirements" :disabled="pendingRequirements.length === 0 || syncingAllRequirements">
+                <svg v-if="syncingAllRequirements" class="icon-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+                </svg>
+                <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                  <path d="M16 16h5v5"></path>
+                </svg>
+                {{ $t('requirement.syncAllRequirements') }}
+              </button>
+              <button class="auto-assign-btn" @click="openAutoAssignDialog" :disabled="requirements.length === 0">
+                {{ $t('requirement.autoAssign') }}
+              </button>
+            </div>
+            <RequirementCard
+              v-for="req in requirements"
+              :key="req.id"
+              :requirement="req"
+              @sync="syncRequirementToTask"
+              @delete="deleteRequirement"
+            />
+            <div v-if="requirements.length === 0" class="empty-column">
+              <p>{{ $t('requirement.noRequirements') }}</p>
+            </div>
+          </div>
+        </div>
+
         <!-- TODO Column -->
         <!-- TODO Column -->
         <div class="kanban-column" data-status="TODO">
@@ -71,7 +135,6 @@
                     'task-running': isTaskRunning(element.id)
                   }"
                   @click="selectTask(element)"
-                  @dblclick="openTaskModal(element)"
                 >
                   <div class="task-card-content">
                     <div class="task-card-main">
@@ -154,7 +217,6 @@
                     'task-running': isTaskRunning(element.id)
                   }"
                   @click="selectTask(element)"
-                  @dblclick="openTaskModal(element)"
                 >
                   <div class="task-card-content">
                     <div class="task-card-main">
@@ -237,7 +299,6 @@
                     'task-running': isTaskRunning(element.id)
                   }"
                   @click="selectTask(element)"
-                  @dblclick="openTaskModal(element)"
                 >
                   <div class="task-card-content">
                     <div class="task-card-main">
@@ -294,8 +355,9 @@
         </div>
 
       </div>
+    </div><!-- End of .kanban-area -->
 
-      <!-- Chat Container -->
+    <!-- Chat Container (separate on the right) -->
       <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
         <!-- Toggle button -->
         <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? '展开聊天框' : '收起聊天框'">
@@ -307,17 +369,27 @@
           </svg>
         </div>
 
-        <div v-if="!selectedTask" class="chat-welcome">
+        <div v-if="!selectedNode" class="chat-welcome">
           <div class="welcome-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
           </div>
-          <h2>Welcome to DevOps Kanban</h2>
-          <p>选择一个任务开始与 AI 对话</p>
+          <h2>选择工作流节点</h2>
+          <p>点击工作流节点查看详情和对话</p>
         </div>
 
-        <div v-else-if="!isSessionLoading" class="chat-content">
+        <div v-else class="chat-content">
+          <!-- Node Info Header -->
+          <div class="node-info-header">
+            <h3>{{ selectedNode.name }}</h3>
+            <div class="node-meta">
+              <span class="node-role">{{ selectedNode.role }}</span>
+              <span class="node-status" :class="'status-' + selectedNode.status?.toLowerCase()">
+                {{ selectedNode.status }}
+              </span>
+            </div>
+          </div>
           <!-- ChatBox Component -->
           <ChatBox
             ref="chatBoxRef"
@@ -395,7 +467,202 @@
       :task="pendingTask"
       @select="handleAgentSelect"
     />
-  </div>
+
+    <!-- Requirement Form Modal -->
+    <RequirementForm
+      v-if="showRequirementModal"
+      :requirement="editingRequirement"
+      :visible="showRequirementModal"
+      @submit="handleRequirementSubmit"
+      @cancel="closeRequirementModal"
+    />
+
+    <!-- Task Generate Dialog -->
+    <TaskGenerateDialog
+      v-if="generatingRequirement"
+      :visible="showGenerateDialog"
+      :requirement="generatingRequirement"
+      @update:visible="showGenerateDialog = $event"
+      @confirm="handleTaskGenerateConfirm"
+    />
+
+    <!-- Auto Assign Requirements Dialog -->
+    <div v-if="showAutoAssignDialog" class="modal-overlay" @click.self="closeAutoAssignDialog">
+      <div class="modal auto-assign-modal">
+        <div class="modal-header">
+          <h2>{{ $t('requirement.selectRequirementsTitle') }}</h2>
+          <button class="modal-close" @click="closeAutoAssignDialog">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="dialog-hint">{{ $t('requirement.selectRequirementsHint') }}</p>
+
+          <div class="select-actions">
+            <button class="btn btn-link" @click="selectAllRequirements">{{ $t('requirement.selectAll') }}</button>
+            <button class="btn btn-link" @click="deselectAllRequirements">{{ $t('requirement.deselectAll') }}</button>
+          </div>
+
+          <div class="requirements-list">
+            <label
+              v-for="req in pendingRequirements"
+              :key="req.id"
+              class="requirement-item"
+              :class="{ 'is-selected': selectedRequirementIds.includes(req.id) }"
+            >
+              <input
+                type="checkbox"
+                :value="req.id"
+                v-model="selectedRequirementIds"
+              />
+              <span class="requirement-item-content">
+                <span class="requirement-item-header">
+                  <span class="requirement-item-title">{{ req.title }}</span>
+                  <span class="requirement-item-priority" :class="`priority-${(req.priority || 'MEDIUM').toLowerCase()}`">
+                    {{ $t(`priority.${req.priority || 'MEDIUM'}`) }}
+                  </span>
+                </span>
+                <span class="requirement-item-desc">{{ req.description }}</span>
+              </span>
+            </label>
+          </div>
+
+          <p v-if="selectedRequirementIds.length > 0" class="selected-count">
+            {{ $t('requirement.selectedCount', { count: selectedRequirementIds.length }) }}
+          </p>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="closeAutoAssignDialog">{{ $t('common.cancel') }}</button>
+            <button
+              class="btn btn-primary"
+              @click="confirmAutoAssign"
+              :disabled="selectedRequirementIds.length === 0 || assigningRequirements"
+            >
+              <svg v-if="assigningRequirements" class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+              </svg>
+              {{ $t('requirement.assignSelected') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow Node Detail Dialog -->
+    <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
+      <div class="modal node-detail-modal">
+        <div class="modal-header">
+          <div class="header-content">
+            <span class="header-icon">📋</span>
+            <div>
+              <h2>{{ selectedNode.name }}</h2>
+              <span class="node-subtitle">{{ selectedNode.role }}</span>
+            </div>
+          </div>
+          <button class="modal-close" @click="showNodeDialog = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- 基本信息卡片 -->
+          <div class="info-card">
+            <h3 class="info-card-title">基本信息</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 16v-4"></path>
+                    <path d="M12 8h.01"></path>
+                  </svg>
+                  状态
+                </span>
+                <span class="info-value status-badge" :class="'status-' + selectedNode.status?.toLowerCase()">
+                  <span class="status-dot"></span>
+                  {{ selectedNode.status }}
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                  Agent
+                </span>
+                <span class="info-value agent-badge">
+                  <span class="agent-icon">🤖</span>
+                  {{ selectedNode.agentName }}
+                </span>
+              </div>
+              <div class="info-item" v-if="selectedNode.duration">
+                <span class="info-label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  耗时
+                </span>
+                <span class="info-value duration-value">{{ selectedNode.duration }} 分钟</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 对话记录 -->
+          <div v-if="selectedNode.messages && selectedNode.messages.length > 0" class="info-card messages-card">
+            <h3 class="info-card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              对话记录
+            </h3>
+            <div class="message-list">
+              <div v-for="msg in selectedNode.messages" :key="msg.id" class="message-item" :class="'message-from-' + msg.from">
+                <div class="message-avatar">
+                  <span v-if="msg.from === 'user'">👤</span>
+                  <span v-else>🤖</span>
+                </div>
+                <div class="message-content-wrapper">
+                  <div class="message-header">
+                    <span class="message-sender">{{ msg.from === 'user' ? '用户' : selectedNode.agentName }}</span>
+                    <span class="message-time">{{ new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                  </div>
+                  <div class="message-content">{{ msg.content }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子节点信息（如果是父节点） -->
+          <div v-if="selectedNode.isParent && selectedNode.childNodes" class="info-card">
+            <h3 class="info-card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              子节点完成情况
+            </h3>
+            <div class="child-nodes-list">
+              <div v-for="child in selectedNode.childNodes" :key="child.id" class="child-node-item" :class="'status-' + child.status?.toLowerCase()">
+                <span class="child-status-icon">
+                  <span v-if="child.status === 'DONE'">✅</span>
+                  <span v-else-if="child.status === 'IN_PROGRESS'">🔄</span>
+                  <span v-else>⏳</span>
+                </span>
+                <div class="child-node-info">
+                  <span class="child-node-name">{{ child.name }}</span>
+                  <span class="child-node-agent">{{ child.agentName }}</span>
+                </div>
+                <span class="child-node-status status-badge" :class="'status-' + child.status?.toLowerCase()">{{ child.status }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary btn-close" @click="showNodeDialog = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    </div>
 </template>
 
 <script setup>
@@ -410,7 +677,25 @@ import { createSession, startSession, stopSession, getActiveSessionByTask, getSe
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import WorkflowTimeline from '../components/workflow/WorkflowTimeline.vue'
-import { mockWorkflows, getWorkflowByProject } from '../mock/workflowData'
+import RequirementCard from '../components/requirement/RequirementCard.vue'
+import RequirementForm from '../components/requirement/RequirementForm.vue'
+import TaskGenerateDialog from '../components/requirement/TaskGenerateDialog.vue'
+import { mockWorkflows, getWorkflowByProject, getWorkflowByTask, addNodeToWorkflow, getOrCreateWorkflowForProject } from '../mock/workflowData'
+import {
+  mockRequirements,
+  getRequirementsByProject,
+  createRequirement,
+  updateRequirement,
+  deleteRequirement as deleteRequirementData,
+  convertRequirementToTasks
+} from '../mock/requirementData'
+import { analyzeRequirementToTasks } from '../mock/requirementAnalysis'
+import {
+  analyzeTaskCategory,
+  getAssignmentRule,
+  createNodeForTask,
+  findSuitableStage
+} from '../mock/workflowAssignment'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -438,28 +723,88 @@ const kanbanBoardRef = ref(null)
 
 // Workflow state
 const selectedNodeId = ref(null)
+const selectedNode = ref(null)  // Currently selected workflow node
+const showNodeDialog = ref(false)  // Node detail dialog visibility
+const workflowVersion = ref(0)  // For reactive workflow updates
 const currentWorkflow = computed(() => {
+  // Depend on workflowVersion to trigger reactivity
+  void workflowVersion.value
+  // Use selected task's workflow if available
+  if (selectedTask.value) {
+    return getWorkflowByTask(selectedTask.value.id)
+  }
+  // Fallback to project workflow
   if (!selectedProjectId.value) return null
   return getWorkflowByProject(selectedProjectId.value)
 })
 
-// Node selection handler
+// Node selection handler - highlights the node and shows chat panel
 const onNodeSelect = (node) => {
   selectedNodeId.value = node.id
+  selectedNode.value = node
+  // Expand chat panel if collapsed
+  if (isChatCollapsed.value) {
+    isChatCollapsed.value = false
+  }
+
+  // Check if this is a parent node (from parallel stage)
+  const isParentNode = node.isParent || String(node.id).startsWith('parent-')
+
   // Update chat messages to show selected node's conversation
   if (node.messages && node.messages.length > 0) {
     // Convert node messages to chat format
-    const chatMessages = node.messages.map(msg => ({
-      id: msg.id,
+    let chatMessages = node.messages.map(msg => ({
+      id: `msg-${node.id}-${msg.id}`,
       role: msg.from === 'user' ? 'user' : 'assistant',
       content: msg.content,
       timestamp: new Date().toISOString()
     }))
+
+    // For parent nodes, add child node summary info at the end if not already included
+    if (isParentNode && node.childNodes && node.childNodes.length > 0) {
+      // Check if summary already exists in messages
+      const hasSummary = node.messages.some(msg =>
+        msg.content.includes('**完成情况**') ||
+        msg.content.includes('**进度汇报**') ||
+        msg.content.includes('子节点')
+      )
+
+      if (!hasSummary) {
+        // Add child node summary
+        const completedCount = node.childNodes.filter(n => n.status === 'DONE').length
+        const inProgressCount = node.childNodes.filter(n => n.status === 'IN_PROGRESS').length
+        const childSummary = node.childNodes.map(n => {
+          const icon = n.status === 'DONE' ? '✅' : n.status === 'IN_PROGRESS' ? '🔄' : '⏳'
+          return `${icon} **${n.name}** (${n.agentName}) - ${n.status === 'DONE' ? '已完成' : n.status === 'IN_PROGRESS' ? '进行中' : '待处理'}`
+        }).join('\n')
+
+        chatMessages.push({
+          id: `msg-${node.id}-summary`,
+          role: 'assistant',
+          content: `**📊 子节点完成情况**\n\n${childSummary}\n\n**总进度:** ${completedCount}/${node.childNodes.length} 完成`,
+          timestamp: new Date().toISOString()
+        })
+      }
+    }
+
     // Update chatBox if available
     if (chatBoxRef.value && chatBoxRef.value.setMessages) {
       chatBoxRef.value.setMessages(chatMessages, node)
     }
+  } else {
+    // No messages - clear chat
+    if (chatBoxRef.value && chatBoxRef.value.setMessages) {
+      chatBoxRef.value.setMessages([], node)
+    }
   }
+}
+
+// Handler for viewing node details - opens the detail dialog
+const onNodeViewDetails = (node) => {
+  console.log('[KanbanView] View node details:', node.id, node.name)
+  selectedNodeId.value = node.id
+  selectedNode.value = node
+  showNodeDialog.value = true  // Open node detail dialog
 }
 
 // Auto scroll when chat expands
@@ -491,10 +836,234 @@ const loading = reactive({
 const taskForm = reactive({
   title: '',
   description: '',
+  category: '',
   status: 'TODO',
   priority: 'MEDIUM',
-  assignee: ''
+  assignee: '',
+  autoAssignWorkflow: true
 })
+
+// Requirements state
+const hideConvertedRequirements = ref(false)
+
+const allRequirements = computed(() => {
+  if (!selectedProjectId.value) return []
+  return getRequirementsByProject(selectedProjectId.value)
+})
+
+const requirements = computed(() => {
+  if (hideConvertedRequirements.value) {
+    return allRequirements.value.filter(r => r.status !== 'CONVERTED')
+  }
+  return allRequirements.value
+})
+
+const pendingRequirements = computed(() => {
+  return allRequirements.value.filter(r => r.status === 'NEW')
+})
+
+const syncingAllRequirements = ref(false)
+
+const showRequirementModal = ref(false)
+const editingRequirement = ref(null)
+
+// Task Generate Dialog
+const showGenerateDialog = ref(false)
+const generatingRequirement = ref(null)
+
+// Requirement methods
+const openRequirementModal = (requirement = null) => {
+  editingRequirement.value = requirement
+  showRequirementModal.value = true
+}
+
+const closeRequirementModal = () => {
+  showRequirementModal.value = false
+  editingRequirement.value = null
+}
+
+const handleRequirementSubmit = async (data) => {
+  try {
+    if (editingRequirement.value) {
+      updateRequirement(editingRequirement.value.id, data)
+      ElMessage.success(t('requirement.updated'))
+    } else {
+      createRequirement({
+        ...data,
+        projectId: selectedProjectId.value
+      })
+      ElMessage.success(t('requirement.created'))
+    }
+    closeRequirementModal()
+  } catch (error) {
+    console.error('Failed to save requirement:', error)
+    ElMessage.error(t('requirement.saveFailed'))
+  }
+}
+
+const syncRequirementToTask = (requirement) => {
+  // Open the task generate dialog
+  generatingRequirement.value = requirement
+  showGenerateDialog.value = true
+}
+
+// Internal function to actually generate tasks from requirement
+const generateTasksFromRequirement = async (requirement, agentIds = []) => {
+  // Analyze requirement and get task templates
+  const analysisResult = analyzeRequirementToTasks(requirement)
+
+  // Create tasks from analysis result
+  const createdTaskIds = []
+  for (const taskTemplate of analysisResult.tasks) {
+    const task = await taskStore.createTask({
+      ...taskTemplate,
+      projectId: selectedProjectId.value,
+      requirementId: requirement.id,
+      assignedAgentIds: agentIds
+    })
+    createdTaskIds.push(task.id)
+
+    // Auto-assign to workflow if enabled
+    autoAssignTaskToWorkflow(task)
+  }
+
+  // Update requirement status
+  convertRequirementToTasks(requirement.id, createdTaskIds, analysisResult)
+
+  return analysisResult.taskCount
+}
+
+// Handle task generation confirmation from dialog
+const handleTaskGenerateConfirm = async ({ requirement, workflow, agentIds }) => {
+  try {
+    const taskCount = await generateTasksFromRequirement(requirement, agentIds)
+
+    showGenerateDialog.value = false
+    generatingRequirement.value = null
+    ElMessage.success(t('requirement.syncSuccess', { count: taskCount }))
+  } catch (error) {
+    console.error('Failed to generate tasks:', error)
+    ElMessage.error(t('requirement.syncFailed'))
+  }
+}
+
+const autoAssignAllRequirements = async () => {
+  // Legacy function - now handled by dialog
+  openAutoAssignDialog()
+}
+
+// Auto Assign Dialog
+const showAutoAssignDialog = ref(false)
+const selectedRequirementIds = ref([])
+const assigningRequirements = ref(false)
+
+const syncAllRequirements = async () => {
+  if (pendingRequirements.value.length === 0) {
+    ElMessage.info(t('requirement.noPendingRequirements'))
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      t('requirement.syncAllConfirmMessage', { count: pendingRequirements.value.length }),
+      t('requirement.syncAllConfirmTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  syncingAllRequirements.value = true
+  let processedCount = 0
+
+  try {
+    for (const req of pendingRequirements.value) {
+      try {
+        await generateTasksFromRequirement(req)
+        processedCount++
+      } catch (error) {
+        console.error('Failed to sync requirement:', req.id, error)
+      }
+    }
+
+    ElMessage.success(t('requirement.allSynced', { count: processedCount }))
+  } finally {
+    syncingAllRequirements.value = false
+  }
+}
+
+const openAutoAssignDialog = () => {
+  selectedRequirementIds.value = []
+  showAutoAssignDialog.value = true
+}
+
+const closeAutoAssignDialog = () => {
+  showAutoAssignDialog.value = false
+  selectedRequirementIds.value = []
+}
+
+const selectAllRequirements = () => {
+  selectedRequirementIds.value = pendingRequirements.value.map(r => r.id)
+}
+
+const deselectAllRequirements = () => {
+  selectedRequirementIds.value = []
+}
+
+const confirmAutoAssign = async () => {
+  if (selectedRequirementIds.value.length === 0) {
+    ElMessage.warning(t('requirement.noRequirementsSelected'))
+    return
+  }
+
+  assigningRequirements.value = true
+  let processedCount = 0
+
+  try {
+    for (const reqId of selectedRequirementIds.value) {
+      const req = requirements.value.find(r => r.id === reqId)
+      if (req) {
+        try {
+          await generateTasksFromRequirement(req)
+          processedCount++
+        } catch (error) {
+          console.error('Failed to process requirement:', reqId, error)
+        }
+      }
+    }
+
+    ElMessage.success(t('requirement.allSynced', { count: processedCount }))
+    closeAutoAssignDialog()
+  } finally {
+    assigningRequirements.value = false
+  }
+}
+
+const handleDeleteRequirement = async (requirement) => {
+  try {
+    await ElMessageBox.confirm(
+      t('requirement.deleteConfirmMessage'),
+      t('requirement.deleteConfirmTitle'),
+      {
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+
+    deleteRequirementData(requirement.id)
+    ElMessage.success(t('requirement.deleted'))
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Failed to delete requirement:', error)
+      ElMessage.error(t('requirement.deleteFailed'))
+    }
+  }
+}
 
 // Computed - get tasks by status from store
 const tasks = computed(() => taskStore.tasks)
@@ -588,11 +1157,8 @@ const onProjectChange = () => {
 }
 
 const selectTask = async (task) => {
-  isChatCollapsed.value = false // Auto expand chat
-  isSessionLoading.value = true
+  // Don't expand chat panel - only select task to show workflow
   selectedTask.value = task
-  await loadActiveSession()
-  isSessionLoading.value = false
 }
 
 const openTaskModal = (task = null) => {
@@ -601,9 +1167,11 @@ const openTaskModal = (task = null) => {
     editingTaskId.value = task.id
     taskForm.title = task.title || ''
     taskForm.description = task.description || ''
+    taskForm.category = task.category || ''
     taskForm.status = task.status || 'TODO'
     taskForm.priority = task.priority || 'MEDIUM'
     taskForm.assignee = task.assignee || ''
+    taskForm.autoAssignWorkflow = task.autoAssignWorkflow !== false
   } else {
     isEditing.value = false
     editingTaskId.value = null
@@ -620,9 +1188,56 @@ const closeTaskModal = () => {
 const resetTaskForm = () => {
   taskForm.title = ''
   taskForm.description = ''
+  taskForm.category = ''
   taskForm.status = 'TODO'
   taskForm.priority = 'MEDIUM'
   taskForm.assignee = ''
+  taskForm.autoAssignWorkflow = true
+}
+
+/**
+ * Auto-assign task to workflow
+ * @param {Object} task - The created task object
+ * @returns {Object|null} Created node or null
+ */
+const autoAssignTaskToWorkflow = (task) => {
+  try {
+    // Get or create workflow for the project
+    const workflow = getOrCreateWorkflowForProject(selectedProjectId.value)
+    if (!workflow) {
+      console.warn('Failed to get or create workflow for project')
+      return null
+    }
+
+    // Analyze task category (use provided category or auto-detect)
+    const category = task.category || analyzeTaskCategory(task.title, task.description)
+
+    // Get assignment rule
+    const rule = getAssignmentRule(category)
+
+    // Find suitable stage
+    const stage = findSuitableStage(workflow, rule.preferredStage)
+    if (!stage) {
+      console.warn('No suitable stage found for task')
+      return null
+    }
+
+    // Create workflow node
+    const node = createNodeForTask(task, category, rule)
+
+    // Add node to workflow stage
+    const addedNode = addNodeToWorkflow(workflow.id, node, rule.preferredStage)
+
+    // Trigger workflow reactivity update
+    workflowVersion.value++
+
+    console.log(`Auto-assigned task "${task.title}" to workflow stage "${stage.name}" with agent type ${rule.preferredAgentType}`)
+
+    return addedNode
+  } catch (error) {
+    console.error('Failed to auto-assign task to workflow:', error)
+    return null
+  }
 }
 
 const saveTask = async () => {
@@ -630,15 +1245,32 @@ const saveTask = async () => {
 
   loading.saving = true
   try {
+    // Auto-detect category if not set
+    let category = taskForm.category
+    if (!category && taskForm.title) {
+      category = analyzeTaskCategory(taskForm.title, taskForm.description)
+    }
+
     const taskData = {
       ...taskForm,
+      category: category || 'FEATURE',
       projectId: selectedProjectId.value
     }
 
+    let savedTask
     if (isEditing.value) {
       await taskStore.updateTask(editingTaskId.value, taskData)
+      savedTask = { ...taskData, id: editingTaskId.value }
     } else {
-      await taskStore.createTask(taskData)
+      savedTask = await taskStore.createTask(taskData)
+    }
+
+    // Auto-assign to workflow if enabled and it's a new task
+    if (taskForm.autoAssignWorkflow && !isEditing.value && savedTask) {
+      const node = autoAssignTaskToWorkflow(savedTask)
+      if (node) {
+        ElMessage.success(t('task.workflowAssigned', { stage: node.role }))
+      }
     }
 
     closeTaskModal()
@@ -890,10 +1522,10 @@ onUnmounted(() => {
 .app-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%;
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   color: var(--text-primary);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* Top Header */
@@ -983,12 +1615,25 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
-/* Main Content: Kanban Board + Chat */
-.kanban-layout {
+/* Main Content Wrapper: Kanban Area + Chat */
+.main-content-wrapper {
   display: flex;
   flex: 1;
-  overflow: hidden;
   min-height: 0;
+}
+
+/* Kanban Area: Workflow + Board */
+.kanban-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Override WorkflowTimeline margin to fit in kanban-area */
+.kanban-area :deep(.workflow-timeline) {
+  margin: 12px 12px 0 12px;
+  flex-shrink: 0;
 }
 
 /* Kanban Board */
@@ -997,16 +1642,14 @@ onUnmounted(() => {
   flex: 1;
   padding: 12px;
   gap: 12px;
-  overflow-x: auto;
-  min-height: 0;
-  scroll-behavior: smooth;
-  transition: flex 0.3s ease;
+  min-height: 200px;
+  align-content: stretch;
 }
 
 /* Kanban Column */
 .kanban-column {
-  min-width: 220px;
-  width: 220px;
+  min-width: 260px;
+  width: 260px;
   background: var(--bg-secondary);
   border-radius: 12px;
   display: flex;
@@ -1036,6 +1679,133 @@ onUnmounted(() => {
 .status-todo { background: #6b7280; color: #6b7280; }
 .status-in-progress { background: #3b82f6; color: #3b82f6; }
 .status-done { background: #22c55e; color: #22c55e; }
+.status-requirement { background: #f59e0b; color: #f59e0b; }
+
+/* Requirements Column */
+.requirement-column {
+  background: linear-gradient(180deg, #fef3c7 0%, #fffbeb 100%);
+  border-left: 3px solid #f59e0b;
+}
+
+.requirement-column .column-header {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toggle-converted-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  color: #6b7280;
+  margin-left: auto;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-converted-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.toggle-converted-btn.is-hiding {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.sync-requirements-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sync-requirements-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.sync-requirements-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auto-assign-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.auto-assign-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+.auto-assign-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-requirement-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px dashed #f59e0b;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-requirement-btn:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-style: solid;
+}
+
+.requirement-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.requirement-actions-row .sync-requirements-btn,
+.requirement-actions-row .auto-assign-btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.empty-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
 
 .column-title {
   font-size: 14px;
@@ -1068,9 +1838,9 @@ onUnmounted(() => {
 
 /* Task Card */
 .task-card {
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
   cursor: grab;
   transition: all 0.2s ease;
   border: 1px solid transparent;
@@ -1248,11 +2018,11 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* Chat Container */
+/* Chat Container - Separate on the far right */
 .chat-container {
-  width: 500px;
-  min-width: 400px;
-  max-width: 600px;
+  width: 450px;
+  min-width: 350px;
+  max-width: 550px;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--border-color);
@@ -1274,10 +2044,10 @@ onUnmounted(() => {
   display: none;
 }
 
-/* Chat toggle button - on the left edge */
+/* Chat toggle button - on the right edge */
 .chat-toggle-btn {
   position: absolute;
-  left: 0;
+  right: 0;
   top: 0;
   width: 24px;
   height: 100%;
@@ -1286,7 +2056,7 @@ onUnmounted(() => {
   justify-content: center;
   cursor: pointer;
   background: var(--bg-tertiary);
-  border-right: 1px solid var(--border-color);
+  border-left: 1px solid var(--border-color);
   z-index: 10;
   transition: background-color 0.2s ease;
 }
@@ -1349,7 +2119,58 @@ onUnmounted(() => {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
-  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* Node Info Header */
+.node-info-header {
+  padding: 16px;
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.node-info-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary, #1f2937);
+}
+
+.node-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.node-role {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-tertiary, #e5e7eb);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.node-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.node-status.status-done {
+  background: #d1fae5;
+  color: #10b981;
+}
+
+.node-status.status-in_progress {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+
+.node-status.status-pending {
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 /* Modal */
@@ -1594,4 +2415,533 @@ onUnmounted(() => {
     height: 48px;
   }
 }
+
+/* Auto Assign Dialog styles */
+.auto-assign-modal {
+  width: 560px;
+  max-width: 90vw;
+}
+
+.auto-assign-modal .modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.dialog-hint {
+  color: var(--text-secondary, #6b7280);
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.select-actions {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.select-actions .btn-link {
+  background: none;
+  border: none;
+  color: var(--accent-color, #3b82f6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.select-actions .btn-link:hover {
+  background-color: var(--hover-bg, #eff6ff);
+}
+
+.requirements-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-secondary, #fff);
+}
+
+.requirement-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.requirement-item:last-child {
+  border-bottom: none;
+}
+
+.requirement-item:hover {
+  background-color: var(--hover-bg, #fef3c7);
+}
+
+.requirement-item.is-selected {
+  background-color: var(--selected-bg, #fef9c7);
+}
+
+.requirement-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.requirement-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.requirement-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.requirement-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.requirement-item-desc {
+  font-size: 13px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.requirement-item-priority {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.requirement-item-priority.priority-high,
+.requirement-item-priority.priority-critical {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.requirement-item-priority.priority-medium {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.requirement-item-priority.priority-low {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.selected-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-color, #3b82f6);
+  margin-top: 16px;
+  padding: 8px 12px;
+  background: var(--accent-light, #eff6ff);
+  border-radius: 6px;
+}
+
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========== Workflow Node Detail Modal ========== */
+.node-detail-modal {
+  max-width: 640px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
+}
+
+.node-detail-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.node-detail-modal .header-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.node-detail-modal .header-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.node-detail-modal .modal-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.node-detail-modal .node-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.node-detail-modal .modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.node-detail-modal .modal-close:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.node-detail-modal .modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  max-height: calc(85vh - 140px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Info Card */
+.node-detail-modal .info-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.node-detail-modal .info-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.node-detail-modal .info-card-title svg {
+  color: #6366f1;
+}
+
+/* Info Grid */
+.node-detail-modal .info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.node-detail-modal .info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.node-detail-modal .info-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.node-detail-modal .info-label svg {
+  color: #94a3b8;
+}
+
+.node-detail-modal .info-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+/* Status Badge */
+.node-detail-modal .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.node-detail-modal .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.node-detail-modal .status-badge.status-done {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.node-detail-modal .status-badge.status-in_progress {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.node-detail-modal .status-badge.status-pending {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* Agent Badge */
+.node-detail-modal .agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #4338ca;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.node-detail-modal .agent-icon {
+  font-size: 14px;
+}
+
+/* Duration Value */
+.node-detail-modal .duration-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: #fef3c7;
+  color: #d97706;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Messages Card */
+.node-detail-modal .messages-card {
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-detail-modal .message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.node-detail-modal .message-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.node-detail-modal .message-item.message-from-user {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #bfdbfe;
+}
+
+.node-detail-modal .message-item.message-from-agent {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: #fecaca;
+}
+
+.node-detail-modal .message-avatar {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.node-detail-modal .message-content-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-detail-modal .message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.node-detail-modal .message-sender {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.node-detail-modal .message-time {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.node-detail-modal .message-content {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.6;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Child Nodes List */
+.node-detail-modal .child-nodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-detail-modal .child-node-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.node-detail-modal .child-node-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.node-detail-modal .child-status-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.node-detail-modal .child-node-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.node-detail-modal .child-node-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-detail-modal .child-node-agent {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.node-detail-modal .child-node-status {
+  font-size: 11px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.node-detail-modal .child-node-status.status-done {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.node-detail-modal .child-node-status.status-in_progress {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.node-detail-modal .child-node-status.status-pending {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.node-detail-modal .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 0 0 12px 12px;
+}
+
+.node-detail-modal .btn-close {
+  min-width: 100px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.node-detail-modal .btn-close:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  transform: translateY(-1px);
+}
 </style>
+

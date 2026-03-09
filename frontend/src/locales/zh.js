@@ -20,6 +20,7 @@ export default {
     none: '无',
     back: '返回',
     close: '关闭',
+    next: '下一步',
     required: '必填',
     optional: '可选'
   },
@@ -27,7 +28,7 @@ export default {
     projects: '项目列表',
     kanban: '看板',
     taskSources: '任务源',
-    agents: '智能代理',
+    agents: '团队成员',
     promptTemplates: '提示词模板',
     settings: '设置'
   },
@@ -102,14 +103,24 @@ export default {
     autoTransitionLabel: '自动流转',
     autoTransitionHint: '启用后，AI Agent 完成工作时将自动流转到下一阶段',
     autoTransitionEnabled: '自动流转已启用',
-    autoTransitionDisabled: '自动流转已禁用'
+    autoTransitionDisabled: '自动流转已禁用',
+    category: '任务分类',
+    categoryHint: '留空将根据标题自动检测分类',
+    autoAssignWorkflowLabel: '自动分配工作流',
+    autoAssignWorkflowHint: '启用后，新任务将自动分配到合适的工作流阶段',
+    workflowAssigned: '任务已自动分配到工作流 ({stage})',
+    categories: {
+      FEATURE: '新功能',
+      BUG_FIX: 'Bug修复',
+      REFACTORING: '重构',
+      DOCUMENTATION: '文档',
+      TESTING: '测试',
+      DESIGN: '设计'
+    }
   },
   status: {
     TODO: '待处理',
-    DESIGN: '设计',
-    DEVELOPMENT: '开发',
-    TESTING: '测试',
-    RELEASE: '发布',
+    IN_PROGRESS: '处理中',
     DONE: '已完成'
   },
   priority: {
@@ -151,14 +162,22 @@ export default {
     }
   },
   agent: {
-    title: '智能代理',
-    createAgent: '创建代理',
-    editAgent: '编辑代理',
+    title: '团队成员',
+    createAgent: '创建成员',
+    editAgent: '编辑成员',
     agentName: '名称',
     agentType: '类型',
+    role: '角色',
+    description: '描述',
+    descriptionPlaceholder: '请输入代理描述（可选）',
     command: '命令模板',
     config: '配置',
-    deleteConfirm: '确定要删除此代理吗？',
+    deleteConfirm: '确定要删除此成员吗？',
+    selectAgent: '选择成员',
+    loading: '加载中...',
+    noAgents: '暂无成员',
+    pleaseConfigure: '请先配置成员',
+    startSession: '开始会话',
     types: {
       CLAUDE: 'Claude Code',
       CODEX: 'OpenAI Codex',
@@ -365,5 +384,85 @@ export default {
     samePhaseError: '目标阶段必须与源阶段不同',
     autoTransitionLabel: '自动流转',
     autoRollbackLabel: '自动回退'
+  },
+  requirement: {
+    title: '原始需求',
+    createRequirement: '新增需求',
+    editRequirement: '编辑需求',
+    requirementTitle: '需求标题',
+    titlePlaceholder: '请输入需求标题',
+    description: '需求描述',
+    descriptionPlaceholder: '请详细描述需求内容...',
+    priority: '优先级',
+    source: '来源',
+    sources: {
+      PRODUCT: '产品需求',
+      USER: '用户反馈',
+      TECH: '技术需求',
+      BUSINESS: '业务需求',
+      OTHER: '其他'
+    },
+    statuses: {
+      NEW: '新建',
+      ANALYZING: '分析中',
+      CONVERTED: '已转换',
+      ARCHIVED: '已归档'
+    },
+    noRequirements: '暂无需求',
+    addRequirement: '新增需求',
+    syncTask: '同步任务',
+    generateTasks: '生成任务',
+    syncAllRequirements: '同步需求',
+    syncAllConfirmTitle: '同步需求确认',
+    syncAllConfirmMessage: '当前有 {count} 个需求未同步，确定要同步吗？',
+    autoAssign: '自动生成任务',
+    selectRequirementsTitle: '选择要生成任务的需求',
+    selectRequirementsHint: '请选择需要生成任务的需求',
+    selectAll: '全选',
+    deselectAll: '取消全选',
+    selectedCount: '已选择 {count} 个需求',
+    noRequirementsSelected: '请至少选择一个需求',
+    assignSelected: '生成选中',
+    allSynced: '已成功生成 {count} 个需求的任务',
+    taskCount: '{count} 个任务',
+    converted: '已转换为任务',
+    syncSuccess: '需求已转换为 {count} 个任务',
+    syncFailed: '转换需求失败',
+    deleteConfirm: '确定要删除此需求吗？',
+    deleteConfirmTitle: '删除需求',
+    deleteSuccess: '需求已删除',
+    deleteFailed: '删除需求失败',
+    analyzePreview: '分析预览',
+    estimatedTasks: '预计生成 {count} 个任务',
+    complexity: '复杂度',
+    complexityLevels: {
+      low: '低',
+      medium: '中',
+      high: '高'
+    },
+    detectedFeatures: '检测到的功能点',
+    expand: '展开',
+    collapse: '收起',
+    selectAgents: '选择 Agent',
+    selectAgentsHint: '请选择执行任务的 AI Agent',
+    agentsSelected: '个 Agent 已选择',
+    noAgentsAvailable: '暂无可用的 Agent，请先配置',
+    selectAtLeastOneAgent: '请至少选择一个 Agent',
+    confirmWorkflow: '确认工作流',
+    workflowPreviewHint: '以下是自动生成的工作流，请确认后生成任务',
+    confirmGenerate: '确认生成',
+    loadAgentsFailed: '加载 Agent 失败',
+    stages: {
+      design: '设计',
+      development: '开发',
+      testing: '测试'
+    },
+    roles: {
+      designer: '设计师',
+      developer: '开发者',
+      tester: '测试员'
+    },
+    showConverted: '显示已转换需求',
+    hideConverted: '隐藏已转换需求'
   }
 }

@@ -24,6 +24,17 @@
 
           <div class="agent-details">
             <div class="detail-row">
+              <span class="label">{{ $t('agent.role') }}:</span>
+              <span class="role-badge" :style="{ backgroundColor: getRoleConfig(agent.role || 'BACKEND_DEV').color }">
+                {{ getRoleConfig(agent.role || 'BACKEND_DEV').icon }}
+                {{ locale === 'zh' ? getRoleConfig(agent.role || 'BACKEND_DEV').name : getRoleConfig(agent.role || 'BACKEND_DEV').nameEn }}
+              </span>
+            </div>
+            <div class="detail-row description-row">
+              <span class="label">{{ $t('agent.description') }}:</span>
+              <span class="value">{{ agent.description || '-' }}</span>
+            </div>
+            <div class="detail-row">
               <span class="label">{{ $t('common.enabled') }}:</span>
               <label class="toggle">
                 <input type="checkbox" :checked="agent.enabled" @change="toggleEnabled(agent)" />
@@ -71,6 +82,20 @@
             </div>
 
             <div class="form-group">
+              <label>{{ $t('agent.role') }}</label>
+              <select v-model="form.role" required>
+                <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('agent.description') }}</label>
+              <input v-model="form.description" type="text" :placeholder="$t('agent.descriptionPlaceholder')" />
+            </div>
+
+            <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" v-model="form.enabled" />
                 {{ $t('common.enabled') }}
@@ -98,11 +123,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
+import { getRoleOptions, getRoleConfig } from '../constants/agent'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const agentStore = useAgentStore()
 
 const saving = ref(false)
@@ -112,7 +138,17 @@ const editingAgent = ref(null)
 const form = ref({
   name: '',
   type: 'CLAUDE',
+  role: 'BACKEND_DEV',
+  description: '',
   enabled: true
+})
+
+// Get role options for select dropdown
+const roleOptions = computed(() => {
+  return getRoleOptions().map(opt => ({
+    value: opt.value,
+    label: locale.value === 'zh' ? opt.label : opt.labelEn
+  }))
 })
 
 const toast = ref({ show: false, message: '', type: 'success' })
@@ -132,7 +168,7 @@ const loadAgents = async () => {
 
 const openAddForm = () => {
   editingAgent.value = null
-  form.value = { name: '', type: 'CLAUDE', enabled: true }
+  form.value = { name: '', type: 'CLAUDE', role: 'BACKEND_DEV', description: '', enabled: true }
   showForm.value = true
 }
 
@@ -141,6 +177,8 @@ const openEditForm = (agent) => {
   form.value = {
     name: agent.name,
     type: agent.type,
+    role: agent.role || 'BACKEND_DEV',
+    description: agent.description || '',
     enabled: agent.enabled
   }
   showForm.value = true
@@ -217,27 +255,30 @@ onMounted(loadAgents)
 
 .agents-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
 }
 
 .agent-card {
   background: white;
   border-radius: 8px;
-  padding: 1rem;
+  padding: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
 }
 
 .agent-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 8px;
 }
 
 .agent-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .agent-type-badge {
@@ -251,6 +292,7 @@ onMounted(loadAgents)
 
 .agent-details {
   margin-bottom: 1rem;
+  flex: 1;
 }
 
 .detail-row {
@@ -263,6 +305,38 @@ onMounted(loadAgents)
 
 .detail-row .label {
   color: #718096;
+}
+
+.detail-row .value {
+  color: #2d3748;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+.description-row {
+  /* 保持水平布局，不换行 */
+}
+
+.description-row .value {
+  text-align: right;
+  max-width: 60%;
+  font-size: 0.8rem;
+  color: #4a5568;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
 }
 
 .toggle {
@@ -313,6 +387,15 @@ onMounted(loadAgents)
 .agent-actions {
   display: flex;
   gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.agent-actions .btn {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
 }
 
 .btn {

@@ -11,6 +11,14 @@ import App from './App.vue'
 import router from './router'
 import i18n from './locales'
 import { useThemeStore } from './stores/theme'
+import api from './api/index.js'
+
+// Setup mock if enabled
+if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  const { setupMock } = await import('./mock/index.js')
+  setupMock(api)
+  console.log('[Demo Mode] Using mock data - no backend required')
+}
 
 const pinia = createPinia()
 

@@ -13,10 +13,7 @@ export const useTaskStore = defineStore('task', () => {
   const tasksByStatus = computed(() => {
     const grouped = {
       TODO: [],
-      DESIGN: [],
-      DEVELOPMENT: [],
-      TESTING: [],
-      RELEASE: [],
+      IN_PROGRESS: [],
       DONE: []
     }
     tasks.value.forEach(task => {
