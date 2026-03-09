@@ -92,13 +92,13 @@ import { computed } from 'vue'
 import { agentConfig, nodeStatusConfig } from '@/mock/workflowData'
 import {
   Back, Warning, Document, VideoPause,
-  Monitor, Desktop, Edit, Cpu
+  Monitor, Computer, Edit, Cpu
 } from '@element-plus/icons-vue'
 
 // Icon mapping for agent types
 const agentIconMap = {
   Monitor,
-  Desktop,
+  Computer,
   Edit,
   Cpu
 }

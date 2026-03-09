@@ -1,7 +1,7 @@
 // Agent 类型配置
 export const agentConfig = {
   CLAUDE: { color: "#8B5CF6", icon: "Monitor", name: "Claude" },
-  CODEX: { color: "#10B981", icon: "Desktop", name: "Codex" },
+  CODEX: { color: "#10B981", icon: "Computer", name: "Codex" },
   CURSOR: { color: "#F59E0B", icon: "Edit", name: "Cursor" },
   GEMINI: { color: "#3B82F6", icon: "Cpu", name: "Gemini" }
 }
