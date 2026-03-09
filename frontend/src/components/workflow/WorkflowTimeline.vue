@@ -538,7 +538,7 @@ onUnmounted(() => {
   padding-top: 20px;
   margin-bottom: 8px;
   position: relative;
-  margin-top: 8px;
+  box-sizing: border-box;
 }
 
 /* Workflow 标签 */
@@ -613,6 +613,7 @@ onUnmounted(() => {
   overflow-x: auto;
   margin-bottom: 8px;
   padding-top: 10px;
+  max-width: 100%;
 }
 
 .timeline-scroll {

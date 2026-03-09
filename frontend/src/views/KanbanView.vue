@@ -1738,7 +1738,8 @@ onUnmounted(() => {
 
 /* Override WorkflowTimeline margin to fit in kanban-area */
 .kanban-area :deep(.workflow-timeline) {
-  margin: 12px 12px 0 12px;
+  margin: 12px;
+  margin-bottom: 8px;
   flex-shrink: 0;
   max-width: calc(100% - 24px); /* 与下方看板区域对齐 */
 }
