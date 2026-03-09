@@ -467,8 +467,8 @@ const measureStagePositions = () => {
 // Get forward connector path between two points
 // fromId/toId can be: 'start', 'end', or a stage ID
 const getForwardPath = (fromId, toId) => {
-  const from = getNodeEndpoint(fromId)
-  const to = getNodeEndpoint(toId)
+  const from = getNodeEndpoint(fromId, 'output')
+  const to = getNodeEndpoint(toId, 'input')
 
   // Simple straight line from right of 'from' to left of 'to'
   return `M ${from.x} ${from.y} L ${to.x} ${to.y}`
@@ -476,7 +476,8 @@ const getForwardPath = (fromId, toId) => {
 
 // Get the endpoint coordinates for a node/stage
 // Returns {x, y} position relative to the timeline container
-const getNodeEndpoint = (id) => {
+// side: 'input' (left side) or 'output' (right side)
+const getNodeEndpoint = (id, side = 'output') => {
   if (id === 'start') {
     // Start node: right edge of the start circle (36px diameter, center at y=18)
     return { x: 36, y: 18 }
@@ -496,11 +497,17 @@ const getNodeEndpoint = (id) => {
   const stagePos = stagePositions.value.find(p => p.stageId === id)
   if (!stagePos) return { x: 0, y: 0 }
 
-  // Output point: right edge center of the stage
-  // Input point would be left edge center
-  return {
-    x: stagePos.x + stagePos.width,  // Right edge
-    y: stagePos.centerY  // Center Y
+  // Return left or right edge based on side parameter
+  if (side === 'input') {
+    return {
+      x: stagePos.x,  // Left edge
+      y: stagePos.centerY  // Center Y
+    }
+  } else {
+    return {
+      x: stagePos.x + stagePos.width,  // Right edge
+      y: stagePos.centerY  // Center Y
+    }
   }
 }
 

@@ -147,6 +147,9 @@
                         {{ formatTaskElapsedTime(element.id) }}
                       </span>
                     </div>
+                    <div v-if="element.description" class="task-card-description">
+                      {{ element.description }}
+                    </div>
                     <div class="task-card-actions">
                       <button
                         class="auto-transition-btn"
@@ -229,6 +232,9 @@
                         {{ formatTaskElapsedTime(element.id) }}
                       </span>
                     </div>
+                    <div v-if="element.description" class="task-card-description">
+                      {{ element.description }}
+                    </div>
                     <div class="task-card-actions">
                       <button
                         class="auto-transition-btn"
@@ -310,6 +316,9 @@
                       <span v-if="isTaskRunning(element.id)" class="task-running-time">
                         {{ formatTaskElapsedTime(element.id) }}
                       </span>
+                    </div>
+                    <div v-if="element.description" class="task-card-description">
+                      {{ element.description }}
                     </div>
                     <div class="task-card-actions">
                       <button
@@ -1745,8 +1754,8 @@ onUnmounted(() => {
 
 /* Kanban Column */
 .kanban-column {
-  min-width: 280px;
-  width: 280px;
+  min-width: 320px;
+  width: 320px;
   background: var(--bg-secondary);
   border-radius: 12px;
   display: flex;
@@ -1935,9 +1944,9 @@ onUnmounted(() => {
 
 /* Task Card */
 .task-card {
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  border-radius: 10px;
   cursor: grab;
   transition: all 0.2s ease;
   border: 1px solid transparent;
@@ -1974,7 +1983,7 @@ onUnmounted(() => {
 .task-card-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .task-card-main {
@@ -1984,8 +1993,8 @@ onUnmounted(() => {
 }
 
 .task-card-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.5;
   flex: 1;
@@ -1995,7 +2004,7 @@ onUnmounted(() => {
 .task-card-priority {
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2006,6 +2015,18 @@ onUnmounted(() => {
 .priority-medium { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
 .priority-high { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
 .priority-critical { background: rgba(239, 68, 68, 0.2); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+/* Task Card Description */
+.task-card-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
 
 .auto-transition-btn {
   background: transparent;
