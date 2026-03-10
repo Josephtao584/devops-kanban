@@ -158,7 +158,6 @@
                     :stroke="getNodeColor(node)"
                     stroke-width="2"
                     fill="none"/>
-                  <path d="M50 10 L50 20" stroke="#3b82f6" stroke-width="2" fill="none"/>
                 </svg>
               </div>
 
