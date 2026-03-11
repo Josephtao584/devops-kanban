@@ -862,7 +862,7 @@ const runningTasks = ref(new Set())
 const taskStartTimes = ref(new Map()) // Store start time for each running task
 const taskElapsedSeconds = ref({}) // Reactive object for elapsed seconds display
 let runningTimer = null
-const isChatCollapsed = ref(true)
+const isChatCollapsed = ref(false)
 const kanbanBoardRef = ref(null)
 
 // Workflow state
