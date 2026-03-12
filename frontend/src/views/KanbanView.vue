@@ -67,6 +67,14 @@
           </div>
         </div>
 
+        <!-- Daily Plan -->
+        <DailyPlan
+          v-if="selectedProjectId"
+          :project-id="selectedProjectId"
+          :tasks="tasks"
+          @select-task="selectTask"
+        />
+
         <!-- Workflow Timeline - Show when a task with workflow is selected (Kanban View) -->
         <WorkflowTimeline
           v-if="currentWorkflow && viewMode === 'kanban'"
@@ -994,6 +1002,7 @@ import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
 import WorkflowTimeline from '../components/workflow/WorkflowTimeline.vue'
+import DailyPlan from '../components/DailyPlan.vue'
 import RequirementCard from '../components/requirement/RequirementCard.vue'
 import RequirementForm from '../components/requirement/RequirementForm.vue'
 import TaskGenerateDialog from '../components/requirement/TaskGenerateDialog.vue'
