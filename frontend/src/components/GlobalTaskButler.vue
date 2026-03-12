@@ -280,7 +280,8 @@ const handleStatClick = (status) => {
     'BLOCKED': 'blocked'
   }
   const filter = statusFilter[status] || status
-  handleQuickAction({ action: `list-${status.toLowerCase()}`, label: filter })
+  const actionKey = status.toLowerCase().replace('_', '-')
+  handleQuickAction({ action: `list-${actionKey}`, label: filter })
 }
 
 // Select task

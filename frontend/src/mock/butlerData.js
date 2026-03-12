@@ -802,6 +802,27 @@ export const processGlobalButlerInput = (input, tasks, locale = 'zh') => {
     }
   }
 
+  // 查看阻塞任务
+  if (lowerInput.includes('阻塞') || lowerInput.includes('blocked') || lowerInput === 'list-blocked') {
+    const blockedTasks = tasks.filter(t => t.status === 'BLOCKED')
+    if (locale === 'en') {
+      return {
+        action: 'list-blocked',
+        response: blockedTasks.length > 0
+          ? `**Blocked Tasks** (${blockedTasks.length})`
+          : 'No blocked tasks.',
+        tasks: blockedTasks.length > 0 ? blockedTasks : null
+      }
+    }
+    return {
+      action: 'list-blocked',
+      response: blockedTasks.length > 0
+        ? `**阻塞任务** (${blockedTasks.length})`
+        : '没有阻塞的任务。',
+      tasks: blockedTasks.length > 0 ? blockedTasks : null
+    }
+  }
+
   // 项目概览
   if (lowerInput.includes('概览') || lowerInput.includes('overview') || lowerInput === 'stats' || lowerInput === 'overview') {
     const inProgressTasks = tasks.filter(t => t.status === 'IN_PROGRESS')
