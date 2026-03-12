@@ -1077,7 +1077,14 @@ const listStatusFilter = ref(['TODO', 'IN_PROGRESS'])
 // Computed property: filtered tasks for list view
 const filteredTasksForList = computed(() => {
   if (listStatusFilter.value.length === 0) return []
-  return taskStore.tasks.filter(task => listStatusFilter.value.includes(task.status))
+  const filtered = taskStore.tasks.filter(task => listStatusFilter.value.includes(task.status))
+  // Sort by status: TODO first, then IN_PROGRESS, then others
+  const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 2, 'DONE': 3, 'BLOCKED': 4 }
+  return filtered.sort((a, b) => {
+    const orderA = statusOrder[a.status] ?? 5
+    const orderB = statusOrder[b.status] ?? 5
+    return orderA - orderB
+  })
 })
 
 // Workflow state
