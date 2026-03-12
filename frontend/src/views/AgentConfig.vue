@@ -141,7 +141,12 @@
               {{ $t('agent.noExecutions') }}
             </div>
             <div v-else class="executions-list">
-              <div class="execution-item" v-for="execution in executions" :key="execution.id">
+              <div
+                class="execution-item clickable"
+                v-for="execution in executions"
+                :key="execution.id"
+                @click="openExecutionDetail(execution)"
+              >
                 <div class="execution-main">
                   <span class="task-title">{{ execution.taskTitle || `Task #${execution.taskId}` }}</span>
                   <span class="task-status-badge" :class="`status-${execution.taskStatus?.toLowerCase()}`">
@@ -262,6 +267,13 @@
     <div v-if="toast.show" class="toast" :class="toast.type">
       {{ toast.message }}
     </div>
+
+    <!-- Execution Detail Drawer -->
+    <ExecutionDetailDrawer
+      :visible="showExecutionDetail"
+      :execution-id="selectedExecutionId"
+      @close="closeExecutionDetail"
+    />
   </div>
 </template>
 
@@ -271,6 +283,7 @@ import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
 import { getRoleOptions, getRoleConfig } from '../constants/agent'
 import { getExecutionsByAgent } from '../api/execution'
+import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer.vue'
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
@@ -283,6 +296,10 @@ const editingAgent = ref(null)
 const selectedAgent = ref(null)
 const executions = ref([])
 const loadingExecutions = ref(false)
+
+// Execution detail drawer state
+const showExecutionDetail = ref(false)
+const selectedExecutionId = ref(null)
 
 // Execution statistics
 const executionStats = computed(() => {
@@ -376,6 +393,16 @@ const loadExecutions = async () => {
   } finally {
     loadingExecutions.value = false
   }
+}
+
+const openExecutionDetail = (execution) => {
+  selectedExecutionId.value = execution.id
+  showExecutionDetail.value = true
+}
+
+const closeExecutionDetail = () => {
+  showExecutionDetail.value = false
+  selectedExecutionId.value = null
 }
 
 const openAddForm = () => {
@@ -870,6 +897,15 @@ onMounted(loadAgents)
 .execution-item {
   padding: 0.75rem;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.execution-item.clickable {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.execution-item.clickable:hover {
+  background-color: #f0f7ff;
 }
 
 .execution-item:last-child {
