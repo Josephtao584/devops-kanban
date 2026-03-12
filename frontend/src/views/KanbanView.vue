@@ -65,16 +65,6 @@
               </el-radio-button>
             </el-radio-group>
           </div>
-
-          <!-- Status Filter for List View -->
-          <div v-if="viewMode === 'list'" class="status-filter">
-            <span class="filter-label">{{ $t('view.filterByStatus') }}:</span>
-            <el-checkbox-group v-model="listStatusFilter" size="small">
-              <el-checkbox-button v-for="status in allStatusOptions" :key="status" :value="status">
-                {{ $t(`status.${status}`) }}
-              </el-checkbox-button>
-            </el-checkbox-group>
-          </div>
         </div>
 
         <!-- Workflow Timeline - Show when a task with workflow is selected (Kanban View) -->
@@ -604,6 +594,14 @@
             <div class="list-section-title">
               {{ $t('task.title') }}
               <span class="section-count">{{ filteredTasksForList.length }}</span>
+            </div>
+            <!-- Status Filter for List View -->
+            <div class="list-status-filter">
+              <el-checkbox-group v-model="listStatusFilter" size="small">
+                <el-checkbox-button v-for="status in allStatusOptions" :key="status" :value="status">
+                  {{ $t(`status.${status}`) }}
+                </el-checkbox-button>
+              </el-checkbox-group>
             </div>
           </div>
           <div class="task-list-container">
@@ -4021,6 +4019,23 @@ onUnmounted(() => {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 12px;
+}
+
+.list-status-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  display: flex;
+  gap: 4px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
 }
 
 .list-section-actions {
