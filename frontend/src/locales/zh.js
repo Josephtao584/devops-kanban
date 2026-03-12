@@ -503,16 +503,16 @@ export default {
     stages: '阶段'
   },
   butler: {
-    title: '任务管家',
-    welcome: '您好！我是任务管家，负责协助您管理任务的执行。',
+    title: '小捷',
+    welcome: '嗨！我是小捷，我来帮您执行任务。',
     selectTask: '选择任务',
-    selectTaskHint: '点击任务卡片与管家对话',
+    selectTaskHint: '点击任务卡片开始执行',
     quickActions: '快捷操作',
     startWorkflow: '启动工作流',
     pauseWorkflow: '暂停',
     continueWorkflow: '继续',
     viewProgress: '查看进度',
-    inputPlaceholder: '与管家对话...',
+    inputPlaceholder: '与助手对话...',
     progressLabel: '进度',
     taskTitle: '任务',
     taskStatus: '状态',
@@ -521,5 +521,24 @@ export default {
     workflowStarted: '工作流已启动',
     workflowPaused: '工作流已暂停',
     workflowContinued: '工作流已继续'
+  },
+  globalButler: {
+    title: '小云',
+    singleMode: '执行',
+    globalMode: '小云',
+    welcomeHint: '输入命令或问题开始...',
+    inputPlaceholder: '和小云聊聊...',
+    overview: '概览',
+    allTasks: '全部任务',
+    inProgress: '进行中',
+    pending: '待办',
+    completed: '已完成',
+    modeSwitchHint: '点击任务可选中',
+    switchToGlobal: '呼叫小云',
+    switchToSingle: '呼叫小捷',
+    todayPlan: '今日计划',
+    yesterdayCompleted: '昨天完成',
+    todayTodo: '今日待办',
+    dailyOverview: '今日概览'
   }
 }

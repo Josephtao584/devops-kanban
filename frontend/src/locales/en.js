@@ -507,16 +507,16 @@ export default {
     stages: 'Stages'
   },
   butler: {
-    title: 'Task Butler',
-    welcome: 'Hello! I am the task butler, here to help you manage task execution.',
+    title: 'Jie',
+    welcome: `Hi! I'm Jie, I'm here to help you execute tasks.`,
     selectTask: 'Select Task',
-    selectTaskHint: 'Click a task card to chat with butler',
+    selectTaskHint: 'Click a task card to start execution',
     quickActions: 'Quick Actions',
     startWorkflow: 'Start Workflow',
     pauseWorkflow: 'Pause',
     continueWorkflow: 'Continue',
     viewProgress: 'View Progress',
-    inputPlaceholder: 'Chat with butler...',
+    inputPlaceholder: 'Chat with executor...',
     progressLabel: 'Progress',
     taskTitle: 'Task',
     taskStatus: 'Status',
@@ -525,5 +525,24 @@ export default {
     workflowStarted: 'Workflow started',
     workflowPaused: 'Workflow paused',
     workflowContinued: 'Workflow continued'
+  },
+  globalButler: {
+    title: 'Cloud',
+    singleMode: 'Execute',
+    globalMode: 'Cloud',
+    welcomeHint: 'Enter a command or question to start...',
+    inputPlaceholder: 'Chat with Cloud...',
+    overview: 'Overview',
+    allTasks: 'All Tasks',
+    inProgress: 'In Progress',
+    pending: 'Pending',
+    completed: 'Completed',
+    modeSwitchHint: 'Click task to select',
+    switchToGlobal: 'Call Cloud',
+    switchToSingle: 'Call Jie',
+    todayPlan: "Today's Plan",
+    yesterdayCompleted: 'Yesterday Completed',
+    todayTodo: 'Today Todo',
+    dailyOverview: 'Daily Overview'
   }
 }

@@ -67,14 +67,6 @@
           </div>
         </div>
 
-        <!-- Daily Plan -->
-        <DailyPlan
-          v-if="selectedProjectId"
-          :project-id="selectedProjectId"
-          :tasks="tasks"
-          @select-task="selectTask"
-        />
-
         <!-- Workflow Timeline - Show when a task with workflow is selected (Kanban View) -->
         <WorkflowTimeline
           v-if="currentWorkflow && viewMode === 'kanban'"
@@ -683,34 +675,80 @@
           </svg>
         </div>
 
-        <!-- No task selected -->
-        <div v-if="!selectedTask" class="chat-welcome">
-          <div class="welcome-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-          </div>
-          <h2>{{ $t('butler.selectTask') }}</h2>
-          <p>{{ $t('butler.selectTaskHint') }}</p>
-        </div>
-
-        <!-- Task Butler Chat -->
-        <div v-else class="chat-content">
-          <!-- Butler Header -->
-          <div class="butler-header">
-            <div class="butler-avatar">🤖</div>
-            <div class="butler-info">
-              <h3>{{ $t('butler.title') }}</h3>
-              <span class="task-name">{{ selectedTask.title }}</span>
+        <!-- Single Task Mode -->
+        <template v-if="butlerMode === 'single'">
+          <!-- No task selected -->
+          <div v-if="!selectedTask" class="chat-welcome">
+            <div class="welcome-icon">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
             </div>
+            <h2>{{ $t('butler.selectTask') }}</h2>
+            <p>{{ $t('butler.selectTaskHint') }}</p>
+            <!-- Mode Toggle Button -->
+            <button
+              class="mode-switch-btn"
+              @click="butlerMode = 'global'"
+              :title="$t('globalButler.switchToGlobal')"
+            >
+              {{ $t('globalButler.switchToGlobal') }}
+            </button>
           </div>
-          <!-- TaskButlerChat Component -->
-          <TaskButlerChat
-            ref="butlerChatRef"
-            :task="selectedTask"
-            @control-workflow="handleButlerControl"
-          />
-        </div>
+
+          <!-- Task Butler Chat -->
+          <div v-else class="chat-content">
+            <!-- Butler Header with Mode Toggle -->
+            <div class="butler-header">
+              <div class="butler-avatar">🎯</div>
+              <div class="butler-info">
+                <h3>{{ $t('butler.title') }} - {{ selectedTask.title }}</h3>
+              </div>
+              <!-- Mode Toggle Button -->
+              <button
+                class="mode-toggle-btn"
+                @click="butlerMode = 'global'"
+                :title="$t('globalButler.switchToGlobal')"
+              >
+                {{ $t('globalButler.switchToGlobal') }}
+              </button>
+            </div>
+            <!-- TaskButlerChat Component -->
+            <TaskButlerChat
+              ref="butlerChatRef"
+              :task="selectedTask"
+              @control-workflow="handleButlerControl"
+            />
+          </div>
+        </template>
+
+        <!-- Global Mode -->
+        <template v-else>
+          <div class="chat-content global-mode">
+            <!-- Global Butler Header with Mode Toggle -->
+            <div class="butler-header">
+              <div class="butler-avatar">🤖</div>
+              <div class="butler-info">
+                <h3>{{ $t('globalButler.title') }}</h3>
+              </div>
+              <!-- Mode Toggle Button -->
+              <button
+                class="mode-toggle-btn"
+                @click="butlerMode = 'single'"
+                :title="$t('globalButler.switchToSingle')"
+              >
+                {{ $t('globalButler.switchToSingle') }}
+              </button>
+            </div>
+            <!-- GlobalTaskButler Component -->
+            <GlobalTaskButler
+              :tasks="taskStore.tasks"
+              :project-id="selectedProjectId"
+              @select-task="selectTask"
+              @control-workflow="handleButlerControl"
+            />
+          </div>
+        </template>
       </div>
     </div><!-- End of .main-content-wrapper -->
 
@@ -1001,8 +1039,8 @@ import { createSession, startSession, stopSession, getActiveSessionByTask, getSe
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
+import GlobalTaskButler from '../components/GlobalTaskButler.vue'
 import WorkflowTimeline from '../components/workflow/WorkflowTimeline.vue'
-import DailyPlan from '../components/DailyPlan.vue'
 import RequirementCard from '../components/requirement/RequirementCard.vue'
 import RequirementForm from '../components/requirement/RequirementForm.vue'
 import TaskGenerateDialog from '../components/requirement/TaskGenerateDialog.vue'
@@ -1078,6 +1116,9 @@ const kanbanBoardRef = ref(null)
 
 // View mode state: 'kanban' | 'list'
 const viewMode = ref('list')
+
+// Butler mode state: 'single' | 'global'
+const butlerMode = ref('global')
 
 // List mode status filter
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
@@ -2007,10 +2048,10 @@ onUnmounted(() => {
 .app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 /* Top Header */
@@ -2721,6 +2762,7 @@ onUnmounted(() => {
   border-left: 1px solid var(--border-color);
   background: var(--bg-primary);
   flex-shrink: 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
@@ -2767,12 +2809,55 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
+/* Mode Switch Button (in welcome screen) */
+.mode-switch-btn {
+  margin-top: 12px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #6366f1;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.mode-switch-btn:hover {
+  opacity: 0.85;
+}
+
+/* Mode Toggle Button (in header) */
+.mode-toggle-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #6366f1;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.mode-toggle-btn:hover {
+  opacity: 0.85;
+}
+
+.chat-container.collapsed .mode-switch-btn,
+.chat-container.collapsed .mode-toggle-btn {
+  display: none;
+}
+
 .chat-welcome {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
+  min-height: 0;
   color: var(--text-muted);
   padding: 24px;
 }
@@ -2807,6 +2892,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   padding-right: 24px;
 }
@@ -2817,6 +2903,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 16px;
+  flex-shrink: 0;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
   border-bottom: 1px solid var(--border-color);
 }

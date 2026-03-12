@@ -265,12 +265,14 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   background-color: var(--bg-secondary, #f8fafc);
 }
 
 /* Task Status Card */
 .task-status-card {
   padding: 12px 16px;
+  flex-shrink: 0;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
   border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
@@ -353,6 +355,7 @@ defineExpose({
 /* Messages Area */
 .butler-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -445,6 +448,7 @@ defineExpose({
   display: flex;
   gap: 8px;
   padding: 12px 16px;
+  flex-shrink: 0;
   background: var(--bg-primary, #ffffff);
   border-top: 1px solid var(--border-color, #e2e8f0);
 }
