@@ -77,17 +77,6 @@
           </div>
         </div>
 
-        <!-- Workflow Timeline - Show when a task with workflow is selected -->
-        <WorkflowTimeline
-          v-if="currentWorkflow"
-          :workflow="currentWorkflow"
-          :selected-node-id="selectedNodeId"
-          :default-collapsed="true"
-          @select-node="onNodeSelect"
-          @view-details="onNodeViewDetails"
-          @start-workflow="onStartWorkflow"
-        />
-
         <!-- Kanban Board -->
         <div v-if="viewMode === 'kanban'" class="kanban-board" ref="kanbanBoardRef">
         <!-- Requirements Column -->
@@ -492,6 +481,16 @@
           </div>
         </div>
 
+        <!-- Workflow Timeline - Show when a task with workflow is selected (Kanban View) -->
+        <WorkflowTimeline
+          v-if="currentWorkflow && viewMode === 'kanban'"
+          :workflow="currentWorkflow"
+          :selected-node-id="selectedNodeId"
+          :default-collapsed="true"
+          @select-node="onNodeSelect"
+          @view-details="onNodeViewDetails"
+          @start-workflow="onStartWorkflow"
+        />
       </div>
 
       <!-- List View -->
@@ -676,6 +675,17 @@
             </div>
           </div>
         </div>
+
+        <!-- Workflow Timeline in List View - Show when a task with workflow is selected -->
+        <WorkflowTimeline
+          v-if="currentWorkflow && viewMode === 'list'"
+          :workflow="currentWorkflow"
+          :selected-node-id="selectedNodeId"
+          :default-collapsed="true"
+          @select-node="onNodeSelect"
+          @view-details="onNodeViewDetails"
+          @start-workflow="onStartWorkflow"
+        />
       </div><!-- End of .task-list-view -->
     </div><!-- End of .kanban-area -->
 
