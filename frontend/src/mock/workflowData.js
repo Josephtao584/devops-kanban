@@ -356,7 +356,10 @@ export const mockWorkflows = [
             agentName: "DevOps Deploy",
             status: "PENDING",
             task: { id: 2, title: "灰度发布", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "等待性能测试完成后执行灰度发布。" },
+              { id: 2, from: "assistant", content: "收到，正在等待上游性能测试节点完成。当前任务状态：待执行。" }
+            ]
           }
         ]
       },
@@ -373,7 +376,10 @@ export const mockWorkflows = [
             agentName: "DevOps Monitor",
             status: "PENDING",
             task: { id: 2, title: "监控配置", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "配置数据库性能监控告警规则。" },
+              { id: 2, from: "assistant", content: "等待灰度发布完成后配置监控。计划配置：慢查询告警(>1s)、连接池使用率(>80%)、死锁检测。当前状态：待执行。" }
+            ]
           }
         ]
       }
@@ -556,7 +562,10 @@ export const mockWorkflows = [
             agentName: "DevOps Deploy",
             status: "PENDING",
             task: { id: 4, title: "发布部署", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "等待补充测试完成后执行发布部署。" },
+              { id: 2, from: "assistant", content: "等待上游测试节点完成。发布计划：1) 构建生产包 2) 部署到生产环境 3) 健康检查。当前状态：待执行。" }
+            ]
           }
         ]
       }
@@ -700,7 +709,10 @@ export const mockWorkflows = [
             agentName: "Claude Perf",
             status: "PENDING",
             task: { id: 6, title: "性能测试", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "执行性能回归测试，验证重构后的性能指标。" },
+              { id: 2, from: "assistant", content: "等待完善重构完成后执行性能测试。计划测试：接口响应时间、并发处理能力、内存使用情况。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -717,7 +729,10 @@ export const mockWorkflows = [
             agentName: "DevOps Deploy",
             status: "PENDING",
             task: { id: 6, title: "灰度发布", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "准备灰度发布计划，逐步替换旧服务。" },
+              { id: 2, from: "assistant", content: "等待性能测试验证通过后执行。发布策略：10% -> 50% -> 100%，每阶段观察30分钟。当前状态：待执行。" }
+            ]
           }
         ]
       }
@@ -834,7 +849,10 @@ export const mockWorkflows = [
             agentName: "Claude Security",
             status: "PENDING",
             task: { id: 7, title: "安全复审", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "进行安全复审，确认修复方案没有引入新的安全问题。" },
+              { id: 2, from: "assistant", content: "等待修复优化完成后执行安全复审。将检查：1) DOMPurify配置安全性 2) 是否存在绕过XSS防护的可能 3) 其他潜在安全风险。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -851,7 +869,10 @@ export const mockWorkflows = [
             agentName: "Code Committer",
             status: "PENDING",
             task: { id: 7, title: "Committer 审批", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "Committer审批热修复代码。" },
+              { id: 2, from: "assistant", content: "等待安全复审通过后执行Committer审批。将检查：代码质量、测试覆盖、安全合规。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -868,7 +889,10 @@ export const mockWorkflows = [
             agentName: "DevOps Hotfix",
             status: "PENDING",
             task: { id: 7, title: "热修复部署", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "执行热修复紧急部署到生产环境。" },
+              { id: 2, from: "assistant", content: "等待Committer审批通过后执行。部署计划：1) 构建hotfix包 2) 滚动更新生产服务 3) 验证XSS修复生效。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -885,7 +909,10 @@ export const mockWorkflows = [
             agentName: "ReleaseMgr",
             status: "PENDING",
             task: { id: 7, title: "发布验证", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "验证热修复发布成功，确认安全漏洞已修复。" },
+              { id: 2, from: "assistant", content: "等待热修复部署完成后执行验证。验证内容：1) XSS漏洞已修复 2) 富文本功能正常 3) 生产环境监控正常。当前状态：待执行。" }
+            ]
           }
         ]
       }
@@ -1023,7 +1050,10 @@ export const mockWorkflows = [
             agentName: "DevOps Deploy",
             status: "PENDING",
             task: { id: 8, title: "灰度发布", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "执行前端优化灰度发布，逐步替换旧版本。" },
+              { id: 2, from: "assistant", content: "等待性能测试验证通过后执行。发布计划：10% -> 30% -> 50% -> 100%，每阶段监控页面加载时间和错误率。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -1040,7 +1070,10 @@ export const mockWorkflows = [
             agentName: "DevOps Monitor",
             status: "PENDING",
             task: { id: 8, title: "性能监控配置", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "配置前端性能监控告警规则。" },
+              { id: 2, from: "assistant", content: "等待灰度发布完成后配置。计划配置：FCP>2s告警、LCP>3s告警、JS错误率>1%告警、资源加载失败告警。当前状态：待执行。" }
+            ]
           }
         ]
       }
@@ -1157,7 +1190,10 @@ export const mockWorkflows = [
             agentName: "Cursor Frontend",
             status: "PENDING",
             task: { id: 3, title: "导出按钮 UI", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "开发导出按钮UI，支持Excel和PDF两种格式选择。" },
+              { id: 2, from: "assistant", content: "等待后端PDF导出功能完成后开发。计划实现：下拉菜单选择格式、导出进度提示、批量选择导出。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -1174,7 +1210,10 @@ export const mockWorkflows = [
             agentName: "Claude QA",
             status: "PENDING",
             task: { id: 3, title: "导出功能测试", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "执行导出功能测试，验证Excel和PDF导出正确性。" },
+              { id: 2, from: "assistant", content: "等待前端UI开发完成后测试。测试用例：1) 空数据导出 2) 大批量导出(1000条) 3) 格式正确性 4) 权限控制。当前状态：待执行。" }
+            ]
           }
         ]
       }
@@ -1291,7 +1330,10 @@ export const mockWorkflows = [
             agentName: "Cursor Frontend",
             status: "PENDING",
             task: { id: 5, title: "通知模板配置", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "开发通知模板配置界面，支持自定义消息模板。" },
+              { id: 2, from: "assistant", content: "等待钉钉集成完成后开发。计划实现：模板编辑器、变量插入、预览功能、模板版本管理。当前状态：待执行。" }
+            ]
           }
         ]
       },
@@ -1308,7 +1350,10 @@ export const mockWorkflows = [
             agentName: "Claude QA",
             status: "PENDING",
             task: { id: 5, title: "通知功能测试", status: "TODO" },
-            messages: []
+            messages: [
+              { id: 1, from: "user", content: "执行消息通知集成测试，验证企业微信和钉钉通知功能。" },
+              { id: 2, from: "assistant", content: "等待模板配置功能完成后测试。测试内容：1) webhook连通性 2) 消息格式正确性 3) @mention功能 4) 失败重试机制。当前状态：待执行。" }
+            ]
           }
         ]
       }
