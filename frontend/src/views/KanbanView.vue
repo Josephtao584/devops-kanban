@@ -503,7 +503,6 @@
               <svg class="collapse-icon" :class="{ rotated: isListRequirementsCollapsed }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
-              <span class="section-icon">📋</span>
               {{ $t('requirement.title') }}
               <span class="section-count">{{ requirements.length }}</span>
             </div>
@@ -603,7 +602,6 @@
         <div class="list-tasks-section">
           <div class="list-section-header">
             <div class="list-section-title">
-              <span class="section-icon">📝</span>
               {{ $t('task.title') }}
               <span class="section-count">{{ filteredTasksForList.length }}</span>
             </div>
@@ -3983,15 +3981,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(251, 191, 36, 0.05) 100%);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
   transition: background 0.2s ease;
 }
 
 .list-section-header:hover {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(251, 191, 36, 0.08) 100%);
+  background: var(--hover-bg);
 }
 
 .list-section-title {
@@ -4017,8 +4015,8 @@ onUnmounted(() => {
 }
 
 .section-count {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
