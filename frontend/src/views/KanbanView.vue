@@ -496,70 +496,140 @@
 
       <!-- List View -->
       <div v-else class="task-list-view" ref="taskListRef">
-        <div class="task-list-container">
-          <div v-if="filteredTasksForList.length === 0" class="empty-list">
-            <p>{{ $t('view.noTasksFound') }}</p>
+        <!-- Requirements Section in List View -->
+        <div class="list-requirements-section">
+          <div class="list-section-header">
+            <div class="list-section-title">
+              <span class="section-icon">📋</span>
+              {{ $t('requirement.title') }}
+              <span class="section-count">{{ requirements.length }}</span>
+            </div>
+            <div class="list-section-actions">
+              <button class="add-requirement-btn-list" @click="openRequirementModal">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                {{ $t('requirement.addRequirement') }}
+              </button>
+              <button class="sync-requirements-btn-list" @click="syncAllRequirements" :disabled="pendingRequirements.length === 0 || syncingAllRequirements">
+                <svg v-if="syncingAllRequirements" class="icon-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+                </svg>
+                <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                  <path d="M16 16h5v5"></path>
+                </svg>
+                {{ $t('requirement.syncAllRequirements') }}
+              </button>
+              <button
+                class="toggle-converted-btn-list"
+                :class="{ 'is-hiding': hideConvertedRequirements }"
+                @click="hideConvertedRequirements = !hideConvertedRequirements"
+                :title="hideConvertedRequirements ? $t('requirement.showConverted') : $t('requirement.hideConverted')"
+              >
+                <svg v-if="hideConvertedRequirements" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div
-            v-for="task in filteredTasksForList"
-            :key="task.id"
-            class="task-list-item"
-            :class="{
-              'task-selected': selectedTask?.id === task.id,
-              'task-running': isTaskRunning(task.id)
-            }"
-            @click="selectTask(task)"
-          >
-            <div class="task-list-status">
-              <span class="status-badge" :class="getStatusClass(task.status)">
-                {{ $t(`status.${task.status}`) }}
-              </span>
+          <div class="list-requirements-content">
+            <RequirementCard
+              v-for="req in requirements"
+              :key="req.id"
+              :requirement="req"
+              @sync="syncRequirementToTask"
+              @delete="deleteRequirement"
+            />
+            <div v-if="requirements.length === 0" class="empty-requirements-list">
+              <p>{{ $t('requirement.noRequirements') }}</p>
             </div>
-            <div class="task-list-priority">
-              <span class="priority-badge" :class="getPriorityClass(task.priority)">
-                {{ getPriorityLabel(task.priority) }}
-              </span>
+          </div>
+        </div>
+
+        <!-- Tasks Section in List View -->
+        <div class="list-tasks-section">
+          <div class="list-section-header">
+            <div class="list-section-title">
+              <span class="section-icon">📝</span>
+              {{ $t('task.title') }}
+              <span class="section-count">{{ filteredTasksForList.length }}</span>
             </div>
-            <div class="task-list-content">
-              <div class="task-list-title">{{ task.title }}</div>
-              <div v-if="task.description" class="task-list-description">{{ task.description }}</div>
+          </div>
+          <div class="task-list-container">
+            <div v-if="filteredTasksForList.length === 0" class="empty-list">
+              <p>{{ $t('view.noTasksFound') }}</p>
             </div>
-            <div v-if="isTaskRunning(task.id)" class="task-list-running">
-              <span class="running-time">{{ formatTaskElapsedTime(task.id) }}</span>
-            </div>
-            <div class="task-list-actions">
-              <button
-                class="auto-transition-btn"
-                :class="{ 'active': task.autoTransitionEnabled === true }"
-                @click.stop="toggleAutoTransition(task)"
-                :title="task.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 4v6h-6"></path>
-                  <path d="M1 20v-6h6"></path>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                </svg>
-              </button>
-              <button
-                class="edit-btn"
-                @click.stop="openTaskModal(task)"
-                :title="$t('common.edit')"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
-              <button
-                class="delete-btn"
-                @click.stop="deleteTask(task.id)"
-                :title="$t('common.delete')"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-              </button>
+            <div
+              v-for="task in filteredTasksForList"
+              :key="task.id"
+              class="task-list-item"
+              :class="{
+                'task-selected': selectedTask?.id === task.id,
+                'task-running': isTaskRunning(task.id)
+              }"
+              @click="selectTask(task)"
+            >
+              <div class="task-list-status">
+                <span class="status-badge" :class="getStatusClass(task.status)">
+                  {{ $t(`status.${task.status}`) }}
+                </span>
+              </div>
+              <div class="task-list-priority">
+                <span class="priority-badge" :class="getPriorityClass(task.priority)">
+                  {{ getPriorityLabel(task.priority) }}
+                </span>
+              </div>
+              <div class="task-list-content">
+                <div class="task-list-title">{{ task.title }}</div>
+                <div v-if="task.description" class="task-list-description">{{ task.description }}</div>
+              </div>
+              <div v-if="isTaskRunning(task.id)" class="task-list-running">
+                <span class="running-time">{{ formatTaskElapsedTime(task.id) }}</span>
+              </div>
+              <div class="task-list-actions">
+                <button
+                  class="auto-transition-btn"
+                  :class="{ 'active': task.autoTransitionEnabled === true }"
+                  @click.stop="toggleAutoTransition(task)"
+                  :title="task.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6"></path>
+                    <path d="M1 20v-6h6"></path>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                  </svg>
+                </button>
+                <button
+                  class="edit-btn"
+                  @click.stop="openTaskModal(task)"
+                  :title="$t('common.edit')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button
+                  class="delete-btn"
+                  @click.stop="deleteTask(task.id)"
+                  :title="$t('common.delete')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3799,6 +3869,158 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: 14px;
   padding: 40px;
+}
+
+/* List View Requirements Section */
+.list-requirements-section {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.list-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(251, 191, 36, 0.05) 100%);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.list-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.section-icon {
+  font-size: 18px;
+}
+
+.section-count {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.list-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-requirement-btn-list {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.add-requirement-btn-list:hover {
+  background: #d97706;
+}
+
+.sync-requirements-btn-list {
+  background: #3b82f6;
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sync-requirements-btn-list:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.sync-requirements-btn-list:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-converted-btn-list {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-converted-btn-list:hover {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.toggle-converted-btn-list.is-hiding {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.list-requirements-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border-color);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.list-requirements-content > * {
+  background: var(--bg-primary);
+}
+
+.empty-requirements-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 13px;
+  background: var(--bg-primary);
+}
+
+.empty-requirements-list svg {
+  width: 32px;
+  height: 32px;
+  color: #d1d5db;
+  margin-bottom: 8px;
+}
+
+.list-tasks-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 </style>
 
