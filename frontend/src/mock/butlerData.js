@@ -18,6 +18,12 @@ export const butlerResponses = {
   'progress': { action: 'status', response: '__DETAILED_PROGRESS__' },
   'status': { action: 'status', response: '__DETAILED_PROGRESS__' },
 
+  // 工作建议
+  '建议': { action: 'task-suggestions', response: '__TASK_SUGGESTIONS__' },
+  '工作建议': { action: 'task-suggestions', response: '__TASK_SUGGESTIONS__' },
+  'suggestions': { action: 'task-suggestions', response: '__TASK_SUGGESTIONS__' },
+  'advice': { action: 'task-suggestions', response: '__TASK_SUGGESTIONS__' },
+
   // 继续执行
   '继续': { action: 'continue', response: '好的，正在继续执行工作流...' },
   'continue': { action: 'continue', response: 'Continuing workflow execution...' },
@@ -31,8 +37,8 @@ export const butlerResponses = {
   'details': { action: 'details', response: 'Let me check the task details...\n\nTask: {taskTitle}\nStatus: {status}\nProgress: {progress}%\nCurrent Stage: {currentNode}' },
 
   // 帮助
-  '帮助': { action: 'help', response: '我可以帮您：\n• 启动任务 - 说"启动"或"开始"\n• 暂停任务 - 说"暂停"\n• 查看进度 - 说"进度"或"状态"\n• 查看详情 - 说"详情"\n• 继续执行 - 说"继续"\n• 重试 - 说"重试"' },
-  'help': { action: 'help', response: 'I can help you with:\n• Start task - say "start"\n• Pause task - say "pause"\n• View progress - say "progress" or "status"\n• View details - say "details"\n• Continue - say "continue"\n• Retry - say "retry"' },
+  '帮助': { action: 'help', response: '我可以帮您：\n• 启动任务 - 说"启动"或"开始"\n• 暂停任务 - 说"暂停"\n• 查看进度 - 说"进度"或"状态"\n• 工作建议 - 说"建议"\n• 查看详情 - 说"详情"\n• 继续执行 - 说"继续"\n• 重试 - 说"重试"' },
+  'help': { action: 'help', response: 'I can help you with:\n• Start task - say "start"\n• Pause task - say "pause"\n• View progress - say "progress" or "status"\n• Get suggestions - say "suggestions"\n• View details - say "details"\n• Continue - say "continue"\n• Retry - say "retry"' },
 
   // 问候
   '你好': { action: 'greet', response: '您好！我是小捷，有什么可以帮您的吗？' },
@@ -275,6 +281,11 @@ export const processButlerInput = (input, task, workflow, locale = 'zh') => {
         }
       }
 
+      // 特殊处理任务建议
+      if (config.response === '__TASK_SUGGESTIONS__') {
+        return getTaskWorkSuggestions(task, workflow, locale)
+      }
+
       const progress = getWorkflowProgress(workflow)
       const currentNode = getCurrentNodeName(workflow)
 
@@ -315,6 +326,7 @@ export const getQuickActions = (task, workflow, locale = 'zh') => {
       { id: 'start', label: 'Start', icon: 'play', disabled: isRunning || isCompleted, action: 'start' },
       { id: 'pause', label: 'Pause', icon: 'pause', disabled: !isRunning, action: 'pause' },
       { id: 'progress', label: 'Progress', icon: 'chart', disabled: false, action: 'status' },
+      { id: 'suggestions', label: 'Suggestions', icon: 'lightbulb', disabled: false, action: 'task-suggestions' },
       { id: 'help', label: 'Help', icon: 'help', disabled: false, action: 'help' }
     ]
   }
@@ -323,6 +335,7 @@ export const getQuickActions = (task, workflow, locale = 'zh') => {
     { id: 'start', label: '启动', icon: 'play', disabled: isRunning || isCompleted, action: 'start' },
     { id: 'pause', label: '暂停', icon: 'pause', disabled: !isRunning, action: 'pause' },
     { id: 'progress', label: '进度', icon: 'chart', disabled: false, action: 'status' },
+    { id: 'suggestions', label: '工作建议', icon: 'lightbulb', disabled: false, action: 'task-suggestions' },
     { id: 'help', label: '帮助', icon: 'help', disabled: false, action: 'help' }
   ]
 }
@@ -335,6 +348,11 @@ export const getResponseForAction = (action, task, workflow, locale = 'zh') => {
       action: 'status',
       response: getDetailedWorkflowStatus(workflow, task, locale)
     }
+  }
+
+  // 特殊处理任务建议
+  if (action === 'task-suggestions' || action === 'suggestions') {
+    return getTaskWorkSuggestions(task, workflow, locale)
   }
 
   // 找到对应的响应模板
@@ -730,6 +748,13 @@ export const processGlobalButlerInput = (input, tasks, locale = 'zh') => {
     return getYesterdayCompletedMessage(tasks, locale)
   }
 
+  // 工作建议
+  if (lowerInput.includes('工作建议') || lowerInput.includes('建议') ||
+      lowerInput === 'suggestions' || lowerInput === 'work-suggestions' ||
+      lowerInput === 'advice' || lowerInput === 'tips') {
+    return getWorkSuggestionsMessage(tasks, locale)
+  }
+
   // 列出所有任务
   if (lowerInput.includes('查看全部') || lowerInput.includes('list all') || lowerInput === 'all' || lowerInput === 'list-all') {
     return {
@@ -960,6 +985,9 @@ export const processGlobalButlerInput = (input, tasks, locale = 'zh') => {
 • "pause [task name]" - Pause a specific task
 • "start all" - Start all pending tasks
 
+**Suggestions:**
+• "suggestions" / "advice" - Get work suggestions
+
 **Other:**
 • "help" - Show this help message`
       }
@@ -983,6 +1011,9 @@ export const processGlobalButlerInput = (input, tasks, locale = 'zh') => {
 • "启动 [任务名]" - 启动指定任务
 • "暂停 [任务名]" - 暂停指定任务
 • "批量启动" - 启动所有待办任务
+
+**工作建议：**
+• "工作建议" / "建议" - 获取工作建议
 
 **其他：**
 • "帮助" - 显示帮助信息`
@@ -1062,6 +1093,7 @@ export const getGlobalQuickActions = (tasks, locale = 'zh') => {
       { id: 'overview', label: 'Overview', icon: 'chart', action: 'overview' },
       { id: 'today-plan', label: 'Today', icon: 'calendar', action: 'today' },
       { id: 'yesterday', label: 'Yesterday', icon: 'list', action: 'yesterday-completed' },
+      { id: 'suggestions', label: 'Suggestions', icon: 'lightbulb', action: 'work-suggestions' },
       { id: 'help', label: 'Help', icon: 'help', action: 'help' }
     ]
   }
@@ -1070,6 +1102,262 @@ export const getGlobalQuickActions = (tasks, locale = 'zh') => {
     { id: 'overview', label: '概览', icon: 'chart', action: 'overview' },
     { id: 'today-plan', label: '今日计划', icon: 'calendar', action: 'today' },
     { id: 'yesterday', label: '昨日情况', icon: 'list', action: 'yesterday-completed' },
+    { id: 'suggestions', label: '工作建议', icon: 'lightbulb', action: 'work-suggestions' },
     { id: 'help', label: '帮助', icon: 'help', action: 'help' }
   ]
+}
+
+// ============= 工作建议功能 =============
+
+// 工作建议 mock 数据
+export const workSuggestionsMockData = {
+  zh: {
+    priority: [
+      { title: '优先处理高优先级任务', reason: '有 2 个高优先级任务待处理，建议优先完成', icon: '🔥' },
+      { title: '关注阻塞任务', reason: '存在 1 个阻塞任务，需要及时解决以避免影响整体进度', icon: '🚫' }
+    ],
+    efficiency: [
+      { title: '批量处理类似任务', reason: '有 3 个相关联的任务，可以一起处理提高效率', icon: '⚡' },
+      { title: '利用碎片时间', reason: '有一些小任务可以在会议间隙完成', icon: '⏰' }
+    ],
+    balance: [
+      { title: '注意任务分配均衡', reason: '当前任务集中在开发阶段，可以适当关注测试工作', icon: '⚖️' },
+      { title: '保持专注', reason: '当前进行中任务较多，建议专注完成后再开启新任务', icon: '🎯' }
+    ],
+    progress: [
+      { title: '持续推进进行中任务', reason: '有 3 个任务正在进行中，保持良好势头', icon: '🚀' },
+      { title: '及时更新任务状态', reason: '建议定期更新任务进度，便于团队同步信息', icon: '📝' }
+    ]
+  },
+  en: {
+    priority: [
+      { title: 'Prioritize high-priority tasks', reason: '2 high-priority tasks pending, recommend completing first', icon: '🔥' },
+      { title: 'Address blocked tasks', reason: '1 blocked task exists, resolve promptly to avoid delays', icon: '🚫' }
+    ],
+    efficiency: [
+      { title: 'Batch similar tasks', reason: '3 related tasks can be processed together for efficiency', icon: '⚡' },
+      { title: 'Use fragmented time', reason: 'Some small tasks can be done between meetings', icon: '⏰' }
+    ],
+    balance: [
+      { title: 'Balance task distribution', reason: 'Tasks concentrated in development, consider test work too', icon: '⚖️' },
+      { title: 'Stay focused', reason: 'Many in-progress tasks, recommend completing before starting new ones', icon: '🎯' }
+    ],
+    progress: [
+      { title: 'Continue in-progress tasks', reason: '3 tasks in progress, keep up the good momentum', icon: '🚀' },
+      { title: 'Update task status timely', reason: 'Regular updates help team stay synchronized', icon: '📝' }
+    ]
+  }
+}
+
+// 生成工作建议
+export const generateWorkSuggestions = (tasks, locale = 'zh') => {
+  const suggestions = workSuggestionsMockData[locale] || workSuggestionsMockData.zh
+  const stats = getProjectStats(tasks)
+
+  // 根据实际任务情况生成建议
+  const result = {
+    priority: [],
+    efficiency: [],
+    balance: [],
+    progress: []
+  }
+
+  // 优先级建议
+  const highPriorityTasks = tasks.filter(t => t.priority === 'HIGH' && t.status !== 'DONE')
+  const blockedTasks = tasks.filter(t => t.status === 'BLOCKED')
+
+  if (highPriorityTasks.length > 0) {
+    result.priority.push({
+      ...suggestions.priority[0],
+      tasks: highPriorityTasks.slice(0, 3),
+      count: highPriorityTasks.length
+    })
+  }
+  if (blockedTasks.length > 0) {
+    result.priority.push({
+      ...suggestions.priority[1],
+      tasks: blockedTasks.slice(0, 3),
+      count: blockedTasks.length
+    })
+  }
+
+  // 效率建议
+  const todoTasks = tasks.filter(t => t.status === 'TODO')
+  if (todoTasks.length > 2) {
+    result.efficiency.push({
+      ...suggestions.efficiency[0],
+      count: todoTasks.length
+    })
+  }
+  result.efficiency.push(suggestions.efficiency[1])
+
+  // 平衡建议
+  if (stats.IN_PROGRESS > 3) {
+    result.balance.push(suggestions.balance[1])
+  } else {
+    result.balance.push(suggestions.balance[0])
+  }
+
+  // 进度建议
+  if (stats.IN_PROGRESS > 0) {
+    result.progress.push({
+      ...suggestions.progress[0],
+      count: stats.IN_PROGRESS
+    })
+  }
+  result.progress.push(suggestions.progress[1])
+
+  // 如果没有真实数据，使用 mock 数据补充
+  if (result.priority.length === 0) {
+    result.priority = suggestions.priority.map(s => ({ ...s, mock: true }))
+  }
+  if (result.efficiency.length === 0) {
+    result.efficiency = suggestions.efficiency.map(s => ({ ...s, mock: true }))
+  }
+
+  return result
+}
+
+// 格式化工作建议消息
+export const getWorkSuggestionsMessage = (tasks, locale = 'zh') => {
+  const suggestions = generateWorkSuggestions(tasks, locale)
+  const allSuggestions = [
+    ...suggestions.priority,
+    ...suggestions.efficiency,
+    ...suggestions.balance,
+    ...suggestions.progress
+  ].filter(s => s && s.title)
+
+  if (locale === 'en') {
+    let message = `💡 **Work Suggestions**\n\n`
+    message += `Here are some suggestions based on your current task status:\n\n`
+
+    allSuggestions.forEach((suggestion, index) => {
+      message += `${index + 1}. ${suggestion.icon} **${suggestion.title}**\n`
+      message += `   ${suggestion.reason}\n`
+      if (suggestion.count) {
+        message += `   _${suggestion.count} relevant task(s)_\n`
+      }
+      message += '\n'
+    })
+
+    message += `\n---\n`
+    message += `💬 Need more specific advice? Try asking me about specific tasks!`
+
+    return {
+      action: 'work-suggestions',
+      response: message,
+      tasks: suggestions.priority[0]?.tasks || null
+    }
+  }
+
+  // 中文版本
+  let message = `💡 **工作建议**\n\n`
+  message += `根据您当前的任务状态，为您提供以下建议：\n\n`
+
+  allSuggestions.forEach((suggestion, index) => {
+    message += `${index + 1}. ${suggestion.icon} **${suggestion.title}**\n`
+    message += `   ${suggestion.reason}\n`
+    if (suggestion.count) {
+      message += `   _相关任务 ${suggestion.count} 个_\n`
+    }
+    message += '\n'
+  })
+
+  message += `\n---\n`
+  message += `💬 需要更具体的建议？可以询问我关于具体任务的信息！`
+
+  return {
+    action: 'work-suggestions',
+    response: message,
+    tasks: suggestions.priority[0]?.tasks || null
+  }
+}
+
+// 单任务工作建议
+export const getTaskWorkSuggestions = (task, workflow, locale = 'zh') => {
+  if (!task) {
+    return locale === 'en'
+      ? { action: 'task-suggestions', response: 'Please select a task first.' }
+      : { action: 'task-suggestions', response: '请先选择一个任务。' }
+  }
+
+  const progress = getWorkflowProgress(workflow)
+  const currentNode = getCurrentNodeName(workflow)
+
+  if (locale === 'en') {
+    let message = `💡 **Task Suggestions**\n\n`
+    message += `**Task:** ${task.title}\n`
+    message += `**Status:** ${task.status}\n`
+    message += `**Progress:** ${progress}%\n\n`
+
+    message += `**Recommendations:**\n\n`
+
+    // 根据任务状态给出建议
+    if (task.status === 'TODO') {
+      message += `1. 🚀 Ready to start? Say "**start**" to begin the workflow.\n`
+      message += `2. 📋 Review the task details and ensure requirements are clear.\n`
+      message += `3. ⏰ Estimate completion time before starting.\n`
+    } else if (task.status === 'IN_PROGRESS') {
+      message += `1. 📍 Currently at: **${currentNode}**\n`
+      message += `2. 🔄 Keep the momentum going! Say "**progress**" to check details.\n`
+      if (progress < 50) {
+        message += `3. ⚡ Focus on completing early stages to build momentum.\n`
+      } else if (progress < 80) {
+        message += `3. 🎯 You're making good progress, keep it up!\n`
+      } else {
+        message += `3. 🏁 Almost there! Push to complete the remaining steps.\n`
+      }
+    } else if (task.status === 'DONE') {
+      message += `1. ✅ Task completed successfully!\n`
+      message += `2. 📝 Consider documenting any lessons learned.\n`
+      message += `3. 🔗 Check if there are dependent tasks to start.\n`
+    } else if (task.status === 'BLOCKED') {
+      message += `1. 🚫 This task is blocked. Identify and resolve the blocking issue.\n`
+      message += `2. 💬 Communicate with team members about the blocker.\n`
+      message += `3. 🔄 Once resolved, say "**continue**" to resume work.\n`
+    }
+
+    message += `\n---\n`
+    message += `Say "**help**" for more commands.`
+
+    return { action: 'task-suggestions', response: message }
+  }
+
+  // 中文版本
+  let message = `💡 **任务建议**\n\n`
+  message += `**任务:** ${task.title}\n`
+  message += `**状态:** ${task.status}\n`
+  message += `**进度:** ${progress}%\n\n`
+
+  message += `**建议：**\n\n`
+
+  if (task.status === 'TODO') {
+    message += `1. 🚀 准备好了吗？说"**启动**"开始执行工作流。\n`
+    message += `2. 📋 请先查看任务详情，确保需求清晰。\n`
+    message += `3. ⏰ 开始前预估一下完成时间。\n`
+  } else if (task.status === 'IN_PROGRESS') {
+    message += `1. 📍 当前阶段: **${currentNode}**\n`
+    message += `2. 🔄 保持势头！说"**进度**"查看详细信息。\n`
+    if (progress < 50) {
+      message += `3. ⚡ 专注于完成早期阶段，建立势头。\n`
+    } else if (progress < 80) {
+      message += `3. 🎯 进展顺利，继续保持！\n`
+    } else {
+      message += `3. 🏁 就快完成了！冲刺完成剩余步骤。\n`
+    }
+  } else if (task.status === 'DONE') {
+    message += `1. ✅ 任务已成功完成！\n`
+    message += `2. 📝 可以总结一下经验教训。\n`
+    message += `3. 🔗 检查是否有依赖的任务可以启动。\n`
+  } else if (task.status === 'BLOCKED') {
+    message += `1. 🚫 任务被阻塞。请识别并解决阻塞问题。\n`
+    message += `2. 💬 与团队成员沟通阻塞原因。\n`
+    message += `3. 🔄 问题解决后，说"**继续**"恢复工作。\n`
+  }
+
+  message += `\n---\n`
+  message += `说"**帮助**"查看更多命令。`
+
+  return { action: 'task-suggestions', response: message }
 }
