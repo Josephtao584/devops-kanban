@@ -22,7 +22,7 @@ export const mockProjects = [
 export const mockAgents = [
   {
     id: 1,
-    name: '老曹',
+    name: '大翔',
     type: 'CLAUDE',
     role: 'ARCHITECT',
     description: '负责系统架构设计和技术选型',
