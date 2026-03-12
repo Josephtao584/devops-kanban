@@ -113,7 +113,7 @@ export const mockAgents = [
   },
   {
     id: 8,
-    name: '大德',
+    name: '大青',
     type: 'CODEX',
     role: 'DEVOPS',
     description: '负责部署和运维自动化',

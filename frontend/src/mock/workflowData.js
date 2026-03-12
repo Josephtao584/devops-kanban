@@ -211,7 +211,7 @@ export const mockWorkflows = [
             name: "发布部署",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "DONE",
             duration: 8,
             task: { id: 1, title: "发布部署", status: "DONE" },
@@ -353,7 +353,7 @@ export const mockWorkflows = [
             name: "灰度发布",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 2, title: "灰度发布", status: "TODO" },
             messages: [
@@ -373,7 +373,7 @@ export const mockWorkflows = [
             name: "监控配置",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 2, title: "监控配置", status: "TODO" },
             messages: [
@@ -559,7 +559,7 @@ export const mockWorkflows = [
             name: "发布部署",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 4, title: "发布部署", status: "TODO" },
             messages: [
@@ -726,7 +726,7 @@ export const mockWorkflows = [
             name: "灰度发布",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 6, title: "灰度发布", status: "TODO" },
             messages: [
@@ -886,7 +886,7 @@ export const mockWorkflows = [
             name: "热修复部署",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 7, title: "热修复部署", status: "TODO" },
             messages: [
@@ -1047,7 +1047,7 @@ export const mockWorkflows = [
             name: "灰度发布",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 8, title: "灰度发布", status: "TODO" },
             messages: [
@@ -1067,7 +1067,7 @@ export const mockWorkflows = [
             name: "监控配置",
             role: "DevOps Engineer",
             agentType: "CODEX",
-            agentName: "大德",
+            agentName: "大青",
             status: "PENDING",
             task: { id: 8, title: "性能监控配置", status: "TODO" },
             messages: [
