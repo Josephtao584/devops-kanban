@@ -653,7 +653,7 @@
                   </svg>
                 </button>
                 <button
-                  v-if="task.workflowId"
+                  v-if="getTaskWorkflow(task.id)"
                   class="workflow-btn"
                   @click.stop="showTaskWorkflow(task)"
                   :title="$t('workflow.viewWorkflow')"
@@ -1650,6 +1650,11 @@ const showTaskWorkflow = (task) => {
   selectedTask.value = task
   // Show the workflow timeline in the task detail dialog
   showNodeDialog.value = true
+}
+
+// Get workflow for a specific task (for list view button visibility)
+const getTaskWorkflow = (taskId) => {
+  return getWorkflowByTask(taskId)
 }
 
 const openTaskModal = (task = null) => {
