@@ -156,13 +156,13 @@ onMounted(() => {
 }
 
 .cursor {
-  animation: blink 0.8s infinite;
+  animation: blink 2s infinite;
   color: var(--el-color-primary);
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .full-content {

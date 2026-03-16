@@ -209,7 +209,7 @@ const typeMessage = async (msgIndex, content) => {
   msg.showTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const chars = content.split('')
-  const typingSpeed = 50 // ms per character，降低频率减少录屏闪烁
+  const typingSpeed = 25 // 25ms/字符
 
   for (let i = 0; i < chars.length; i++) {
     if (!isRunning.value) break
@@ -501,13 +501,13 @@ defineExpose({
 }
 
 .cursor {
-  animation: blink 1.2s infinite;
+  animation: blink 2s infinite;
   color: var(--el-color-primary);
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .full-content {
