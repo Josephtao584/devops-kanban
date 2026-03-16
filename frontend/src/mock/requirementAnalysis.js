@@ -35,22 +35,22 @@ function mapToTaskPriority(reqPriority) {
  */
 const CATEGORY_PATTERNS = {
   [TASK_CATEGORY.FEATURE]: [
-    /实现|添加|开发|创建|增加|新增|支持|feature|implement|add|create|develop|support/i
+    /实现 | 添加 | 开发 | 创建 | 增加 | 新增 | 支持|feature|implement|add|create|develop|support/i
   ],
   [TASK_CATEGORY.BUG_FIX]: [
-    /修复|解决|bug|fix|issue|问题|错误|异常|崩溃|crash|error|exception/i
+    /修复 | 解决|bug|fix|issue|问题 | 错误 | 异常 | 崩溃|crash|error|exception/i
   ],
   [TASK_CATEGORY.DESIGN]: [
-    /设计|界面|UI|页面|样式|布局|design|ui|style|layout|前端展示/i
+    /设计 | 界面|UI|页面 | 样式 | 布局|design|ui|style|layout|前端展示/i
   ],
   [TASK_CATEGORY.TESTING]: [
-    /测试|单元测试|集成测试|test|testing|unit test|integration/i
+    /测试 | 单元测试 | 集成测试|test|testing|unit test|integration/i
   ],
   [TASK_CATEGORY.DOCUMENTATION]: [
-    /文档|说明|readme|doc|documentation|指南|手册/i
+    /文档 | 说明|readme|doc|documentation|指南 | 手册/i
   ],
   [TASK_CATEGORY.REFACTORING]: [
-    /重构|优化|改进|refactor|optimize|improve|清理/i
+    /重构 | 优化 | 改进|refactor|optimize|improve|清理/i
   ]
 }
 
@@ -58,16 +58,16 @@ const CATEGORY_PATTERNS = {
  * Feature-specific keywords for task splitting
  */
 const FEATURE_KEYWORDS = {
-  authentication: /登录|认证|auth|login|oauth|sso|token|密码|password/i,
-  ui: /界面|页面|ui|前端|展示|display|page|view/i,
+  authentication: /登录 | 认证|auth|login|oauth|sso|token|密码 |password/i,
+  ui: /界面 | 页面|ui|前端 | 展示|display|page|view/i,
   api: /api|接口|rest|graphql|endpoint/i,
-  database: /数据库|存储|database|db|sql|持久化/i,
-  notification: /通知|消息|推送|notification|message|alert/i,
-  report: /报表|统计|报告|report|analytics|dashboard/i,
+  database: /数据库 | 存储|database|db|sql|持久化/i,
+  notification: /通知 | 消息 | 推送|notification|message|alert/i,
+  report: /报表 | 统计 | 报告|report|analytics|dashboard/i,
   export: /导出|export|excel|pdf|csv/i,
-  performance: /性能|优化|缓存|performance|cache|speed/i,
-  security: /安全|加密|权限|security|encrypt|permission/i,
-  integration: /集成|对接|接入|integration|connect|sync/i
+  performance: /性能 | 优化 | 缓存|performance|cache|speed/i,
+  security: /安全 | 加密 | 权限|security|encrypt|permission/i,
+  integration: /集成 | 对接 | 接入|integration|connect|sync/i
 }
 
 /**
@@ -87,7 +87,7 @@ function detectCategory(text) {
 }
 
 /**
- * Analyze requirement and split into tasks
+ * Analyze requirement and generate a SINGLE task
  * @param {Object} requirement - The requirement to analyze
  * @returns {Object} Analysis result with task templates
  */
@@ -103,7 +103,8 @@ export function analyzeRequirementToTasks(requirement) {
     }
   }
 
-  // Generate tasks based on detected features
+  // Generate a SINGLE task based on the primary detected feature
+  // Use if-else chain to ensure only one task is created
   if (detectedFeatures.includes('authentication')) {
     tasks.push({
       title: '实现用户登录功能',
@@ -114,20 +115,7 @@ export function analyzeRequirementToTasks(requirement) {
       labels: ['auth', 'login'],
       requirementId: requirement.id
     })
-    if (/oauth|第三方|github|google/i.test(text)) {
-      tasks.push({
-        title: '集成OAuth第三方登录',
-        description: '集成GitHub和Google的OAuth2.0登录，支持第三方账号授权',
-        category: TASK_CATEGORY.FEATURE,
-        status: 'TODO',
-        priority: mapToTaskPriority(requirement.priority),
-        labels: ['auth', 'oauth', 'integration'],
-        requirementId: requirement.id
-      })
-    }
-  }
-
-  if (detectedFeatures.includes('ui')) {
+  } else if (detectedFeatures.includes('ui')) {
     tasks.push({
       title: '开发用户界面',
       description: '根据需求设计和开发用户界面，确保响应式和良好的用户体验',
@@ -137,21 +125,17 @@ export function analyzeRequirementToTasks(requirement) {
       labels: ['ui', 'frontend'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('api')) {
+  } else if (detectedFeatures.includes('api')) {
     tasks.push({
-      title: '设计和实现API接口',
-      description: '设计RESTful API接口，实现后端业务逻辑',
+      title: '设计和实现 API 接口',
+      description: '设计 RESTful API 接口，实现后端业务逻辑',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
       priority: mapToTaskPriority(requirement.priority),
       labels: ['api', 'backend'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('database')) {
+  } else if (detectedFeatures.includes('database')) {
     tasks.push({
       title: '数据库设计与实现',
       description: '设计数据模型，创建数据库表结构，实现数据访问层',
@@ -161,9 +145,7 @@ export function analyzeRequirementToTasks(requirement) {
       labels: ['database', 'backend'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('notification')) {
+  } else if (detectedFeatures.includes('notification')) {
     tasks.push({
       title: '实现消息通知功能',
       description: '实现站内消息通知功能，支持邮件和推送通知',
@@ -173,9 +155,7 @@ export function analyzeRequirementToTasks(requirement) {
       labels: ['notification', 'integration'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('report')) {
+  } else if (detectedFeatures.includes('report')) {
     tasks.push({
       title: '开发数据报表模块',
       description: '实现数据统计和报表生成功能',
@@ -185,21 +165,17 @@ export function analyzeRequirementToTasks(requirement) {
       labels: ['report', 'analytics'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('export')) {
+  } else if (detectedFeatures.includes('export')) {
     tasks.push({
       title: '实现数据导出功能',
-      description: '支持导出数据为Excel、PDF等格式',
+      description: '支持导出数据为 Excel、PDF 等格式',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
       priority: mapToTaskPriority(requirement.priority),
       labels: ['export'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('security')) {
+  } else if (detectedFeatures.includes('security')) {
     tasks.push({
       title: '实现安全机制',
       description: '实现数据加密、权限控制等安全相关功能',
@@ -209,9 +185,7 @@ export function analyzeRequirementToTasks(requirement) {
       labels: ['security'],
       requirementId: requirement.id
     })
-  }
-
-  if (detectedFeatures.includes('integration')) {
+  } else if (detectedFeatures.includes('integration')) {
     tasks.push({
       title: '系统集成与对接',
       description: '与第三方系统进行集成，实现数据同步和功能对接',
@@ -223,7 +197,7 @@ export function analyzeRequirementToTasks(requirement) {
     })
   }
 
-  // If no specific tasks were generated, create a default task
+  // If no specific tasks were generated, create a default task with the requirement title
   if (tasks.length === 0) {
     tasks.push({
       title: requirement.title,
@@ -232,19 +206,6 @@ export function analyzeRequirementToTasks(requirement) {
       status: 'TODO',
       priority: mapToTaskPriority(requirement.priority),
       labels: [],
-      requirementId: requirement.id
-    })
-  }
-
-  // Always add testing task if feature tasks exist
-  if (tasks.length > 1 || detectedFeatures.length > 0) {
-    tasks.push({
-      title: '编写测试用例',
-      description: '为新功能编写单元测试和集成测试',
-      category: TASK_CATEGORY.TESTING,
-      status: 'TODO',
-      priority: 'MEDIUM',
-      labels: ['testing'],
       requirementId: requirement.id
     })
   }
