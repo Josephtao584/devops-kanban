@@ -62,7 +62,7 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { Clock, VideoPlay, Loading, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -75,13 +75,6 @@ const props = defineProps({
     default: false
   }
 })
-
-// Debug log for task data
-watch(() => props.task, (newTask) => {
-  console.log('[TaskCard] task data:', newTask)
-  console.log('[TaskCard] task.title:', newTask?.title)
-  console.log('[TaskCard] task.priority:', newTask?.priority)
-}, { immediate: true, deep: true })
 
 defineEmits(['click', 'run', 'toggle-auto-transition'])
 

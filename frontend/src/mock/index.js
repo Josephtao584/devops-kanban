@@ -71,13 +71,15 @@ const createMockAdapter = (originalAdapter) => {
         // Combine query params and path params
         const allParams = { ...params, ...pathParams }
 
-        // Debug logging for POST /tasks
-        if (config.method?.toUpperCase() === 'POST' && path === '/tasks') {
-          console.log('[Mock Adapter] POST /tasks debug:')
-          console.log('  config.data:', config.data)
-          console.log('  config.params:', config.params)
-          console.log('  allParams:', allParams)
-          console.log('  handlerData will be:', config.params || config.data || allParams)
+        // Parse JSON string data to object (axios stringifies request data)
+        let requestData = config.data
+        if (typeof config.data === 'string') {
+          try {
+            requestData = JSON.parse(config.data)
+          } catch (e) {
+            console.warn('[Mock Adapter] Failed to parse JSON data:', e)
+            requestData = config.data
+          }
         }
 
         // Call handler with appropriate arguments
@@ -85,16 +87,11 @@ const createMockAdapter = (originalAdapter) => {
         if (Object.keys(pathParams).length > 0) {
           // Has path params (e.g., /tasks/:id)
           const id = Object.values(pathParams)[0]
-          result = await handler(id, config.data || allParams)
+          result = await handler(id, requestData || allParams)
         } else {
           // No path params - use params for GET, data for POST/PUT
-          const handlerData = config.params || config.data || allParams
+          const handlerData = config.params || requestData || allParams
           result = await handler(handlerData)
-        }
-
-        // Debug logging for POST /tasks response
-        if (config.method?.toUpperCase() === 'POST' && path === '/tasks') {
-          console.log('[Mock Adapter] POST /tasks result:', result)
         }
 
         // Return mock response

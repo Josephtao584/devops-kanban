@@ -99,9 +99,6 @@ export const mockHandlers = {
   },
 
   'POST /tasks': async (data) => {
-    console.log('[Mock Handler] POST /tasks received data:', data)
-    console.log('[Mock Handler] POST /tasks data.title:', data?.title)
-    console.log('[Mock Handler] POST /tasks data.priority:', data?.priority)
     await delay()
     const newTask = {
       id: generateId.task(),
@@ -110,11 +107,8 @@ export const mockHandlers = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
-    console.log('[Mock Handler] POST /tasks created newTask:', newTask)
     tasks.push(newTask)
-    const result = response(newTask)
-    console.log('[Mock Handler] POST /tasks returning result:', result)
-    return result
+    return response(newTask)
   },
 
   'PUT /tasks/:id': async (id, data) => {

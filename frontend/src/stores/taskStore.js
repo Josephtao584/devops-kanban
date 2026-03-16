@@ -76,20 +76,9 @@ export const useTaskStore = defineStore('task', () => {
     loading.value = true
     error.value = null
     try {
-      console.log('[taskStore.createTask] input taskData:', taskData)
-      console.log('[taskStore.createTask] input taskData.title:', taskData?.title)
-      console.log('[taskStore.createTask] input taskData.priority:', taskData?.priority)
       const response = await taskApi.createTask(taskData)
-      console.log('[taskStore.createTask] response:', response)
-      console.log('[taskStore.createTask] response.success:', response?.success)
-      console.log('[taskStore.createTask] response.data:', response?.data)
-      console.log('[taskStore.createTask] response.data.title:', response?.data?.title)
-      console.log('[taskStore.createTask] response.data.priority:', response?.data?.priority)
       if (response.success) {
         tasks.value.push(response.data)
-        console.log('[taskStore.createTask] tasks.value after push:', tasks.value)
-        console.log('[taskStore.createTask] tasks.value length:', tasks.value.length)
-        console.log('[taskStore.createTask] last task in array:', tasks.value[tasks.value.length - 1])
         return response.data
       }
     } catch (e) {
