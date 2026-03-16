@@ -210,7 +210,7 @@ const typeMessage = async (msgIndex, content) => {
 
   const chars = content.split('')
   const batchSize = 2 // 每次更新 2 个字符，减少 DOM 更新频率
-  const typingSpeed = 20 // 20ms/批次
+  const typingSpeed = 10 // 10ms/批次
 
   for (let i = 0; i < chars.length; i += batchSize) {
     if (!isRunning.value) break
