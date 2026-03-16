@@ -257,8 +257,8 @@ const typeMessage = async (msgIndex, content) => {
   msg.showTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const chars = content.split('')
-  const batchSize = 3 // 每次更新 3 个字符，减少 DOM 更新频率
-  const typingSpeed = 5 // 5ms/批次
+  const batchSize = 2 // 每次更新 2 个字符，减少 DOM 更新频率
+  const typingSpeed = 15 // 15ms/批次
 
   for (let i = 0; i < chars.length; i += batchSize) {
     if (!isRunning.value) break
@@ -316,8 +316,11 @@ const regenerateConclusion = async () => {
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
-      // 瞬间滚动到底部，不使用平滑动画，减少延迟感
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      // 使用平滑滚动，增加过渡动画的舒适感
+      messagesContainer.value.scrollTo({
+        top: messagesContainer.value.scrollHeight,
+        behavior: 'smooth'
+      })
     }
   })
 }
