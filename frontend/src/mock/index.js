@@ -71,6 +71,15 @@ const createMockAdapter = (originalAdapter) => {
         // Combine query params and path params
         const allParams = { ...params, ...pathParams }
 
+        // Debug logging for POST /tasks
+        if (config.method?.toUpperCase() === 'POST' && path === '/tasks') {
+          console.log('[Mock Adapter] POST /tasks debug:')
+          console.log('  config.data:', config.data)
+          console.log('  config.params:', config.params)
+          console.log('  allParams:', allParams)
+          console.log('  handlerData will be:', config.params || config.data || allParams)
+        }
+
         // Call handler with appropriate arguments
         let result
         if (Object.keys(pathParams).length > 0) {
@@ -81,6 +90,11 @@ const createMockAdapter = (originalAdapter) => {
           // No path params - use params for GET, data for POST/PUT
           const handlerData = config.params || config.data || allParams
           result = await handler(handlerData)
+        }
+
+        // Debug logging for POST /tasks response
+        if (config.method?.toUpperCase() === 'POST' && path === '/tasks') {
+          console.log('[Mock Adapter] POST /tasks result:', result)
         }
 
         // Return mock response
