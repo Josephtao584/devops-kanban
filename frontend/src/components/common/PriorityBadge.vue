@@ -34,7 +34,10 @@ const priorityClass = computed(() => {
 })
 
 const displayText = computed(() => {
-  return t(`task.priority.${normalizedPriority.value.toLowerCase()}`, 'Medium')
+  const key = `priority.${normalizedPriority.value}`
+  const translated = t(key)
+  // 如果翻译结果与键相同（表示未找到），返回优先级值本身
+  return translated === key ? normalizedPriority.value : translated
 })
 </script>
 
