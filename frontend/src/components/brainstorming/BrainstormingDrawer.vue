@@ -603,12 +603,12 @@ defineExpose({
   margin: 12px 0 8px;
 }
 
-/* Conclusion Card */
+/* Conclusion Card - Optimized for better readability */
 .conclusion-card {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 2px solid #86efac;
+  background: #fff;
+  border: 1px solid #86efac;
   border-radius: 12px 12px 0 0;
-  padding: 20px;
+  padding: 12px;
   margin-top: auto;
   max-height: 40%;
   overflow-y: auto;
@@ -620,7 +620,7 @@ defineExpose({
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 2px solid rgba(134, 239, 172, 0.5);
+  border-bottom: 1px solid #86efac;
 }
 
 .conclusion-header .header-left {
@@ -630,18 +630,93 @@ defineExpose({
 }
 
 .conclusion-header .header-title {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: #166534;
   margin: 0;
 }
 
 .conclusion-body {
-  background: rgba(255, 255, 255, 0.8);
+  background: #f9fafb;
   border-radius: 8px;
-  padding: 12px;
-  max-height: 300px;
+  padding: 10px;
+  max-height: 400px;
   overflow-y: auto;
+}
+
+.conclusion-body .markdown-content {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.conclusion-body .markdown-content :deep(h3),
+.conclusion-body .markdown-content :deep(h4) {
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.conclusion-body .markdown-content :deep(table) {
+  font-size: 11px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.conclusion-body .markdown-content :deep(th),
+.conclusion-body .markdown-content :deep(td) {
+  padding: 4px 8px;
+  border: 1px solid var(--el-border-color);
+  text-align: left;
+}
+
+.conclusion-body .markdown-content :deep(ul),
+.conclusion-body .markdown-content :deep(ol) {
+  padding-left: 16px;
+  margin: 4px 0;
+}
+
+.conclusion-body .markdown-content :deep(li) {
+  margin-bottom: 2px;
+}
+
+.conclusion-body .markdown-content :deep(code) {
+  background: var(--el-fill-color-light);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  color: var(--el-color-primary);
+}
+
+.conclusion-body .markdown-content :deep(pre) {
+  background: var(--el-fill-color);
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+.conclusion-body .markdown-content :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: var(--el-text-color-primary);
+}
+
+.conclusion-body .markdown-content :deep(blockquote) {
+  border-left: 3px solid #86efac;
+  padding-left: 10px;
+  margin: 6px 0;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+  padding: 6px 10px;
+  border-radius: 0 4px 4px 0;
+}
+
+.conclusion-body .markdown-content :deep(h3),
+.conclusion-body .markdown-content :deep(h4) {
+  font-size: 13px;
+  font-weight: 600;
+  color: #166534;
+  margin: 8px 0;
 }
 
 /* Scrollbar styling */
