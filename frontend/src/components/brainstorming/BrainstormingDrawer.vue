@@ -99,18 +99,58 @@
           <div class="markdown-content" v-html="renderedConclusion"></div>
         </div>
       </div>
+
+      <!-- User Feedback Section -->
+      <div v-if="isCompleted" class="feedback-section">
+        <div class="feedback-header">
+          <span class="feedback-icon">💬</span>
+          <span class="feedback-title">{{ $t('brainstorming.feedbackTitle', '补充意见') }}</span>
+          <span class="feedback-hint">（{{ $t('brainstorming.optional', '可选') }}）</span>
+        </div>
+        <div class="feedback-examples">
+          <el-tag
+            v-for="(example, index) in feedbackExamples"
+            :key="index"
+            size="small"
+            class="example-tag"
+            @click="selectExample(example.text)"
+          >
+            {{ example.label }}
+          </el-tag>
+        </div>
+        <el-input
+          v-model="userFeedback"
+          type="textarea"
+          :placeholder="$t('brainstorming.feedbackPlaceholder', '请输入您的意见或约束条件...')"
+          :rows="3"
+          :disabled="isRegenerating"
+        />
+        <div class="feedback-actions">
+          <el-button
+            type="primary"
+            size="small"
+            :disabled="!userFeedback.trim() || isRegenerating"
+            :loading="isRegenerating"
+            @click="regenerateConclusion"
+          >
+            <el-icon><Refresh /></el-icon>
+            {{ $t('brainstorming.regenerate', '重新生成') }}
+          </el-button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { Lightning, User, Check, Close } from '@element-plus/icons-vue'
+import { Lightning, User, Check, Close, Refresh } from '@element-plus/icons-vue'
 import { roleConfig } from '@/mock/workflowData'
 import {
   getScriptByTaskType,
   matchTaskType
 } from '@/mock/brainstormingData'
+import { integrateUserFeedback, demoFeedbackExamples } from '@/mock/brainstormingFeedbackDemo'
 import { marked } from 'marked'
 
 const props = defineProps({
@@ -139,6 +179,11 @@ const currentScript = ref(null)
 
 const messagesContainer = ref(null)
 
+// User feedback state
+const userFeedback = ref('')
+const isRegenerating = ref(false)
+const feedbackExamples = ref(demoFeedbackExamples)
+
 // Get task type for script selection
 const taskType = computed(() => {
   if (!props.task) return 'default'
@@ -160,6 +205,9 @@ const startBrainstorming = async () => {
   currentIndex.value = -1
   visibleMessages.value = []
   currentConclusion.value = ''
+  // Reset user feedback
+  userFeedback.value = ''
+  isRegenerating.value = false
 
   // Get script based on task type
   const type = taskType.value
@@ -209,8 +257,8 @@ const typeMessage = async (msgIndex, content) => {
   msg.showTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const chars = content.split('')
-  const batchSize = 2 // 每次更新 2 个字符，减少 DOM 更新频率
-  const typingSpeed = 10 // 10ms/批次
+  const batchSize = 3 // 每次更新 3 个字符，减少 DOM 更新频率
+  const typingSpeed = 5 // 5ms/批次
 
   for (let i = 0; i < chars.length; i += batchSize) {
     if (!isRunning.value) break
@@ -231,14 +279,45 @@ const finishBrainstorming = () => {
   scrollToBottom()
 }
 
+// User feedback functions
+const selectExample = (text) => {
+  if (userFeedback.value) {
+    userFeedback.value += '\n' + text
+  } else {
+    userFeedback.value = text
+  }
+}
+
+const regenerateConclusion = async () => {
+  if (!userFeedback.value.trim()) return
+
+  isRegenerating.value = true
+
+  try {
+    const originalConclusion = currentScript.value.conclusion
+    const newConclusion = integrateUserFeedback(userFeedback.value, originalConclusion)
+
+    // Update conclusion
+    currentConclusion.value = newConclusion
+
+    // Clear feedback input
+    userFeedback.value = ''
+
+    // Scroll to bottom to show updated conclusion
+    await nextTick()
+    scrollToBottom()
+  } catch (error) {
+    console.error('Failed to regenerate conclusion:', error)
+  } finally {
+    isRegenerating.value = false
+  }
+}
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
-      // 使用平滑滚动而不是瞬间跳转，减少视觉跳跃
-      messagesContainer.value.scrollTo({
-        top: messagesContainer.value.scrollHeight,
-        behavior: 'smooth'
-      })
+      // 瞬间滚动到底部，不使用平滑动画，减少延迟感
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
   })
 }
@@ -716,6 +795,61 @@ defineExpose({
   background: var(--el-fill-color-light);
   padding: 6px 10px;
   border-radius: 0 4px 4px 0;
+}
+
+/* Feedback Section */
+.feedback-section {
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  margin-top: 16px;
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.feedback-icon {
+  font-size: 18px;
+}
+
+.feedback-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.feedback-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.feedback-examples {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.example-tag {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.example-tag:hover {
+  background: var(--el-color-primary);
+  color: white;
+  border-color: var(--el-color-primary);
+}
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 .conclusion-body .markdown-content :deep(h3),
