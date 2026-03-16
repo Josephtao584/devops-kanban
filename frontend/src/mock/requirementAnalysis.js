@@ -1,5 +1,34 @@
 // Requirement analysis service for demo
-import { TASK_CATEGORY } from '../constants/task.js'
+import { TASK_CATEGORY, TASK_PRIORITY } from '../constants/task.js'
+
+/**
+ * Map requirement priority to task priority
+ * @param {string} reqPriority - Requirement priority
+ * @returns {string} Task priority
+ */
+function mapToTaskPriority(reqPriority) {
+  // Handle undefined/null case
+  if (!reqPriority) {
+    return TASK_PRIORITY.MEDIUM
+  }
+
+  // If it's already a valid task priority, return as is
+  if (Object.values(TASK_PRIORITY).includes(reqPriority)) {
+    return reqPriority
+  }
+
+  // Map common variations
+  const priorityMap = {
+    'CRITICAL': TASK_PRIORITY.CRITICAL,
+    'URGENT': TASK_PRIORITY.CRITICAL,
+    'HIGH': TASK_PRIORITY.HIGH,
+    'MEDIUM': TASK_PRIORITY.MEDIUM,
+    'NORMAL': TASK_PRIORITY.MEDIUM,
+    'LOW': TASK_PRIORITY.LOW
+  }
+
+  return priorityMap[reqPriority.toUpperCase()] || TASK_PRIORITY.MEDIUM
+}
 
 /**
  * Keyword patterns for detecting task categories
@@ -81,7 +110,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '实现基础的用户名密码登录，支持记住我功能',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['auth', 'login'],
       requirementId: requirement.id
     })
@@ -91,7 +120,7 @@ export function analyzeRequirementToTasks(requirement) {
         description: '集成GitHub和Google的OAuth2.0登录，支持第三方账号授权',
         category: TASK_CATEGORY.FEATURE,
         status: 'TODO',
-        priority: requirement.priority,
+        priority: mapToTaskPriority(requirement.priority),
         labels: ['auth', 'oauth', 'integration'],
         requirementId: requirement.id
       })
@@ -104,7 +133,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '根据需求设计和开发用户界面，确保响应式和良好的用户体验',
       category: TASK_CATEGORY.DESIGN,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['ui', 'frontend'],
       requirementId: requirement.id
     })
@@ -116,7 +145,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '设计RESTful API接口，实现后端业务逻辑',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['api', 'backend'],
       requirementId: requirement.id
     })
@@ -128,7 +157,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '设计数据模型，创建数据库表结构，实现数据访问层',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['database', 'backend'],
       requirementId: requirement.id
     })
@@ -140,7 +169,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '实现站内消息通知功能，支持邮件和推送通知',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['notification', 'integration'],
       requirementId: requirement.id
     })
@@ -152,7 +181,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '实现数据统计和报表生成功能',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['report', 'analytics'],
       requirementId: requirement.id
     })
@@ -164,7 +193,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '支持导出数据为Excel、PDF等格式',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['export'],
       requirementId: requirement.id
     })
@@ -176,7 +205,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '实现数据加密、权限控制等安全相关功能',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['security'],
       requirementId: requirement.id
     })
@@ -188,7 +217,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: '与第三方系统进行集成，实现数据同步和功能对接',
       category: TASK_CATEGORY.FEATURE,
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: ['integration'],
       requirementId: requirement.id
     })
@@ -201,7 +230,7 @@ export function analyzeRequirementToTasks(requirement) {
       description: requirement.description,
       category: detectCategory(text),
       status: 'TODO',
-      priority: requirement.priority,
+      priority: mapToTaskPriority(requirement.priority),
       labels: [],
       requirementId: requirement.id
     })

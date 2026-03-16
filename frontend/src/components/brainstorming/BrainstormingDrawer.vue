@@ -209,7 +209,7 @@ const typeMessage = async (msgIndex, content) => {
   msg.showTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const chars = content.split('')
-  const typingSpeed = 25 // 25ms/字符
+  const typingSpeed = 20 // 20ms/字符
 
   for (let i = 0; i < chars.length; i++) {
     if (!isRunning.value) break
