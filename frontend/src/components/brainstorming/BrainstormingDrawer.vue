@@ -209,7 +209,7 @@ const typeMessage = async (msgIndex, content) => {
   msg.showTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const chars = content.split('')
-  const typingSpeed = 20 // ms per character
+  const typingSpeed = 50 // ms per character，降低频率减少录屏闪烁
 
   for (let i = 0; i < chars.length; i++) {
     if (!isRunning.value) break
@@ -501,7 +501,7 @@ defineExpose({
 }
 
 .cursor {
-  animation: blink 0.8s infinite;
+  animation: blink 1.2s infinite;
   color: var(--el-color-primary);
 }
 

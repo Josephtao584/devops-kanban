@@ -531,7 +531,7 @@ const typeBrainstormMessage = async (msgIndex, content) => {
   msg.showTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
   const chars = content.split('')
-  const typingSpeed = 20
+  const typingSpeed = 50 // 降低打字频率，减少录屏闪烁
 
   for (let i = 0; i < chars.length; i++) {
     if (!isBrainstormRunning.value) break
@@ -1082,7 +1082,7 @@ const handleClose = () => {
 }
 
 .cursor {
-  animation: blink 0.8s infinite;
+  animation: blink 1.2s infinite;
   color: var(--el-color-primary);
 }
 
