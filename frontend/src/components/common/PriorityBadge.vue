@@ -12,19 +12,29 @@ import { TASK_PRIORITY } from '../../constants/task'
 const props = defineProps({
   priority: {
     type: String,
-    default: TASK_PRIORITY.MEDIUM,
-    validator: (value) => Object.values(TASK_PRIORITY).includes(value)
+    default: TASK_PRIORITY.MEDIUM
+    // Remove validator to allow graceful handling of invalid values
   }
 })
 
 const { t } = useI18n()
 
+// Normalize priority value - handle undefined/null/invalid values
+const normalizedPriority = computed(() => {
+  const priority = props.priority?.toUpperCase()
+  if (priority && Object.values(TASK_PRIORITY).includes(priority)) {
+    return priority
+  }
+  // Default to MEDIUM for invalid/unknown priorities
+  return TASK_PRIORITY.MEDIUM
+})
+
 const priorityClass = computed(() => {
-  return `priority-${(props.priority || TASK_PRIORITY.MEDIUM).toLowerCase()}`
+  return `priority-${normalizedPriority.value.toLowerCase()}`
 })
 
 const displayText = computed(() => {
-  return t(`task.priority.${props.priority?.toLowerCase()}`, props.priority || 'Medium')
+  return t(`task.priority.${normalizedPriority.value.toLowerCase()}`, 'Medium')
 })
 </script>
 
