@@ -124,6 +124,8 @@ const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task',
 const { t } = useI18n()
 
 // Default empty text based on status
+const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
+
 const defaultEmptyText = computed(() => {
   const emptyTextMap = {
     TODO: t('task.noTodoTasks'),
