@@ -1049,7 +1049,6 @@ import { createSession, startSession, stopSession, getActiveSessionByTask, getSe
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
-import GlobalTaskButler from '../components/GlobalTaskButler.vue'
 import WorkflowTimeline from '../components/workflow/WorkflowTimeline.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import RequirementCard from '../components/requirement/RequirementCard.vue'
