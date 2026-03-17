@@ -19,120 +19,36 @@
     </el-empty>
 
     <div v-else class="project-grid">
-      <el-card v-for="project in projects" :key="project.id" class="project-card" shadow="hover" @click="openProject(project)">
-          <template #header>
-            <div class="card-header">
-              <el-icon size="24"><Folder /></el-icon>
-              <el-dropdown trigger="click">
-                <el-button link @click.stop>
-                  <el-icon><MoreFilled /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="showEditDialog(project)">
-                      <el-icon><Edit /></el-icon>
-                      {{ $t('common.edit') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item divided @click="handleDelete(project)">
-                      <el-icon><Delete /></el-icon>
-                      {{ $t('common.delete') }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-          </template>
-
-          <h3 class="project-name">{{ project.name }}</h3>
-          <p class="project-description">{{ project.description || $t('project.noDescription') }}</p>
-
-          <template #footer>
-            <div class="card-footer">
-              <el-tag v-if="project.repoUrl" size="small" type="info" class="git-tag">
-                <el-icon><Link /></el-icon>
-                <span>Git</span>
-              </el-tag>
-              <span class="created-time">
-                {{ formatDate(project.createdAt) }}
-              </span>
-            </div>
-          </template>
-        </el-card>
+      <ProjectCard
+        v-for="project in projects"
+        :key="project.id"
+        :project="project"
+        @click="openProject"
+        @edit="showEditDialog"
+        @delete="handleDelete"
+      />
     </div>
 
     <!-- Create/Edit Dialog -->
-    <el-dialog
+    <ProjectFormDialog
       v-model="dialogVisible"
-      :title="isEditing ? $t('project.editProject') : $t('project.createProject')"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-position="top"
-      >
-        <el-form-item :label="$t('project.projectName')" prop="name">
-          <el-input v-model="form.name" :placeholder="$t('project.enterName')" />
-        </el-form-item>
-
-        <el-form-item :label="$t('project.description')">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            :placeholder="$t('project.enterDescription')"
-          />
-        </el-form-item>
-
-        <el-divider>
-          <el-icon><Link /></el-icon>
-          {{ $t('project.gitRepositoryOptional') }}
-        </el-divider>
-
-        <el-form-item :label="$t('project.repositoryUrl')">
-          <el-input
-            v-model="form.repoUrl"
-            placeholder="https://github.com/user/repo.git"
-            clearable
-          >
-            <template #prefix>
-              <el-icon><Link /></el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
-
-        <el-form-item :label="$t('project.localPath')">
-          <el-input
-            v-model="form.localPath"
-            placeholder="/path/to/local/repo"
-            clearable
-          >
-            <template #prefix>
-              <el-icon><FolderOpened /></el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ isEditing ? $t('common.save') : $t('common.create') }}
-        </el-button>
-      </template>
-    </el-dialog>
+      :project="editingProject"
+      :loading="submitting"
+      @submit="handleSubmit"
+      @cancel="resetForm"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Folder, FolderOpened, Edit, Delete, MoreFilled, Link } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
+import ProjectCard from '../components/project/ProjectCard.vue'
+import ProjectFormDialog from '../components/project/ProjectFormDialog.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -142,82 +58,37 @@ const loading = computed(() => projectStore.loading)
 const projects = computed(() => projectStore.projects)
 
 const dialogVisible = ref(false)
-const isEditing = ref(false)
-const editingId = ref(null)
+const editingProject = ref(null)
 const submitting = ref(false)
-const formRef = ref(null)
-
-const form = ref({
-  name: '',
-  description: '',
-  repoUrl: '',
-  localPath: ''
-})
-
-const rules = {
-  name: [
-    { required: true, message: t('validation.required'), trigger: 'blur' }
-  ]
-}
 
 onMounted(() => {
   projectStore.fetchProjects()
 })
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleDateString()
-}
-
-const resetForm = () => {
-  form.value = {
-    name: '',
-    description: '',
-    repoUrl: '',
-    localPath: ''
-  }
-  editingId.value = null
-  isEditing.value = false
-}
-
 const showCreateDialog = () => {
-  resetForm()
+  editingProject.value = null
   dialogVisible.value = true
 }
 
 const showEditDialog = (project) => {
-  isEditing.value = true
-  editingId.value = project.id
-  form.value = {
-    name: project.name || '',
-    description: project.description || '',
-    repoUrl: project.repoUrl || '',
-    localPath: project.localPath || ''
-  }
+  editingProject.value = project
   dialogVisible.value = true
 }
 
-const handleSubmit = async () => {
-  try {
-    await formRef.value.validate()
-  } catch {
-    return
-  }
-
+const handleSubmit = async (formData) => {
   submitting.value = true
   try {
-    if (isEditing.value) {
-      await projectStore.updateProject(editingId.value, form.value)
+    if (editingProject.value) {
+      await projectStore.updateProject(editingProject.value.id, formData)
       ElMessage.success(t('project.updated'))
     } else {
-      await projectStore.createProject(form.value)
+      await projectStore.createProject(formData)
       ElMessage.success(t('project.created'))
     }
     dialogVisible.value = false
-    resetForm()
+    editingProject.value = null
   } catch (e) {
-    ElMessage.error(isEditing.value ? t('project.updateFailed') : t('project.createFailed'))
+    ElMessage.error(editingProject.value ? t('project.updateFailed') : t('project.createFailed'))
   } finally {
     submitting.value = false
   }
@@ -250,6 +121,12 @@ const openProject = (project) => {
   projectStore.setCurrentProject(project)
   router.push(`/kanban/${project.id}`)
 }
+
+watch(() => dialogVisible.value, (newValue) => {
+  if (!newValue) {
+    editingProject.value = null
+  }
+})
 </script>
 
 <style scoped>
@@ -271,72 +148,5 @@ const openProject = (project) => {
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
-}
-
-.project-card {
-  cursor: pointer;
-  width: 320px;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-}
-
-.project-card :deep(.el-card__header) {
-  padding: 16px 20px;
-}
-
-.project-card :deep(.el-card__body) {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 20px;
-}
-
-.project-card :deep(.el-card__footer) {
-  padding: 10px 16px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.project-name {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.project-description {
-  margin: 0;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
-.card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.git-tag :deep(.el-tag__content) {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.created-time {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
 }
 </style>

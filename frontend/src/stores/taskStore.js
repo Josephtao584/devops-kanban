@@ -1,15 +1,23 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import { useCrudStore } from '../composables/useCrudStore'
 import * as taskApi from '../api/task'
 
 export const useTaskStore = defineStore('task', () => {
-  // State
-  const tasks = ref([])
-  const currentTask = ref(null)
-  const loading = ref(false)
-  const error = ref(null)
+  const crud = useCrudStore({
+    api: taskApi,
+    apiMethods: {
+      getAll: 'getTasks',
+      getById: 'getTask',
+      create: 'createTask',
+      update: 'updateTask',
+      delete: 'deleteTask'
+    },
+    // getTasks requires projectId parameter
+    fetchAllParams: () => null  // Will be overridden in custom fetchTasks
+  })
 
-  // Getters
+  // Custom getters
   const tasksByStatus = computed(() => {
     const grouped = {
       TODO: [],
@@ -17,7 +25,7 @@ export const useTaskStore = defineStore('task', () => {
       DONE: [],
       BLOCKED: []
     }
-    tasks.value.forEach(task => {
+    crud.items.value.forEach(task => {
       const status = task.status || 'TODO'
       if (grouped[status]) {
         grouped[status].push(task)
@@ -27,164 +35,71 @@ export const useTaskStore = defineStore('task', () => {
   })
 
   const tasksByPriority = computed(() => {
-    return [...tasks.value].sort((a, b) => {
+    return [...crud.items.value].sort((a, b) => {
       const priorityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
       return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2)
     })
   })
 
-  // Actions
+  // Custom fetchTasks with projectId parameter
   async function fetchTasks(projectId) {
-    loading.value = true
-    error.value = null
+    crud.loading.value = true
+    crud.error.value = null
     try {
       const response = await taskApi.getTasks(projectId)
       if (response.success) {
-        tasks.value = response.data
+        crud.items.value = response.data
       }
+      return response
     } catch (e) {
-      error.value = e.message
+      crud.error.value = e.message
       throw e
     } finally {
-      loading.value = false
-    }
-  }
-
-  async function fetchTask(id) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskApi.getTask(id)
-      if (response.success) {
-        currentTask.value = response.data
-        // Also update the task in the tasks array if it exists
-        const index = tasks.value.findIndex(t => t.id === id)
-        if (index !== -1) {
-          tasks.value[index] = response.data
-        }
-        return response.data
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function createTask(taskData) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskApi.createTask(taskData)
-      if (response.success) {
-        tasks.value.push(response.data)
-        return response.data
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function updateTask(id, taskData) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskApi.updateTask(id, taskData)
-      if (response.success) {
-        const index = tasks.value.findIndex(t => t.id === id)
-        if (index !== -1) {
-          tasks.value[index] = response.data
-        }
-        if (currentTask.value?.id === id) {
-          currentTask.value = response.data
-        }
-        return response.data
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
+      crud.loading.value = false
     }
   }
 
   async function updateTaskStatus(id, status) {
-    loading.value = true
-    error.value = null
+    crud.loading.value = true
+    crud.error.value = null
     try {
       const response = await taskApi.updateTaskStatus(id, status)
       if (response.success) {
-        const index = tasks.value.findIndex(t => t.id === id)
+        const index = crud.items.value.findIndex(t => t.id === id)
         if (index !== -1) {
-          tasks.value[index] = response.data
+          crud.items.value[index] = response.data
         }
-        if (currentTask.value?.id === id) {
-          currentTask.value = response.data
-        }
-        return response.data
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function deleteTask(id) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskApi.deleteTask(id)
-      if (response.success) {
-        tasks.value = tasks.value.filter(t => t.id !== id)
-        if (currentTask.value?.id === id) {
-          currentTask.value = null
+        if (crud.currentItem.value?.id === id) {
+          crud.currentItem.value = response.data
         }
       }
+      return response
     } catch (e) {
-      error.value = e.message
+      crud.error.value = e.message
       throw e
     } finally {
-      loading.value = false
+      crud.loading.value = false
     }
-  }
-
-  function setCurrentTask(task) {
-    currentTask.value = task
-  }
-
-  function clearTasks() {
-    tasks.value = []
-    currentTask.value = null
-  }
-
-  function clearError() {
-    error.value = null
   }
 
   return {
     // State
-    tasks,
-    currentTask,
-    loading,
-    error,
+    tasks: crud.items,
+    currentTask: crud.currentItem,
+    loading: crud.loading,
+    error: crud.error,
     // Getters
     tasksByStatus,
     tasksByPriority,
     // Actions
     fetchTasks,
-    fetchTask,
-    createTask,
-    updateTask,
+    fetchTask: crud.fetchById,
+    createTask: crud.create,
+    updateTask: crud.update,
     updateTaskStatus,
-    deleteTask,
-    setCurrentTask,
-    clearTasks,
-    clearError
+    deleteTask: crud.deleteItem,
+    setCurrentTask: crud.setCurrentItem,
+    clearTasks: crud.clearItems,
+    clearError: crud.clearError
   }
 })
