@@ -4,6 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working in this
 
 ## Build and Run Commands
 
+### One-Click Start (Recommended)
+Start both frontend and backend simultaneously:
+```bash
+./start.sh
+```
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8080
+- Press `Ctrl+C` to stop all services
+
+### Manual Start
+
 ### Backend (Spring Boot)
 ```bash
 # Run development server (port 8080)
@@ -235,3 +246,27 @@ cd /path/to/devops-kanban
 cat data/tasks_*.json | jq -s 'add' > data/all_tasks.json
 ```
 **Note**: The backend auto-generates this file when saving tasks, but manual data creation requires this step.
+
+## Verification Commands
+
+Use these commands to verify the application is working correctly:
+
+### Quick Start Verification
+```bash
+# Start both services
+./start.sh
+
+# Wait for startup to complete, then verify:
+curl http://localhost:8080/api/projects  # Should return JSON response
+```
+
+### Frontend Build Verification
+```bash
+cd frontend
+npm run build  # Should complete without errors
+```
+
+### Backend Test Verification
+```bash
+mvn test  # Run all backend tests
+```
