@@ -9,7 +9,7 @@ Start both frontend and backend simultaneously:
 ```bash
 ./start.sh
 ```
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:3000
 - Backend: http://localhost:8080
 - Press `Ctrl+C` to stop all services
 
