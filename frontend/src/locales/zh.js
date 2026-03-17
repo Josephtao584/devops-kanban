@@ -216,6 +216,7 @@ export default {
       PENDING: '等待中',
       RUNNING: '运行中',
       SUCCESS: '成功',
+      COMPLETED: '已完成',
       FAILED: '失败',
       CANCELLED: '已取消'
     }

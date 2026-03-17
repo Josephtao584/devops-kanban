@@ -1076,6 +1076,11 @@ onMounted(loadAgents)
   color: #22543d;
 }
 
+.execution-status.status-completed {
+  background: #9ae6b4;
+  color: #22543d;
+}
+
 .execution-status.status-failed {
   background: #feb2b2;
   color: #742a2a;
