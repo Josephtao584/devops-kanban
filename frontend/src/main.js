@@ -5,12 +5,10 @@ import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import en from 'element-plus/es/locale/lang/en'
-import './styles/theme-variables.css'
 
 import App from './App.vue'
 import router from './router'
 import i18n from './locales'
-import { useThemeStore } from './stores/theme'
 import api from './api/index.js'
 
 // Setup mock if enabled
@@ -36,9 +34,5 @@ app.use(router)
 app.use(i18n)
 app.use(pinia)
 app.use(ElementPlus, { locale: elementLocale })
-
-// Initialize theme
-const themeStore = useThemeStore()
-themeStore.initTheme()
 
 app.mount('#app')

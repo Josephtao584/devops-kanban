@@ -1,5 +1,5 @@
 <template>
-  <div id="app" :class="themeClass">
+  <div id="app">
     <!-- 左侧边栏 -->
     <aside class="sidebar" :class="{ 'collapsed': isSidebarCollapsed }">
       <!-- Logo/品牌区域 -->
@@ -51,59 +51,17 @@
           </svg>
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.taskSources') }}</span>
         </router-link>
-
-        <router-link to="/prompt-templates" class="nav-item" :title="$t('nav.promptTemplates')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-          </svg>
-          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.promptTemplates') }}</span>
-        </router-link>
-
-        <router-link to="/phase-transitions" class="nav-item" :title="$t('phaseTransition.navTitle')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="17 1 21 5 17 9"></polyline>
-            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-            <polyline points="7 23 3 19 7 15"></polyline>
-            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-          </svg>
-          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('phaseTransition.navTitle') }}</span>
-        </router-link>
       </nav>
 
       <!-- 底部操作区 -->
       <div class="sidebar-footer">
-        <!-- 主题切换 -->
-        <button @click="toggleTheme" class="footer-btn" :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
-          <svg v-if="isDark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-          </svg>
-          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-          <span v-if="!isSidebarCollapsed" class="btn-text">{{ isDark ? $t('theme.light') : $t('theme.dark') }}</span>
-        </button>
-
         <!-- 语言选择 -->
-        <div v-if="!isSidebarCollapsed" class="locale-wrapper">
+        <div class="locale-wrapper">
           <select v-model="currentLocale" @change="changeLocale" class="locale-select">
             <option value="en">English</option>
             <option value="zh">中文</option>
           </select>
         </div>
-        <button v-else @click="toggleLocale" class="footer-btn" :title="currentLocale === 'en' ? 'Switch to 中文' : 'Switch to English'">
-          <span class="locale-icon">{{ currentLocale === 'en' ? 'EN' : '中' }}</span>
-        </button>
       </div>
     </aside>
 
@@ -115,24 +73,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { setLocale, getLocale } from './locales'
-import { useThemeStore } from './stores/theme'
 
 const route = useRoute()
 const { locale, t } = useI18n()
-const themeStore = useThemeStore()
 const currentLocale = ref('en')
-const isSidebarCollapsed = ref(true) // 默认收起
-
-const isDark = computed(() => themeStore.isDark)
-const themeClass = computed(() => themeStore.themeClass)
-
-const toggleTheme = () => {
-  themeStore.toggleTheme()
-}
+const isSidebarCollapsed = ref(true)
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
@@ -145,7 +94,6 @@ const toggleLocale = () => {
 
 onMounted(() => {
   currentLocale.value = getLocale()
-  themeStore.initTheme()
 })
 
 const changeLocale = () => {
@@ -154,7 +102,22 @@ const changeLocale = () => {
 </script>
 
 <style>
-/* Theme variables are defined in src/styles/theme-variables.css */
+/* Light theme only */
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #eeeeee;
+  --navbar-bg: #ffffff;
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --border-color: #e0e0e0;
+  --input-bg: #ffffff;
+  --input-text: #333333;
+  --scrollbar-thumb: #cccccc;
+  --scrollbar-thumb-hover: #999999;
+  --accent-color: #6366f1;
+}
 
 * {
   margin: 0;
@@ -167,7 +130,6 @@ const changeLocale = () => {
   min-height: 100vh;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  transition: background-color 0.3s, color 0.3s;
   display: flex;
 }
 
@@ -177,7 +139,7 @@ const changeLocale = () => {
   height: 100vh;
   background: var(--navbar-bg);
   border-right: 1px solid var(--border-color);
-  transition: width 0.3s ease, background-color 0.3s, border-color 0.3s;
+  transition: width 0.3s ease;
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
