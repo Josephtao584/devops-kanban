@@ -41,18 +41,6 @@
               </div>
               <div class="task-card-actions">
                 <button
-                  class="auto-transition-btn"
-                  :class="{ 'active': element.autoTransitionEnabled === true }"
-                  @click.stop="handleToggleAutoTransition(element)"
-                  :title="element.autoTransitionEnabled === true ? $t('task.autoTransitionEnabled') : $t('task.autoTransitionDisabled')"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M23 4v6h-6"></path>
-                    <path d="M1 20v-6h6"></path>
-                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                  </svg>
-                </button>
-                <button
                   class="edit-btn"
                   @click.stop="handleEditTask(element)"
                   :title="$t('common.edit')"
@@ -87,6 +75,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import draggable from 'vuedraggable'
 
 const props = defineProps({
   status: {
@@ -119,7 +108,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'toggle-auto-transition'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task'])
 
 const { t } = useI18n()
 
@@ -185,10 +174,6 @@ const handleEditTask = (task) => {
 
 const handleDeleteTask = (taskId) => {
   emit('delete-task', taskId)
-}
-
-const handleToggleAutoTransition = (task) => {
-  emit('toggle-auto-transition', task)
 }
 
 const taskCount = computed(() => props.tasks.length)
@@ -380,11 +365,6 @@ const taskCount = computed(() => props.tasks.length)
 .task-card-actions .delete-btn:hover {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
-}
-
-.auto-transition-btn.active {
-  color: var(--el-color-success);
-  background: var(--el-color-success-light-9);
 }
 
 .ghost-card {

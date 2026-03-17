@@ -78,7 +78,7 @@ def create_mock_data():
             "project_id": 1,
             "title": "AI 代理集成",
             "description": "集成 AI 代理自动执行任务，支持多种 Agent",
-            "status": "ANALYZING",
+            "status": "DRAFT",
             "priority": "CRITICAL",
             "acceptance_criteria": "1. 支持 Claude Code 代理\n2. 支持任务自动执行\n3. 显示执行日志",
             "created_by": "李四",
