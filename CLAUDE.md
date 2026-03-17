@@ -10,48 +10,32 @@ Start both frontend and backend simultaneously:
 ./start.sh
 ```
 - Frontend: http://localhost:3000
-- Backend: http://localhost:8080
+- Backend: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 - Press `Ctrl+C` to stop all services
+
+**Auto-restart**: If ports are occupied, the script will automatically kill the occupying processes and restart the services.
 
 ### Manual Start
 
-### Backend (Spring Boot)
+### Backend (Python FastAPI)
 ```bash
-# Run development server (port 8080)
-mvn spring-boot:run
+cd backend
 
-# Build JAR
-mvn package
+# Run development server (port 8000)
+python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-# Run all tests
-mvn test
+# Or run directly
+python3 main.py
 
-# Run a single test class
-mvn test -Dtest=ProjectServiceTest
+# Install dependencies
+pip3 install -r requirements.txt
 
-# Run a single test method
-mvn test -Dtest=ProjectServiceTest#testCreateProject
-```
+# Run tests
+pytest
 
-#### Alternative: Run with Java directly (when Maven is not in PATH)
-If `mvn` is not available in the shell environment, you can run the compiled classes directly:
-
-```bash
-# Set JAVA_HOME to your Java installation
-JAVA_HOME=/path/to/your/java/installation
-
-# Run the application (requires compiled classes in target/classes)
-$JAVA_HOME/bin/java -Dfile.encoding=UTF-8 \
-  -cp "target/classes:$(cat .classpath)" \
-  com.devops.kanban.DevopsKanbanApplication
-```
-
-Or use the full classpath command (run `mvn dependency:build-classpath -Dmdep.outputFile=.classpath` to generate):
-```bash
-$JAVA_HOME/bin/java \
-  -Dfile.encoding=UTF-8 \
-  -cp "target/classes:$(cat .classpath)" \
-  com.devops.kanban.DevopsKanbanApplication
+# Run a single test file
+pytest tests/test_project_api.py
 ```
 
 ### Frontend (Vue 3)
@@ -61,7 +45,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Run development server (port 5173)
+# Run development server (port 3000)
 npm run dev
 
 # Build for production
@@ -78,17 +62,22 @@ npm run test:run
 
 This is a DevOps Kanban board application for managing tasks with AI agent execution capabilities. The system allows users to manage projects, tasks, and execute tasks using AI coding agents in isolated Git worktrees.
 
-### Backend Structure (`src/main/java/com/devops/kanban/`)
+### Backend Structure (`backend/`)
 
-| Package | Purpose |
-|---------|---------|
-| `entity/` | Domain entities: Project, Task, TaskSource, Agent, Execution, Session |
-| `dto/` | Data Transfer Objects for API requests/responses |
-| `repository/` | Repository interfaces with `impl/` containing file-based JSON implementations |
-| `service/` | Business logic including GitService for worktree management |
-| `controller/` | REST API endpoints |
-| `spi/` | Service Provider Interfaces for extensibility |
-| `adapter/` | SPI implementations for task sources and AI agents |
+| Directory | Purpose |
+|-----------|---------|
+| `app/` | Main application code |
+| `app/models/` | Pydantic models for data validation |
+| `app/repositories/` | Data access layer |
+| `app/routers/` | API route handlers |
+| `app/services/` | Business logic layer |
+| `routes/` | Legacy API routes (projects, tasks, requirements, roles, members) |
+| `repositories/` | Legacy file-based repositories |
+| `schemas/` | Pydantic schemas |
+| `tests/` | Pytest tests |
+| `data/` | JSON data files (moved to project root) |
+
+**Backend Stack**: FastAPI + Pydantic + Uvicorn + File-based JSON storage
 
 ### Frontend Structure (`frontend/src/`)
 
@@ -102,38 +91,24 @@ This is a DevOps Kanban board application for managing tasks with AI agent execu
 
 **Frontend Stack**: Vue 3 + Vite + Element Plus (UI) + Pinia (state) + vue-i18n + WebSocket (STOMP over SockJS)
 
-### Key Architectural Patterns
+### File-Based Storage
 
-**SPI (Service Provider Interface)**: The system uses SPI interfaces for extensibility:
-- `TaskSourceAdapter`: Implement to add new external task sources (GitHub, Jira, etc.)
-- `AgentAdapter`: Implement to add new AI agent integrations (Claude, Codex, etc.)
+Data is stored as JSON files in the `data/` directory (project root):
+- `projects.json` - Project data
+- `requirements.json` - Requirement data
+- `tasks.json` - Task data
+- `roles.json` - Role data
+- `members.json` - Team member data
 
-New adapters are auto-discovered via Spring's `@Component` annotation and registered by type. See `spi/` package for interface definitions.
+### API Endpoints
 
-**File-Based Storage**: Data is stored as JSON files in `./data/` directory (configurable via `app.storage.path`). Each entity type has a dedicated file per project (e.g., `tasks_1.json`).
-
-**Git Worktree Isolation**: Each task execution creates an isolated Git worktree to allow parallel agent execution without conflicts. See `GitService.createWorktree()`.
-
-**WebSocket Terminal Sessions**: Real-time bidirectional communication with AI agents via WebSocket (STOMP protocol). Sessions track agent processes and allow terminal-like interaction. See `SessionController` and `SessionService`.
-
-### Entity Relationships
-
-```
-Project (1) ─┬─ (N) Task
-              ├─ (N) TaskSource (external task providers)
-              └─ (N) Agent (AI execution agents)
-
-Task (1) ────── (N) Execution (agent execution records)
-Task (1) ────── (N) Session (interactive terminal sessions)
-```
-
-### Task Status Flow
-
-`TODO` → `IN_PROGRESS` → `DONE` (also: `BLOCKED`, `CANCELLED`)
-
-### Session Status Flow
-
-`CREATED` → `RUNNING` ↔ `IDLE` → `STOPPED` (also: `ERROR`)
+| Resource | Endpoints |
+|----------|-----------|
+| Projects | `GET/POST/PUT/DELETE /api/projects` |
+| Requirements | `GET/POST/PUT/DELETE /api/requirements` |
+| Tasks | `GET/POST/PUT/DELETE /api/tasks`, `PATCH /api/tasks/{id}/status` |
+| Roles | `GET/POST/PUT/DELETE /api/roles` |
+| Members | `GET/POST/PUT/DELETE /api/members` |
 
 ## API Reference
 
@@ -141,34 +116,24 @@ See [API.md](API.md) for complete API documentation including all endpoints, req
 
 ## Configuration
 
-Application configuration in `src/main/resources/application.yml`:
-- Server port: 8080
-- Storage path: `./data`
-- CORS origins: `http://localhost:5173,http://localhost:3000`
+Application configuration in `backend/.env`:
+- Server port: 8000
+- Storage path: `../data`
+- CORS origins: `http://localhost:3000,http://localhost:5173`
+
+Frontend dev server proxies `/api` requests to backend at `http://localhost:8000` (see `frontend/vite.config.js`).
 
 Frontend dev server proxies `/api` requests to backend at `http://localhost:8080` (see `frontend/vite.config.js`).
 
 ## Key Dependencies
 
-**Backend**: Spring Boot 3.2.5, Java 17, JGit (Git operations), Lombok, Jackson (JSON), WebSocket/STOMP
+**Backend**: FastAPI 0.115, Python 3.10+, Pydantic v2, Uvicorn
 
-**Frontend**: Vue 3.4, Vite 5, Element Plus, Pinia, Axios, vue-router, vue-i18n, @stomp/stompjs, sockjs-client, vitest (testing)
+**Frontend**: Vue 3.4, Vite 5, Element Plus, Pinia, Axios, vue-router, vue-i18n, vitest (testing)
 
 ## Common Issues and Solutions
 
-### 1. Frontend API Method Name Mismatch
-**Problem**: Frontend calls `agentApi.getByProject()` but API module only exports `getAll()`.
-**Solution**: Ensure all API modules export methods with consistent naming. Check `frontend/src/api/*.js` files.
-```javascript
-// In agent.js, both methods should exist:
-const agentApi = {
-  getAll: (projectId) => api.get('/agents', { params: { projectId } }),
-  getByProject: (projectId) => api.get('/agents', { params: { projectId } }),
-  // ...other methods
-}
-```
-
-### 2. API Response Handling
+### 1. API Response Handling
 **Problem**: Frontend doesn't check `response.success` before using `response.data`.
 **Solution**: Always check API response format:
 ```javascript
@@ -179,26 +144,26 @@ if (response.success && response.data) {
   // Handle error: response.message
 }
 ```
-The backend returns: `{ success: true/false, message: "...", data: {...} }`
+The backend returns: `{ success: true/false, message: "...", data: {...}, error: null }`
 
-### 3. JSON Data File Format
+### 2. JSON Data File Format
 **Problem**: JSON files with Chinese characters may have encoding issues.
-**Solution**: Use ASCII-only content for test data files, or ensure UTF-8 encoding. Validate JSON with:
+**Solution**: Use UTF-8 encoding. Validate JSON with:
 ```bash
 python3 -m json.tool data/projects.json
 ```
 
-### 4. Task Data Storage Structure
-**Problem**: Tasks are stored per-project as `tasks_{projectId}.json`, not a single `tasks.json`.
-**Solution**: Create task data files with correct naming:
-```
-data/
-├── projects.json
-├── tasks_1.json    # Tasks for project ID 1
-├── tasks_2.json    # Tasks for project ID 2
-├── agents.json
-└── task_sources.json
-```
+### 3. Port Conflicts - Auto-Handled by start.sh
+The `./start.sh` script automatically handles port conflicts:
+- Checks if ports 3000 (frontend) and 8000 (backend) are occupied
+- Automatically kills processes occupying those ports
+- Restarts the services cleanly
+
+Just run `./start.sh` again to restart everything.
+
+### 4. Backend Data Path
+**Problem**: Backend reads data from relative path `../data`. If started from wrong directory, it won't find data files.
+**Solution**: Always start backend from project root directory or use `./start.sh`.
 
 ### 5. Vite 5 + sockjs-client Global Polyfill
 **Problem**: `sockjs-client` requires `global` variable which Vite 5 doesn't provide by default.
@@ -213,40 +178,6 @@ export default defineConfig({
 })
 ```
 
-### 6. Multiple Running Processes
-**Problem**: Multiple `npm run dev` or `java` processes cause port conflicts.
-**Solution**: Before starting, kill existing processes:
-```bash
-# Kill old node/vite processes
-pkill -f "vite" || true
-pkill -f "npm run dev" || true
-
-# Kill old Spring Boot processes on port 8080
-lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-```
-
-### 7. Backend Startup with Missing Dependencies
-**Problem**: Running Java directly with `-cp` may miss transitive dependencies like `snakeyaml`.
-**Solution**: Prefer using `mvn spring-boot:run` or the full classpath command in CLAUDE.md. The full classpath must include ALL transitive dependencies.
-
-### 8. Backend Working Directory Must Be Project Root
-**Problem**: Backend reads data from relative path `./data`. If started from wrong directory (e.g., `frontend/`), it won't find data files.
-**Solution**: Always start backend from project root directory:
-```bash
-cd /path/to/devops-kanban
-# Then run the java command
-```
-**Verify**: Check with `lsof -p <PID> | grep cwd` to ensure working directory is correct.
-
-### 9. all_tasks.json Required for Task Lookup by ID
-**Problem**: `findById()` uses `all_tasks.json` to look up tasks. If this file is missing, task operations fail with "Task not found".
-**Solution**: When creating test data, ensure `all_tasks.json` exists:
-```bash
-# Generate all_tasks.json from project task files
-cat data/tasks_*.json | jq -s 'add' > data/all_tasks.json
-```
-**Note**: The backend auto-generates this file when saving tasks, but manual data creation requires this step.
-
 ## Verification Commands
 
 Use these commands to verify the application is working correctly:
@@ -257,7 +188,8 @@ Use these commands to verify the application is working correctly:
 ./start.sh
 
 # Wait for startup to complete, then verify:
-curl http://localhost:8080/api/projects  # Should return JSON response
+curl http://localhost:8000/api/projects  # Should return JSON response
+curl http://localhost:8000/api/members   # Should return member list
 ```
 
 ### Frontend Build Verification
@@ -268,5 +200,6 @@ npm run build  # Should complete without errors
 
 ### Backend Test Verification
 ```bash
-mvn test  # Run all backend tests
+cd backend
+pytest  # Run all backend tests
 ```

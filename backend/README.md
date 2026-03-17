@@ -46,7 +46,7 @@ backend/
 ├── enums.py                # 枚举类型定义
 ├── requirements.txt        # Python 依赖
 ├── .env.example            # 环境变量示例
-├── data/                   # JSON 数据文件
+├── data/                   # JSON 数据文件（链接到项目根目录 data/）
 │   ├── projects.json
 │   ├── requirements.json
 │   ├── tasks.json
@@ -137,7 +137,7 @@ backend/
 
 ```env
 # 数据存储路径
-DATA_PATH=./data
+DATA_PATH=../data
 
 # 服务器配置
 HOST=0.0.0.0
@@ -252,7 +252,7 @@ curl -X POST http://localhost:8000/api/requirements \
 
 ## 数据存储
 
-数据以 JSON 文件形式存储在 `backend/data/` 目录下：
+数据以 JSON 文件形式存储在 `data/` 目录下（项目根目录）：
 - `projects.json` - 项目数据
 - `requirements.json` - 需求数据
 - `tasks.json` - 任务数据
