@@ -109,6 +109,15 @@ const visible = computed({
 
 const isEditing = computed(() => !!props.project?.id)
 
+const resetForm = () => {
+  form.value = {
+    name: '',
+    description: '',
+    repoUrl: '',
+    localPath: ''
+  }
+}
+
 watch(() => props.project, (newProject) => {
   if (newProject) {
     form.value = {
@@ -121,15 +130,6 @@ watch(() => props.project, (newProject) => {
     resetForm()
   }
 }, { immediate: true })
-
-const resetForm = () => {
-  form.value = {
-    name: '',
-    description: '',
-    repoUrl: '',
-    localPath: ''
-  }
-}
 
 const handleSubmit = async () => {
   try {

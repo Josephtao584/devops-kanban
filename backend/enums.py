@@ -3,9 +3,9 @@ from enum import Enum
 
 class RequirementStatus(str, Enum):
     DRAFT = "DRAFT"
-    ANALYZING = "ANALYZING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    CONVERTED = "CONVERTED"
 
 
 class RequirementPriority(str, Enum):
