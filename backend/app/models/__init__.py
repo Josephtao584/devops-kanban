@@ -10,6 +10,12 @@ from app.models.task import (
     TaskByStatus,
     Priority,
 )
+from app.models.task_source import (
+    TaskSource,
+    TaskSourceCreate,
+    TaskSourceUpdate,
+    TaskSourceType,
+)
 
 __all__ = [
     "Project",
@@ -23,4 +29,8 @@ __all__ = [
     "TaskStatusUpdate",
     "TaskByStatus",
     "Priority",
+    "TaskSource",
+    "TaskSourceCreate",
+    "TaskSourceUpdate",
+    "TaskSourceType",
 ]

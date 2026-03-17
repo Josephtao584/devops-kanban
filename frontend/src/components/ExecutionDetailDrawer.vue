@@ -119,8 +119,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { locale } = useI18n()
-
 const loading = ref(false)
 const error = ref(null)
 const execution = ref(null)
@@ -167,7 +165,7 @@ const loadExecutionDetail = async () => {
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
-  return date.toLocaleString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
+  return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

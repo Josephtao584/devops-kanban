@@ -10,8 +10,8 @@ import pytest
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# Use test data directory
-os.environ["STORAGE_PATH"] = str(backend_dir / "data")
+# Use test data directory (project root data folder)
+os.environ["STORAGE_PATH"] = str(backend_dir.parent / "data")
 
 
 @pytest.fixture

@@ -126,7 +126,6 @@ const props = defineProps({
 
 const emit = defineEmits(['control-workflow', 'view-workflow'])
 
-const { t, locale } = useI18n()
 const messages = ref([])
 const inputText = ref('')
 const messagesRef = ref(null)
@@ -178,14 +177,14 @@ const taskStatusText = computed(() => {
 
 // Quick actions
 const quickActions = computed(() => {
-  return getQuickActions(props.task, workflow.value, locale.value)
+  return getQuickActions(props.task, workflow.value)
 })
 
 // Format timestamp
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
-  return date.toLocaleTimeString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
+  return date.toLocaleTimeString('zh-CN', {
     hour: '2-digit',
     minute: '2-digit'
   })
@@ -225,7 +224,7 @@ const sendMessage = () => {
   scrollToBottom()
 
   // Process input and get response
-  const result = processButlerInput(userMessage.content, props.task, workflow.value, locale.value)
+  const result = processButlerInput(userMessage.content, props.task, workflow.value)
 
   // Add assistant response with slight delay for natural feel
   setTimeout(() => {
@@ -269,7 +268,7 @@ const handleQuickAction = (action) => {
   scrollToBottom()
 
   // Get response for action
-  const result = getResponseForAction(action.action, props.task, workflow.value, locale.value)
+  const result = getResponseForAction(action.action, props.task, workflow.value)
 
   // Add assistant response
   setTimeout(() => {
@@ -315,7 +314,7 @@ watch(() => props.task, (newTask, oldTask) => {
     messages.value = []
 
     // Add welcome message for new task
-    const welcomeMsg = getButlerWelcomeMessage(newTask.title, locale.value)
+    const welcomeMsg = getButlerWelcomeMessage(newTask.title)
     messages.value.push(welcomeMsg)
     scrollToBottom()
   } else if (!newTask) {
@@ -323,14 +322,6 @@ watch(() => props.task, (newTask, oldTask) => {
     messages.value = []
   }
 }, { immediate: true })
-
-// Watch for locale changes
-watch(locale, (newLocale) => {
-  // Update welcome message if task is selected
-  if (props.task && messages.value.length > 0 && messages.value[0].id === 'welcome') {
-    messages.value[0] = getButlerWelcomeMessage(props.task.title, newLocale)
-  }
-})
 
 // Expose methods
 defineExpose({

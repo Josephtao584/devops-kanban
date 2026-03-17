@@ -1,7 +1,8 @@
 import api from './index.js'
 
 // Task API - named exports only
-export const getTasks = (projectId) => api.get('/tasks', { params: { projectId } })
+// Note: Backend expects 'project_id' (snake_case), not 'projectId' (camelCase)
+export const getTasks = (projectId) => api.get('/tasks', { params: { project_id: projectId } })
 export const getTask = (id) => api.get(`/tasks/${id}`)
 export const createTask = (data) => api.post('/tasks', data)
 export const updateTask = (id, data) => api.put(`/tasks/${id}`, data)

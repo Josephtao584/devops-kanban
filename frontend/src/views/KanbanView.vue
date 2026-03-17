@@ -676,7 +676,7 @@
         </div>
 
         <!-- Task Mode -->
-        <template v-if="!selectedTask" class="chat-welcome">
+        <div v-if="!selectedTask" class="chat-welcome">
           <div class="welcome-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -684,7 +684,7 @@
           </div>
           <h2>{{ $t('butler.selectTask') }}</h2>
           <p>{{ $t('butler.selectTaskHint') }}</p>
-        </template>
+        </div>
 
         <!-- Task Butler Chat -->
         <div v-else class="chat-content">
@@ -747,6 +747,16 @@
                 <option value="CRITICAL">{{ $t('priority.CRITICAL') }}</option>
               </select>
             </div>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                v-model="taskForm.autoAssignWorkflow"
+              />
+              <span>{{ $t('task.autoAssignWorkflow') }}</span>
+            </label>
+            <p class="form-help">{{ $t('task.autoAssignWorkflowHelp') }}</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -985,7 +995,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -1543,10 +1553,17 @@ const localDoneTasks = ref([])
 const localBlockedTasks = ref([])
 
 // Watch store changes and sync to local arrays
-watch(todoTasks, (newVal) => { localTodoTasks.value = [...newVal] }, { immediate: true })
-watch(inProgressTasks, (newVal) => { localInProgressTasks.value = [...newVal] }, { immediate: true })
-watch(doneTasks, (newVal) => { localDoneTasks.value = [...newVal] }, { immediate: true })
-watch(blockedTasks, (newVal) => { localBlockedTasks.value = [...newVal] }, { immediate: true })
+// Watch taskStore.tasks directly to ensure all status changes are detected
+watch(
+  () => taskStore.tasks,
+  () => {
+    localTodoTasks.value = [...(taskStore.tasksByStatus.TODO || [])]
+    localInProgressTasks.value = [...(taskStore.tasksByStatus.IN_PROGRESS || [])]
+    localDoneTasks.value = [...(taskStore.tasksByStatus.DONE || [])]
+    localBlockedTasks.value = [...(taskStore.tasksByStatus.BLOCKED || [])]
+  },
+  { immediate: true }
+)
 
 // Helper to update all column refs from store (kept for other uses)
 const updateColumnRefs = () => {
@@ -1638,9 +1655,19 @@ const fetchTasks = async () => {
   }
 }
 
-const onProjectChange = () => {
+const onProjectChange = async () => {
+  // 清除选择的任务（避免切换到新项目时仍显示旧项目的任务详情）
+  selectedTask.value = null
+
+  // 更新路由
   router.replace({ path: `/kanban/${selectedProjectId.value}` })
-  fetchTasks()
+
+  // 等待下一个 tick 确保路由更新完成
+  await nextTick()
+
+  // 重新获取任务并更新引用
+  await fetchTasks()
+  updateColumnRefs()
 }
 
 const selectTask = async (task) => {
@@ -2782,57 +2809,17 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-/* Mode Switch Button (in welcome screen) */
-.mode-switch-btn {
-  margin-top: 12px;
-  padding: 6px 14px;
-  border: none;
-  border-radius: 6px;
-  background: #6366f1;
-  color: white;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.mode-switch-btn:hover {
-  opacity: 0.85;
-}
-
-/* Mode Toggle Button (in header) */
-.mode-toggle-btn {
-  padding: 4px 10px;
-  border: none;
-  border-radius: 6px;
-  background: #6366f1;
-  color: white;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.mode-toggle-btn:hover {
-  opacity: 0.85;
-}
-
-.chat-container.collapsed .mode-switch-btn,
-.chat-container.collapsed .mode-toggle-btn {
-  display: none;
-}
-
 .chat-welcome {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   color: var(--text-muted);
   padding: 24px;
+  text-align: center;
+  border-top: 1px dashed var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .welcome-icon {
@@ -3100,6 +3087,33 @@ onUnmounted(() => {
 .form-group textarea {
   resize: vertical;
   min-height: 100px;
+}
+
+/* Checkbox label */
+.form-group .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+
+.form-group .checkbox-label input[type="checkbox"] {
+  width: auto;
+  cursor: pointer;
+}
+
+.form-group .checkbox-label span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-help {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .form-row {

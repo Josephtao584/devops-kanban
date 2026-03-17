@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
-from app.routers import projects, tasks
+from app.routers import projects, tasks, task_sources
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.add_middleware(
 # Include routers
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(task_sources.router, prefix="/api/task-sources", tags=["task-sources"])
 
 
 @app.get("/health")

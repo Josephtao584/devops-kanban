@@ -6,8 +6,8 @@ from pathlib import Path
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Storage path for JSON data files
-STORAGE_PATH = Path(os.getenv("STORAGE_PATH", BASE_DIR / "data"))
+# Storage path for JSON data files (located at project root)
+STORAGE_PATH = Path(os.getenv("STORAGE_PATH", BASE_DIR.parent / "data"))
 STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 
 # Server configuration

@@ -11,11 +11,11 @@ class BaseFileRepository(Generic[T]):
     """Base class for file-based repositories"""
 
     def __init__(self, filename: str, data_dir: str = None):
-        # Use provided data_dir or default to backend/data
+        # Use provided data_dir or default to project root data directory
         if data_dir:
             self.data_path = Path(data_dir)
         else:
-            self.data_path = Path(__file__).parent / "data"
+            self.data_path = Path(__file__).parent.parent / "data"
         self.file_path = self.data_path / filename
         self._ensure_data_dir()
         self._ensure_file_exists()

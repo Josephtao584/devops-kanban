@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: Optional[str] = None  # If not set, uses sqlite in data_path
-    data_path: str = "./data"
+    data_path: str = "../data"
 
     # CORS
     cors_origins: list[str] = [

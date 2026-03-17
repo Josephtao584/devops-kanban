@@ -55,13 +55,6 @@
 
       <!-- 底部操作区 -->
       <div class="sidebar-footer">
-        <!-- 语言选择 -->
-        <div class="locale-wrapper">
-          <select v-model="currentLocale" @change="changeLocale" class="locale-select">
-            <option value="en">English</option>
-            <option value="zh">中文</option>
-          </select>
-        </div>
       </div>
     </aside>
 
@@ -73,31 +66,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { setLocale, getLocale } from './locales'
+import { ref } from 'vue'
 
-const route = useRoute()
-const { locale, t } = useI18n()
-const currentLocale = ref('en')
 const isSidebarCollapsed = ref(true)
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
-}
-
-const toggleLocale = () => {
-  currentLocale.value = currentLocale.value === 'en' ? 'zh' : 'en'
-  changeLocale()
-}
-
-onMounted(() => {
-  currentLocale.value = getLocale()
-})
-
-const changeLocale = () => {
-  setLocale(currentLocale.value)
 }
 </script>
 
@@ -249,9 +223,6 @@ const changeLocale = () => {
 .sidebar-footer {
   padding: 12px 8px;
   border-top: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .footer-btn {
@@ -278,44 +249,6 @@ const changeLocale = () => {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border-color: var(--accent-color);
-}
-
-.locale-wrapper {
-  padding: 0 4px;
-}
-
-.locale-select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--input-bg);
-  color: var(--input-text);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6,9 12,15 18,9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
-}
-
-.locale-select:hover {
-  background-color: var(--bg-tertiary);
-  border-color: var(--accent-color);
-}
-
-.locale-select:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(92, 92, 255, 0.1);
-}
-
-.locale-icon {
-  font-size: 12px;
-  font-weight: 600;
 }
 
 /* Main content */

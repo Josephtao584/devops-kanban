@@ -8,8 +8,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-# 数据目录
-DATA_DIR = Path(__file__).parent / "data"
+# 数据目录（项目根目录）
+DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 
@@ -416,6 +416,166 @@ def create_mock_data():
         }
     ]
 
+    # ============ 团队成员数据 ============
+    members = [
+        {
+            "id": 1,
+            "project_id": 1,
+            "user_id": 1001,
+            "name": "张三",
+            "email": "zhangsan@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=zhangsan",
+            "role_id": 1,
+            "role_name": "项目管理员",
+            "department": "研发部",
+            "joined_at": "2026-01-15T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 2,
+            "project_id": 1,
+            "user_id": 1002,
+            "name": "李四",
+            "email": "lisi@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=lisi",
+            "role_id": 2,
+            "role_name": "开发者",
+            "department": "研发部",
+            "joined_at": "2026-01-16T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 3,
+            "project_id": 1,
+            "user_id": 1003,
+            "name": "王五",
+            "email": "wangwu@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=wangwu",
+            "role_id": 2,
+            "role_name": "开发者",
+            "department": "研发部",
+            "joined_at": "2026-01-17T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 4,
+            "project_id": 1,
+            "user_id": 1004,
+            "name": "赵六",
+            "email": "zhaoliu@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=zhaoliu",
+            "role_id": 3,
+            "role_name": "观察者",
+            "department": "产品部",
+            "joined_at": "2026-02-01T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 5,
+            "project_id": 2,
+            "user_id": 1005,
+            "name": "钱七",
+            "email": "qianqi@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=qianqi",
+            "role_id": 4,
+            "role_name": "产品负责人",
+            "department": "产品部",
+            "joined_at": "2026-01-20T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 6,
+            "project_id": 2,
+            "user_id": 1006,
+            "name": "孙八",
+            "email": "sunba@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=sunba",
+            "role_id": 5,
+            "role_name": "开发工程师",
+            "department": "研发部",
+            "joined_at": "2026-01-21T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 7,
+            "project_id": 2,
+            "user_id": 1007,
+            "name": "周九",
+            "email": "zhoujiu@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=zhoujiu",
+            "role_id": 5,
+            "role_name": "开发工程师",
+            "department": "研发部",
+            "joined_at": "2026-01-22T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 8,
+            "project_id": 2,
+            "user_id": 1008,
+            "name": "吴十",
+            "email": "wushi@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=wushi",
+            "role_id": 5,
+            "role_name": "开发工程师",
+            "department": "测试部",
+            "joined_at": "2026-02-05T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 9,
+            "project_id": 3,
+            "user_id": 1009,
+            "name": "郑十一",
+            "email": "zhengshiyi@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=zhengshiyi",
+            "role_id": 1,
+            "role_name": "项目管理员",
+            "department": "数据部",
+            "joined_at": "2026-01-25T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 10,
+            "project_id": 3,
+            "user_id": 1010,
+            "name": "刘十二",
+            "email": "liushier@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=liushier",
+            "role_id": 6,
+            "role_name": "数据分析师",
+            "department": "数据部",
+            "joined_at": "2026-01-26T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 11,
+            "project_id": 3,
+            "user_id": 1011,
+            "name": "陈十三",
+            "email": "chenshisan@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=chenshisan",
+            "role_id": 6,
+            "role_name": "数据分析师",
+            "department": "数据部",
+            "joined_at": "2026-02-10T09:00:00",
+            "status": "ACTIVE"
+        },
+        {
+            "id": 12,
+            "project_id": 1,
+            "user_id": 1012,
+            "name": "褚十四",
+            "email": "chushisi@example.com",
+            "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=chushisi",
+            "role_id": 2,
+            "role_name": "开发者",
+            "department": "研发部",
+            "joined_at": "2026-03-01T09:00:00",
+            "status": "INACTIVE"
+        }
+    ]
+
     # 写入文件
     def write_json(filename, data):
         file_path = DATA_DIR / filename
@@ -427,6 +587,7 @@ def create_mock_data():
     write_json("requirements.json", requirements)
     write_json("tasks.json", tasks)
     write_json("roles.json", roles)
+    write_json("members.json", members)
 
     print("\n✅ Mock 数据创建完成!")
     print(f"📁 数据目录：{DATA_DIR}")
@@ -435,6 +596,7 @@ def create_mock_data():
     print(f"  - 需求：{len(requirements)} 个")
     print(f"  - 任务：{len(tasks)} 个")
     print(f"  - 角色：{len(roles)} 个")
+    print(f"  - 团队成员：{len(members)} 个")
 
 
 if __name__ == "__main__":
