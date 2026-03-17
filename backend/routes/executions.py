@@ -1,8 +1,20 @@
 from fastapi import APIRouter, HTTPException
 from repositories.executions import execution_repo
+from repositories.tasks import task_repo
 from utils.response import ApiResponse
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
+
+
+def _enrich_execution(execution: dict) -> dict:
+    """Enrich execution with task information"""
+    result = dict(execution)
+    if execution.get("task_id"):
+        task = task_repo.get_by_id(execution["task_id"])
+        if task:
+            result["taskTitle"] = task.get("title", "")
+            result["taskStatus"] = task.get("status", "")
+    return result
 
 
 @router.get("", response_model=ApiResponse)
@@ -14,7 +26,10 @@ async def get_executions(task_id: int = None, agent_id: int = None):
         executions = execution_repo.get_by_agent(agent_id)
     else:
         executions = execution_repo.get_all()
-    return ApiResponse.ok(data=executions)
+
+    # Enrich executions with task information
+    enriched = [_enrich_execution(e) for e in executions]
+    return ApiResponse.ok(data=enriched)
 
 
 @router.get("/{execution_id}", response_model=ApiResponse)
