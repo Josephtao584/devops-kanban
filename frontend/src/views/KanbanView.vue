@@ -675,81 +675,33 @@
           </svg>
         </div>
 
-        <!-- Single Task Mode -->
-        <template v-if="butlerMode === 'single'">
-          <!-- No task selected -->
-          <div v-if="!selectedTask" class="chat-welcome">
-            <div class="welcome-icon">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </div>
-            <h2>{{ $t('butler.selectTask') }}</h2>
-            <p>{{ $t('butler.selectTaskHint') }}</p>
-            <!-- Mode Toggle Button -->
-            <button
-              class="mode-switch-btn"
-              @click="butlerMode = 'global'"
-              :title="$t('globalButler.switchToGlobal')"
-            >
-              {{ $t('globalButler.switchToGlobal') }}
-            </button>
+        <!-- Task Mode -->
+        <template v-if="!selectedTask" class="chat-welcome">
+          <div class="welcome-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
           </div>
-
-          <!-- Task Butler Chat -->
-          <div v-else class="chat-content">
-            <!-- Butler Header with Mode Toggle -->
-            <div class="butler-header">
-              <div class="butler-avatar">🤖</div>
-              <div class="butler-info">
-                <h3>{{ $t('butler.title') }} - {{ selectedTask.title }}</h3>
-              </div>
-              <!-- Mode Toggle Button -->
-              <button
-                class="mode-toggle-btn"
-                @click="butlerMode = 'global'"
-                :title="$t('globalButler.switchToGlobal')"
-              >
-                {{ $t('globalButler.switchToGlobal') }}
-              </button>
-            </div>
-            <!-- TaskButlerChat Component -->
-            <TaskButlerChat
-              ref="butlerChatRef"
-              :task="selectedTask"
-              @control-workflow="handleButlerControl"
-              @view-workflow="handleViewWorkflow"
-            />
-          </div>
+          <h2>{{ $t('butler.selectTask') }}</h2>
+          <p>{{ $t('butler.selectTaskHint') }}</p>
         </template>
 
-        <!-- Global Mode -->
-        <template v-else>
-          <div class="chat-content global-mode">
-            <!-- Global Butler Header with Mode Toggle -->
-            <div class="butler-header">
-              <div class="butler-avatar">☁️</div>
-              <div class="butler-info">
-                <h3>{{ $t('globalButler.title') }}</h3>
-              </div>
-              <!-- Mode Toggle Button -->
-              <button
-                class="mode-toggle-btn"
-                @click="butlerMode = 'single'"
-                :title="$t('globalButler.switchToSingle')"
-              >
-                {{ $t('globalButler.switchToSingle') }}
-              </button>
+        <!-- Task Butler Chat -->
+        <div v-else class="chat-content">
+          <div class="butler-header">
+            <div class="butler-avatar">🤖</div>
+            <div class="butler-info">
+              <h3>{{ $t('butler.title') }} - {{ selectedTask.title }}</h3>
             </div>
-            <!-- GlobalTaskButler Component -->
-            <GlobalTaskButler
-              :tasks="taskStore.tasks"
-              :project-id="selectedProjectId"
-              @select-task="selectTask"
-              @control-workflow="handleButlerControl"
-            />
           </div>
-        </template>
+          <!-- TaskButlerChat Component -->
+          <TaskButlerChat
+            ref="butlerChatRef"
+            :task="selectedTask"
+            @control-workflow="handleButlerControl"
+            @view-workflow="handleViewWorkflow"
+          />
+        </div>
       </div>
     </div><!-- End of .main-content-wrapper -->
 
@@ -1127,9 +1079,6 @@ const kanbanBoardRef = ref(null)
 
 // View mode state: 'kanban' | 'list'
 const viewMode = ref('list')
-
-// Butler mode state: 'single' | 'global'
-const butlerMode = ref('global')
 
 // List mode status filter
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']

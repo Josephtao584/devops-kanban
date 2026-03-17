@@ -460,25 +460,6 @@ export default {
     workflowPaused: '工作流已暂停',
     workflowContinued: '工作流已继续'
   },
-  globalButler: {
-    title: '小云',
-    singleMode: '执行',
-    globalMode: '小云',
-    welcomeHint: '输入命令或问题开始...',
-    inputPlaceholder: '和小云聊聊...',
-    overview: '概览',
-    allTasks: '全部任务',
-    inProgress: '进行中',
-    pending: '待办',
-    completed: '已完成',
-    modeSwitchHint: '点击任务可选中',
-    switchToGlobal: '呼叫小云',
-    switchToSingle: '呼叫小捷',
-    todayPlan: '今日计划',
-    yesterdayCompleted: '昨天完成',
-    todayTodo: '今日待办',
-    dailyOverview: '今日概览'
-  },
   brainstorming: {
     title: '头脑风暴',
     start: '开始讨论',

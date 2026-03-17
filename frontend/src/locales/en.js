@@ -462,25 +462,6 @@ export default {
     workflowPaused: 'Workflow paused',
     workflowContinued: 'Workflow continued'
   },
-  globalButler: {
-    title: 'Cloud',
-    singleMode: 'Execute',
-    globalMode: 'Cloud',
-    welcomeHint: 'Enter a command or question to start...',
-    inputPlaceholder: 'Chat with Cloud...',
-    overview: 'Overview',
-    allTasks: 'All Tasks',
-    inProgress: 'In Progress',
-    pending: 'Pending',
-    completed: 'Completed',
-    modeSwitchHint: 'Click task to select',
-    switchToGlobal: 'Call Cloud',
-    switchToSingle: 'Call Jie',
-    todayPlan: "Today's Plan",
-    yesterdayCompleted: 'Yesterday Completed',
-    todayTodo: 'Today Todo',
-    dailyOverview: 'Daily Overview'
-  },
   brainstorming: {
     title: 'Brainstorming',
     start: 'Start Discussion',
