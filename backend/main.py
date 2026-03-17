@@ -8,6 +8,10 @@ from routes.projects import router as projects_router
 from routes.requirements import router as requirements_router
 from routes.tasks import router as tasks_router
 from routes.roles import router as roles_router
+from routes.members import router as members_router
+from routes.agents import router as agents_router
+from routes.executions import router as executions_router
+from app.routers import task_sources
 from utils.response import ApiResponse
 
 # Create FastAPI app
@@ -60,11 +64,15 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers (routes already have /projects, /requirements, etc. prefixes)
-# Final paths will be: /api/projects, /api/requirements, /api/tasks, /api/roles
+# Final paths will be: /api/projects, /api/requirements, /api/tasks, /api/roles, /api/members, /api/agents, /api/executions
 app.include_router(projects_router, prefix="/api")
 app.include_router(requirements_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
 app.include_router(roles_router, prefix="/api")
+app.include_router(members_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
+app.include_router(executions_router, prefix="/api")
+app.include_router(task_sources.router, prefix="/api/task-sources")
 
 
 @app.get("/")

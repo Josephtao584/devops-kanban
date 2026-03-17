@@ -93,36 +93,37 @@
             </div>
 
             <div class="form-group">
-              <label>{{ $t('taskSource.sourceType') }}</label>
-              <select v-model="form.type" required>
-                <option value="LOCAL">{{ $t('taskSource.types.LOCAL') }}</option>
-                <option value="GITHUB">{{ $t('taskSource.types.GITHUB') }}</option>
-                <option value="JIRA">{{ $t('taskSource.types.JIRA') }}</option>
-                <option value="CUSTOM">{{ $t('taskSource.types.CUSTOM') }}</option>
+              <label>{{ $t('taskSource.github.repo') }}</label>
+              <input
+                v-model="githubConfig.repo"
+                type="text"
+                :placeholder="$t('taskSource.github.repoHint')"
+              />
+              <span class="hint">{{ $t('taskSource.github.repoHint') }}</span>
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('taskSource.github.token') }}</label>
+              <input
+                v-model="githubConfig.token"
+                type="password"
+                :placeholder="$t('taskSource.github.tokenPlaceholder')"
+              />
+              <span class="hint">{{ $t('taskSource.github.tokenHint') }}</span>
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('taskSource.github.state') }}</label>
+              <select v-model="githubConfig.state">
+                <option value="open">{{ $t('taskSource.github.stateOpen') }}</option>
+                <option value="closed">{{ $t('taskSource.github.stateClosed') }}</option>
+                <option value="all">{{ $t('taskSource.github.stateAll') }}</option>
               </select>
             </div>
 
             <div class="form-group">
               <label>{{ $t('taskSource.syncInterval') }}</label>
               <input v-model.number="form.syncInterval" type="number" min="0" />
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('taskSource.config') }}</label>
-
-              <!-- GitHub type shows form -->
-              <GitHubSourceConfig
-                v-if="form.type === 'GITHUB'"
-                v-model="form.config"
-              />
-
-              <!-- Other types show JSON editor -->
-              <textarea
-                v-else
-                v-model="form.config"
-                rows="4"
-                placeholder='{"key": "value"}'
-              ></textarea>
             </div>
 
             <div class="form-actions">
@@ -150,7 +151,6 @@ import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
-import GitHubSourceConfig from '../components/GitHubSourceConfig.vue'
 
 const { t } = useI18n()
 const projectStore = useProjectStore()
@@ -161,10 +161,17 @@ const saving = ref(false)
 const showAddForm = ref(false)
 const editingSource = ref(null)
 
+// GitHub config fields
+const githubConfig = ref({
+  repo: '',
+  token: '',
+  state: 'open'
+})
+
 const form = ref({
   name: '',
-  type: 'LOCAL',
-  config: '{}',
+  type: 'GITHUB',
+  config: JSON.stringify({ repo: '', token: '', state: 'open' }),
   syncInterval: 60
 })
 
@@ -253,9 +260,20 @@ const editSource = (source) => {
   editingSource.value = source
   form.value = {
     name: source.name,
-    type: source.type,
+    type: 'GITHUB',
     config: source.config || '{}',
     syncInterval: source.syncInterval || 60
+  }
+  // Parse existing config
+  try {
+    const config = JSON.parse(source.config || '{}')
+    githubConfig.value = {
+      repo: config.repo || '',
+      token: config.token || '',
+      state: config.state || 'open'
+    }
+  } catch (e) {
+    githubConfig.value = { repo: '', token: '', state: 'open' }
   }
   showAddForm.value = true
 }
@@ -263,18 +281,14 @@ const editSource = (source) => {
 const closeForm = () => {
   showAddForm.value = false
   editingSource.value = null
-  form.value = { name: '', type: 'LOCAL', config: '{}', syncInterval: 60 }
+  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }), syncInterval: 60 }
+  githubConfig.value = { repo: '', token: '', state: 'open' }
 }
 
-// Reset config when type changes (only for new sources)
-watch(() => form.value.type, (newType) => {
-  if (editingSource.value) return // Don't reset when editing
-  if (newType === 'GITHUB') {
-    form.value.config = JSON.stringify({ repo: '', token: '', state: 'open' })
-  } else {
-    form.value.config = '{}'
-  }
-})
+// Sync githubConfig to form.config
+watch(githubConfig, (newConfig) => {
+  form.value.config = JSON.stringify(newConfig)
+}, { deep: true })
 
 onMounted(loadProjects)
 </script>

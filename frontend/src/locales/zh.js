@@ -103,6 +103,8 @@ export default {
     categoryHint: '留空将根据标题自动检测分类',
     autoAssignWorkflowLabel: '自动分配工作流',
     autoAssignWorkflowHint: '启用后，新任务将自动分配到合适的工作流阶段',
+    autoAssignWorkflow: '自动分配到工作流',
+    autoAssignWorkflowHelp: '启用后，创建任务时将自动分配到工作流的合适阶段',
     workflowAssigned: '任务已自动分配到工作流 ({stage})',
     categories: {
       FEATURE: '新功能',
@@ -126,25 +128,17 @@ export default {
     CRITICAL: '紧急'
   },
   taskSource: {
-    title: '任务源',
-    createSource: '创建任务源',
+    title: '任务源配置',
+    createSource: '添加 GitHub 任务源',
     editSource: '编辑任务源',
     sourceName: '名称',
-    sourceType: '类型',
-    config: '配置',
     syncInterval: '同步间隔 (分钟)',
     lastSync: '上次同步',
     syncNow: '立即同步',
+    syncing: '同步中...',
     testConnection: '测试连接',
     connectionSuccess: '连接成功',
     connectionFailed: '连接失败',
-    syncing: '同步中...',
-    types: {
-      LOCAL: '本地',
-      GITHUB: 'GitHub Issues',
-      JIRA: 'Jira',
-      CUSTOM: '自定义'
-    },
     github: {
       repo: '仓库',
       token: '访问令牌',
