@@ -18,19 +18,6 @@
             </svg>
             {{ $t('requirement.addRequirement') }}
           </button>
-          <button class="sync-requirements-btn-list" @click="$emit('sync-all-requirements')" :disabled="pendingRequirements.length === 0 || syncingAllRequirements">
-            <svg v-if="syncingAllRequirements" class="icon-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-              <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-            </svg>
-            <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-              <path d="M3 3v5h5"></path>
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-              <path d="M16 16h5v5"></path>
-            </svg>
-            {{ $t('requirement.syncAllRequirements') }}
-          </button>
           <button
             class="toggle-converted-btn-list"
             :class="{ 'is-hiding': hideConverted }"
@@ -71,16 +58,13 @@
           </div>
           <div class="requirement-list-actions">
             <button
-              v-if="req.status !== 'CONVERTED'"
-              class="sync-req-btn"
-              @click.stop="$emit('sync-requirement', req)"
-              :title="$t('requirement.generateTasks')"
+              class="edit-req-btn"
+              @click.stop="$emit('edit-requirement', req)"
+              :title="$t('common.edit')"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                <path d="M3 3v5h5"></path>
-                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                <path d="M16 16h5v5"></path>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
               </svg>
             </button>
             <button
@@ -197,14 +181,6 @@ const props = defineProps({
     type: Set,
     default: () => new Set()
   },
-  pendingRequirements: {
-    type: Array,
-    default: () => []
-  },
-  syncingAllRequirements: {
-    type: Boolean,
-    default: false
-  },
   hideConverted: {
     type: Boolean,
     default: false
@@ -217,9 +193,8 @@ const props = defineProps({
 
 const emit = defineEmits([
   'open-requirement-modal',
-  'sync-all-requirements',
-  'sync-requirement',
   'delete-requirement',
+  'edit-requirement',
   'select-task',
   'edit-task',
   'delete-task',
@@ -253,18 +228,19 @@ const formatElapsedTime = (taskId) => {
 
 const getReqStatusClass = (status) => {
   const classMap = {
-    PENDING: 'req-pending',
-    CONVERTED: 'req-converted'
+    NEW: 'req-new',
+    ANALYZING: 'req-analyzing',
+    APPROVED: 'req-approved',
+    DRAFT: 'req-draft',
+    CONVERTED: 'req-converted',
+    ARCHIVED: 'req-archived',
+    REJECTED: 'req-rejected'
   }
-  return classMap[status] || 'req-pending'
+  return classMap[status] || 'req-new'
 }
 
 const getReqStatusLabel = (status) => {
-  const labelMap = {
-    PENDING: t('requirement.status.pending'),
-    CONVERTED: t('requirement.status.converted')
-  }
-  return labelMap[status] || status
+  return t(`requirement.statuses.${status}`) || status
 }
 
 const getStatusClass = (status) => {
@@ -361,7 +337,6 @@ const getPriorityLabel = (priority) => {
 }
 
 .add-requirement-btn-list,
-.sync-requirements-btn-list,
 .toggle-converted-btn-list {
   display: flex;
   align-items: center;
@@ -379,11 +354,6 @@ const getPriorityLabel = (priority) => {
 .add-requirement-btn-list:hover {
   background: var(--el-color-primary-light-9);
   border-color: var(--el-color-primary-light-5);
-}
-
-.sync-requirements-btn-list:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .toggle-converted-btn-list.is-hiding {
@@ -433,6 +403,36 @@ const getPriorityLabel = (priority) => {
   color: var(--el-color-success);
 }
 
+.req-new {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+}
+
+.req-analyzing {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.req-approved {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.req-draft {
+  background: var(--el-color-info-light-9);
+  color: var(--el-color-info);
+}
+
+.req-archived {
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+}
+
+.req-rejected {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
 .requirement-list-content {
   flex: 1;
   min-width: 0;
@@ -459,7 +459,7 @@ const getPriorityLabel = (priority) => {
   gap: 4px;
 }
 
-.sync-req-btn,
+.edit-req-btn,
 .delete-req-btn {
   display: flex;
   align-items: center;
@@ -474,7 +474,7 @@ const getPriorityLabel = (priority) => {
   transition: all 0.2s;
 }
 
-.sync-req-btn:hover {
+.edit-req-btn:hover {
   background: var(--el-color-primary-light-9);
   color: var(--el-color-primary);
 }

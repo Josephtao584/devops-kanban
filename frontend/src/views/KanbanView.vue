@@ -110,29 +110,11 @@
                 </svg>
                 {{ $t('requirement.addRequirement') }}
               </button>
-              <div class="requirement-actions-row">
-                <button class="sync-requirements-btn" @click="syncAllRequirements" :disabled="pendingRequirements.length === 0 || syncingAllRequirements">
-                  <svg v-if="syncingAllRequirements" class="icon-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-                    <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-                  </svg>
-                  <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                    <path d="M3 3v5h5"></path>
-                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                    <path d="M16 16h5v5"></path>
-                  </svg>
-                  {{ $t('requirement.syncAllRequirements') }}
-                </button>
-                <button class="auto-assign-btn" @click="openAutoAssignDialog" :disabled="requirements.length === 0">
-                  {{ $t('requirement.autoAssign') }}
-                </button>
-              </div>
               <RequirementCard
                 v-for="req in requirements"
                 :key="req.id"
                 :requirement="req"
-                @sync="syncRequirementToTask"
+                @edit="handleEditRequirement"
                 @delete="deleteRequirement"
               />
               <div v-if="requirements.length === 0" class="empty-column">
@@ -144,6 +126,7 @@
           <!-- TODO Column -->
           <KanbanColumn
             status="TODO"
+            :title="$t('status.TODO')"
             :tasks="localTodoTasks"
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
@@ -152,12 +135,12 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
-            @toggle-auto-transition="toggleAutoTransition"
           />
 
           <!-- IN_PROGRESS Column -->
           <KanbanColumn
             status="IN_PROGRESS"
+            :title="$t('status.IN_PROGRESS')"
             :tasks="localInProgressTasks"
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
@@ -166,12 +149,12 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
-            @toggle-auto-transition="toggleAutoTransition"
           />
 
           <!-- DONE Column -->
           <KanbanColumn
             status="DONE"
+            :title="$t('status.DONE')"
             :tasks="localDoneTasks"
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
@@ -180,12 +163,12 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
-            @toggle-auto-transition="toggleAutoTransition"
           />
 
           <!-- BLOCKED Column -->
           <KanbanColumn
             status="BLOCKED"
+            :title="$t('status.BLOCKED')"
             :tasks="localBlockedTasks"
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
@@ -194,7 +177,6 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
-            @toggle-auto-transition="toggleAutoTransition"
           />
         </div>
 
@@ -205,14 +187,11 @@
           :tasks="taskStore.tasks"
           :selected-task="selectedTask"
           :running-task-ids="runningTasks"
-          :pending-requirements="pendingRequirements"
-          :syncing-all-requirements="syncingAllRequirements"
           :hide-converted="hideConvertedRequirements"
           :status-filter="listStatusFilter"
           @open-requirement-modal="openRequirementModal"
-          @sync-all-requirements="syncAllRequirements"
-          @sync-requirement="syncRequirementToTask"
           @delete-requirement="deleteRequirement"
+          @edit-requirement="openRequirementModal"
           @select-task="selectTask"
           @edit-task="openTaskModal"
           @delete-task="deleteTask"
@@ -223,7 +202,7 @@
 
       <!-- Chat Container -->
       <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
-        <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? '展开聊天框' : '收起聊天框'">
+        <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? 'Expand Chat' : 'Collapse Chat'">
           <svg v-if="isChatCollapsed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
@@ -416,7 +395,7 @@
             <el-icon class="header-icon"><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon>
             <div>
               <h2>{{ selectedNode.name }}</h2>
-              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} • {{ selectedNode.agentName }}</span>
+              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} �?{{ selectedNode.agentName }}</span>
             </div>
           </div>
           <button class="modal-close" @click="showNodeDialog = false">&times;</button>
@@ -432,7 +411,7 @@
                     <path d="M12 16v-4"></path>
                     <path d="M12 8h.01"></path>
                   </svg>
-                  状态
+                  状�?
                 </span>
                 <span class="info-value status-badge" :class="'status-' + selectedNode.status?.toLowerCase()">
                   <span class="status-dot"></span>
@@ -482,7 +461,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
               </svg>
-              与 {{ selectedNode.agentName }} 对话
+              �?{{ selectedNode.agentName }} 对话
             </h3>
             <div class="node-chat-container">
               <ChatBox
@@ -503,7 +482,7 @@
                 <polyline points="16 18 22 12 16 6"></polyline>
                 <polyline points="8 6 2 12 8 18"></polyline>
               </svg>
-              子节点完成情况
+              子节点完成情�?
             </h3>
             <div class="child-nodes-list">
               <div v-for="child in selectedNode.childNodes" :key="child.id" class="child-node-item" :class="'status-' + child.status?.toLowerCase()">
@@ -555,34 +534,20 @@ import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useRequirementManager } from '../composables/kanban/useRequirementManager'
+import { useRequirementStore } from '../stores/requirementStore'
 import {
   getWorkflowByProject,
   getWorkflowByTask,
   getOrCreateWorkflowForProject,
-  addNodeToWorkflow,
-  roleConfig,
-  agentConfig
+  addNodeToWorkflow
 } from '../mock/workflowData'
-import {
-  analyzeTaskCategory,
-  getAssignmentRule,
-  createNodeForTask,
-  findSuitableStage
-} from '../mock/workflowAssignment'
-import {
-  getRequirementsByProject,
-  createRequirement,
-  updateRequirement,
-  deleteRequirement as deleteRequirementData,
-  convertRequirementToTasks
-} from '../mock/requirementData'
-import { analyzeRequirementToTasks } from '../mock/requirementAnalysis'
 
 const { t } = useI18n()
 
 // Use Pinia stores
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
+const requirementStore = useRequirementStore()
 
 // Icon mappings
 const agentIconMap = { Monitor, VideoPlay, Edit, Cpu }
@@ -641,66 +606,32 @@ const {
   t
 })
 
-// Auto-assign task to workflow (must be defined before useRequirementManager)
-const autoAssignTaskToWorkflow = (task) => {
-  try {
-    const workflow = getOrCreateWorkflowForProject(selectedProjectId.value)
-    if (!workflow) return null
-
-    const category = task.category || analyzeTaskCategory(task.title, task.description)
-    const rule = getAssignmentRule(category)
-    const stage = findSuitableStage(workflow, rule.preferredStage)
-    if (!stage) return null
-
-    const node = createNodeForTask(task, category, rule)
-    const addedNode = addNodeToWorkflow(workflow.id, node, rule.preferredStage)
-    workflowVersion.value++
-
-    return addedNode
-  } catch (error) {
-    console.error('Failed to auto-assign task to workflow:', error)
-    return null
-  }
-}
-
 // Use useRequirementManager composable
 const {
   hideConvertedRequirements,
-  syncingAllRequirements,
   showRequirementModal,
   editingRequirement,
-  showAutoAssignDialog,
-  selectedRequirementIds,
-  assigningRequirements,
   allRequirements,
   requirements,
-  pendingRequirements,
   openRequirementModal,
   closeRequirementModal,
   handleRequirementSubmit,
-  syncRequirementToTask,
-  syncAllRequirements,
-  openAutoAssignDialog,
-  closeAutoAssignDialog,
-  selectAllRequirements,
-  deselectAllRequirements,
-  confirmAutoAssign,
   handleDeleteRequirement
 } = useRequirementManager({
   selectedProjectId,
+  requirementStore,
   taskStore,
-  getRequirementsByProject,
-  createRequirement,
-  updateRequirement,
-  deleteRequirement: deleteRequirementData,
-  convertRequirementToTasks,
-  analyzeRequirementToTasks,
-  autoAssignTaskToWorkflow,
   t
 })
 
 // Alias handleDeleteRequirement to deleteRequirement for template compatibility
 const deleteRequirement = handleDeleteRequirement
+
+// Wrapper for openRequirementModal with debug logging
+const handleEditRequirement = (requirement) => {
+  console.log('[KanbanView] handleEditRequirement called with:', requirement)
+  openRequirementModal(requirement)
+}
 
 // Computed - tasks and projects
 const tasks = computed(() => taskStore.tasks)
@@ -856,6 +787,7 @@ const onProjectChange = async () => {
 
 // Task selection
 const selectTask = (task) => {
+  console.log('[KanbanView] selectTask called with:', task)
   selectedTask.value = task
   loadActiveSession()
 }
@@ -931,21 +863,6 @@ const saveTask = async () => {
     ElMessage.error(t('task.saveFailed'))
   } finally {
     loading.saving = false
-  }
-}
-
-// Toggle auto-transition
-const toggleAutoTransition = async (task) => {
-  const newValue = task.autoTransitionEnabled === true ? false : true
-  try {
-    await taskStore.updateTask(task.id, {
-      ...task,
-      autoTransitionEnabled: newValue
-    })
-    ElMessage.success(newValue ? t('task.autoTransitionEnabled') : t('task.autoTransitionDisabled'))
-  } catch (e) {
-    console.error('Failed to toggle auto transition:', e)
-    ElMessage.error(t('messages.updateFailed', { name: t('task.title') }))
   }
 }
 
@@ -1278,14 +1195,14 @@ onUnmounted(() => {
 .chat-container.collapsed {
   width: 0;
   border-left: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .chat-toggle-btn {
   position: absolute;
   top: 50%;
   left: -16px;
-  transform: translateY(-50%);
+  transform: translateX(-100%) translateY(-50%);
   width: 32px;
   height: 32px;
   background: var(--accent-color);
@@ -1298,6 +1215,7 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 10;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .chat-toggle-btn:hover {
@@ -1823,5 +1741,198 @@ onUnmounted(() => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Kanban Column Styles */
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  max-height: 100%;
+}
+
+.kanban-column.requirement-column {
+  border-left: 4px solid #f59e0b;
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: 12px 12px 0 0;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.column-status {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.column-status.status-requirement {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.column-status.status-todo {
+  background: #6b7280;
+}
+
+.column-status.status-in-progress {
+  background: #3b82f6;
+}
+
+.column-status.status-done {
+  background: #10b981;
+}
+
+.column-status.status-blocked {
+  background: #ef4444;
+}
+
+.column-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.column-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 24px;
+  text-align: center;
+}
+
+.column-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Requirement Column Actions */
+.add-requirement-btn,
+.sync-requirements-btn,
+.auto-assign-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.add-requirement-btn {
+  width: 100%;
+  border-color: #f59e0b;
+  color: #d97706;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.add-requirement-btn:hover {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-color: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.15);
+}
+
+.requirement-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sync-requirements-btn {
+  flex: 1;
+  background: var(--bg-primary);
+}
+
+.sync-requirements-btn:hover:not(:disabled) {
+  background: var(--accent-color-light);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+.sync-requirements-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auto-assign-btn {
+  flex: 1;
+  background: var(--bg-primary);
+}
+
+.auto-assign-btn:hover:not(:disabled) {
+  background: var(--accent-color-light);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+.auto-assign-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Toggle Converted Button */
+.toggle-converted-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.toggle-converted-btn:hover {
+  background: var(--hover-bg);
+  color: var(--accent-color);
+}
+
+.toggle-converted-btn.is-hiding {
+  color: var(--el-color-warning);
+}
+
+/* Empty Column State */
+.empty-column {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-placeholder);
+  font-size: 13px;
+}
+
+/* Requirement Card in Kanban */
+.kanban-column .requirement-card {
+  margin-bottom: 0;
 }
 </style>

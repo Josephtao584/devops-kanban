@@ -126,6 +126,8 @@ const props = defineProps({
 
 const emit = defineEmits(['control-workflow', 'view-workflow'])
 
+const { t } = useI18n()
+
 const messages = ref([])
 const inputText = ref('')
 const messagesRef = ref(null)
@@ -309,8 +311,10 @@ const closeBrainstorming = () => {
 
 // Watch for task changes
 watch(() => props.task, (newTask, oldTask) => {
+  console.log('[TaskButlerChat] watch triggered - newTask:', newTask, 'oldTask:', oldTask)
   // Clear messages when task changes
   if (newTask && (!oldTask || newTask.id !== oldTask.id)) {
+    console.log('[TaskButlerChat] Adding welcome message for task:', newTask.title)
     messages.value = []
 
     // Add welcome message for new task

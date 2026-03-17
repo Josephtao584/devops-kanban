@@ -2,8 +2,7 @@
   <div
     class="requirement-card"
     :class="{
-      'is-converted': requirement.status === 'CONVERTED',
-      'is-analyzing': requirement.status === 'ANALYZING'
+      'is-converted': requirement.status === 'CONVERTED'
     }"
   >
     <div class="requirement-header">
@@ -41,33 +40,12 @@
       <span class="status-badge" :class="statusClass">
         {{ $t(`requirement.statuses.${requirement.status}`) }}
       </span>
-      <span v-if="requirement.convertedTaskIds?.length > 0" class="task-count">
-        {{ $t('requirement.taskCount', { count: requirement.convertedTaskIds.length }) }}
-      </span>
     </div>
 
     <div class="requirement-actions">
       <button
-        v-if="requirement.status === 'NEW'"
-        class="btn btn-primary btn-sm"
-        @click="handleSync"
-        :disabled="syncing"
-      >
-        <svg v-if="syncing" class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-        </svg>
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="12" y1="8" x2="12" y2="16"></line>
-          <line x1="8" y1="12" x2="16" y2="12"></line>
-        </svg>
-        {{ syncing ? $t('requirement.syncing') : $t('requirement.generateTasks') }}
-      </button>
-      <button
         class="btn btn-secondary btn-sm"
         @click="$emit('edit', requirement)"
-        :disabled="requirement.status === 'CONVERTED'"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -78,7 +56,6 @@
       <button
         class="btn btn-danger btn-sm"
         @click="handleDelete"
-        :disabled="requirement.status === 'CONVERTED'"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 6h18"></path>
@@ -101,10 +78,9 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['sync', 'edit', 'delete', 'generate'])
+const emit = defineEmits(['edit', 'delete'])
 
 const expanded = ref(false)
-const syncing = ref(false)
 
 const priorityClass = computed(() => {
   return `priority-${(props.requirement.priority || 'MEDIUM').toLowerCase()}`
@@ -114,7 +90,6 @@ const statusClass = computed(() => {
   const status = props.requirement.status
   return {
     'status-new': status === REQUIREMENT_STATUS.NEW,
-    'status-analyzing': status === REQUIREMENT_STATUS.ANALYZING,
     'status-converted': status === REQUIREMENT_STATUS.CONVERTED,
     'status-archived': status === REQUIREMENT_STATUS.ARCHIVED
   }
@@ -123,15 +98,6 @@ const statusClass = computed(() => {
 const showExpandButton = computed(() => {
   return props.requirement.description && props.requirement.description.length > 100
 })
-
-const handleSync = async () => {
-  syncing.value = true
-  try {
-    await emit('sync', props.requirement)
-  } finally {
-    syncing.value = false
-  }
-}
 
 const handleDelete = () => {
   emit('delete', props.requirement)
@@ -179,26 +145,6 @@ const handleDelete = () => {
 
 .requirement-card.is-converted::before {
   background: radial-gradient(circle, rgba(16, 185, 129, 0.04) 0%, transparent 70%);
-}
-
-.requirement-card.is-analyzing {
-  border-left-color: #3b82f6;
-  background: linear-gradient(135deg, #ffffff 0%, #dbeafe 100%);
-  border-color: rgba(59, 130, 246, 0.2);
-  animation: analyzing-pulse 2s ease-in-out infinite;
-}
-
-.requirement-card.is-analyzing::before {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
-}
-
-@keyframes analyzing-pulse {
-  0%, 100% {
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15);
-  }
-  50% {
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-  }
 }
 
 .requirement-header {
@@ -325,11 +271,6 @@ const handleDelete = () => {
   color: #92400e;
 }
 
-.status-badge.status-analyzing {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  color: #1e40af;
-}
-
 .status-badge.status-converted {
   background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
   color: #065f46;
@@ -338,11 +279,6 @@ const handleDelete = () => {
 .status-badge.status-archived {
   background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
   color: #4b5563;
-}
-
-.task-count {
-  font-size: 11px;
-  color: #6b7280;
 }
 
 .requirement-actions {

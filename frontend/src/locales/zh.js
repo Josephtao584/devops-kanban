@@ -362,7 +362,17 @@ export default {
       NEW: '待处理',
       ANALYZING: '分析中',
       CONVERTED: '已生成',
-      ARCHIVED: '已归档'
+      ARCHIVED: '已归档',
+      APPROVED: '已批准',
+      DRAFT: '草稿',
+      REJECTED: '已拒绝'
+    },
+    status: {
+      new: '待处理',
+      analyzing: '分析中',
+      converted: '已转换',
+      archived: '已归档',
+      pending: '待处理'
     },
     noRequirements: '暂无需求',
     addRequirement: '新增需求',
