@@ -74,6 +74,15 @@
             <div class="column-header">
               <span class="column-status status-requirement"></span>
               <span class="column-title">{{ $t('requirement.title') }}</span>
+              <button class="sync-requirements-btn-header" @click="openSyncDialog" :disabled="syncing" :title="$t('requirement.syncAllRequirements')">
+                <svg v-if="!syncing" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                </svg>
+                <svg v-else class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+                </svg>
+              </button>
               <span class="column-count">{{ requirements.length }}</span>
               <!-- Status filter like task filter -->
               <div class="status-filter-group">
@@ -109,13 +118,16 @@
               <div v-if="localRequirements.length === 0" class="empty-column">
                 <p>{{ $t('requirement.noRequirements') }}</p>
               </div>
-              <button class="add-requirement-btn" @click="openRequirementModal">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                {{ $t('requirement.addRequirement') }}
-              </button>
+              <!-- Add requirement button at bottom -->
+              <div class="requirement-actions-row-bottom">
+                <button class="add-requirement-btn" @click="openRequirementModal">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  {{ $t('requirement.addRequirement') }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -162,20 +174,6 @@
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
           />
-
-          <!-- BLOCKED Column -->
-          <KanbanColumn
-            status="BLOCKED"
-            :title="$t('status.BLOCKED')"
-            :tasks="localBlockedTasks"
-            :selected-task="selectedTask"
-            :running-task-ids="runningTasks"
-            :empty-text="$t('task.noTasks')"
-            @drag-end="onDragEnd"
-            @select-task="selectTask"
-            @edit-task="openTaskModal"
-            @delete-task="deleteTask"
-          />
         </div>
 
         <!-- List View -->
@@ -188,7 +186,9 @@
           :requirement-status-filter="requirementStatusFilter"
           :status-filter="listStatusFilter"
           :selected-requirement-ids="selectedRequirementIds"
+          :syncing="syncing"
           @open-requirement-modal="openRequirementModal"
+          @sync-requirements="openSyncDialog"
           @delete-requirement="deleteRequirement"
           @edit-requirement="openRequirementModal"
           @select-task="selectTask"
@@ -388,6 +388,102 @@
       </div>
     </div>
 
+    <!-- Sync Requirements Dialog -->
+    <div v-if="showSyncDialog" class="modal-overlay" @click.self="closeSyncDialog">
+      <div class="modal sync-modal">
+        <div class="modal-header">
+          <h2>{{ $t('requirement.syncAllConfirmTitle') }}</h2>
+          <button class="modal-close" @click="closeSyncDialog">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Task Source Selector -->
+          <div v-if="availableSources.length > 1" class="source-selector">
+            <label class="form-label">{{ $t('taskSource.selectSource') }}</label>
+            <el-select v-model="selectedSourceId" placeholder="请选择任务源" @change="onSourceChange" style="width: 100%">
+              <el-option
+                v-for="source in availableSources"
+                :key="source.id"
+                :label="source.name"
+                :value="source.id"
+              />
+            </el-select>
+          </div>
+          <!-- Preview Loading -->
+          <div v-if="previewLoading" class="preview-loading">
+            <el-skeleton :rows="5" animated />
+          </div>
+          <!-- Preview List -->
+          <div v-else-if="previewItems.length > 0" class="preview-list">
+            <div class="preview-header">
+              <span class="preview-hint">从 GitHub Issues 导入，选择要创建为需求的 Issue：</span>
+              <div class="preview-actions">
+                <button class="btn btn-link" @click="selectAllIssues">{{ $t('requirement.selectAll') }}</button>
+                <button class="btn btn-link" @click="deselectAllIssues">{{ $t('requirement.deselectAll') }}</button>
+              </div>
+            </div>
+            <label
+              v-for="issue in previewItems"
+              :key="issue.id"
+              class="preview-item"
+              :class="{ 'is-selected': selectedIssueIds.includes(issue.id), 'is-imported': issue.imported }"
+            >
+              <input
+                type="checkbox"
+                :value="issue.id"
+                v-model="selectedIssueIds"
+                :disabled="issue.imported"
+              />
+              <span class="preview-item-content">
+                <span class="preview-item-title">
+                  #{{ issue.number }} {{ issue.title }}
+                  <span v-if="issue.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
+                </span>
+                <span class="preview-item-labels" v-if="issue.labels && issue.labels.length > 0">
+                  <span
+                    v-for="label in issue.labels"
+                    :key="label.id"
+                    class="label"
+                    :style="{ backgroundColor: '#' + label.color }"
+                  >
+                    {{ label.name }}
+                  </span>
+                </span>
+                <span v-if="issue.description" class="preview-item-desc">
+                  {{ issue.description }}
+                </span>
+                <span class="preview-item-meta">
+                  <span class="preview-item-author" v-if="issue.user">
+                    <img v-if="issue.user.avatar_url" :src="issue.user.avatar_url" alt="" class="avatar" />
+                    {{ issue.user.login }}
+                  </span>
+                </span>
+              </span>
+            </label>
+          </div>
+          <!-- Empty State -->
+          <div v-else class="empty-state">
+            <p>暂无可同步的 Issues</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="closeSyncDialog">{{ $t('common.cancel') }}</button>
+            <button
+              class="btn btn-primary"
+              @click="confirmSync"
+              :disabled="selectedIssueIds.length === 0 || syncing"
+            >
+              <svg v-if="syncing" class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+              </svg>
+              {{ syncing ? $t('taskSource.syncing') : $t('taskSource.confirmImport') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
       <div class="modal node-detail-modal">
@@ -537,6 +633,7 @@ import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useRequirementManager } from '../composables/kanban/useRequirementManager'
 import { useRequirementStore } from '../stores/requirementStore'
+import { useTaskSourceStore } from '../stores/taskSourceStore'
 import {
   getWorkflowByProject,
   getWorkflowByTask,
@@ -552,6 +649,7 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
 const requirementStore = useRequirementStore()
+const taskSourceStore = useTaskSourceStore()
 
 // Icon mappings
 const agentIconMap = { Monitor, VideoPlay, Edit, Cpu }
@@ -567,8 +665,16 @@ const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
 const showAutoAssignDialog = ref(false)
+const showSyncDialog = ref(false)
 const pendingRequirements = ref([])
 const selectedRequirementIds = ref([])
+// Sync requirements state
+const availableSources = ref([])
+const selectedSourceId = ref(null)
+const previewItems = ref([])
+const selectedIssueIds = ref([])
+const syncing = ref(false)
+const previewLoading = ref(false)
 const isEditing = ref(false)
 const editingTaskId = ref(null)
 const activeSession = ref(null)
@@ -577,7 +683,12 @@ const butlerChatRef = ref(null)
 const nodeChatBoxRef = ref(null)
 const isChatCollapsed = ref(false)
 const kanbanBoardRef = ref(null)
-const viewMode = ref('list')
+const viewMode = ref(localStorage.getItem('kanban-view-mode') || 'list')
+
+// 监听 viewMode 变化并保存到 localStorage
+watch(viewMode, (newValue) => {
+  localStorage.setItem('kanban-view-mode', newValue)
+})
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS'])
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
@@ -684,7 +795,6 @@ const projects = computed(() => projectStore.projects)
 const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
 const localDoneTasks = ref([])
-const localBlockedTasks = ref([])
 const localRequirements = ref([])
 
 // Sync store to local arrays
@@ -694,7 +804,6 @@ watch(
     localTodoTasks.value = newTasks.filter(t => t.status === 'TODO')
     localInProgressTasks.value = newTasks.filter(t => t.status === 'IN_PROGRESS')
     localDoneTasks.value = newTasks.filter(t => t.status === 'DONE')
-    localBlockedTasks.value = newTasks.filter(t => t.status === 'BLOCKED')
   },
   { immediate: true, deep: true }
 )
@@ -748,7 +857,6 @@ const updateColumnRefs = () => {
   localTodoTasks.value = taskStore.tasks.filter(t => t.status === 'TODO')
   localInProgressTasks.value = taskStore.tasks.filter(t => t.status === 'IN_PROGRESS')
   localDoneTasks.value = taskStore.tasks.filter(t => t.status === 'DONE')
-  localBlockedTasks.value = taskStore.tasks.filter(t => t.status === 'BLOCKED')
 }
 
 const getStatusClass = (status) => {
@@ -901,6 +1009,103 @@ const deselectAllRequirements = () => {
 const confirmAutoAssign = async () => {
   // TODO: Implement auto-assign logic
   closeAutoAssignDialog()
+}
+
+// Sync requirements dialog functions
+const openSyncDialog = async () => {
+  // Fetch task sources for current project
+  try {
+    await taskSourceStore.fetchTaskSources(selectedProjectId.value)
+    availableSources.value = taskSourceStore.taskSources
+
+    if (availableSources.value.length === 0) {
+      ElMessage.warning('请先配置任务源')
+      return
+    }
+
+    // If only one source, select it directly
+    if (availableSources.value.length === 1) {
+      selectedSourceId.value = availableSources.value[0].id
+      await loadPreview(selectedSourceId.value)
+    }
+
+    showSyncDialog.value = true
+  } catch (error) {
+    console.error('[KanbanView] Failed to fetch task sources:', error)
+    ElMessage.error('加载任务源失败：' + error.message)
+  }
+}
+
+const onSourceChange = async () => {
+  if (selectedSourceId.value) {
+    await loadPreview(selectedSourceId.value)
+  }
+}
+
+const loadPreview = async (sourceId) => {
+  previewLoading.value = true
+  previewItems.value = []
+  selectedIssueIds.value = []
+  try {
+    await taskSourceStore.previewSync(sourceId)
+    // Map the preview items to include checkbox IDs
+    previewItems.value = taskSourceStore.previewItems.map(item => ({
+      ...item,
+      id: item.external_id || item.id
+    }))
+  } catch (error) {
+    console.error('[KanbanView] Failed to load preview:', error)
+    ElMessage.error('加载预览失败：' + error.message)
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+const selectAllIssues = () => {
+  // Only select issues that are not already imported
+  selectedIssueIds.value = previewItems.value
+    .filter(item => !item.imported)
+    .map(item => item.id)
+}
+
+const deselectAllIssues = () => {
+  selectedIssueIds.value = []
+}
+
+const confirmSync = async () => {
+  if (selectedIssueIds.value.length === 0) return
+
+  const selectedItems = previewItems.value.filter(item =>
+    selectedIssueIds.value.includes(item.id)
+  )
+
+  syncing.value = true
+  try {
+    const result = await taskSourceStore.importSelectedIssues(
+      selectedSourceId.value,
+      selectedItems,
+      selectedProjectId.value
+    )
+    console.log('[KanbanView] Import result:', result)
+    ElMessage.success(`成功导入 ${result?.created || selectedItems.length} 个需求`)
+    closeSyncDialog()
+    // Refresh requirements list
+    await requirementStore.fetchRequirements(selectedProjectId.value)
+  } catch (error) {
+    console.error('[KanbanView] Failed to import issues:', error)
+    ElMessage.error('导入失败：' + error.message)
+  } finally {
+    syncing.value = false
+  }
+}
+
+const closeSyncDialog = () => {
+  showSyncDialog.value = false
+  availableSources.value = []
+  selectedSourceId.value = null
+  previewItems.value = []
+  selectedIssueIds.value = []
+  taskSourceStore.closePreviewDialog()
 }
 
 // Save task
@@ -1975,6 +2180,36 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.requirement-actions-row-bottom {
+  margin-top: 8px;
+}
+
+.sync-requirements-btn-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.sync-requirements-btn-header:hover:not(:disabled) {
+  background: var(--accent-color-light);
+  color: var(--accent-color);
+}
+
+.sync-requirements-btn-header:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .sync-requirements-btn {
   flex: 1;
   background: var(--bg-primary);
@@ -2042,5 +2277,167 @@ onUnmounted(() => {
 /* Requirement Card in Kanban */
 .kanban-column .requirement-card {
   margin-bottom: 12px;
+}
+
+/* Sync Modal */
+.sync-modal {
+  max-width: 700px;
+}
+
+.source-selector {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.preview-loading {
+  padding: 16px;
+}
+
+.preview-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+.preview-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.preview-item:hover {
+  background: var(--bg-hover);
+}
+
+.preview-item.is-selected {
+  background: var(--accent-color-light);
+  border: 1px solid var(--accent-color);
+}
+
+.preview-item.is-imported {
+  opacity: 0.6;
+  background: var(--bg-tertiary);
+}
+
+.preview-item.is-imported:hover {
+  background: var(--bg-tertiary);
+  cursor: not-allowed;
+}
+
+.preview-item input[type="checkbox"] {
+  margin-top: 4px;
+}
+
+.preview-item.is-imported input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.preview-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-item-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.imported-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.preview-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.preview-item-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+.preview-item-author {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.preview-item-author .avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.preview-item-labels {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.preview-item-labels .label {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #fff;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-placeholder);
 }
 </style>
