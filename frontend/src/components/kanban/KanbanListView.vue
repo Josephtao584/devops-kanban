@@ -36,49 +36,69 @@
         </div>
       </div>
       <div class="list-requirements-content" v-show="!isRequirementsCollapsed">
-        <div
-          v-for="req in requirements"
-          :key="req.id"
-          class="requirement-list-item"
-          :class="{ 'is-converted': req.status === 'CONVERTED', 'is-selected': selectedRequirementIds.includes(req.id) }"
+        <draggable
+          v-model="localRequirements"
+          item-key="id"
+          class="requirements-draggable-list"
+          @end="onRequirementsReorder"
+          :animation="200"
+          ghost-class="requirement-ghost"
+          drag-class="requirement-drag"
         >
-          <div class="requirement-list-status">
-            <span class="req-status-badge" :class="getReqStatusClass(req.status)">
-              {{ getReqStatusLabel(req.status) }}
-            </span>
-          </div>
-          <div class="requirement-list-priority">
-            <span class="priority-badge" :class="getPriorityClass(req.priority)">
-              {{ getPriorityLabel(req.priority) }}
-            </span>
-          </div>
-          <div class="requirement-list-content">
-            <div class="requirement-list-title">{{ req.title }}</div>
-            <div v-if="req.description" class="requirement-list-desc">{{ req.description }}</div>
-          </div>
-          <div class="requirement-list-actions">
-            <button
-              class="edit-req-btn"
-              @click.stop="$emit('edit-requirement', req)"
-              :title="$t('common.edit')"
+          <template #item="{ element: req }">
+            <div
+              class="requirement-list-item"
+              :class="{ 'is-converted': req.status === 'CONVERTED', 'is-selected': selectedRequirementIds.includes(req.id) }"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-            </button>
-            <button
-              class="delete-req-btn"
-              @click.stop="$emit('delete-requirement', req.id)"
-              :title="$t('common.delete')"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
+              <div class="drag-handle">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+              </div>
+              <div class="requirement-list-status">
+                <span class="req-status-badge" :class="getReqStatusClass(req.status)">
+                  {{ getReqStatusLabel(req.status) }}
+                </span>
+              </div>
+              <div class="requirement-list-priority">
+                <span class="priority-badge" :class="getPriorityClass(req.priority)">
+                  {{ getPriorityLabel(req.priority) }}
+                </span>
+              </div>
+              <div class="requirement-list-content">
+                <div class="requirement-list-title">{{ req.title }}</div>
+                <div v-if="req.description" class="requirement-list-desc">{{ req.description }}</div>
+              </div>
+              <div class="requirement-list-actions">
+                <button
+                  class="edit-req-btn"
+                  @click.stop="$emit('edit-requirement', req)"
+                  :title="$t('common.edit')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button
+                  class="delete-req-btn"
+                  @click.stop="$emit('delete-requirement', req.id)"
+                  :title="$t('common.delete')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </template>
+        </draggable>
         <div v-if="requirements.length === 0" class="empty-requirements-list">
           <p>{{ $t('requirement.noRequirements') }}</p>
         </div>
@@ -174,6 +194,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import draggable from 'vuedraggable'
 
 const props = defineProps({
   requirements: {
@@ -215,12 +236,31 @@ const emit = defineEmits([
   'delete-task',
   'update:hideConverted',
   'update:statusFilter',
-  'add-task'
+  'add-task',
+  'reorder-requirements'
 ])
 
 const { t } = useI18n()
 
 const isRequirementsCollapsed = ref(false)
+
+// Local copy of requirements for draggable
+const localRequirements = ref([])
+
+// Sync requirements from props
+watch(
+  () => props.requirements,
+  (newReqs) => {
+    localRequirements.value = [...newReqs]
+  },
+  { immediate: true, deep: true }
+)
+
+// Handle requirements reorder
+const onRequirementsReorder = (event) => {
+  // Emit the new order to parent component
+  emit('reorder-requirements', localRequirements.value)
+}
 
 const localStatusFilter = computed({
   get: () => props.statusFilter,
@@ -386,7 +426,7 @@ const getPriorityLabel = (priority) => {
 }
 
 .list-requirements-content {
-  max-height: 400px;
+  max-height: 800px;
   overflow-y: auto;
   padding: 8px;
   padding-bottom: 16px;
@@ -402,6 +442,40 @@ const getPriorityLabel = (priority) => {
   background: #fff;
   border: 1px solid var(--el-border-color-light);
   transition: all 0.2s;
+  cursor: grab;
+}
+
+.requirement-list-item:active {
+  cursor: grabbing;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--el-text-color-placeholder);
+  cursor: grab;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.requirement-list-item:hover .drag-handle {
+  opacity: 1;
+}
+
+.requirement-ghost {
+  opacity: 0.5;
+  background: #f5f5f5;
+  border: 1px dashed var(--el-border-color);
+}
+
+.requirement-drag {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
 }
 
 .requirement-list-item:hover {

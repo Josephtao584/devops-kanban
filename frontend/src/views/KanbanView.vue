@@ -75,32 +75,38 @@
               <span class="column-status status-requirement"></span>
               <span class="column-title">{{ $t('requirement.title') }}</span>
               <span class="column-count">{{ requirements.length }}</span>
-              <button
-                class="toggle-converted-btn"
-                :class="{ 'is-hiding': hideConvertedRequirements }"
-                @click="hideConvertedRequirements = !hideConvertedRequirements"
-                :title="hideConvertedRequirements ? $t('requirement.showConverted') : $t('requirement.hideConverted')"
-              >
-                <svg v-if="hideConvertedRequirements" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                  <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-              </button>
+              <!-- Status filter like task filter -->
+              <div class="status-filter-group">
+                <el-checkbox-group v-model="requirementStatusFilter" size="small">
+                  <el-checkbox-button value="NEW">
+                    {{ $t('requirement.statuses.NEW') }}
+                  </el-checkbox-button>
+                  <el-checkbox-button value="CONVERTED">
+                    {{ $t('requirement.statuses.CONVERTED') }}
+                  </el-checkbox-button>
+                </el-checkbox-group>
+              </div>
             </div>
             <div class="column-content">
-              <RequirementCard
-                v-for="req in requirements"
-                :key="req.id"
-                :requirement="req"
-                :is-selected="selectedRequirementIds.includes(req.id)"
-                @edit="handleEditRequirement"
-                @delete="deleteRequirement"
-              />
-              <div v-if="requirements.length === 0" class="empty-column">
+              <draggable
+                :list="localRequirements"
+                group="requirements"
+                :animation="200"
+                ghost-class="ghost-card"
+                drag-class="drag-card"
+                item-key="id"
+                @end="onRequirementDragEnd"
+              >
+                <template #item="{ element }">
+                  <RequirementCard
+                    :requirement="element"
+                    :is-selected="selectedRequirementIds.includes(element.id)"
+                    @edit="handleEditRequirement"
+                    @delete="deleteRequirement"
+                  />
+                </template>
+              </draggable>
+              <div v-if="localRequirements.length === 0" class="empty-column">
                 <p>{{ $t('requirement.noRequirements') }}</p>
               </div>
               <button class="add-requirement-btn" @click="openRequirementModal">
@@ -191,6 +197,7 @@
           @update:hide-converted="hideConvertedRequirements = $event"
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
+          @reorder-requirements="handleReorderRequirements"
         />
       </div>
 
@@ -522,6 +529,7 @@ import WorkflowTimeline from '../components/workflow/WorkflowTimeline.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import RequirementCard from '../components/requirement/RequirementCard.vue'
 import RequirementForm from '../components/requirement/RequirementForm.vue'
+import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
@@ -534,6 +542,7 @@ import {
   getOrCreateWorkflowForProject,
   addNodeToWorkflow
 } from '../mock/workflowData'
+import { reorderRequirements } from '../api/requirement.js'
 
 const { t } = useI18n()
 
@@ -604,7 +613,7 @@ const {
 
 // Use useRequirementManager composable
 const {
-  hideConvertedRequirements,
+  requirementStatusFilter,
   showRequirementModal,
   editingRequirement,
   allRequirements,
@@ -623,6 +632,24 @@ const {
 // Alias handleDeleteRequirement to deleteRequirement for template compatibility
 const deleteRequirement = handleDeleteRequirement
 
+// Handle requirements reorder from drag-and-drop
+const handleReorderRequirements = async (newOrder) => {
+  try {
+    // Update local state immediately for responsive UI
+    localRequirements.value = [...newOrder]
+    requirements.value = [...newOrder]
+
+    // Send update to backend
+    await reorderRequirements(newOrder)
+
+    console.log('[KanbanView] Requirements reordered successfully')
+  } catch (error) {
+    console.error('[KanbanView] Failed to reorder requirements:', error)
+    // Reload requirements from server on error
+    await requirementStore.fetchRequirements(selectedProjectId.value)
+  }
+}
+
 // Wrapper for openRequirementModal with debug logging
 const handleEditRequirement = (requirement) => {
   console.log('[KanbanView] handleEditRequirement called with:', requirement)
@@ -638,6 +665,7 @@ const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
 const localDoneTasks = ref([])
 const localBlockedTasks = ref([])
+const localRequirements = ref([])
 
 // Sync store to local arrays
 watch(
@@ -647,6 +675,15 @@ watch(
     localInProgressTasks.value = newTasks.filter(t => t.status === 'IN_PROGRESS')
     localDoneTasks.value = newTasks.filter(t => t.status === 'DONE')
     localBlockedTasks.value = newTasks.filter(t => t.status === 'BLOCKED')
+  },
+  { immediate: true, deep: true }
+)
+
+// Sync requirements for draggable
+watch(
+  () => requirements.value,
+  (newRequirements) => {
+    localRequirements.value = [...newRequirements]
   },
   { immediate: true, deep: true }
 )
@@ -949,6 +986,14 @@ const onDragEnd = async (evt) => {
     console.error('Failed to update task status:', error)
     ElMessage.error(t('task.statusUpdateFailed'))
   }
+}
+
+// Requirement drag and drop handler (for reordering)
+const onRequirementDragEnd = (evt) => {
+  // Update local requirements to reflect new order after drag
+  // The vuedraggable will automatically update localRequirements
+  // Here we can sync back to store if needed (optional for now)
+  console.log('Requirement reordered:', localRequirements.value.map(r => r.id))
 }
 
 // Session handlers
