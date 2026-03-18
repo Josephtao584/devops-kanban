@@ -13,6 +13,7 @@ const errorHandlerPlugin = require('./middleware/errorHandler');
 // Import routes
 const projectRoutes = require('./routes/projects');
 const taskRoutes = require('./routes/tasks');
+const taskWorktreeRoutes = require('./routes/taskWorktree');
 const sessionRoutes = require('./routes/sessions');
 const taskSourceRoutes = require('./routes/taskSources');
 const executionRoutes = require('./routes/executions');
@@ -74,6 +75,7 @@ fastify.get('/health', async (request, reply) => {
 // Register routes with /api prefix
 fastify.register(projectRoutes, { prefix: '/api/projects' });
 fastify.register(taskRoutes, { prefix: '/api/tasks' });
+fastify.register(taskWorktreeRoutes, { prefix: '/api/tasks' });
 fastify.register(sessionRoutes, { prefix: '/api' });
 fastify.register(taskSourceRoutes, { prefix: '/api/task-sources' });
 fastify.register(executionRoutes, { prefix: '/api/executions' });

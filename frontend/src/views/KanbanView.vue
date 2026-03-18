@@ -145,6 +145,7 @@
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @add-task="openTaskModal()"
+            @worktree-update="handleWorktreeUpdate"
           />
 
           <!-- IN_PROGRESS Column -->
@@ -159,6 +160,7 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
+            @worktree-update="handleWorktreeUpdate"
           />
 
           <!-- DONE Column -->
@@ -173,6 +175,7 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
+            @worktree-update="handleWorktreeUpdate"
           />
         </div>
 
@@ -199,6 +202,7 @@
           @add-task="openTaskModal()"
           @reorder-requirements="handleReorderRequirements"
           @reorder-tasks="handleReorderTasks"
+          @worktree-update="handleWorktreeUpdate"
         />
       </div>
 
@@ -780,6 +784,12 @@ const handleReorderTasks = async (newOrder) => {
     // Reload tasks from server on error
     await taskStore.fetchTasks(selectedProjectId.value)
   }
+}
+
+// Handle worktree update from child components
+const handleWorktreeUpdate = (task) => {
+  // Task object is mutated by reference, no additional action needed
+  console.log('[KanbanView] Worktree updated for task:', task.id)
 }
 
 // Wrapper for openRequirementModal with debug logging

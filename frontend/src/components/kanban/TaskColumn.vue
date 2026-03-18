@@ -40,6 +40,22 @@
                 <span class="task-card-priority" :class="getPriorityClass(element.priority)">
                   {{ getPriorityLabel(element.priority) }}
                 </span>
+                <!-- Worktree status indicator -->
+                <el-tooltip
+                  :content="getWorktreeTooltip(element)"
+                  placement="top"
+                >
+                  <button
+                    class="btn btn-icon worktree-btn"
+                    :class="getWorktreeClass(element)"
+                    @click.stop="handleWorktree(element)"
+                    :disabled="isWorktreeLoading(element.id)"
+                  >
+                    <el-icon v-if="isWorktreeLoading(element.id)" class="is-loading"><Loading /></el-icon>
+                    <el-icon v-else-if="element.worktree_status === 'created'"><FolderOpened /></el-icon>
+                    <el-icon v-else><Folder /></el-icon>
+                  </button>
+                </el-tooltip>
               </div>
               <div class="task-card-actions">
                 <button
@@ -82,9 +98,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
+import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
+import * as taskWorktreeApi from '../../api/taskWorktree'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   status: {
@@ -121,9 +140,59 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update'])
 
 const { t } = useI18n()
+
+// Worktree state
+const worktreeLoading = ref(new Set())
+
+const isWorktreeLoading = (taskId) => worktreeLoading.value.has(taskId)
+
+const getWorktreeClass = (task) => {
+  if (task.worktree_status === 'created') return 'worktree-created'
+  if (task.worktree_status === 'error') return 'worktree-error'
+  return 'worktree-none'
+}
+
+const getWorktreeTooltip = (task) => {
+  if (task.worktree_status === 'created') return 'Worktree 已创建，点击删除'
+  if (task.worktree_status === 'error') return 'Worktree 创建失败'
+  return '创建 Worktree 沙箱'
+}
+
+const handleWorktree = async (task) => {
+  if (worktreeLoading.value.has(task.id)) return
+
+  try {
+    worktreeLoading.value.add(task.id)
+    if (task.worktree_status === 'created') {
+      // Delete worktree
+      const response = await taskWorktreeApi.deleteTaskWorktree(task.id)
+      if (response.success) {
+        task.worktree_path = null
+        task.worktree_branch = null
+        task.worktree_status = 'none'
+        ElMessage.success('Worktree 已删除')
+        emit('worktree-update', task)
+      }
+    } else {
+      // Create worktree
+      const response = await taskWorktreeApi.createTaskWorktree(task.id)
+      if (response.success) {
+        task.worktree_path = response.data.worktree_path
+        task.worktree_branch = response.data.worktree_branch
+        task.worktree_status = 'created'
+        ElMessage.success('Worktree 创建成功')
+        emit('worktree-update', task)
+      }
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '操作失败')
+  } finally {
+    worktreeLoading.value.delete(task.id)
+  }
+}
 
 // Default empty text based on status
 const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
@@ -378,9 +447,11 @@ const taskCount = computed(() => props.tasks.length)
 
 .task-card-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   margin-top: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .task-card-actions {
@@ -423,6 +494,55 @@ const taskCount = computed(() => props.tasks.length)
   background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
   box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
   transform: translateY(-1px);
+}
+
+/* Worktree button styles */
+.worktree-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.worktree-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.worktree-btn .el-icon {
+  font-size: 14px;
+}
+
+.worktree-btn.worktree-none {
+  color: var(--el-text-color-secondary);
+}
+
+.worktree-btn.worktree-none:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.worktree-btn.worktree-created {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.worktree-btn.worktree-created:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.worktree-btn.worktree-error {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 .ghost-card {

@@ -10,6 +10,10 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const syncing = ref(null) // ID of currently syncing source
   const testing = ref(null) // ID of currently testing connection
   const error = ref(null)
+  // Preview state
+  const previewItems = ref([])
+  const showPreviewDialog = ref(false)
+  const previewLoading = ref(false)
 
   // Getters
   const enabledSources = computed(() =>
@@ -134,6 +138,58 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
+  async function previewSync(sourceId) {
+    previewLoading.value = true
+    error.value = null
+    try {
+      const response = await taskSourceApi.previewSync(sourceId)
+      if (response.success) {
+        previewItems.value = response.data || []
+        showPreviewDialog.value = true
+        return previewItems.value
+      } else {
+        error.value = response.message
+        throw new Error(response.message)
+      }
+    } catch (e) {
+      error.value = e.message
+      throw e
+    } finally {
+      previewLoading.value = false
+    }
+  }
+
+  async function importSelectedIssues(sourceId, selectedItems, projectId) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await taskSourceApi.importIssues(sourceId, {
+        items: selectedItems,
+        project_id: projectId
+      })
+      if (response.success) {
+        showPreviewDialog.value = false
+        previewItems.value = []
+        // Refresh the source to get updated lastSyncAt
+        await fetchTaskSource(sourceId)
+        return response.data
+      } else {
+        error.value = response.message
+        throw new Error(response.message)
+      }
+    } catch (e) {
+      error.value = e.message
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  function closePreviewDialog() {
+    showPreviewDialog.value = false
+    previewItems.value = []
+  }
+
   async function testConnection(id) {
     testing.value = id
     error.value = null
@@ -193,6 +249,10 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     syncing,
     testing,
     error,
+    // Preview state
+    previewItems,
+    showPreviewDialog,
+    previewLoading,
     // Getters
     enabledSources,
     sourcesByType,
@@ -203,6 +263,9 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     createTaskSource,
     updateTaskSource,
     syncTaskSource,
+    previewSync,
+    importSelectedIssues,
+    closePreviewDialog,
     testConnection,
     deleteTaskSource,
     setCurrentTaskSource,

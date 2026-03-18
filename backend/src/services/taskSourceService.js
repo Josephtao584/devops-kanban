@@ -164,7 +164,7 @@ class TaskSourceService {
         project_id: projectId,
         title: item.title,
         description: item.description,
-        status: item.status || 'PENDING',
+        status: 'NEW',
         priority: 'MEDIUM',
         external_id: item.external_id,
         external_url: item.external_url,
