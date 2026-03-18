@@ -368,13 +368,8 @@ export default {
       OTHER: '其他'
     },
     statuses: {
-      NEW: '待处理',
-      ANALYZING: '分析中',
-      CONVERTED: '已生成',
-      ARCHIVED: '已归档',
-      APPROVED: '已批准',
-      DRAFT: '草稿',
-      REJECTED: '已拒绝'
+      NEW: '待转换',
+      CONVERTED: '已转换'
     },
     status: {
       new: '待处理',

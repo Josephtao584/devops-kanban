@@ -36,11 +36,11 @@
           <div class="source-details">
             <div class="detail-row">
               <span class="label">{{ $t('taskSource.syncInterval') }}:</span>
-              <span class="value">{{ source.syncInterval }} min</span>
+              <span class="value">{{ source.sync_interval }} min</span>
             </div>
             <div class="detail-row">
               <span class="label">{{ $t('taskSource.lastSync') }}:</span>
-              <span class="value">{{ formatDateTime(source.lastSyncAt) }}</span>
+              <span class="value">{{ formatDateTime(source.updated_at || source.last_sync_at) }}</span>
             </div>
           </div>
 
@@ -303,7 +303,7 @@ const editSource = (source) => {
     name: source.name,
     type: 'GITHUB',
     config: source.config || '{}',
-    syncInterval: source.syncInterval || 60
+    syncInterval: source.sync_interval || 60
   }
   // Parse existing config
   try {

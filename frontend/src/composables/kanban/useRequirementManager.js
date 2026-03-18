@@ -10,9 +10,12 @@ export function useRequirementManager({
   t
 }) {
   // State
-  const hideConvertedRequirements = ref(false)
   const showRequirementModal = ref(false)
   const editingRequirement = ref(null)
+
+  // Requirement status filter (like task status filter)
+  // Default: show only CONVERTED (已转换)
+  const requirementStatusFilter = ref(['CONVERTED'])
 
   // Watch for project changes and fetch requirements
   watch(
@@ -31,12 +34,13 @@ export function useRequirementManager({
     return requirementStore.requirements || []
   })
 
+  // Filter requirements based on status filter
   const requirements = computed(() => {
     const reqs = allRequirements.value
-    if (hideConvertedRequirements.value) {
-      return reqs.filter(r => r.status !== 'CONVERTED')
+    if (requirementStatusFilter.value.length === 0) {
+      return reqs
     }
-    return reqs
+    return reqs.filter(r => requirementStatusFilter.value.includes(r.status))
   })
 
   // Actions
@@ -91,7 +95,7 @@ export function useRequirementManager({
 
   return {
     // State
-    hideConvertedRequirements,
+    requirementStatusFilter,
     showRequirementModal,
     editingRequirement,
     // Computed

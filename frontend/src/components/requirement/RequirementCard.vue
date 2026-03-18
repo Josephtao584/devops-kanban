@@ -85,8 +85,7 @@ const statusClass = computed(() => {
   const status = props.requirement.status
   return {
     'status-new': status === REQUIREMENT_STATUS.NEW,
-    'status-converted': status === REQUIREMENT_STATUS.CONVERTED,
-    'status-archived': status === REQUIREMENT_STATUS.ARCHIVED
+    'status-converted': status === REQUIREMENT_STATUS.CONVERTED
   }
 })
 
@@ -279,11 +278,6 @@ const handleDelete = () => {
 .status-badge.status-converted {
   background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
   color: #065f46;
-}
-
-.status-badge.status-archived {
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  color: #4b5563;
 }
 
 .requirement-actions {
