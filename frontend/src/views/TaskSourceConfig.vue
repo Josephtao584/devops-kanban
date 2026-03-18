@@ -35,10 +35,6 @@
 
           <div class="source-details">
             <div class="detail-row">
-              <span class="label">{{ $t('taskSource.syncInterval') }}:</span>
-              <span class="value">{{ source.sync_interval }} min</span>
-            </div>
-            <div class="detail-row">
               <span class="label">{{ $t('taskSource.lastSync') }}:</span>
               <span class="value">{{ formatDateTime(source.updated_at || source.last_sync_at) }}</span>
             </div>
@@ -86,54 +82,84 @@
         </div>
 
         <div class="modal-body">
-          <form @submit.prevent="saveSource">
+          <!-- Step 1: Select Source Type -->
+          <div v-if="!editingSource && formStep === 1" class="step-content">
+            <div class="step-title">{{ $t('taskSource.selectSource') || '选择任务源类型' }}</div>
+            <div class="source-type-list">
+              <div
+                v-for="type in availableTypes"
+                :key="type.key"
+                class="source-type-option"
+                :class="{ selected: form.type === type.key }"
+                @click="selectType(type.key)"
+              >
+                <div class="type-info">
+                  <div class="type-name">{{ type.name }}</div>
+                  <div class="type-desc">{{ type.description }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" @click="closeForm">
+                {{ $t('common.cancel') }}
+              </button>
+              <button type="button" class="btn btn-primary" @click="goToStep2">
+                {{ $t('common.next') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 2: Configure Source -->
+          <form v-else @submit.prevent="saveSource" class="step-content">
+            <div v-if="!editingSource" class="step-indicator">
+              <span class="step-back" @click="formStep = 1">← {{ $t('taskSource.selectSource') || '选择类型' }}</span>
+            </div>
+
             <div class="form-group">
               <label>{{ $t('taskSource.sourceName') }}</label>
               <input v-model="form.name" type="text" required />
             </div>
 
-            <div class="form-group">
-              <label>
-                {{ $t('taskSource.github.repo') }}
-                <span v-if="inheritedRepo && !allowOverride" class="inherited-badge">{{ $t('taskSource.github.inheritedFromProject') }}</span>
-              </label>
-              <input
-                v-model="githubConfig.repo"
-                type="text"
-                :placeholder="inheritedRepo && !allowOverride ? '' : $t('taskSource.github.repoHint')"
-                :readonly="inheritedRepo && !allowOverride"
-                :class="{ 'readonly': inheritedRepo && !allowOverride }"
-              />
-              <span class="hint" v-if="allowOverride || !inheritedRepo">{{ $t('taskSource.github.repoHint') }}</span>
-              <label class="checkbox-label" style="margin-top: 0.5rem;">
-                <input type="checkbox" v-model="allowOverride" />
-                {{ $t('taskSource.github.overrideDefault') }}
-              </label>
-            </div>
+            <!-- GitHub Config -->
+            <template v-if="form.type === 'GITHUB'">
+              <div class="form-group">
+                <label>
+                  {{ $t('taskSource.github.repo') }}
+                  <span v-if="inheritedRepo && !allowOverride" class="inherited-badge">{{ $t('taskSource.github.inheritedFromProject') }}</span>
+                </label>
+                <input
+                  v-model="githubConfig.repo"
+                  type="text"
+                  :placeholder="inheritedRepo && !allowOverride ? '' : $t('taskSource.github.repoHint')"
+                  :readonly="inheritedRepo && !allowOverride"
+                  :class="{ 'readonly': inheritedRepo && !allowOverride }"
+                />
+                <span class="hint" v-if="allowOverride || !inheritedRepo">{{ $t('taskSource.github.repoHint') }}</span>
+                <label class="checkbox-label" style="margin-top: 0.5rem;">
+                  <input type="checkbox" v-model="allowOverride" />
+                  {{ $t('taskSource.github.overrideDefault') }}
+                </label>
+              </div>
 
-            <div class="form-group">
-              <label>{{ $t('taskSource.github.token') }}</label>
-              <input
-                v-model="githubConfig.token"
-                type="password"
-                :placeholder="$t('taskSource.github.tokenPlaceholder')"
-              />
-              <span class="hint">{{ $t('taskSource.github.tokenHint') }}</span>
-            </div>
+              <div class="form-group">
+                <label>{{ $t('taskSource.github.token') }}</label>
+                <input
+                  v-model="githubConfig.token"
+                  type="password"
+                  :placeholder="$t('taskSource.github.tokenPlaceholder')"
+                />
+                <span class="hint">{{ $t('taskSource.github.tokenHint') }}</span>
+              </div>
 
-            <div class="form-group">
-              <label>{{ $t('taskSource.github.state') }}</label>
-              <select v-model="githubConfig.state">
-                <option value="open">{{ $t('taskSource.github.stateOpen') }}</option>
-                <option value="closed">{{ $t('taskSource.github.stateClosed') }}</option>
-                <option value="all">{{ $t('taskSource.github.stateAll') }}</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('taskSource.syncInterval') }}</label>
-              <input v-model.number="form.syncInterval" type="number" min="0" />
-            </div>
+              <div class="form-group">
+                <label>{{ $t('taskSource.github.state') }}</label>
+                <select v-model="githubConfig.state">
+                  <option value="open">{{ $t('taskSource.github.stateOpen') }}</option>
+                  <option value="closed">{{ $t('taskSource.github.stateClosed') }}</option>
+                  <option value="all">{{ $t('taskSource.github.stateAll') }}</option>
+                </select>
+              </div>
+            </template>
 
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" @click="closeForm">
@@ -152,6 +178,84 @@
     <div v-if="toast.show" class="toast" :class="toast.type">
       {{ toast.message }}
     </div>
+
+    <!-- Preview Dialog -->
+    <div class="modal-overlay" v-if="taskSourceStore.showPreviewDialog" @click.self="closePreviewDialog">
+      <div class="modal preview-modal">
+        <div class="modal-header">
+          <h2>{{ $t('taskSource.previewTitle') }}</h2>
+          <button class="close-btn" @click="closePreviewDialog">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Selection controls -->
+          <div class="preview-controls">
+            <button class="btn btn-secondary btn-sm" @click="selectAll">{{ $t('taskSource.selectAll') }}</button>
+            <button class="btn btn-secondary btn-sm" @click="deselectAll">{{ $t('taskSource.deselectAll') }}</button>
+            <span class="selected-count">
+              {{ selectedItems.size }} / {{ taskSourceStore.previewItems.filter(i => !i.imported).length }} {{ $t('taskSource.selected') }}
+            </span>
+          </div>
+
+          <!-- Issues list -->
+          <div class="preview-list" v-if="!taskSourceStore.previewLoading">
+            <div
+              v-for="item in taskSourceStore.previewItems"
+              :key="item.external_id"
+              class="preview-item"
+              :class="{ imported: item.imported, selected: selectedItems.has(item.external_id) }"
+              @click="toggleSelection(item)"
+            >
+              <div class="item-checkbox">
+                <input
+                  type="checkbox"
+                  :checked="selectedItems.has(item.external_id)"
+                  :disabled="item.imported"
+                  @click.stop="toggleSelection(item)"
+                />
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-title">{{ item.title }}</span>
+                  <span v-if="item.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
+                </div>
+                <div class="item-meta">
+                  <span class="item-id">#{{ item.external_id }}</span>
+                  <span class="item-status" :class="item.status.toLowerCase()">{{ item.status }}</span>
+                </div>
+                <div class="item-labels" v-if="item.labels && item.labels.length > 0">
+                  <span v-for="label in item.labels" :key="label" class="label-badge">{{ label }}</span>
+                </div>
+                <a
+                  v-if="item.external_url"
+                  :href="item.external_url"
+                  target="_blank"
+                  class="external-link"
+                  @click.stop
+                >
+                  {{ $t('taskSource.viewOnGitHub') }} →
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="loading">{{ $t('common.loading') }}</div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closePreviewDialog">
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            class="btn btn-primary"
+            @click="confirmImport(taskSourceStore.currentTaskSource)"
+            :disabled="selectedItems.size === 0"
+          >
+            {{ $t('taskSource.confirmImport') }} ({{ selectedItems.size }})
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -169,6 +273,22 @@ const selectedProjectId = ref('')
 const saving = ref(false)
 const showAddForm = ref(false)
 const editingSource = ref(null)
+const formStep = ref(2)  // Direct to config step
+
+// Available source types
+const availableTypes = [
+  {
+    key: 'GITHUB',
+    name: 'GitHub',
+    description: '从 GitHub Issues 同步任务'
+  }
+]
+
+const form = ref({
+  name: '',
+  type: 'GITHUB',
+  config: JSON.stringify({ repo: '', token: '', state: 'open' })
+})
 
 // Inherited repo from project
 const inheritedRepo = ref('')
@@ -181,12 +301,8 @@ const githubConfig = ref({
   state: 'open'
 })
 
-const form = ref({
-  name: '',
-  type: 'GITHUB',
-  config: JSON.stringify({ repo: '', token: '', state: 'open' }),
-  syncInterval: 60
-})
+// Preview dialog state
+const selectedItems = ref(new Set())
 
 const toast = ref({ show: false, message: '', type: 'success' })
 
@@ -232,8 +348,7 @@ const saveSource = async () => {
       name: form.value.name,
       type: form.value.type,
       project_id: selectedProjectId.value,
-      config: githubConfig.value,
-      sync_interval: form.value.syncInterval
+      config: githubConfig.value
     }
 
     if (editingSource.value) {
@@ -259,13 +374,62 @@ const testConnection = async (source) => {
   )
 }
 
-const syncSource = async (source) => {
-  const success = await taskSourceStore.syncTaskSource(source.id)
-  if (success) {
-    showToast(t('taskSource.syncNow') + ' ' + t('common.success'))
+const toggleSelection = (item) => {
+  if (item.imported) return
+  const key = item.external_id
+  if (selectedItems.value.has(key)) {
+    selectedItems.value.delete(key)
   } else {
-    showToast(t('common.error'), 'error')
+    selectedItems.value.add(key)
   }
+  selectedItems.value = new Set(selectedItems.value)
+}
+
+const selectAll = () => {
+  taskSourceStore.previewItems.forEach(item => {
+    if (!item.imported) {
+      selectedItems.value.add(item.external_id)
+    }
+  })
+  selectedItems.value = new Set(selectedItems.value)
+}
+
+const deselectAll = () => {
+  selectedItems.value.clear()
+  selectedItems.value = new Set(selectedItems.value)
+}
+
+const syncSource = async (source) => {
+  // First preview the issues
+  await taskSourceStore.previewSync(source.id)
+}
+
+const confirmImport = async (source) => {
+  const selectedArray = taskSourceStore.previewItems.filter(
+    item => selectedItems.value.has(item.external_id)
+  )
+
+  if (selectedArray.length === 0) {
+    showToast(t('taskSource.selectAtLeastOne'), 'error')
+    return
+  }
+
+  try {
+    const result = await taskSourceStore.importSelectedIssues(
+      source.id,
+      selectedArray,
+      selectedProjectId.value
+    )
+    showToast(t('taskSource.importSuccess', { count: result.created }))
+    selectedItems.value = new Set()
+  } catch (e) {
+    showToast(t('taskSource.importFailed'), 'error')
+  }
+}
+
+const closePreviewDialog = () => {
+  taskSourceStore.closePreviewDialog()
+  selectedItems.value = new Set()
 }
 
 const confirmDelete = async (source) => {
@@ -280,7 +444,8 @@ const confirmDelete = async (source) => {
 
 const createNewSource = () => {
   editingSource.value = null
-  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }), syncInterval: 60 }
+  formStep.value = 1
+  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }) }
   githubConfig.value = { repo: '', token: '', state: 'open' }
   inheritedRepo.value = ''
   allowOverride.value = false
@@ -297,13 +462,23 @@ const createNewSource = () => {
   showAddForm.value = true
 }
 
+const selectType = (type) => {
+  form.value.type = type
+}
+
+const goToStep2 = () => {
+  if (form.value.type) {
+    formStep.value = 2
+  }
+}
+
 const editSource = (source) => {
   editingSource.value = source
+  formStep.value = 2  // Edit goes directly to config step
   form.value = {
     name: source.name,
-    type: 'GITHUB',
-    config: source.config || '{}',
-    syncInterval: source.sync_interval || 60
+    type: source.type || 'GITHUB',
+    config: source.config || '{}'
   }
   // Parse existing config
   try {
@@ -331,9 +506,10 @@ const editSource = (source) => {
 const closeForm = () => {
   showAddForm.value = false
   editingSource.value = null
+  formStep.value = 2
   inheritedRepo.value = ''
   allowOverride.value = false
-  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }), syncInterval: 60 }
+  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }) }
   githubConfig.value = { repo: '', token: '', state: 'open' }
 }
 
@@ -787,5 +963,236 @@ onMounted(loadProjects)
 
 .modal::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
+}
+
+/* Preview Modal Styles */
+.preview-modal {
+  max-width: 700px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.preview-controls .btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.selected-count {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.preview-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.preview-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preview-item:hover:not(.imported) {
+  background: var(--bg-secondary);
+  border-color: var(--accent-color);
+}
+
+.preview-item.selected {
+  border-color: var(--accent-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.preview-item.imported {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--bg-tertiary);
+}
+
+.item-checkbox {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.item-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+}
+
+.item-checkbox input:disabled {
+  cursor: not-allowed;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.item-title {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.imported-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #10b981;
+  color: white;
+  border-radius: 4px;
+}
+
+.item-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.item-status {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.item-status.todo {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.item-status.done {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.item-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.label-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 3px;
+}
+
+.external-link {
+  font-size: 11px;
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.external-link:hover {
+  text-decoration: underline;
+}
+
+/* Two-step form styles */
+.step-content {
+  min-height: 300px;
+}
+
+.step-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.step-indicator {
+  margin-bottom: 12px;
+}
+
+.step-back {
+  font-size: 13px;
+  color: var(--accent-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-back:hover {
+  text-decoration: underline;
+}
+
+.source-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.source-type-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.source-type-option:hover {
+  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+}
+
+.source-type-option.selected {
+  border-color: var(--accent-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.type-info {
+  flex: 1;
+}
+
+.type-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.type-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 </style>

@@ -8,9 +8,49 @@ class GitHubAdapter extends TaskSourceAdapter {
   constructor(source) {
     super(source);
     this.baseUrl = 'https://api.github.com';
-    this.repo = source.config?.repo;
+    this.repo = this._normalizeRepo(source.config?.repo);
     this.token = source.config?.token;
     this.labels = source.config?.labels;
+  }
+
+  /**
+   * Static metadata for adapter registry
+   */
+  static metadata = {
+    name: 'GitHub Issues',
+    description: '从 GitHub Issues 同步任务',
+    config: {
+      repo: {
+        type: 'string',
+        required: true,
+        description: 'Repository in format owner/repo',
+      },
+      token: {
+        type: 'string',
+        required: false,
+        description: 'GitHub Personal Access Token',
+      },
+      labels: {
+        type: 'array',
+        required: false,
+        description: 'Filter by labels',
+      },
+    },
+  };
+
+  /**
+   * Normalize repo string (handle both full URL and owner/repo format)
+   * @param {string} repo - Repo string
+   * @returns {string} Normalized repo
+   */
+  _normalizeRepo(repo) {
+    if (!repo) return '';
+    // If it's a full URL like https://github.com/owner/repo.git
+    const match = repo.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+    if (match) {
+      return `${match[1]}/${match[2]}`;
+    }
+    return repo;
   }
 
   /**
