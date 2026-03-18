@@ -143,17 +143,10 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Folder, Key } from '@element-plus/icons-vue'
-import wsService from '../services/websocket'
-import {
-  createSession as apiCreateSession,
-  startSession as apiStartSession,
-  stopSession as apiStopSession,
-  continueSession as apiContinueSession,
-  getSession as apiGetSession,
-  sendSessionInput as apiSendSessionInput,
-  getActiveSessionByTask as apiGetActiveSessionByTask,
-  getSessionOutput as apiGetSessionOutput
-} from '../api/session'
+import { useSessionManager } from '../composables/useSessionManager'
+import { useWebSocketConnection } from '../composables/useWebSocketConnection'
+import { useMessageFilter } from '../composables/useMessageFilter'
+import { getActiveSessionByTask } from '../api/session'
 
 const props = defineProps({
   task: {
@@ -172,18 +165,38 @@ const props = defineProps({
 
 const emit = defineEmits(['session-created', 'session-stopped', 'status-change'])
 
-// State
-const session = ref(null)
+// Use composables for state management
+const {
+  session,
+  isStarting,
+  isStopping,
+  createSession,
+  startSession: startSessionAction,
+  stopSession: stopSessionAction,
+  continueSession: continueSessionAction,
+  setSession,
+  clearSession
+} = useSessionManager()
+
+const {
+  isConnected,
+  connect,
+  disconnect,
+  sendInput: sendWsInput
+} = useWebSocketConnection()
+
+const {
+  initialPrompt,
+  setInitialPrompt,
+  shouldFilterContent,
+  resetFilter
+} = useMessageFilter()
+
+// Local state
 const outputLines = ref([])
 const inputText = ref('')
-const isStarting = ref(false)
-const isStopping = ref(false)
 const isContinuing = ref(false)
-const isConnected = ref(false)
 const outputContainer = ref(null)
-
-// Store initial prompt for filtering
-const initialPrompt = ref(null)
 
 // Computed
 const statusClass = computed(() => {
@@ -248,33 +261,11 @@ const priorityTagType = computed(() => {
   return typeMap[props.task.priority] || 'info'
 })
 
-// Track whether initial prompt has been filtered (only filter once)
-const initialPromptFiltered = ref(false)
-
-// Filter out initial prompt from output line
-const shouldFilterLine = (line) => {
-  if (!initialPrompt.value) return false
-  if (initialPromptFiltered.value) return false
-
-  // Check if line contains the initial prompt header
-  // The initial prompt starts with "Task: {title}"
-  const promptFirstLine = initialPrompt.value.split('\n')[0]?.trim()
-  if (!promptFirstLine) return false
-
-  // Only filter if the line starts with or exactly matches the prompt header
-  const isFiltered = line.trim().startsWith(promptFirstLine)
-  if (isFiltered) {
-    initialPromptFiltered.value = true
-  }
-  return isFiltered
-}
-
-// Add output line with filtering
+// Add output line with filtering using composable
 const addOutputLine = (data, stream, timestamp) => {
-  // Split by newlines and filter each line
   const lines = data.split('\n')
   lines.forEach(line => {
-    if (line.trim() && !shouldFilterLine(line)) {
+    if (line.trim() && !shouldFilterContent(line)) {
       outputLines.value.push({
         data: line,
         stream,
@@ -287,16 +278,16 @@ const addOutputLine = (data, stream, timestamp) => {
 // Methods
 const loadActiveSession = async () => {
   try {
-    const response = await apiGetActiveSessionByTask(props.task.id)
+    const response = await getActiveSessionByTask(props.task.id)
     console.log('Load active session response:', response)
     if (response.success && response.data) {
-      session.value = response.data
+      setSession(response.data)
       // Store initial prompt for filtering
       if (response.data.initialPrompt) {
-        initialPrompt.value = response.data.initialPrompt
+        setInitialPrompt(response.data.initialPrompt)
         console.log('Initial prompt set for filtering:', initialPrompt.value.substring(0, 50) + '...')
       }
-      // Load existing output (already filtered on server side if needed)
+      // Load existing output
       if (response.data.output) {
         const lines = response.data.output.split('\n').filter(l => l.trim())
         outputLines.value = lines.map((line, i) => ({
@@ -316,140 +307,83 @@ const loadActiveSession = async () => {
   }
 }
 
-const createSession = async () => {
+const createSessionAndStart = async () => {
   if (!props.agentId) {
     ElMessage.warning('Please select an agent first')
     return null
   }
 
-  try {
-    console.log('Creating session for task:', props.task.id, 'agent:', props.agentId)
-    const response = await apiCreateSession(props.task.id, props.agentId)
-    console.log('Create session response:', response)
-
-    if (response.success && response.data) {
-      session.value = response.data
-      // Store initial prompt for filtering
-      if (response.data.initialPrompt) {
-        initialPrompt.value = response.data.initialPrompt
-        initialPromptFiltered.value = false
-      }
-      emit('session-created', session.value)
-      // Connect WebSocket
-      connectWebSocket()
-      return session.value
-    } else {
-      ElMessage.error(response.message || 'Failed to create session')
-      return null
-    }
-  } catch (e) {
-    console.error('Failed to create session:', e)
-    ElMessage.error(e.response?.data?.message || e.message || 'Failed to create session')
-    return null
+  const createdSession = await createSession(props.task.id, props.agentId)
+  if (createdSession) {
+    emit('session-created', createdSession)
+    connectWebSocket()
   }
+  return createdSession
 }
 
 const startSession = async () => {
   if (!session.value) {
-    session.value = await createSession()
+    session.value = await createSessionAndStart()
     if (!session.value) return
   }
 
-  // Prevent duplicate start
-  if (isStarting.value) {
-    console.warn('Session is already starting')
-    return
-  }
-
-  isStarting.value = true
-  // Show starting message
-  outputLines.value.push({
-    data: 'Starting session...',
-    stream: 'stdout',
-    timestamp: Date.now()
+  // Use composable's startSession with callback
+  const started = await startSessionAction((status) => {
+    emit('status-change', status)
   })
 
-  try {
-    const response = await apiStartSession(session.value.id)
-    console.log('Start session response:', response)
-    if (response.success && response.data) {
-      session.value = response.data
-      emit('status-change', session.value.status)
+  if (started) {
+    // Refresh initial prompt from session
+    if (session.value.initialPrompt) {
+      setInitialPrompt(session.value.initialPrompt)
+    }
 
-      // Store initial prompt for filtering
-      if (response.data.initialPrompt) {
-        initialPrompt.value = response.data.initialPrompt
-        initialPromptFiltered.value = false
-        console.log('Initial prompt set for filtering:', initialPrompt.value.substring(0, 50) + '...')
-      }
-
-      // Remove the "starting" message and load actual output
+    // Load existing output from session
+    if (session.value.output) {
+      const lines = session.value.output.split('\n').filter(l => l.trim())
       outputLines.value = []
+      lines.forEach((line, i) => {
+        if (!shouldFilterContent(line)) {
+          outputLines.value.push({
+            data: line,
+            stream: 'stdout',
+            timestamp: Date.now() + i
+          })
+        }
+      })
+      scrollToBottom()
+    }
 
-      // Load existing output from the response
-      if (response.data.output) {
-        const lines = response.data.output.split('\n').filter(l => l.trim())
-        lines.forEach((line, i) => {
-          if (!shouldFilterLine(line)) {
-            outputLines.value.push({
-              data: line,
-              stream: 'stdout',
-              timestamp: Date.now() + i
-            })
-          }
-        })
-        scrollToBottom()
-      } else {
-        // No output yet, mark that we're ready to filter initial prompt when it appears
-        initialPromptFiltered.value = false
-      }
+    // Connect WebSocket after session starts
+    await connectWebSocket()
 
-      // Connect WebSocket after session starts (to avoid duplicate subscriptions)
-      await connectWebSocket()
-
-      // If no output yet, show waiting message
-      if (outputLines.value.length === 0) {
-        outputLines.value.push({
-          data: 'Session started. Waiting for output...',
-          stream: 'stdout',
-          timestamp: Date.now()
-        })
-      }
-    } else {
+    // If no output yet, show waiting message
+    if (outputLines.value.length === 0) {
       outputLines.value.push({
-        data: 'Error: ' + (response.message || 'Failed to start session'),
-        stream: 'stderr',
+        data: 'Session started. Waiting for output...',
+        stream: 'stdout',
         timestamp: Date.now()
       })
-      ElMessage.error(response.message || 'Failed to start session')
     }
-  } catch (e) {
-    console.error('Failed to start session:', e)
+  } else {
     outputLines.value.push({
-      data: 'Error: ' + (e.response?.data?.message || e.message || 'Failed to start session'),
+      data: 'Error: Failed to start session',
       stream: 'stderr',
       timestamp: Date.now()
     })
-    ElMessage.error(e.response?.data?.message || e.message || 'Failed to start session')
-  } finally {
-    isStarting.value = false
   }
 }
 
 const stopSession = async () => {
   if (!session.value) return
 
-  isStopping.value = true
-  try {
-    const response = await apiStopSession(session.value.id)
-    session.value = response.data
-    emit('status-change', session.value.status)
-    emit('session-stopped')
-  } catch (e) {
-    console.error('Failed to stop session:', e)
+  const stopped = await stopSessionAction(
+    (status) => emit('status-change', status),
+    () => emit('session-stopped')
+  )
+
+  if (!stopped) {
     ElMessage.error('Failed to stop session')
-  } finally {
-    isStopping.value = false
   }
 }
 
@@ -461,49 +395,32 @@ const continueSession = async () => {
   inputText.value = ''
 
   isContinuing.value = true
-  // Show continuing message
   outputLines.value.push({
     data: 'Continuing session...',
     stream: 'stdout',
     timestamp: Date.now()
   })
 
-  try {
-    const response = await apiContinueSession(session.value.id, input)
-    console.log('Continue session response:', response)
-    if (response.success && response.data) {
-      session.value = response.data
-      emit('status-change', session.value.status)
+  const continued = await continueSessionAction(input, (status) => {
+    emit('status-change', status)
+  })
 
-      // Keep existing output lines - do NOT clear them
-      // The conversation history is preserved for context
-      outputLines.value.push({
-        data: '--- Session resumed with --resume ---',
-        stream: 'stdout',
-        timestamp: Date.now()
-      })
-
-      // Connect WebSocket after session continues
-      await connectWebSocket()
-    } else {
-      outputLines.value.push({
-        data: 'Error: ' + (response.message || 'Failed to continue session'),
-        stream: 'stderr',
-        timestamp: Date.now()
-      })
-      ElMessage.error(response.message || 'Failed to continue session')
-    }
-  } catch (e) {
-    console.error('Failed to continue session:', e)
+  if (continued) {
     outputLines.value.push({
-      data: 'Error: ' + (e.response?.data?.message || e.message || 'Failed to continue session'),
+      data: '--- Session resumed ---',
+      stream: 'stdout',
+      timestamp: Date.now()
+    })
+    await connectWebSocket()
+  } else {
+    outputLines.value.push({
+      data: 'Error: Failed to continue session',
       stream: 'stderr',
       timestamp: Date.now()
     })
-    ElMessage.error(e.response?.data?.message || e.message || 'Failed to continue session')
-  } finally {
-    isContinuing.value = false
   }
+
+  isContinuing.value = false
 }
 ﻿const sendInput = async () => {
   if (!inputText.value.trim() || !session.value) return
@@ -511,23 +428,18 @@ const continueSession = async () => {
   const input = inputText.value.trim()
   inputText.value = ''
 
-  try {
-    // Try WebSocket first
-    if (isConnected.value) {
-      wsService.sendInput(session.value.id, input)
-    } else {
-      // Fallback to REST API
-      await apiSendSessionInput(session.value.id, input)
-    }
-  } catch (e) {
-    console.error('Failed to send input:', e)
-    ElMessage.error('Failed to send input')
+  // Try WebSocket first
+  if (isConnected.value) {
+    sendWsInput(session.value.id, input)
+  } else {
+    // Fallback - send via API would need to be added here if needed
+    ElMessage.warning('Not connected, input may not work')
   }
 }
 
 const clearOutput = () => {
   outputLines.value = []
-  initialPromptFiltered.value = false
+  resetFilter()
 }
 
 const scrollToBottom = () => {
@@ -547,27 +459,15 @@ const connectWebSocket = async () => {
     return
   }
 
-  try {
-    if (!wsService.isConnected()) {
-      console.log('Connecting to WebSocket...')
-      await wsService.connect()
-      console.log('WebSocket connected successfully')
-    }
-
-    isConnected.value = true
-
-    // Subscribe to output with filtering
-    wsService.subscribeToOutput(session.value.id, (data) => {
+  const connected = await connect(session.value.id, {
+    onOutput: (data) => {
       console.log('Received output:', data)
       if (data.type === 'chunk') {
-        // Filter out initial prompt from the chunk
         addOutputLine(data.content, data.stream, data.timestamp)
         scrollToBottom()
       }
-    })
-
-    // Subscribe to status
-    wsService.subscribeToStatus(session.value.id, (data) => {
+    },
+    onStatus: (data) => {
       console.log('Received status:', data)
       if (data.type === 'status' && session.value) {
         // Only update RUNNING and IDLE states to keep input area visible
@@ -577,64 +477,22 @@ const connectWebSocket = async () => {
         }
       }
       if (data.type === 'exit') {
-        // Only update status when process truly exits (non-zero exit code or user-initiated stop)
         if (session.value && data.exitCode !== undefined) {
           session.value.status = data.status
           emit('status-change', data.status)
         }
       }
-    })
-  } catch (e) {
-    console.error('Failed to connect WebSocket:', e)
-    isConnected.value = false
-    // Will fall back to REST API for input
-  }
-}
-
-// Poll for output as fallback
-let outputPollInterval = null
-const startOutputPolling = () => {
-  if (outputPollInterval) return
-
-  outputPollInterval = setInterval(async () => {
-    if (!session.value || !session.value.id) return
-
-    try {
-      const response = await apiGetSessionOutput(session.value.id)
-      if (response.success && response.data) {
-        const currentOutput = outputLines.value.map(l => l.data).join('\n')
-        if (response.data && response.data !== currentOutput) {
-          // New output available, parse and add with filtering
-          const newLines = response.data.split('\n').filter(l => l.trim())
-          const existingLines = new Set(outputLines.value.map(l => l.data))
-          newLines.forEach((line, i) => {
-            if (!existingLines.has(line) && !shouldFilterLine(line)) {
-              outputLines.value.push({
-                data: line,
-                stream: 'stdout',
-                timestamp: Date.now() + i
-              })
-            }
-          })
-          scrollToBottom()
-        }
-      }
-    } catch (e) {
-      console.error('Failed to poll output:', e)
     }
-  }, 2000) // Poll every 2 seconds
-}
+  })
 
-const stopOutputPolling = () => {
-  if (outputPollInterval) {
-    clearInterval(outputPollInterval)
-    outputPollInterval = null
+  if (!connected) {
+    console.warn('WebSocket connection failed')
   }
 }
 
 const disconnectWebSocket = () => {
   if (session.value) {
-    wsService.unsubscribeFromSession(session.value.id)
+    disconnect(session.value.id)
   }
 }
 
@@ -642,11 +500,10 @@ const disconnectWebSocket = () => {
 onMounted(() => {
   // Use initialSession from parent if provided, otherwise load from API
   if (props.initialSession) {
-    session.value = props.initialSession
+    setSession(props.initialSession)
     // Store initial prompt for filtering
     if (props.initialSession.initialPrompt) {
-      initialPrompt.value = props.initialSession.initialPrompt
-      initialPromptFiltered.value = false
+      setInitialPrompt(props.initialSession.initialPrompt)
     }
     // Load existing output from session
     if (props.initialSession.output) {
@@ -655,7 +512,7 @@ onMounted(() => {
         data: line,
         stream: 'stdout',
         timestamp: Date.now() + i
-      })).filter(line => !shouldFilterLine(line.data))
+      })).filter(line => !shouldFilterContent(line.data))
       scrollToBottom()
     }
     // Connect WebSocket if session is running
@@ -676,23 +533,19 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
   if (oldAgentId && newAgentId !== oldAgentId && session.value) {
     // Agent changed, stop current session
     await stopSession()
-    session.value = null
+    clearSession()
     outputLines.value = []
-    initialPrompt.value = null
-    initialPromptFiltered.value = false
+    resetFilter()
   }
 })
 
 // Watch for initialSession changes from parent
-// Only load output if session has output and outputLines are empty
-// Note: No immediate: true to avoid duplicate calls with onMounted
 watch(() => props.initialSession, (newSession) => {
   if (newSession) {
-    session.value = newSession
+    setSession(newSession)
     // Store initial prompt for filtering
     if (newSession.initialPrompt) {
-      initialPrompt.value = newSession.initialPrompt
-      initialPromptFiltered.value = false
+      setInitialPrompt(newSession.initialPrompt)
     }
     // Only load output if outputLines are empty (avoid duplicate loading)
     if (newSession.output && outputLines.value.length === 0) {
@@ -701,7 +554,7 @@ watch(() => props.initialSession, (newSession) => {
         data: line,
         stream: 'stdout',
         timestamp: Date.now() + i
-      })).filter(line => !shouldFilterLine(line.data))
+      })).filter(line => !shouldFilterContent(line.data))
       scrollToBottom()
     }
     // Connect WebSocket if session is running and not already connected
@@ -718,7 +571,7 @@ watch(outputLines, () => {
 
 // Expose methods for parent component
 defineExpose({
-  createSession,
+  createSession: createSessionAndStart,
   startSession,
   stopSession,
   continueSession,

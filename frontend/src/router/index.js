@@ -20,16 +20,6 @@ const routes = [
     path: '/agents',
     name: 'AgentConfig',
     component: () => import('../views/AgentConfig.vue')
-  },
-  {
-    path: '/prompt-templates',
-    name: 'PromptTemplateConfig',
-    component: () => import('../views/PromptTemplateConfig.vue')
-  },
-  {
-    path: '/phase-transitions',
-    name: 'PhaseTransitionConfig',
-    component: () => import('../views/PhaseTransitionConfig.vue')
   }
 ]
 

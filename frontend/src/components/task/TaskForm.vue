@@ -19,6 +19,18 @@
       />
     </el-form-item>
 
+    <el-form-item :label="$t('task.category')" prop="category">
+      <el-select v-model="formData.category" style="width: 100%" clearable>
+        <el-option
+          v-for="category in categoryOptions"
+          :key="category.value"
+          :label="category.label"
+          :value="category.value"
+        />
+      </el-select>
+      <div class="form-item-hint">{{ $t('task.categoryHint') }}</div>
+    </el-form-item>
+
     <el-form-item :label="$t('task.status')" prop="status">
       <el-select v-model="formData.status" style="width: 100%">
         <el-option
@@ -54,6 +66,15 @@
       <div class="form-item-hint">{{ $t('task.autoTransitionHint') }}</div>
     </el-form-item>
 
+    <el-form-item :label="$t('task.autoAssignWorkflowLabel')">
+      <el-switch
+        v-model="formData.autoAssignWorkflow"
+        :active-text="$t('common.enabled')"
+        :inactive-text="$t('common.disabled')"
+      />
+      <div class="form-item-hint">{{ $t('task.autoAssignWorkflowHint') }}</div>
+    </el-form-item>
+
     <el-form-item>
       <el-button type="primary" @click="handleSubmit" :loading="loading">
         {{ isNew ? $t('task.create') : $t('task.save') }}
@@ -67,6 +88,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS, TASK_PRIORITY } from '../../constants/task'
+import { TaskCategory, getCategoryOptions, analyzeTaskCategory } from '../../mock/workflowAssignment'
 
 const props = defineProps({
   task: {
@@ -81,7 +103,7 @@ const props = defineProps({
 
 const emit = defineEmits(['submit', 'cancel'])
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const formRef = ref(null)
 
 const isNew = computed(() => !props.task?.id)
@@ -89,10 +111,12 @@ const isNew = computed(() => !props.task?.id)
 const formData = reactive({
   title: '',
   description: '',
+  category: '',  // Empty means auto-detect
   status: TASK_STATUS.TODO,
   priority: TASK_PRIORITY.MEDIUM,
   assignee: '',
-  autoTransitionEnabled: false
+  autoTransitionEnabled: false,
+  autoAssignWorkflow: true  // Default to true for new tasks
 })
 
 const rules = {
@@ -102,12 +126,9 @@ const rules = {
 }
 
 const statusOptions = computed(() => [
-  { value: TASK_STATUS.TODO, label: t('task.status.TODO', 'To Do') },
-  { value: TASK_STATUS.DESIGN, label: t('task.status.DESIGN', 'Design') },
-  { value: TASK_STATUS.DEVELOPMENT, label: t('task.status.DEVELOPMENT', 'Development') },
-  { value: TASK_STATUS.TESTING, label: t('task.status.TESTING', 'Testing') },
-  { value: TASK_STATUS.RELEASE, label: t('task.status.RELEASE', 'Release') },
-  { value: TASK_STATUS.DONE, label: t('task.status.DONE', 'Done') }
+  { value: TASK_STATUS.TODO, label: t('status.TODO', '待处理') },
+  { value: TASK_STATUS.IN_PROGRESS, label: t('status.IN_PROGRESS', '处理中') },
+  { value: TASK_STATUS.DONE, label: t('status.DONE', '已完成') }
 ])
 
 const priorityOptions = computed(() => [
@@ -117,15 +138,22 @@ const priorityOptions = computed(() => [
   { value: TASK_PRIORITY.LOW, label: t('task.priority.low', 'Low') }
 ])
 
+const categoryOptions = computed(() => {
+  const lang = locale.value === 'zh' ? 'zh' : 'en'
+  return getCategoryOptions(lang)
+})
+
 // Watch for task changes to populate form
 watch(() => props.task, (newTask) => {
   if (newTask) {
     formData.title = newTask.title || ''
     formData.description = newTask.description || ''
+    formData.category = newTask.category || ''
     formData.status = newTask.status || TASK_STATUS.TODO
     formData.priority = newTask.priority || TASK_PRIORITY.MEDIUM
     formData.assignee = newTask.assignee || ''
     formData.autoTransitionEnabled = newTask.autoTransitionEnabled === true
+    formData.autoAssignWorkflow = newTask.autoAssignWorkflow !== false
   }
 }, { immediate: true })
 
@@ -134,7 +162,17 @@ const handleSubmit = async () => {
 
   try {
     await formRef.value.validate()
-    emit('submit', { ...formData })
+
+    // Auto-detect category if not set
+    let category = formData.category
+    if (!category && formData.title) {
+      category = analyzeTaskCategory(formData.title, formData.description)
+    }
+
+    emit('submit', {
+      ...formData,
+      category: category || TaskCategory.FEATURE
+    })
   } catch {
     // Validation failed
   }
