@@ -14,7 +14,7 @@ class WebSocketService {
     this.reconnectAttempts = 0
     this.maxReconnectAttempts = 5
     this.baseUrl = ''
-    this reconnectTimer = null
+    this.reconnectTimer = null
   }
 
   /**

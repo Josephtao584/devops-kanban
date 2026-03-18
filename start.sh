@@ -9,7 +9,7 @@ echo "🚀 DevOps Kanban 启动中..."
 # 获取脚本所在目录
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
-BACKEND_DIR="$PROJECT_ROOT/backend-nodejs"
+BACKEND_DIR="$PROJECT_ROOT/backend"
 
 # 端口配置
 FRONTEND_PORT=3000
