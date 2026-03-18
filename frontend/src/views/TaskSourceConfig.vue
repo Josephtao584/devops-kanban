@@ -217,8 +217,9 @@
               <div class="item-content">
                 <div class="item-header">
                   <span class="item-title">{{ item.title }}</span>
-                  <span v-if="item.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
+                  <span class="item-status" :class="item.status.toLowerCase()">{{ item.status }}</span>
                 </div>
+                <span v-if="item.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
                 <div class="item-labels" v-if="item.labels && item.labels.length > 0">
                   <span v-for="label in item.labels" :key="label" class="label-badge">{{ label }}</span>
                 </div>
@@ -236,7 +237,6 @@
                   >
                     {{ $t('taskSource.viewOnGitHub') }} →
                   </a>
-                  <span class="item-status" :class="item.status.toLowerCase()">{{ item.status }}</span>
                 </div>
               </div>
             </div>
@@ -1058,6 +1058,7 @@ onMounted(loadProjects)
 .item-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
 }
@@ -1066,6 +1067,29 @@ onMounted(loadProjects)
   font-weight: 500;
   font-size: 13px;
   color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-status {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.item-status.open {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.item-status.closed {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 .imported-badge {
