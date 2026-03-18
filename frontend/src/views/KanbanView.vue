@@ -185,7 +185,7 @@
           :tasks="taskStore.tasks"
           :selected-task="selectedTask"
           :running-task-ids="runningTasks"
-          :hide-converted="hideConvertedRequirements"
+          :requirement-status-filter="requirementStatusFilter"
           :status-filter="listStatusFilter"
           :selected-requirement-ids="selectedRequirementIds"
           @open-requirement-modal="openRequirementModal"
@@ -194,7 +194,7 @@
           @select-task="selectTask"
           @edit-task="openTaskModal"
           @delete-task="deleteTask"
-          @update:hide-converted="hideConvertedRequirements = $event"
+          @update:requirement-status-filter="requirementStatusFilter = $event"
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
           @reorder-requirements="handleReorderRequirements"
@@ -1897,6 +1897,15 @@ onUnmounted(() => {
   border-radius: 10px;
   min-width: 24px;
   text-align: center;
+}
+
+.status-filter-group {
+  margin-left: auto;
+}
+
+.status-filter-group .el-checkbox-button__inner {
+  font-size: 11px;
+  padding: 3px 8px;
 }
 
 .column-content {

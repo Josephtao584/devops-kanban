@@ -15,7 +15,7 @@
 ### 安装依赖
 
 ```bash
-cd backend-nodejs
+cd backend
 npm install
 ```
 
@@ -75,7 +75,7 @@ WebSocket 端点：`ws://localhost:8000/ws`
 ## 项目结构
 
 ```
-backend-nodejs/
+backend/
 ├── src/
 │   ├── main.js                 # 应用入口
 │   ├── config/

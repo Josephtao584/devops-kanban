@@ -18,21 +18,20 @@
             </svg>
             {{ $t('requirement.addRequirement') }}
           </button>
-          <button
-            class="toggle-converted-btn-list"
-            :class="{ 'is-hiding': hideConverted }"
-            @click.stop="$emit('update:hideConverted', !hideConverted)"
-            :title="hideConverted ? $t('requirement.showConverted') : $t('requirement.hideConverted')"
+          <!-- Status filter like task filter -->
+          <el-checkbox-group
+            :model-value="requirementStatusFilter"
+            @update:model-value="$emit('update:requirementStatusFilter', $event)"
+            size="small"
+            class="requirement-filter-group"
           >
-            <svg v-if="hideConverted" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-              <line x1="1" y1="1" x2="23" y2="23"></line>
-            </svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
+            <el-checkbox-button value="NEW">
+              {{ $t('requirement.statuses.NEW') }}
+            </el-checkbox-button>
+            <el-checkbox-button value="CONVERTED">
+              {{ $t('requirement.statuses.CONVERTED') }}
+            </el-checkbox-button>
+          </el-checkbox-group>
         </div>
       </div>
       <div class="list-requirements-content" v-show="!isRequirementsCollapsed">
@@ -213,9 +212,9 @@ const props = defineProps({
     type: Set,
     default: () => new Set()
   },
-  hideConverted: {
-    type: Boolean,
-    default: false
+  requirementStatusFilter: {
+    type: Array,
+    default: () => ['CONVERTED']
   },
   statusFilter: {
     type: Array,
@@ -234,7 +233,7 @@ const emit = defineEmits([
   'select-task',
   'edit-task',
   'delete-task',
-  'update:hideConverted',
+  'update:requirementStatusFilter',
   'update:statusFilter',
   'add-task',
   'reorder-requirements'
@@ -423,6 +422,16 @@ const getPriorityLabel = (priority) => {
 
 .toggle-converted-btn-list.is-hiding {
   color: var(--el-color-warning);
+}
+
+.requirement-filter-group {
+  display: flex;
+  gap: 4px;
+}
+
+.requirement-filter-group .el-checkbox-button__inner {
+  font-size: 11px;
+  padding: 3px 8px;
 }
 
 .list-requirements-content {

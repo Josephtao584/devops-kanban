@@ -2,10 +2,8 @@
  * Requirement status constants
  */
 export const REQUIREMENT_STATUS = {
-  NEW: 'NEW',             // 新建
-  ANALYZING: 'ANALYZING', // 分析中
-  CONVERTED: 'CONVERTED', // 已转换为任务
-  ARCHIVED: 'ARCHIVED'    // 已归档
+  NEW: 'NEW',             // 待转换
+  CONVERTED: 'CONVERTED'  // 已转换
 }
 
 /**
