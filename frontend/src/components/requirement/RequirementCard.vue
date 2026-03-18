@@ -21,9 +21,47 @@
     </div>
 
     <div class="requirement-body">
-      <p class="requirement-description" :class="{ 'is-truncated': !expanded }">
-        {{ requirement.description }}
+      <div v-if="requirement.source" class="requirement-source">
+        <span class="source-badge">{{ sourceLabel }}</span>
+      </div>
+      <div v-if="requirement.labels && requirement.labels.length > 0" class="requirement-labels">
+        <el-tag
+          v-for="label in requirement.labels"
+          :key="label"
+          size="small"
+          type="info"
+          class="requirement-label"
+        >
+          {{ label }}
+        </el-tag>
+      </div>
+      <p v-if="requirement.description" class="requirement-description" :class="{ 'is-truncated': !expanded }">
+        <span class="desc-label">描述:</span> {{ requirement.description }}
       </p>
+      <div v-if="isExternal" class="requirement-meta">
+        <a
+          v-if="requirement.external_url"
+          :href="requirement.external_url"
+          target="_blank"
+          class="external-link"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+          {{ $t('requirement.viewOriginal') }}
+        </a>
+        <span v-if="requirement.created_at" class="meta-time">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          {{ formatDate(requirement.created_at) }}
+        </span>
+      </div>
       <button
         v-if="showExpandButton"
         class="expand-btn"
@@ -92,6 +130,37 @@ const statusClass = computed(() => {
 const showExpandButton = computed(() => {
   return props.requirement.description && props.requirement.description.length > 100
 })
+
+// Check if requirement is from external source
+const isExternal = computed(() => {
+  return !!props.requirement.source
+})
+
+// Get source type display label
+const sourceLabel = computed(() => {
+  const labelMap = {
+    GITHUB: 'GitHub',
+    JIRA: 'Jira',
+    GITLAB: 'GitLab',
+    LINEAR: 'Linear'
+  }
+  return labelMap[props.requirement.source] || props.requirement.source
+})
+
+// Format date for display
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  } catch {
+    return dateStr
+  }
+}
 
 const handleDelete = () => {
   emit('delete', props.requirement)
@@ -211,11 +280,68 @@ const handleDelete = () => {
   margin-bottom: 8px;
 }
 
+.requirement-source {
+  margin-bottom: 6px;
+}
+
+.source-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+.requirement-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.requirement-label {
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+.requirement-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.external-link:hover {
+  text-decoration: underline;
+}
+
+.meta-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .requirement-description {
   font-size: 12px;
   color: #6b7280;
   line-height: 1.5;
   margin: 0;
+}
+
+.desc-label {
+  color: #9ca3af;
+  font-size: 11px;
 }
 
 .requirement-description.is-truncated {

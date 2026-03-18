@@ -448,7 +448,8 @@ export default {
     recommendedForYou: '为您推荐',
     recommended: '推荐',
     adjustSelection: '调整选择',
-    adjustAgentsHint: '您可以手动调整 Agent 选择'
+    adjustAgentsHint: '您可以手动调整 Agent 选择',
+    viewOriginal: '查看原文'
   },
   workflow: {
     title: '工作流',
