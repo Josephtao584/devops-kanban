@@ -157,7 +157,17 @@ export default {
       stateAll: '全部',
       inheritedFromProject: '继承自项目',
       overrideDefault: '覆盖默认仓库'
-    }
+    },
+    previewTitle: '预览并导入',
+    selectAll: '全选',
+    deselectAll: '取消全选',
+    selected: '已选',
+    imported: '已导入',
+    viewOnGitHub: '在 GitHub 查看',
+    confirmImport: '确认导入',
+    selectAtLeastOne: '请至少选择一个 Issue',
+    importSuccess: '成功导入 {count} 个需求',
+    importFailed: '导入失败'
   },
   agent: {
     title: '我的团队',

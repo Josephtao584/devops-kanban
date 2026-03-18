@@ -124,6 +124,33 @@ async function taskRoutes(fastify) {
       return errorResponse('Failed to delete task');
     }
   });
+
+  // Batch update task order
+  fastify.put('/reorder', async (request, reply) => {
+    try {
+      const { updates } = request.body;
+      if (!Array.isArray(updates)) {
+        reply.code(400);
+        return errorResponse('Updates must be an array');
+      }
+
+      const results = [];
+      for (const update of updates) {
+        if (update.id && update.order !== undefined) {
+          const updated = await service.update(update.id, { order: update.order });
+          if (updated) {
+            results.push(updated);
+          }
+        }
+      }
+
+      return successResponse(results, 'Tasks reordered');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500);
+      return errorResponse('Failed to reorder tasks');
+    }
+  });
 }
 
 module.exports = taskRoutes;

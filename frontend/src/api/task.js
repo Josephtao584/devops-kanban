@@ -8,3 +8,17 @@ export const createTask = (data) => api.post('/tasks', data)
 export const updateTask = (id, data) => api.put(`/tasks/${id}`, data)
 export const updateTaskStatus = (id, status) => api.patch(`/tasks/${id}/status`, { status })
 export const deleteTask = (id) => api.delete(`/tasks/${id}`)
+
+/**
+ * Reorder tasks - batch update order field
+ * @param {Array} tasks - Tasks with updated order
+ * @returns {Promise} API response
+ */
+export const reorderTasks = async (tasks) => {
+  const updates = tasks.map((task, index) => ({
+    id: task.id,
+    order: index
+  }))
+
+  return api.put('/tasks/reorder', { updates })
+}
