@@ -58,27 +58,31 @@
       </button>
     </div>
 
-    <div class="requirement-actions">
-      <button
-        class="btn btn-secondary btn-sm"
-        @click="$emit('edit', requirement)"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-        </svg>
-        {{ $t('common.edit') }}
-      </button>
-      <button
-        class="btn btn-danger btn-sm"
-        @click="handleDelete"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 6h18"></path>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-        </svg>
-        {{ $t('common.delete') }}
-      </button>
+    <div class="requirement-footer">
+      <div class="requirement-actions">
+        <el-tooltip :content="$t('common.edit')" placement="top">
+          <button
+            class="btn btn-icon action-btn"
+            @click="$emit('edit', requirement)"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+        </el-tooltip>
+        <el-tooltip :content="$t('common.delete')" placement="top">
+          <button
+            class="btn btn-icon action-btn delete-btn"
+            @click="handleDelete"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </el-tooltip>
+      </div>
     </div>
   </div>
 </template>
@@ -208,10 +212,15 @@ const handleDelete = () => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 11px;
+  font-size: 12px;
   color: #3b82f6;
   text-decoration: none;
   flex-shrink: 0;
+}
+
+.external-link-inline svg {
+  width: 14px;
+  height: 14px;
 }
 
 .external-link-inline:hover {
@@ -273,6 +282,18 @@ const handleDelete = () => {
 
 .requirement-body {
   margin-bottom: 8px;
+}
+
+.requirement-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.requirement-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .requirement-labels {
@@ -340,10 +361,36 @@ const handleDelete = () => {
   color: #065f46;
 }
 
-.requirement-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* Action button styles */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+}
+
+.action-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.action-btn:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.action-btn.delete-btn:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 .btn {

@@ -29,55 +29,61 @@
             <div class="task-card-content">
               <div class="task-card-main">
                 <span class="task-card-title">{{ element.title }}</span>
-                <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                  {{ formatTaskElapsedTime(element.id) }}
-                </span>
+                <div class="task-card-meta">
+                  <span v-if="isTaskRunning(element.id)" class="task-running-time">
+                    {{ formatTaskElapsedTime(element.id) }}
+                  </span>
+                  <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                    {{ getPriorityLabel(element.priority) }}
+                  </span>
+                </div>
               </div>
               <div v-if="element.description" class="task-card-description">
                 {{ element.description }}
               </div>
               <div class="task-card-footer">
-                <span class="task-card-priority" :class="getPriorityClass(element.priority)">
-                  {{ getPriorityLabel(element.priority) }}
-                </span>
-                <!-- Worktree status indicator -->
-                <el-tooltip
-                  :content="getWorktreeTooltip(element)"
-                  placement="top"
-                >
-                  <button
-                    class="btn btn-icon worktree-btn"
-                    :class="getWorktreeClass(element)"
-                    @click.stop="handleWorktree(element)"
-                    :disabled="isWorktreeLoading(element.id)"
+                <div class="task-card-actions">
+                  <!-- Edit button -->
+                  <el-tooltip :content="$t('common.edit')" placement="top">
+                    <button
+                      class="btn btn-icon action-btn"
+                      @click.stop="handleEditTask(element)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                  </el-tooltip>
+                  <!-- Delete button -->
+                  <el-tooltip :content="$t('common.delete')" placement="top">
+                    <button
+                      class="btn btn-icon action-btn delete-btn"
+                      @click.stop="handleDeleteTask(element.id)"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </el-tooltip>
+                  <!-- Worktree button -->
+                  <el-tooltip
+                    :content="getWorktreeTooltip(element)"
+                    placement="top"
                   >
-                    <el-icon v-if="isWorktreeLoading(element.id)" class="is-loading"><Loading /></el-icon>
-                    <el-icon v-else-if="element.worktree_status === 'created'"><FolderOpened /></el-icon>
-                    <el-icon v-else><Folder /></el-icon>
-                  </button>
-                </el-tooltip>
-              </div>
-              <div class="task-card-actions">
-                <button
-                  class="btn btn-secondary btn-sm"
-                  @click.stop="handleEditTask(element)"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                  {{ $t('common.edit') }}
-                </button>
-                <button
-                  class="btn btn-danger btn-sm"
-                  @click.stop="handleDeleteTask(element.id)"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  {{ $t('common.delete') }}
-                </button>
+                    <button
+                      class="btn btn-icon worktree-btn"
+                      :class="getWorktreeClass(element)"
+                      @click.stop="handleWorktree(element)"
+                      :disabled="isWorktreeLoading(element.id)"
+                    >
+                      <el-icon v-if="isWorktreeLoading(element.id)" class="is-loading"><Loading /></el-icon>
+                      <el-icon v-else-if="element.worktree_status === 'created'"><FolderOpened /></el-icon>
+                      <el-icon v-else><Folder /></el-icon>
+                    </button>
+                  </el-tooltip>
+                </div>
               </div>
             </div>
           </div>
@@ -384,8 +390,9 @@ const taskCount = computed(() => props.tasks.length)
 
 .task-card-main {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -397,6 +404,13 @@ const taskCount = computed(() => props.tasks.length)
   min-width: 0;
   word-break: break-word;
   line-height: 1.4;
+}
+
+.task-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .task-card-priority {
@@ -433,6 +447,7 @@ const taskCount = computed(() => props.tasks.length)
   font-size: 11px;
   color: var(--el-color-primary);
   font-family: monospace;
+  flex-shrink: 0;
 }
 
 .task-card-description {
@@ -456,44 +471,35 @@ const taskCount = computed(() => props.tasks.length)
 
 .task-card-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.task-card-actions .btn {
-  display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
+}
+
+/* Action button styles */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: none;
   border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
 }
 
-.task-card-actions .btn-secondary {
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  color: #374151;
+.action-btn:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
 }
 
-.task-card-actions .btn-secondary:hover {
-  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
-}
-
-.task-card-actions .btn-danger {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #991b1b;
-}
-
-.task-card-actions .btn-danger:hover {
-  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
-  transform: translateY(-1px);
+.action-btn.delete-btn:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 /* Worktree button styles */

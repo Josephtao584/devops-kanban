@@ -2089,6 +2089,11 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-wrap: nowrap;
+}
+
+.column-header > * {
+  flex-shrink: 0;
 }
 
 .column-status {
@@ -2096,6 +2101,7 @@ onUnmounted(() => {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .column-status.status-requirement {
@@ -2123,6 +2129,7 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  align-self: center;
 }
 
 .column-count {
@@ -2138,6 +2145,7 @@ onUnmounted(() => {
 
 .status-filter-group {
   margin-left: auto;
+  align-self: center;
 }
 
 .status-filter-group .el-checkbox-button__inner {
@@ -2145,54 +2153,11 @@ onUnmounted(() => {
   padding: 3px 8px;
 }
 
-.column-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* Requirement Column Actions */
-.add-requirement-btn,
-.sync-requirements-btn,
-.auto-assign-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+.column-count {
   font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.add-requirement-btn {
-  width: 100%;
-  border: 1px dashed var(--el-border-color-light);
-  color: var(--el-text-color-secondary);
-  background: transparent;
-}
-
-.add-requirement-btn:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: #eff6ff;
-}
-
-.requirement-actions-row {
-  display: flex;
-  gap: 8px;
-}
-
-.requirement-actions-row-bottom {
-  margin-top: 8px;
+  min-width: 24px;
+  text-align: center;
+  align-self: center;
 }
 
 .sync-requirements-btn-header {
@@ -2208,7 +2173,8 @@ onUnmounted(() => {
   background: transparent;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  vertical-align: middle;
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .sync-requirements-btn-header:hover:not(:disabled) {
@@ -2219,6 +2185,15 @@ onUnmounted(() => {
 .sync-requirements-btn-header:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.column-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .sync-requirements-btn {
@@ -2468,5 +2443,32 @@ onUnmounted(() => {
   text-align: center;
   padding: 48px 16px;
   color: var(--text-placeholder);
+}
+
+/* Add requirement button styles */
+.requirement-actions-row-bottom {
+  margin-top: 8px;
+}
+
+.add-requirement-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px dashed var(--el-border-color-light);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.add-requirement-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: #eef2ff;
 }
 </style>

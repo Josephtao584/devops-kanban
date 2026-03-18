@@ -976,7 +976,6 @@ const getSourceLabel = (source) => {
 .task-list-actions {
   display: flex;
   gap: 4px;
-  opacity: 0;
   transition: opacity 0.2s;
 }
 
