@@ -29,15 +29,17 @@
             <div class="task-card-content">
               <div class="task-card-main">
                 <span class="task-card-title">{{ element.title }}</span>
-                <span class="task-card-priority" :class="getPriorityClass(element.priority)">
-                  {{ getPriorityLabel(element.priority) }}
-                </span>
                 <span v-if="isTaskRunning(element.id)" class="task-running-time">
                   {{ formatTaskElapsedTime(element.id) }}
                 </span>
               </div>
               <div v-if="element.description" class="task-card-description">
                 {{ element.description }}
+              </div>
+              <div class="task-card-footer">
+                <span class="task-card-priority" :class="getPriorityClass(element.priority)">
+                  {{ getPriorityLabel(element.priority) }}
+                </span>
               </div>
               <div class="task-card-actions">
                 <button
@@ -369,9 +371,16 @@ const taskCount = computed(() => props.tasks.length)
   color: var(--el-text-color-secondary);
   line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.task-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 6px;
 }
 
 .task-card-actions {
