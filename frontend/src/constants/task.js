@@ -3,13 +3,8 @@
  */
 export const TASK_STATUS = {
   TODO: 'TODO',
-  DESIGN: 'DESIGN',
-  DEVELOPMENT: 'DEVELOPMENT',
-  TESTING: 'TESTING',
-  RELEASE: 'RELEASE',
-  DONE: 'DONE',
-  BLOCKED: 'BLOCKED',
-  CANCELLED: 'CANCELLED'
+  IN_PROGRESS: 'IN_PROGRESS',
+  DONE: 'DONE'
 }
 
 /**
@@ -20,6 +15,18 @@ export const TASK_PRIORITY = {
   HIGH: 'HIGH',
   MEDIUM: 'MEDIUM',
   LOW: 'LOW'
+}
+
+/**
+ * Task category constants
+ */
+export const TASK_CATEGORY = {
+  FEATURE: 'FEATURE',
+  BUG_FIX: 'BUG_FIX',
+  REFACTORING: 'REFACTORING',
+  DOCUMENTATION: 'DOCUMENTATION',
+  TESTING: 'TESTING',
+  DESIGN: 'DESIGN'
 }
 
 /**
