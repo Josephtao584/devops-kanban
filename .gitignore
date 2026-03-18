@@ -48,4 +48,8 @@ data/
 
 ### Logs ###
 *.log
-logs/
+backend/.venv/
+backend/__pycache__/
+backend/*.log
+backend/data/
+__pycache__/
