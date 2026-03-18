@@ -155,19 +155,6 @@
       />
     </template>
 
-    <!-- Brainstorming Section -->
-    <template v-if="!isNew">
-      <el-divider>
-        <el-icon><Lightning /></el-icon>
-        {{ $t('brainstorming.title', '头脑风暴') }}
-      </el-divider>
-
-      <BrainstormingPanel
-        :task="task"
-        @add-to-task="handleAddToTaskConclusion"
-      />
-    </template>
-
     <template #footer>
       <div class="dialog-footer">
         <el-button v-if="!isNew" type="danger" @click="handleDelete">
@@ -222,7 +209,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Cpu, Document, Loading, Branch, Plus, Minus, Edit, QuestionFilled, View, Check, Lightning } from '@element-plus/icons-vue'
+import { Cpu, Document, Loading, Branch, Plus, Minus, Edit, QuestionFilled, View, Check } from '@element-plus/icons-vue'
 import { createTask, updateTask, deleteTask } from '../api/task'
 import { getAgents } from '../api/agent'
 import { getActiveSessionByTask, getSessionHistory, createSession, deleteSession } from '../api/session'
@@ -231,7 +218,6 @@ import ChatBox from './ChatBox.vue'
 import TaskForm from './task/TaskForm.vue'
 import TaskHistory from './task/TaskHistory.vue'
 import CommitDialog from './CommitDialog.vue'
-import BrainstormingPanel from './brainstorming/BrainstormingPanel.vue'
 import { useToast } from '../composables/ui/useToast'
 
 const { t } = useI18n()
@@ -490,13 +476,6 @@ const onSelectHistory = (session) => {
   // Load selected history session into view
   console.log('Selected history session:', session.id)
 }
-
-const handleAddToTaskConclusion = ({ topic, conclusion }) => {
-  // Add conclusion to task description or create a comment
-  console.log('Add to task conclusion:', topic, conclusion)
-  // TODO: Implement adding conclusion to task
-  ElMessage.success(t('brainstorming.addedToTask', '结论已添加到任务'))
-}
 </script>
 
 <style scoped>
@@ -634,10 +613,5 @@ const handleAddToTaskConclusion = ({ topic, conclusion }) => {
   background: #1e1e1e;
   color: #d4d4d4;
   border-radius: 8px;
-}
-
-/* Brainstorming Section */
-.brainstorming-section {
-  margin-top: 8px;
 }
 </style>

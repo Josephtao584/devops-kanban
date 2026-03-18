@@ -93,14 +93,6 @@
       </button>
     </div>
 
-    <!-- Brainstorming Drawer -->
-    <BrainstormingDrawer
-      v-if="task"
-      ref="brainstormingDrawerRef"
-      :task="task"
-      :visible="isBrainstormingOpen"
-      @close="closeBrainstorming"
-    />
   </div>
 </template>
 
@@ -115,7 +107,6 @@ import {
   getResponseForAction
 } from '../mock/butlerData'
 import { getWorkflowByTask } from '../mock/workflowData'
-import BrainstormingDrawer from './brainstorming/BrainstormingDrawer.vue'
 
 const props = defineProps({
   task: {
@@ -129,12 +120,6 @@ const emit = defineEmits(['control-workflow', 'view-workflow'])
 const { t } = useI18n()
 
 const messages = ref([])
-const inputText = ref('')
-const messagesRef = ref(null)
-const brainstormingDrawerRef = ref(null)
-
-// Brainstorming state
-const isBrainstormingOpen = ref(false)
 
 // Get workflow for current task
 const workflow = computed(() => {
@@ -207,13 +192,6 @@ const sendMessage = () => {
 
   const input = inputText.value.trim()
 
-  // Check if input is about brainstorming
-  if (input.toLowerCase().includes('头脑风暴') || input.toLowerCase().includes('brainstorm') || input.includes('讨论')) {
-    openBrainstorming()
-    inputText.value = ''
-    return
-  }
-
   const userMessage = {
     id: `user-${Date.now()}`,
     role: 'user',
@@ -253,12 +231,6 @@ const sendMessage = () => {
 const handleQuickAction = (action) => {
   if (action.disabled || !props.task) return
 
-  // Handle brainstorm action separately
-  if (action.action === 'brainstorm') {
-    openBrainstorming()
-    return
-  }
-
   // Add user action message
   const userMessage = {
     id: `user-${Date.now()}`,
@@ -291,22 +263,6 @@ const handleQuickAction = (action) => {
       })
     }
   }, 300)
-}
-
-// Open brainstorming drawer
-const openBrainstorming = () => {
-  isBrainstormingOpen.value = true
-  // Auto-start after a short delay
-  setTimeout(() => {
-    if (brainstormingDrawerRef.value) {
-      brainstormingDrawerRef.value.startBrainstorming()
-    }
-  }, 500)
-}
-
-// Close brainstorming drawer
-const closeBrainstorming = () => {
-  isBrainstormingOpen.value = false
 }
 
 // Watch for task changes

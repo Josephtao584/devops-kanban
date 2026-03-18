@@ -27,14 +27,10 @@ export const butlerResponses = {
   '详情': { action: 'details', response: '让我为您查看任务详情...\n\n任务名称: {taskTitle}\n状态: {status}\n进度: {progress}%\n当前阶段: {currentNode}' },
 
   // 帮助
-  '帮助': { action: 'help', response: '我可以帮您：\n• 启动任务 - 说"启动"或"开始"\n• 暂停任务 - 说"暂停"\n• 查看进度 - 说"进度"或"状态"\n• 头脑风暴 - 说"头脑风暴"或"讨论"\n• 查看详情 - 说"详情"\n• 继续执行 - 说"继续"\n• 重试 - 说"重试"' },
+  '帮助': { action: 'help', response: '我可以帮您：\n• 启动任务 - 说"启动"或"开始"\n• 暂停任务 - 说"暂停"\n• 查看进度 - 说"进度"或"状态"\n• 查看详情 - 说"详情"\n• 继续执行 - 说"继续"\n• 重试 - 说"重试"' },
 
   // 问候
   '你好': { action: 'greet', response: '您好！我是小捷，有什么可以帮您的吗？' },
-
-  // 头脑风暴
-  '头脑风暴': { action: 'brainstorm', response: '__BRAINSTORM__' },
-  '讨论': { action: 'brainstorm', response: '__BRAINSTORM__' },
 }
 
 // 获取工作流详细执行状态
@@ -260,7 +256,6 @@ export const getQuickActions = (task, workflow) => {
     { id: 'start', label: '启动', icon: 'play', disabled: isRunning || isCompleted, action: 'start' },
     { id: 'pause', label: '暂停', icon: 'pause', disabled: !isRunning, action: 'pause' },
     { id: 'progress', label: '进度', icon: 'chart', disabled: false, action: 'status' },
-    { id: 'brainstorm', label: '头脑风暴', icon: 'brain', disabled: false, action: 'brainstorm' },
     { id: 'help', label: '帮助', icon: 'help', disabled: false, action: 'help' }
   ]
 }
@@ -278,14 +273,6 @@ export const getResponseForAction = (action, task, workflow) => {
   // 特殊处理任务建议
   if (action === 'task-suggestions' || action === 'suggestions') {
     return getTaskWorkSuggestions(task, workflow)
-  }
-
-  // 特殊处理头脑风暴
-  if (action === 'brainstorm') {
-    return {
-      action: 'brainstorm',
-      response: '好的，我来为您召唤头脑风暴会议！\n\n🧠 正在邀请参与者...\n• 架构师 🧔\n• 产品经理 🧑‍💼\n• 开发团队 🧑‍💻\n• 测试工程师 👩‍🔬\n\n准备开始多角色讨论...'
-    }
   }
 
   // 找到对应的响应模板

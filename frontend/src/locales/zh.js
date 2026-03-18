@@ -464,21 +464,5 @@ export default {
     workflowStarted: '工作流已启动',
     workflowPaused: '工作流已暂停',
     workflowContinued: '工作流已继续'
-  },
-  brainstorming: {
-    title: '头脑风暴',
-    start: '开始讨论',
-    inProgress: '讨论中...',
-    completed: '已完成',
-    participants: '参与者',
-    emptyHint: '点击「开始讨论」按钮，召唤多位角色进行头脑风暴',
-    addedToTask: '结论已添加到任务',
-    skip: '跳过',
-    feedbackTitle: '补充意见',
-    optional: '可选',
-    feedbackPlaceholder: '请输入您的意见或约束条件，如：预算有限、时间紧急、性能要求高等...',
-    regenerate: '重新生成',
-    regenerateSuccess: '结论已重新生成',
-    regenerateFailed: '重新生成失败'
   }
 }

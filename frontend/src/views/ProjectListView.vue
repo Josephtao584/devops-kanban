@@ -1,16 +1,12 @@
 <template>
   <div class="project-list-view">
-    <el-page-header @back="router.push('/')">
-      <template #content>
-        <span class="page-title">{{ $t('project.title') }}</span>
-      </template>
-      <template #extra>
-        <el-button type="primary" @click="showCreateDialog">
-          <el-icon><Plus /></el-icon>
-          {{ $t('project.newProject') }}
-        </el-button>
-      </template>
-    </el-page-header>
+    <div class="page-header">
+      <h1 class="page-title">{{ $t('project.title') }}</h1>
+      <el-button type="primary" @click="showCreateDialog">
+        <el-icon><Plus /></el-icon>
+        {{ $t('project.newProject') }}
+      </el-button>
+    </div>
 
     <el-skeleton v-if="loading" :rows="5" animated />
 
@@ -138,9 +134,17 @@ watch(() => dialogVisible.value, (newValue) => {
   overflow-y: auto;
 }
 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
 .page-title {
   font-size: 20px;
   font-weight: 600;
+  margin: 0;
 }
 
 .project-grid {
