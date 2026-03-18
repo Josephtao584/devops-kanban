@@ -41,7 +41,7 @@
       </div>
     </template>
 
-    <h4 class="task-title">{{ task.title }}</h4>
+    <h4 class="task-title">{{ task.title || $t('task.untitled') }}</h4>
     <p v-if="task.description" class="task-description">{{ truncatedDescription }}</p>
 
     <template #footer>

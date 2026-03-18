@@ -137,7 +137,7 @@
             </span>
           </div>
           <div class="task-list-content">
-            <div class="task-list-title">{{ task.title }}</div>
+            <div class="task-list-title">{{ task.title || $t('task.untitled') }}</div>
             <div v-if="task.description" class="task-list-description">{{ task.description }}</div>
           </div>
           <div v-if="isTaskRunning(task.id)" class="task-list-running">

@@ -51,13 +51,35 @@ class TaskService {
    * @returns {Promise<object>} Created task
    */
   async create(taskData) {
-    // Verify project exists
-    const projectExists = await this.projectRepo.exists(taskData.project_id);
-    if (!projectExists) {
-      const error = new Error('Project not found');
+    // Validate required fields
+    if (!taskData.title || !taskData.title.trim()) {
+      const error = new Error('任务标题不能为空');
       error.statusCode = 400;
       throw error;
     }
+
+    if (!taskData.project_id) {
+      const error = new Error('项目 ID 不能为空');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Verify project exists
+    const projectExists = await this.projectRepo.exists(taskData.project_id);
+    if (!projectExists) {
+      const error = new Error('项目不存在');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Set default values
+    if (!taskData.status) {
+      taskData.status = 'TODO';
+    }
+    if (!taskData.priority) {
+      taskData.priority = 'MEDIUM';
+    }
+
     return await this.taskRepo.create(taskData);
   }
 

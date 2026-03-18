@@ -61,6 +61,7 @@ export default {
   },
   task: {
     title: '任务',
+    untitled: '无标题任务',
     createTask: '创建任务',
     editTask: '编辑任务',
     newTask: '新建任务',
