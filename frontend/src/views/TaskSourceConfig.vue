@@ -219,22 +219,25 @@
                   <span class="item-title">{{ item.title }}</span>
                   <span v-if="item.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
                 </div>
-                <div class="item-meta">
-                  <span class="item-id">#{{ item.external_id }}</span>
-                  <span class="item-status" :class="item.status.toLowerCase()">{{ item.status }}</span>
-                </div>
                 <div class="item-labels" v-if="item.labels && item.labels.length > 0">
                   <span v-for="label in item.labels" :key="label" class="label-badge">{{ label }}</span>
                 </div>
-                <a
-                  v-if="item.external_url"
-                  :href="item.external_url"
-                  target="_blank"
-                  class="external-link"
-                  @click.stop
-                >
-                  {{ $t('taskSource.viewOnGitHub') }} →
-                </a>
+                <div v-if="item.description" class="item-description">
+                  {{ item.description }}
+                </div>
+                <div class="item-meta">
+                  <span class="item-id">#{{ item.external_id }}</span>
+                  <a
+                    v-if="item.external_url"
+                    :href="item.external_url"
+                    target="_blank"
+                    class="external-link"
+                    @click.stop
+                  >
+                    {{ $t('taskSource.viewOnGitHub') }} →
+                  </a>
+                  <span class="item-status" :class="item.status.toLowerCase()">{{ item.status }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1078,7 +1081,22 @@ onMounted(loadProjects)
   gap: 10px;
   font-size: 11px;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  margin-top: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.item-meta .item-id {
+  flex-shrink: 0;
+}
+
+.item-meta .external-link {
+  flex: 1;
+}
+
+.item-meta .item-status {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .item-status {
@@ -1110,6 +1128,17 @@ onMounted(loadProjects)
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border-radius: 3px;
+}
+
+.item-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 6px;
 }
 
 .external-link {
