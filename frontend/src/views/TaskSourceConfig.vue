@@ -2,7 +2,7 @@
   <div class="task-source-config">
     <div class="header">
       <h1>{{ $t('taskSource.title') }}</h1>
-      <button class="btn btn-primary" @click="showAddForm = true">
+      <button class="btn btn-primary" @click="createNewSource">
         + {{ $t('taskSource.createSource') }}
       </button>
     </div>
@@ -93,13 +93,22 @@
             </div>
 
             <div class="form-group">
-              <label>{{ $t('taskSource.github.repo') }}</label>
+              <label>
+                {{ $t('taskSource.github.repo') }}
+                <span v-if="inheritedRepo && !allowOverride" class="inherited-badge">{{ $t('taskSource.github.inheritedFromProject') }}</span>
+              </label>
               <input
                 v-model="githubConfig.repo"
                 type="text"
-                :placeholder="$t('taskSource.github.repoHint')"
+                :placeholder="inheritedRepo && !allowOverride ? '' : $t('taskSource.github.repoHint')"
+                :readonly="inheritedRepo && !allowOverride"
+                :class="{ 'readonly': inheritedRepo && !allowOverride }"
               />
-              <span class="hint">{{ $t('taskSource.github.repoHint') }}</span>
+              <span class="hint" v-if="allowOverride || !inheritedRepo">{{ $t('taskSource.github.repoHint') }}</span>
+              <label class="checkbox-label" style="margin-top: 0.5rem;">
+                <input type="checkbox" v-model="allowOverride" />
+                {{ $t('taskSource.github.overrideDefault') }}
+              </label>
             </div>
 
             <div class="form-group">
@@ -161,6 +170,10 @@ const saving = ref(false)
 const showAddForm = ref(false)
 const editingSource = ref(null)
 
+// Inherited repo from project
+const inheritedRepo = ref('')
+const allowOverride = ref(false)
+
 // GitHub config fields
 const githubConfig = ref({
   repo: '',
@@ -210,10 +223,19 @@ const onProjectChange = async () => {
 const saveSource = async () => {
   saving.value = true
   try {
-    const data = {
-      ...form.value,
-      projectId: selectedProjectId.value
+    // Use inherited repo if override is not enabled
+    if (!allowOverride.value && inheritedRepo.value) {
+      githubConfig.value.repo = inheritedRepo.value
     }
+
+    const data = {
+      name: form.value.name,
+      type: form.value.type,
+      project_id: selectedProjectId.value,
+      config: githubConfig.value,
+      sync_interval: form.value.syncInterval
+    }
+
     if (editingSource.value) {
       await taskSourceStore.updateTaskSource(editingSource.value.id, data)
     } else {
@@ -256,6 +278,25 @@ const confirmDelete = async (source) => {
   }
 }
 
+const createNewSource = () => {
+  editingSource.value = null
+  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }), syncInterval: 60 }
+  githubConfig.value = { repo: '', token: '', state: 'open' }
+  inheritedRepo.value = ''
+  allowOverride.value = false
+
+  // Auto-fill repo from project if available
+  if (selectedProjectId.value) {
+    const project = projectStore.projectList.find(p => p.id === selectedProjectId.value)
+    if (project && (project.gitUrl || project.git_url || project.repository_url)) {
+      inheritedRepo.value = project.gitUrl || project.git_url || project.repository_url
+      githubConfig.value.repo = inheritedRepo.value
+    }
+  }
+
+  showAddForm.value = true
+}
+
 const editSource = (source) => {
   editingSource.value = source
   form.value = {
@@ -275,12 +316,23 @@ const editSource = (source) => {
   } catch (e) {
     githubConfig.value = { repo: '', token: '', state: 'open' }
   }
+
+  // For editing, show the inherited value for reference
+  if (selectedProjectId.value) {
+    const project = projectStore.projectList.find(p => p.id === selectedProjectId.value)
+    if (project && (project.gitUrl || project.git_url || project.repository_url)) {
+      inheritedRepo.value = project.gitUrl || project.git_url || project.repository_url
+    }
+  }
+
   showAddForm.value = true
 }
 
 const closeForm = () => {
   showAddForm.value = false
   editingSource.value = null
+  inheritedRepo.value = ''
+  allowOverride.value = false
   form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }), syncInterval: 60 }
   githubConfig.value = { repo: '', token: '', state: 'open' }
 }
@@ -290,129 +342,226 @@ watch(githubConfig, (newConfig) => {
   form.value.config = JSON.stringify(newConfig)
 }, { deep: true })
 
+// Watch for project changes to update inherited repo
+watch(selectedProjectId, async (newProjectId) => {
+  inheritedRepo.value = ''
+  if (newProjectId && !showAddForm.value) {
+    const project = projectStore.projectList.find(p => p.id === newProjectId)
+    if (project && (project.gitUrl || project.git_url || project.repository_url)) {
+      inheritedRepo.value = project.gitUrl || project.git_url || project.repository_url
+    }
+  }
+})
+
 onMounted(loadProjects)
 </script>
 
 <style scoped>
 .task-source-config {
-  padding: 1.5rem;
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .header h1 {
-  font-size: 1.5rem;
-  color: #2d3748;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
 }
 
 .project-selector {
-  margin-bottom: 1.5rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-primary);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .project-selector label {
-  margin-right: 0.5rem;
   font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .project-selector select {
-  padding: 0.5rem;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
   min-width: 200px;
+  font-size: 13px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.project-selector select:hover {
+  border-color: var(--accent-color);
+}
+
+.project-selector select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
 .loading, .empty-state, .select-project-prompt {
   text-align: center;
-  padding: 2rem;
-  color: #718096;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  background: var(--bg-secondary);
 }
 
 .sources-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-secondary);
 }
 
 .source-card {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+  position: relative;
+}
+
+.source-card:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .source-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .source-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .source-type-badge {
-  background: #edf2f7;
-  padding: 0.25rem 0.5rem;
+  background: var(--accent-color);
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .source-details {
-  margin-bottom: 1rem;
+  margin-bottom: 10px;
+  background: var(--bg-tertiary);
+  padding: 8px;
+  border-radius: 6px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
+  font-size: 12px;
+  margin-bottom: 4px;
+  padding: 2px 0;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
 }
 
 .detail-row .label {
-  color: #718096;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.detail-row .value {
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 .source-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .btn {
-  padding: 0.5rem 1rem;
+  padding: 6px 12px;
   border: none;
-  border-radius: 4px;
-  font-size: 0.875rem;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btn-primary {
-  background: #4299e1;
+  background: var(--accent-color);
   color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 .btn-secondary {
-  background: #edf2f7;
-  color: #4a5568;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
 }
 
 .btn-danger {
-  background: #fc8181;
-  color: white;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 .modal-overlay {
@@ -421,90 +570,222 @@ onMounted(loadProjects)
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 8px;
   width: 100%;
-  max-width: 500px;
+  max-width: 560px;
   max-height: 90vh;
   overflow: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.5rem;
+  font-size: 20px;
   cursor: pointer;
-  color: #718096;
+  color: var(--text-secondary);
+  transition: color 0.2s;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .modal-body {
-  padding: 1rem;
+  padding: 16px;
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 16px;
 }
 
 .form-group label {
-  display: block;
-  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 13px;
+  color: var(--text-primary);
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #cbd5e0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.2s;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.form-group input:hover,
+.form-group select:hover,
+.form-group textarea:hover {
+  border-color: var(--border-color);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.form-group input.readonly,
+.form-group input[readonly] {
+  background: var(--bg-secondary);
+  cursor: not-allowed;
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.form-group .hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.inherited-badge {
+  font-size: 11px;
+  color: #10b981;
+  font-weight: 500;
+  margin-left: 6px;
+  padding: 2px 8px;
+  background: rgba(16, 185, 129, 0.1);
   border-radius: 4px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 6px;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-color);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
 }
 
 .toast {
   position: fixed;
-  bottom: 1rem;
-  right: 1rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: 4px;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 16px;
+  border-radius: 6px;
   color: white;
-  font-size: 0.875rem;
+  font-size: 13px;
+  font-weight: 500;
   z-index: 2000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .toast.success {
-  background: #48bb78;
+  background: #10b981;
 }
 
 .toast.error {
-  background: #fc8181;
+  background: #ef4444;
+}
+
+/* Scrollbar styling */
+.modal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 0 8px 8px 0;
+}
+
+.modal::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.modal::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 </style>
