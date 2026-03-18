@@ -2,12 +2,22 @@
   <div
     class="requirement-card"
     :class="{
-      'is-converted': requirement.status === 'CONVERTED'
+      'is-converted': requirement.status === 'CONVERTED',
+      'is-selected': isSelected
     }"
   >
     <div class="requirement-header">
-      <span class="requirement-priority" :class="priorityClass"></span>
-      <h4 class="requirement-title">{{ requirement.title }}</h4>
+      <div class="header-left">
+        <h4 class="requirement-title">{{ requirement.title }}</h4>
+      </div>
+      <div class="header-right">
+        <span class="status-badge" :class="statusClass">
+          {{ $t(`requirement.statuses.${requirement.status}`) }}
+        </span>
+        <span class="priority-badge" :class="priorityClass">
+          {{ $t(`priority.${requirement.priority}`) }}
+        </span>
+      </div>
     </div>
 
     <div class="requirement-body">
@@ -21,25 +31,6 @@
       >
         {{ expanded ? $t('common.collapse') : $t('common.expand') }}
       </button>
-    </div>
-
-    <div class="requirement-meta">
-      <span class="meta-item">
-        <span class="meta-label">{{ $t('requirement.source') }}:</span>
-        <span class="meta-value">{{ $t(`requirement.sources.${requirement.source}`) }}</span>
-      </span>
-      <span class="meta-item">
-        <span class="meta-label">{{ $t('requirement.priority') }}:</span>
-        <span class="meta-value priority-value" :class="priorityClass">
-          {{ $t(`priority.${requirement.priority}`) }}
-        </span>
-      </span>
-    </div>
-
-    <div class="requirement-status">
-      <span class="status-badge" :class="statusClass">
-        {{ $t(`requirement.statuses.${requirement.status}`) }}
-      </span>
     </div>
 
     <div class="requirement-actions">
@@ -75,6 +66,10 @@ const props = defineProps({
   requirement: {
     type: Object,
     required: true
+  },
+  isSelected: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -106,13 +101,12 @@ const handleDelete = () => {
 
 <style scoped>
 .requirement-card {
-  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
   border-radius: 10px;
   padding: 14px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.15);
-  border-left: 4px solid #f59e0b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-left: 4px solid #6366f1;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -126,14 +120,14 @@ const handleDelete = () => {
   right: -50%;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.03) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .requirement-card:hover {
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
-  border-color: rgba(245, 158, 11, 0.3);
-  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-1px);
 }
 
 .requirement-card.is-converted {
@@ -143,35 +137,67 @@ const handleDelete = () => {
   border-color: rgba(16, 185, 129, 0.2);
 }
 
-.requirement-card.is-converted::before {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.04) 0%, transparent 70%);
+.requirement-card.is-selected {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2), 0 2px 8px rgba(99, 102, 241, 0.15);
 }
 
 .requirement-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.requirement-priority {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 6px;
+.header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.requirement-priority.priority-high {
-  background-color: #ef4444;
+.requirement-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+  line-height: 1.4;
+  text-align: left;
+  word-break: break-word;
 }
 
-.requirement-priority.priority-medium {
-  background-color: #f59e0b;
+.priority-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
-.requirement-priority.priority-low {
-  background-color: #6b7280;
+.priority-badge.priority-critical {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.priority-badge.priority-high {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+}
+
+.priority-badge.priority-medium {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.priority-badge.priority-low {
+  background: var(--el-color-info-light-9);
+  color: var(--el-color-info);
 }
 
 .requirement-title {
@@ -232,27 +258,6 @@ const handleDelete = () => {
 
 .meta-value {
   color: #374151;
-}
-
-.priority-value.priority-high {
-  color: #ef4444;
-  font-weight: 600;
-}
-
-.priority-value.priority-medium {
-  color: #f59e0b;
-  font-weight: 600;
-}
-
-.priority-value.priority-low {
-  color: #6b7280;
-}
-
-.requirement-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
 }
 
 .status-badge {

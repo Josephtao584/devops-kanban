@@ -105,14 +105,17 @@ project/
 
 | 层级 | 技术 |
 |------|------|
-| **后端框架** | FastAPI 0.115 + Python 3.12 |
+| **后端框架** | Fastify 4.x + Node.js |
 | **前端框架** | Vue 3.4 + Composition API |
 | **构建工具** | Vite 5.0 |
 | **UI 组件** | Element Plus |
 | **状态管理** | Pinia |
 | **国际化** | vue-i18n (中/英) |
-| **数据验证** | Pydantic v2 |
+| **数据验证** | Zod |
+| **WebSocket** | ws 8.x (原生) |
 | **数据存储** | JSON 文件存储 |
+
+**注意**: 后端已从 Python FastAPI 迁移到 Node.js Fastify。如需使用旧版 Python 后端，请切换到 `python-backend` 分支。
 
 ---
 
@@ -146,13 +149,16 @@ cd devops-kanban
 #### 启动后端
 
 ```bash
-cd backend
+cd backend-nodejs
 
 # 安装依赖
-pip3 install -r requirements.txt
+npm install
 
-# 启动服务
-python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# 启动服务（开发模式）
+npm run dev
+
+# 启动服务（生产模式）
+npm start
 ```
 
 #### 启动前端
@@ -270,21 +276,33 @@ devops-kanban/
 │   ├── tasks.json           # 任务数据
 │   ├── requirements.json    # 需求数据
 │   ├── roles.json           # 角色数据
-│   └── members.json         # 团队成员数据
+│   ├── members.json         # 团队成员数据
+│   ├── sessions.json        # 会话数据
+│   ├── executions.json      # 执行记录数据
+│   ├── agents.json          # AI 代理数据
+│   └── task_sources.json    # 任务源数据
 │
-├── backend/                 # Python FastAPI 后端
-│   ├── main.py              # 应用入口
-│   ├── config.py            # 配置管理
-│   ├── storage.py           # 文件存储基类
-│   ├── routes/              # API 路由
-│   │   ├── projects.py
-│   │   ├── tasks.py
-│   │   ├── requirements.py
-│   │   ├── roles.py
-│   │   └── members.py
-│   ├── repositories/        # 数据仓库
-│   ├── schemas/             # Pydantic 模型
-│   └── tests/               # 测试用例
+├── backend-nodejs/          # Node.js Fastify 后端
+│   ├── src/
+│   │   ├── main.js          # 应用入口
+│   │   ├── config/          # 配置管理
+│   │   ├── routes/          # API 路由
+│   │   │   ├── projects.js
+│   │   │   ├── tasks.js
+│   │   │   ├── sessions.js  # 含 WebSocket 端点
+│   │   │   ├── taskSources.js
+│   │   │   ├── executions.js
+│   │   │   ├── agents.js
+│   │   │   ├── requirements.js
+│   │   │   ├── roles.js
+│   │   │   └── members.js
+│   │   ├── services/        # 业务逻辑层
+│   │   ├── repositories/    # 数据访问层
+│   │   ├── middleware/      # 中间件
+│   │   ├── utils/           # 工具函数（Git Worktree）
+│   │   └── adapters/        # TaskSource 适配器
+│   ├── .env                 # 环境变量配置
+│   └── package.json
 │
 ├── frontend/                # Vue 3 前端
 │   ├── src/
@@ -292,10 +310,13 @@ devops-kanban/
 │   │   ├── components/      # 通用组件
 │   │   ├── api/             # API 模块
 │   │   ├── stores/          # Pinia 状态管理
+│   │   ├── services/        # WebSocket 等服务
+│   │   ├── composables/     # 组合式函数
 │   │   └── locales/         # 国际化文件
 │   └── vite.config.js
 │
-└── start.sh                 # 一键启动脚本
+├── start.sh                 # 一键启动脚本
+└── README.md
 ```
 
 ---
@@ -304,18 +325,21 @@ devops-kanban/
 
 ### 环境变量
 
-在 `backend/.env` 中配置：
+在 `backend-nodejs/.env` 中配置：
 
 ```env
 # 数据存储路径
 STORAGE_PATH=../data
 
 # 服务器配置
-HOST=0.0.0.0
-PORT=8000
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8000
 
 # CORS 配置
-CORS_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# 日志级别
+LOG_LEVEL=info
 ```
 
 ---

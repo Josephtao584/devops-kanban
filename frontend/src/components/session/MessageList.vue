@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChatDotRound, ChatLineRound, Document } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 
@@ -87,6 +87,7 @@ const props = defineProps({
 
 const { t } = useI18n()
 const containerRef = ref(null)
+const isUnmounted = ref(false)
 
 const getRoleLabel = (role) => {
   return role === 'user' ? t('chat.you', 'You') : t('chat.assistant', 'Assistant')
@@ -139,11 +140,17 @@ const scrollToBottom = () => {
 
 // Auto-scroll when messages change
 watch(() => props.messages.length, () => {
-  scrollToBottom()
+  if (!isUnmounted.value) {
+    scrollToBottom()
+  }
 })
 
 onMounted(() => {
   scrollToBottom()
+})
+
+onUnmounted(() => {
+  isUnmounted.value = true
 })
 
 // Expose scrollToBottom for parent components

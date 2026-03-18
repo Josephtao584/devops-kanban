@@ -139,6 +139,11 @@ export default {
     testConnection: '测试连接',
     connectionSuccess: '连接成功',
     connectionFailed: '连接失败',
+    types: {
+      GITHUB: 'GitHub',
+      GITLAB: 'GitLab',
+      CUSTOM: '自定义'
+    },
     github: {
       repo: '仓库',
       token: '访问令牌',
@@ -148,7 +153,9 @@ export default {
       tokenHint: '可选，提高 API 访问速率限制',
       stateOpen: '仅开放',
       stateClosed: '仅关闭',
-      stateAll: '全部'
+      stateAll: '全部',
+      inheritedFromProject: '继承自项目',
+      overrideDefault: '覆盖默认仓库'
     }
   },
   agent: {
@@ -335,9 +342,9 @@ export default {
     openMR: '打开MR'
   },
   view: {
-    kanban: '看板',
+    kanban: '卡片',
     list: '列表',
-    switchToKanban: '切换到看板视图',
+    switchToKanban: '切换到卡片视图',
     switchToList: '切换到列表视图',
     filterByStatus: '按状态筛选',
     noTasksFound: '没有找到任务'

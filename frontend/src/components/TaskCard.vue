@@ -121,6 +121,7 @@ const formatTime = (dateStr) => {
   margin-bottom: 8px;
   cursor: pointer;
   border-left: 3px solid #ccc;
+  background: #fff;
 }
 
 .task-card.priority-critical {

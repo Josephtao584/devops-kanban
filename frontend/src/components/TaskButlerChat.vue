@@ -120,6 +120,8 @@ const emit = defineEmits(['control-workflow', 'view-workflow'])
 const { t } = useI18n()
 
 const messages = ref([])
+const inputText = ref('')
+const messagesRef = ref(null)
 
 // Get workflow for current task
 const workflow = computed(() => {

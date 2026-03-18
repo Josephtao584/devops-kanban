@@ -18,17 +18,6 @@
           </option>
         </select>
       </div>
-      <button
-        class="btn btn-primary btn-icon"
-        @click="openTaskModal()"
-        :disabled="!selectedProjectId"
-        :title="$t('task.newTaskButton')"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-      </button>
     </header>
 
     <!-- Main Content: Kanban Area + Chat -->
@@ -103,6 +92,17 @@
               </button>
             </div>
             <div class="column-content">
+              <RequirementCard
+                v-for="req in requirements"
+                :key="req.id"
+                :requirement="req"
+                :is-selected="selectedRequirementIds.includes(req.id)"
+                @edit="handleEditRequirement"
+                @delete="deleteRequirement"
+              />
+              <div v-if="requirements.length === 0" class="empty-column">
+                <p>{{ $t('requirement.noRequirements') }}</p>
+              </div>
               <button class="add-requirement-btn" @click="openRequirementModal">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -110,16 +110,6 @@
                 </svg>
                 {{ $t('requirement.addRequirement') }}
               </button>
-              <RequirementCard
-                v-for="req in requirements"
-                :key="req.id"
-                :requirement="req"
-                @edit="handleEditRequirement"
-                @delete="deleteRequirement"
-              />
-              <div v-if="requirements.length === 0" class="empty-column">
-                <p>{{ $t('requirement.noRequirements') }}</p>
-              </div>
             </div>
           </div>
 
@@ -131,10 +121,12 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noTodoTasks')"
+            :show-add-button="true"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
+            @add-task="openTaskModal()"
           />
 
           <!-- IN_PROGRESS Column -->
@@ -189,6 +181,7 @@
           :running-task-ids="runningTasks"
           :hide-converted="hideConvertedRequirements"
           :status-filter="listStatusFilter"
+          :selected-requirement-ids="selectedRequirementIds"
           @open-requirement-modal="openRequirementModal"
           @delete-requirement="deleteRequirement"
           @edit-requirement="openRequirementModal"
@@ -197,21 +190,21 @@
           @delete-task="deleteTask"
           @update:hide-converted="hideConvertedRequirements = $event"
           @update:status-filter="listStatusFilter = $event"
+          @add-task="openTaskModal()"
         />
       </div>
 
       <!-- Chat Container -->
       <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
         <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? 'Expand Chat' : 'Collapse Chat'">
-          <svg v-if="isChatCollapsed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
+          <span class="collapse-arrow" :class="{ collapsed: isChatCollapsed }">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </span>
         </div>
 
-        <div v-if="!selectedTask" class="chat-welcome">
+        <div v-if="!selectedTask && !isChatCollapsed" class="chat-welcome">
           <div class="welcome-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -221,7 +214,7 @@
           <p>{{ $t('butler.selectTaskHint') }}</p>
         </div>
 
-        <div v-else class="chat-content">
+        <div v-if="selectedTask && !isChatCollapsed" class="chat-content">
           <div class="butler-header">
             <div class="butler-avatar">🤖</div>
             <div class="butler-info">
@@ -562,6 +555,9 @@ const selectedTask = ref(null)
 const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
+const showAutoAssignDialog = ref(false)
+const pendingRequirements = ref([])
+const selectedRequirementIds = ref([])
 const isEditing = ref(false)
 const editingTaskId = ref(null)
 const activeSession = ref(null)
@@ -794,6 +790,12 @@ const selectTask = (task) => {
 
 // Task modal
 const openTaskModal = (task = null) => {
+  // Check if a project is selected
+  if (!task && !selectedProjectId.value) {
+    ElMessage.warning('请先选择一个项目')
+    return
+  }
+
   if (task) {
     isEditing.value = true
     editingTaskId.value = task.id
@@ -822,6 +824,25 @@ const closeTaskModal = () => {
   showTaskModal.value = false
   isEditing.value = false
   editingTaskId.value = null
+}
+
+// Auto-assign dialog functions (placeholder)
+const closeAutoAssignDialog = () => {
+  showAutoAssignDialog.value = false
+  selectedRequirementIds.value = []
+}
+
+const selectAllRequirements = () => {
+  selectedRequirementIds.value = pendingRequirements.value.map(r => r.id)
+}
+
+const deselectAllRequirements = () => {
+  selectedRequirementIds.value = []
+}
+
+const confirmAutoAssign = async () => {
+  // TODO: Implement auto-assign logic
+  closeAutoAssignDialog()
 }
 
 // Save task
@@ -1154,8 +1175,8 @@ onUnmounted(() => {
 .kanban-board {
   display: flex;
   flex: 1;
-  padding: 12px;
-  gap: 12px;
+  padding: 16px;
+  gap: 16px;
   min-height: 0;
   align-content: stretch;
   overflow-x: auto;
@@ -1193,7 +1214,7 @@ onUnmounted(() => {
 }
 
 .chat-container.collapsed {
-  width: 0;
+  width: 10px;
   border-left: none;
   overflow: visible;
 }
@@ -1201,26 +1222,35 @@ onUnmounted(() => {
 .chat-toggle-btn {
   position: absolute;
   top: 50%;
-  left: -16px;
-  transform: translateX(-100%) translateY(-50%);
-  width: 32px;
-  height: 32px;
+  left: -2px;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 48px;
   background: var(--accent-color);
   border: none;
-  border-radius: 50%;
-  color: white;
+  border-radius: 0 4px 4px 0;
   cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .chat-toggle-btn:hover {
-  background: var(--accent-color-dark);
-  transform: translateY(-50%) scale(1.1);
+  width: 16px;
+}
+
+.collapse-arrow {
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.collapse-arrow.collapsed {
+  transform: rotate(180deg);
 }
 
 .chat-welcome {
@@ -1457,15 +1487,20 @@ onUnmounted(() => {
   padding: 12px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  border: 1px solid transparent;
 }
 
 .requirement-item:hover {
   background: var(--hover-bg);
+  border-color: var(--accent-color-light-3);
+  box-shadow: 0 0 0 2px var(--accent-color-light);
 }
 
 .requirement-item.is-selected {
   background: var(--accent-color-light);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color-light);
 }
 
 .requirement-item input[type="checkbox"] {
@@ -1755,7 +1790,7 @@ onUnmounted(() => {
 }
 
 .kanban-column.requirement-column {
-  border-left: 4px solid #f59e0b;
+  border-left: 1px solid var(--border-color);
 }
 
 .column-header {
@@ -1764,7 +1799,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
+  background: #eef2ff;
   border-radius: 12px 12px 0 0;
   font-weight: 600;
   font-size: 14px;
@@ -1782,8 +1817,7 @@ onUnmounted(() => {
 }
 
 .column-status.status-requirement {
-  background: #f59e0b;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  background: #6366f1;
 }
 
 .column-status.status-todo {
@@ -1826,7 +1860,7 @@ onUnmounted(() => {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 
 /* Requirement Column Actions */
@@ -1850,16 +1884,15 @@ onUnmounted(() => {
 
 .add-requirement-btn {
   width: 100%;
-  border-color: #f59e0b;
-  color: #d97706;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px dashed var(--el-border-color-light);
+  color: var(--el-text-color-secondary);
+  background: transparent;
 }
 
 .add-requirement-btn:hover {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #d97706;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
 }
 
 .requirement-actions-row {
@@ -1933,6 +1966,6 @@ onUnmounted(() => {
 
 /* Requirement Card in Kanban */
 .kanban-column .requirement-card {
-  margin-bottom: 0;
+  margin-bottom: 12px;
 }
 </style>

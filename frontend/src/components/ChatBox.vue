@@ -91,6 +91,7 @@ import { agentConfig } from '@/mock/workflowData'
 // Dev mode flag for template
 const isDev = import.meta.env.DEV
 const { t } = useI18n()
+const isUnmounted = ref(false)
 
 // Icon mapping for agent types
 const agentIconMap = {
@@ -633,8 +634,9 @@ const confirmDeleteSession = async () => {
 }
 
 const scrollToBottom = () => {
+  if (isUnmounted.value) return
   nextTick(() => {
-    if (messageListRef.value) {
+    if (messageListRef.value && typeof messageListRef.value.scrollToBottom === 'function') {
       messageListRef.value.scrollToBottom()
     }
   })
@@ -643,6 +645,7 @@ const scrollToBottom = () => {
 const setupWebSocket = async (sessionId) => {
   await connectWebSocket(sessionId, {
     onOutput: (data) => {
+      if (isUnmounted.value) return
       console.log('Received output:', data)
       if (data.type === 'chunk') {
         const role = data.stream === 'stdin' ? 'user' : 'assistant'
@@ -677,6 +680,7 @@ const setupWebSocket = async (sessionId) => {
       }
     },
     onStatus: async (data) => {
+      if (isUnmounted.value) return
       if (data.type === 'status' && session.value) {
         session.value.status = data.status
         emit('status-change', data.status)
@@ -721,6 +725,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  isUnmounted.value = true
   if (session.value) {
     disconnectWebSocket(session.value.id)
   }
@@ -749,6 +754,7 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
 
 // Watch for initialSession changes
 watch(() => props.initialSession, (newSession, oldSession) => {
+  if (isUnmounted.value) return
   if (newSession) {
     if (!oldSession || oldSession.id !== newSession.id || messages.value.length === 0) {
       initializeSession(newSession, true)
@@ -758,6 +764,7 @@ watch(() => props.initialSession, (newSession, oldSession) => {
 
 // Watch for task changes
 watch(() => props.task, async (newTask, oldTask) => {
+  if (isUnmounted.value) return
   console.log('[ChatBox] watch(props.task):', oldTask?.id, '->', newTask?.id)
   if (!newTask) return
 
@@ -782,7 +789,9 @@ watch(() => props.task, async (newTask, oldTask) => {
 
 // Auto-scroll when messages change
 watch(messages, () => {
-  scrollToBottom()
+  if (!isUnmounted.value) {
+    scrollToBottom()
+  }
 }, { deep: true })
 
 // Expose methods for parent component

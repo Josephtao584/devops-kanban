@@ -41,24 +41,24 @@
               </div>
               <div class="task-card-actions">
                 <button
-                  class="edit-btn"
+                  class="btn btn-secondary btn-sm"
                   @click.stop="handleEditTask(element)"
-                  :title="$t('common.edit')"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                   </svg>
+                  {{ $t('common.edit') }}
                 </button>
                 <button
-                  class="delete-btn"
+                  class="btn btn-danger btn-sm"
                   @click.stop="handleDeleteTask(element.id)"
-                  :title="$t('common.delete')"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                   </svg>
+                  {{ $t('common.delete') }}
                 </button>
               </div>
             </div>
@@ -68,6 +68,13 @@
       <div v-if="tasks.length === 0" class="empty-column">
         <p>{{ emptyText }}</p>
       </div>
+      <button v-if="showAddButton" class="add-task-btn" @click="emit('add-task')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        {{ $t('task.newTaskButton') }}
+      </button>
     </div>
   </div>
 </template>
@@ -105,10 +112,14 @@ const props = defineProps({
   emptyText: {
     type: String,
     default: ''
+  },
+  showAddButton: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task'])
 
 const { t } = useI18n()
 
@@ -152,12 +163,12 @@ const getPriorityClass = (priority) => {
 
 const getPriorityLabel = (priority) => {
   const labelMap = {
-    CRITICAL: 'Crit',
-    HIGH: 'High',
-    MEDIUM: 'Med',
-    LOW: 'Low'
+    CRITICAL: t('priority.CRITICAL'),
+    HIGH: t('priority.HIGH'),
+    MEDIUM: t('priority.MEDIUM'),
+    LOW: t('priority.LOW')
   }
-  return labelMap[priority] || 'Med'
+  return labelMap[priority] || t('priority.MEDIUM')
 }
 
 const handleDragEnd = (evt) => {
@@ -185,8 +196,8 @@ const taskCount = computed(() => props.tasks.length)
   flex-direction: column;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  min-width: 280px;
-  max-width: 280px;
+  min-width: 300px;
+  max-width: 300px;
   max-height: 100%;
 }
 
@@ -194,16 +205,18 @@ const taskCount = computed(() => props.tasks.length)
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px;
+  padding: 16px;
   font-weight: 600;
   border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-light);
 }
 
 .column-status {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
 }
 
 .status-todo { background: var(--el-color-info); }
@@ -214,7 +227,7 @@ const taskCount = computed(() => props.tasks.length)
 
 .column-title {
   flex: 1;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--el-text-color-primary);
 }
 
@@ -229,10 +242,10 @@ const taskCount = computed(() => props.tasks.length)
 .column-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 .empty-column {
@@ -242,24 +255,50 @@ const taskCount = computed(() => props.tasks.length)
   font-size: 13px;
 }
 
-/* Task Card Styles (inline for now, should be extracted) */
-.task-card {
-  background: var(--el-bg-color);
-  border-radius: 6px;
-  padding: 10px;
+.add-task-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px dashed var(--el-border-color-light);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  background: transparent;
   cursor: pointer;
-  border: 1px solid var(--el-border-color-light);
   transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.add-task-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* Task Card Styles */
+.task-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  border-left: 4px solid #94a3b8;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  margin-bottom: 12px;
 }
 
 .task-card:hover {
-  border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: rgba(100, 116, 139, 0.3);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.15);
+  transform: translateY(-1px);
 }
 
 .task-card.task-selected {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-9);
+  border-color: #64748b;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.2), 0 2px 8px rgba(100, 116, 139, 0.15);
 }
 
 .task-card.task-running {
@@ -280,20 +319,23 @@ const taskCount = computed(() => props.tasks.length)
 }
 
 .task-card-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--el-text-color-primary);
   flex: 1;
   min-width: 0;
   word-break: break-word;
+  line-height: 1.4;
 }
 
 .task-card-priority {
   font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
   font-weight: 500;
   flex-shrink: 0;
+  min-width: 32px;
+  text-align: center;
 }
 
 .task-card-priority.priority-critical {
@@ -325,46 +367,53 @@ const taskCount = computed(() => props.tasks.length)
 .task-card-description {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .task-card-actions {
   display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.task-card:hover .task-card-actions {
-  opacity: 1;
-}
-
-.task-card-actions button {
-  display: flex;
+.task-card-actions .btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
+  gap: 4px;
+  padding: 6px 10px;
   border: none;
-  background: transparent;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
-  color: var(--el-text-color-secondary);
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.task-card-actions button:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+.task-card-actions .btn-secondary {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #374151;
 }
 
-.task-card-actions .delete-btn:hover {
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
+.task-card-actions .btn-secondary:hover {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.task-card-actions .btn-danger {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #991b1b;
+}
+
+.task-card-actions .btn-danger:hover {
+  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
 }
 
 .ghost-card {

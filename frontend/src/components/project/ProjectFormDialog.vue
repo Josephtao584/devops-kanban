@@ -31,7 +31,7 @@
 
       <el-form-item :label="$t('project.repositoryUrl')">
         <el-input
-          v-model="form.repoUrl"
+          v-model="form.gitUrl"
           placeholder="https://github.com/user/repo.git"
           clearable
         >
@@ -92,7 +92,7 @@ const formRef = ref(null)
 const form = ref({
   name: '',
   description: '',
-  repoUrl: '',
+  gitUrl: '',
   localPath: ''
 })
 
@@ -113,7 +113,7 @@ const resetForm = () => {
   form.value = {
     name: '',
     description: '',
-    repoUrl: '',
+    gitUrl: '',
     localPath: ''
   }
 }
@@ -123,8 +123,8 @@ watch(() => props.project, (newProject) => {
     form.value = {
       name: newProject.name || '',
       description: newProject.description || '',
-      repoUrl: newProject.repoUrl || '',
-      localPath: newProject.localPath || ''
+      gitUrl: newProject.gitUrl || newProject.git_url || newProject.repoUrl || '',
+      localPath: newProject.localPath || newProject.local_path || ''
     }
   } else {
     resetForm()
@@ -134,7 +134,19 @@ watch(() => props.project, (newProject) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
-    emit('submit', form.value)
+    // Convert camelCase to snake_case for backend API
+    // Only include git_url and local_path if they have values
+    const submitData = {
+      name: form.value.name,
+      description: form.value.description
+    }
+    if (form.value.gitUrl) {
+      submitData.git_url = form.value.gitUrl
+    }
+    if (form.value.localPath) {
+      submitData.local_path = form.value.localPath
+    }
+    emit('submit', submitData)
   } catch {
     // Validation failed
   }

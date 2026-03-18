@@ -28,7 +28,7 @@
 
     <template #footer>
       <div class="card-footer">
-        <el-tag v-if="project.repoUrl" size="small" type="info" class="git-tag">
+        <el-tag v-if="project.repoUrl || project.gitUrl || project.git_url" size="small" type="info" class="git-tag">
           <el-icon><Link /></el-icon>
           <span>Git</span>
         </el-tag>

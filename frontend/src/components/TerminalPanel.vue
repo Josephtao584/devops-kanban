@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { ArrowUp, ArrowDown, Close, VideoPause } from '@element-plus/icons-vue'
 import { sendSessionInput, stopSession, getSessionOutput } from '../api/session'
 import wsService from '../services/websocket'
@@ -100,6 +100,7 @@ const isExpanded = ref(true)
 const inputText = ref('')
 const terminalRef = ref(null)
 const outputContainer = ref(null)
+const isUnmounted = ref(false)
 
 // Store outputs for each session
 const sessionOutputs = ref({})
@@ -245,7 +246,7 @@ const clearOutput = (sessionId) => {
 // Scroll to bottom
 const scrollToBottom = () => {
   nextTick(() => {
-    if (outputContainer.value) {
+    if (outputContainer.value && !isUnmounted.value) {
       outputContainer.value.scrollTop = outputContainer.value.scrollHeight
     }
   })
@@ -351,6 +352,11 @@ watch(() => props.sessions, (newSessions, oldSessions) => {
 defineExpose({
   addOutput,
   clearOutput
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  isUnmounted.value = true
 })
 </script>
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # DevOps Kanban - 一键启动脚本
-# 同时启动前端和后端服务（Python 后端）
+# 同时启动前端和后端服务（Node.js 后端）
 # 自动检测并清理端口占用的进程
 
 echo "🚀 DevOps Kanban 启动中..."
@@ -9,7 +9,7 @@ echo "🚀 DevOps Kanban 启动中..."
 # 获取脚本所在目录
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
-BACKEND_DIR="$PROJECT_ROOT/backend"
+BACKEND_DIR="$PROJECT_ROOT/backend-nodejs"
 
 # 端口配置
 FRONTEND_PORT=3000
@@ -57,8 +57,8 @@ cleanup() {
     pkill -f "vite" 2>/dev/null
 
     # 停止后端
-    pkill -f "uvicorn main:app" 2>/dev/null
-    pkill -f "python3 main.py" 2>/dev/null
+    pkill -f "node src/main.js" 2>/dev/null
+    pkill -f "nodemon" 2>/dev/null
 
     # 清理端口
     cleanup_port $FRONTEND_PORT "前端服务"
@@ -83,13 +83,6 @@ if ! command -v node &> /dev/null; then
 fi
 echo -e "${GREEN}✓ Node.js: $(node -v)${NC}"
 
-# 检查 Python
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}✗ 错误：未找到 Python3，请先安装 Python3${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Python3: $(python3 -V)${NC}"
-
 # 检查并清理端口占用
 echo ""
 echo -e "${YELLOW}检查端口占用...${NC}"
@@ -113,7 +106,7 @@ fi
 pkill -f "vite" 2>/dev/null || true
 
 # 启动前端进程
-npm run dev > /tmp/frontend.log 2>&1 &
+npm run dev > /tmp/kanban-frontend.log 2>&1 &
 FRONTEND_PID=$!
 
 # 等待前端启动
@@ -133,21 +126,21 @@ done
 
 # 启动后端
 echo ""
-echo -e "${YELLOW}[2/2] 启动后端服务 (Python)...${NC}"
+echo -e "${YELLOW}[2/2] 启动后端服务 (Node.js)...${NC}"
 cd "$BACKEND_DIR"
 
-# 检查是否安装了 uvicorn
-if ! python3 -c "import uvicorn" 2>/dev/null; then
-    echo -e "${YELLOW}安装 uvicorn...${NC}"
-    pip3 install uvicorn[standard] fastapi pydantic pydantic-settings python-multipart 2>/dev/null
+# 检查 node_modules
+if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}首次运行，安装后端依赖...${NC}"
+    npm install
 fi
 
 # 清理旧的后端进程
-pkill -f "uvicorn main:app" 2>/dev/null || true
-pkill -f "python3 main.py" 2>/dev/null || true
+pkill -f "node src/main.js" 2>/dev/null || true
+pkill -f "nodemon" 2>/dev/null || true
 
 # 启动后端进程
-python3 -m uvicorn main:app --reload --host 0.0.0.0 --port $BACKEND_PORT > /tmp/backend.log 2>&1 &
+npm run dev > /tmp/kanban-backend.log 2>&1 &
 BACKEND_PID=$!
 
 # 等待后端启动
@@ -156,12 +149,12 @@ for i in {1..30}; do
     if curl -s http://localhost:$BACKEND_PORT/api/projects > /dev/null 2>&1; then
         echo -e "${GREEN}✓ 后端服务已启动 (PID: $BACKEND_PID)${NC}"
         echo -e "   API 地址：${BLUE}http://localhost:$BACKEND_PORT${NC}"
-        echo -e "   Swagger UI: ${BLUE}http://localhost:$BACKEND_PORT/docs${NC}"
+        echo -e "   API Docs: ${BLUE}http://localhost:$BACKEND_PORT/docs${NC}"
         break
     fi
     if [ $i -eq 30 ]; then
-        echo -e "${YELLOW}⚠ 后端启动超时，请查看日志：/tmp/backend.log${NC}"
-        tail -20 /tmp/backend.log 2>/dev/null
+        echo -e "${YELLOW}⚠ 后端启动超时，请查看日志：/tmp/kanban-backend.log${NC}"
+        tail -20 /tmp/kanban-backend.log 2>/dev/null
     fi
     sleep 1
 done
@@ -173,7 +166,7 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "  前端：${BLUE}http://localhost:$FRONTEND_PORT${NC}"
 echo -e "  后端：${BLUE}http://localhost:$BACKEND_PORT${NC}"
-echo -e "  Swagger: ${BLUE}http://localhost:$BACKEND_PORT/docs${NC}"
+echo -e "  API Docs: ${BLUE}http://localhost:$BACKEND_PORT/docs${NC}"
 echo ""
 echo -e "  ${YELLOW}提示：${NC}按 Ctrl+C 停止所有服务"
 echo -e "  ${YELLOW}提示：${NC}再次运行 ./start.sh 会自动重启"

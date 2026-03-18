@@ -40,7 +40,7 @@
           v-for="req in requirements"
           :key="req.id"
           class="requirement-list-item"
-          :class="{ 'is-converted': req.status === 'CONVERTED' }"
+          :class="{ 'is-converted': req.status === 'CONVERTED', 'is-selected': selectedRequirementIds.includes(req.id) }"
         >
           <div class="requirement-list-status">
             <span class="req-status-badge" :class="getReqStatusClass(req.status)">
@@ -92,13 +92,24 @@
           {{ $t('task.title') }}
           <span class="section-count">{{ filteredTasks.length }}</span>
         </div>
-        <!-- Status Filter for List View -->
-        <div class="list-status-filter">
-          <el-checkbox-group v-model="localStatusFilter" size="small">
-            <el-checkbox-button v-for="status in allStatusOptions" :key="status" :value="status">
-              {{ $t(`status.${status}`) }}
-            </el-checkbox-button>
-          </el-checkbox-group>
+        <!-- Status Filter and Add Button on Right -->
+        <div class="list-section-right">
+          <div class="list-section-actions">
+            <button class="add-requirement-btn-list" @click="$emit('add-task')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              添加任务
+            </button>
+          </div>
+          <div class="list-status-filter">
+            <el-checkbox-group v-model="localStatusFilter" size="small">
+              <el-checkbox-button v-for="status in allStatusOptions" :key="status" :value="status">
+                {{ $t(`status.${status}`) }}
+              </el-checkbox-button>
+            </el-checkbox-group>
+          </div>
         </div>
       </div>
       <div class="task-list-container">
@@ -188,6 +199,10 @@ const props = defineProps({
   statusFilter: {
     type: Array,
     default: () => ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
+  },
+  selectedRequirementIds: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -199,7 +214,8 @@ const emit = defineEmits([
   'edit-task',
   'delete-task',
   'update:hideConverted',
-  'update:statusFilter'
+  'update:statusFilter',
+  'add-task'
 ])
 
 const { t } = useI18n()
@@ -265,12 +281,12 @@ const getPriorityClass = (priority) => {
 
 const getPriorityLabel = (priority) => {
   const labelMap = {
-    CRITICAL: 'Crit',
-    HIGH: 'High',
-    MEDIUM: 'Med',
-    LOW: 'Low'
+    CRITICAL: t('priority.CRITICAL'),
+    HIGH: t('priority.HIGH'),
+    MEDIUM: t('priority.MEDIUM'),
+    LOW: t('priority.LOW')
   }
-  return labelMap[priority] || 'Med'
+  return labelMap[priority] || t('priority.MEDIUM')
 }
 </script>
 
@@ -279,6 +295,7 @@ const getPriorityLabel = (priority) => {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  padding-bottom: 32px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -290,6 +307,7 @@ const getPriorityLabel = (priority) => {
   border-radius: 8px;
   border: 1px solid var(--el-border-color-light);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .list-requirements-section.collapsed {
@@ -304,6 +322,12 @@ const getPriorityLabel = (priority) => {
   background: var(--el-bg-color-page);
   border-bottom: 1px solid var(--el-border-color-light);
   cursor: pointer;
+}
+
+.list-section-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .list-section-title {
@@ -352,8 +376,9 @@ const getPriorityLabel = (priority) => {
 }
 
 .add-requirement-btn-list:hover {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary-light-5);
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
 }
 
 .toggle-converted-btn-list.is-hiding {
@@ -364,6 +389,7 @@ const getPriorityLabel = (priority) => {
   max-height: 400px;
   overflow-y: auto;
   padding: 8px;
+  padding-bottom: 16px;
 }
 
 .requirement-list-item {
@@ -373,12 +399,23 @@ const getPriorityLabel = (priority) => {
   padding: 10px 12px;
   border-radius: 6px;
   margin-bottom: 8px;
-  background: var(--el-bg-color-page);
+  background: #fff;
   border: 1px solid var(--el-border-color-light);
+  transition: all 0.2s;
+}
+
+.requirement-list-item:hover {
+  border-color: #a855f7;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.15);
 }
 
 .requirement-list-item.is-converted {
   opacity: 0.6;
+}
+
+.requirement-list-item.is-selected {
+  border-color: #a855f7;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
 }
 
 .requirement-list-status,
@@ -497,6 +534,7 @@ const getPriorityLabel = (priority) => {
   border-radius: 8px;
   border: 1px solid var(--el-border-color-light);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .list-status-filter {
@@ -508,6 +546,7 @@ const getPriorityLabel = (priority) => {
   max-height: 500px;
   overflow-y: auto;
   padding: 8px;
+  padding-bottom: 16px;
 }
 
 .task-list-item {
@@ -517,7 +556,7 @@ const getPriorityLabel = (priority) => {
   padding: 12px;
   border-radius: 6px;
   margin-bottom: 8px;
-  background: var(--el-bg-color-page);
+  background: #fff;
   border: 1px solid var(--el-border-color-light);
   cursor: pointer;
   transition: all 0.2s;
@@ -550,9 +589,15 @@ const getPriorityLabel = (priority) => {
   padding: 2px 6px;
   border-radius: 3px;
   font-weight: 500;
+  min-width: 32px;
+  text-align: center;
 }
 
-.priority-critical { background: var(--el-color-danger-light-9); color: var(--el-color-danger); }
+.priority-critical {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
 .priority-high { background: var(--el-color-warning-light-9); color: var(--el-color-warning); }
 .priority-medium { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
 .priority-low { background: var(--el-color-info-light-9); color: var(--el-color-info); }

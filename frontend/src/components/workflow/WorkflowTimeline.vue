@@ -182,7 +182,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, nextTick, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, nextTick, onUnmounted, onBeforeUnmount, shallowRef } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
@@ -242,6 +242,8 @@ const endNodeRef = ref(null)
 
 // Resize observer for responsive updates
 let resizeObserver = null
+let workflowWatcher = null
+let stageRefsWatcher = null
 
 // SVG style for proper coordinate system
 const svgStyle = computed(() => {
@@ -421,7 +423,7 @@ const setStageRef = (el, index) => {
 
 // Measure stage positions using DOM
 const measureStagePositions = () => {
-  if (!scrollRef.value) return
+  if (!scrollRef.value || !stageRefs.value) return
 
   const scrollRect = scrollRef.value.getBoundingClientRect()
   const positions = []
@@ -568,7 +570,7 @@ const setupResizeObserver = () => {
 }
 
 // Recalculate positions when workflow or stages change
-watch(() => props.workflow, () => {
+workflowWatcher = watch(() => props.workflow, () => {
   resetNodePositions()
   nextTick(() => {
     measureStagePositions()
@@ -576,7 +578,7 @@ watch(() => props.workflow, () => {
 }, { deep: true })
 
 // Watch stage refs changes
-watch(() => stageRefs.value.length, () => {
+stageRefsWatcher = watch(() => stageRefs.value.length, () => {
   nextTick(() => {
     measureStagePositions()
   })
@@ -588,6 +590,16 @@ onMounted(() => {
     measureStagePositions()
     setupResizeObserver()
   })
+})
+
+// Cleanup on before unmount - stop watchers to prevent callbacks during unmount
+onBeforeUnmount(() => {
+  if (workflowWatcher) {
+    workflowWatcher()
+  }
+  if (stageRefsWatcher) {
+    stageRefsWatcher()
+  }
 })
 
 // Cleanup on unmount
