@@ -130,7 +130,7 @@ export default {
   },
   taskSource: {
     title: '任务源配置',
-    createSource: '添加 GitHub 任务源',
+    createSource: '添加任务源',
     editSource: '编辑任务源',
     sourceName: '名称',
     lastSync: '上次同步',
@@ -158,6 +158,7 @@ export default {
       overrideDefault: '覆盖默认仓库'
     },
     previewTitle: '预览并导入',
+    selectSource: '选择任务源',
     selectAll: '全选',
     deselectAll: '取消全选',
     selected: '已选',
