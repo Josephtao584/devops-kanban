@@ -1,0 +1,66 @@
+[
+  {
+    "id": 1,
+    "name": "架构师 - 老王",
+    "type": "CLAUDE",
+    "role": "ARCHITECT",
+    "description": "系统架构设计专家",
+    "enabled": true,
+    "skills": [
+      "系统设计",
+      "技术选型",
+      "架构评估",
+      "微服务设计"
+    ],
+    "created_at": "2026-03-17T00:00:00",
+    "updated_at": "2026-03-17T07:28:59.857211"
+  },
+  {
+    "id": 2,
+    "name": "后端开发 - 小李",
+    "type": "CODEX",
+    "role": "BACKEND_DEV",
+    "description": "后端开发专家",
+    "enabled": true,
+    "skills": [
+      "Java",
+      "Spring Boot",
+      "RESTful API",
+      "数据库设计"
+    ],
+    "created_at": "2026-03-17T00:00:00",
+    "updated_at": "2026-03-17T00:00:00"
+  },
+  {
+    "id": 3,
+    "name": "前端开发 - 小张",
+    "type": "CURSOR",
+    "role": "FRONTEND_DEV",
+    "description": "前端开发专家",
+    "enabled": true,
+    "skills": [
+      "Vue.js",
+      "React",
+      "TypeScript",
+      "CSS/SCSS"
+    ],
+    "created_at": "2026-03-17T00:00:00",
+    "updated_at": "2026-03-17T00:00:00"
+  },
+  {
+    "id": 4,
+    "name": "测试工程师 - 小赵",
+    "type": "CUSTOM",
+    "role": "QA_ENGINEER",
+    "description": "测试工程师",
+    "enabled": true,
+    "skills": [
+      "单元测试",
+      "集成测试",
+      "自动化测试",
+      "性能测试"
+    ],
+    "created_at": "2026-03-17T00:00:00",
+    "updated_at": "2026-03-17T00:00:00"
+  }
+]
