@@ -18,6 +18,16 @@
             </svg>
             {{ $t('requirement.addRequirement') }}
           </button>
+          <button class="sync-requirements-btn-list" @click="$emit('sync-requirements')" :disabled="syncing">
+            <svg v-if="!syncing" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+            </svg>
+            <svg v-else class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+              <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+            </svg>
+            {{ syncing ? $t('taskSource.syncing') : $t('requirement.syncAllRequirements') }}
+          </button>
           <!-- Status filter like task filter -->
           <el-checkbox-group
             :model-value="requirementStatusFilter"
@@ -71,7 +81,47 @@
               </div>
               <div class="requirement-list-content">
                 <div class="requirement-list-title">{{ req.title }}</div>
-                <div v-if="req.description" class="requirement-list-desc">{{ req.description }}</div>
+                <div v-if="req.source" class="requirement-source">
+                  <span class="source-badge">{{ getSourceLabel(req.source) }}</span>
+                </div>
+                <div v-if="req.labels && req.labels.length > 0" class="requirement-labels">
+                  <el-tag
+                    v-for="label in req.labels"
+                    :key="label"
+                    size="small"
+                    type="info"
+                    class="requirement-label"
+                  >
+                    {{ label }}
+                  </el-tag>
+                </div>
+                <div v-if="req.description" class="requirement-list-desc">
+                  <span class="desc-label">描述:</span> {{ req.description }}
+                </div>
+                <div v-if="isExternalRequirement(req)" class="requirement-meta">
+                  <a
+                    v-if="req.external_url"
+                    :href="req.external_url"
+                    target="_blank"
+                    class="external-link"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    {{ $t('requirement.viewOriginal') }}
+                  </a>
+                  <span v-if="req.created_at" class="meta-time">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    {{ formatDate(req.created_at) }}
+                  </span>
+                </div>
               </div>
               <div class="requirement-list-actions">
                 <button
@@ -243,11 +293,16 @@ const props = defineProps({
   selectedRequirementIds: {
     type: Array,
     default: () => []
+  },
+  syncing: {
+    type: Boolean,
+    default: false
   }
 })
 
 const emit = defineEmits([
   'open-requirement-modal',
+  'sync-requirements',
   'delete-requirement',
   'edit-requirement',
   'select-task',
@@ -366,6 +421,37 @@ const getPriorityLabel = (priority) => {
   }
   return labelMap[priority] || t('priority.MEDIUM')
 }
+
+// Helper function to check if requirement is from external source
+const isExternalRequirement = (requirement) => {
+  return !!requirement.source
+}
+
+// Helper function to get source type label
+const getSourceLabel = (source) => {
+  const labelMap = {
+    GITHUB: 'GitHub',
+    JIRA: 'Jira',
+    GITLAB: 'GitLab',
+    LINEAR: 'Linear'
+  }
+  return labelMap[source] || source
+}
+
+// Helper function to format date
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  } catch {
+    return dateStr
+  }
+}
 </script>
 
 <style scoped>
@@ -439,6 +525,7 @@ const getPriorityLabel = (priority) => {
 }
 
 .add-requirement-btn-list,
+.sync-requirements-btn-list,
 .toggle-converted-btn-list {
   display: flex;
   align-items: center;
@@ -453,10 +540,16 @@ const getPriorityLabel = (priority) => {
   transition: all 0.2s;
 }
 
-.add-requirement-btn-list:hover {
+.add-requirement-btn-list:hover,
+.sync-requirements-btn-list:hover:not(:disabled) {
   border-color: #3b82f6;
   color: #3b82f6;
   background: #eff6ff;
+}
+
+.sync-requirements-btn-list:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .toggle-converted-btn-list.is-hiding {
@@ -608,9 +701,66 @@ const getPriorityLabel = (priority) => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.desc-label {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.requirement-source {
+  margin-top: 4px;
+}
+
+.source-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+.requirement-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.requirement-label {
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+.requirement-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--el-color-primary);
+  text-decoration: none;
+}
+
+.external-link:hover {
+  text-decoration: underline;
+}
+
+.meta-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .requirement-list-actions {
