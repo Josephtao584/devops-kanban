@@ -1,7 +1,7 @@
 <template>
   <div ref="containerRef" class="message-list-container">
-    <!-- Empty state - No session -->
-    <div v-if="!hasSession" class="chat-empty">
+    <!-- Empty state - No session and no workflow node -->
+    <div v-if="!hasSession && !hasWorkflowNode" class="chat-empty">
       <div class="empty-icon">
         <el-icon :size="48"><ChatDotRound /></el-icon>
       </div>
@@ -9,8 +9,17 @@
       <p class="empty-hint">{{ emptyHint }}</p>
     </div>
 
+    <!-- Empty state - Workflow node with no messages -->
+    <div v-else-if="hasWorkflowNode && messages.length === 0" class="chat-empty workflow-empty">
+      <div class="empty-icon">
+        <el-icon :size="48"><Document /></el-icon>
+      </div>
+      <p class="empty-text">{{ $t('chat.noMessages', 'No conversation yet') }}</p>
+      <p class="empty-hint">{{ $t('chat.noMessagesHint', 'This node has no recorded conversation') }}</p>
+    </div>
+
     <!-- Empty state - Ready to start -->
-    <div v-else-if="messages.length === 0" class="chat-empty">
+    <div v-else-if="!hasWorkflowNode && messages.length === 0" class="chat-empty">
       <div class="empty-icon">
         <el-icon :size="48"><ChatLineRound /></el-icon>
       </div>
@@ -30,15 +39,15 @@
           <span class="message-role">{{ getRoleLabel(msg.role) }}</span>
           <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
         </div>
-        <div class="message-content">{{ msg.content }}</div>
+        <div class="message-content" v-html="formatContent(msg.content)"></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted } from 'vue'
-import { ChatDotRound, ChatLineRound } from '@element-plus/icons-vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ChatDotRound, ChatLineRound, Document } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -47,6 +56,10 @@ const props = defineProps({
     default: () => []
   },
   hasSession: {
+    type: Boolean,
+    default: false
+  },
+  hasWorkflowNode: {
     type: Boolean,
     default: false
   },
@@ -74,6 +87,7 @@ const props = defineProps({
 
 const { t } = useI18n()
 const containerRef = ref(null)
+const isUnmounted = ref(false)
 
 const getRoleLabel = (role) => {
   return role === 'user' ? t('chat.you', 'You') : t('chat.assistant', 'Assistant')
@@ -83,6 +97,37 @@ const formatTime = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+// Format message content with basic markdown support
+const formatContent = (content) => {
+  if (!content) return ''
+
+  // Escape HTML
+  let formatted = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Bold text **text** or __text__
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  formatted = formatted.replace(/__(.*?)__/g, '<strong>$1</strong>')
+
+  // Inline code `code`
+  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>')
+
+  // Code blocks ```code```
+  formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+
+  // Line breaks
+  formatted = formatted.replace(/\n/g, '<br>')
+
+  // Checkmarks
+  formatted = formatted.replace(/✅/g, '<span class="check-icon">✅</span>')
+  formatted = formatted.replace(/🔄/g, '<span class="loading-icon">🔄</span>')
+  formatted = formatted.replace(/⏳/g, '<span class="pending-icon">⏳</span>')
+
+  return formatted
 }
 
 const scrollToBottom = () => {
@@ -95,11 +140,17 @@ const scrollToBottom = () => {
 
 // Auto-scroll when messages change
 watch(() => props.messages.length, () => {
-  scrollToBottom()
+  if (!isUnmounted.value) {
+    scrollToBottom()
+  }
 })
 
 onMounted(() => {
   scrollToBottom()
+})
+
+onUnmounted(() => {
+  isUnmounted.value = true
 })
 
 // Expose scrollToBottom for parent components
@@ -191,8 +242,58 @@ defineExpose({ scrollToBottom })
 
 .message-content {
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-content :deep(code) {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Fira Code', monospace;
+  font-size: 13px;
+}
+
+.message-content :deep(pre) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.message-content :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message-content :deep(strong) {
+  font-weight: 600;
+}
+
+.message-content :deep(.check-icon) {
+  color: #10b981;
+}
+
+.message-content :deep(.loading-icon) {
+  color: #3b82f6;
+  animation: spin 1s linear infinite;
+}
+
+.message-content :deep(.pending-icon) {
+  color: #6b7280;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Workflow empty state */
+.workflow-empty .empty-icon {
+  color: var(--accent-color, #6366f1);
 }
 </style>
