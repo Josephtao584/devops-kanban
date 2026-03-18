@@ -182,7 +182,7 @@
         <KanbanListView
           v-else
           :requirements="requirements"
-          :tasks="taskStore.tasks"
+          :tasks="filteredTasksForList"
           :selected-task="selectedTask"
           :running-task-ids="runningTasks"
           :requirement-status-filter="requirementStatusFilter"
@@ -699,11 +699,12 @@ watch(
   { immediate: true, deep: true }
 )
 
-// Sync requirements for draggable
+// Sync requirements for draggable (filtered by requirementStatusFilter)
 watch(
-  () => requirements.value,
-  (newRequirements) => {
-    localRequirements.value = [...newRequirements]
+  () => ({ requirements: requirements.value, statusFilter: requirementStatusFilter.value }),
+  ({ requirements: newRequirements, statusFilter }) => {
+    const filtered = newRequirements.filter(req => statusFilter.includes(req.status))
+    localRequirements.value = [...filtered]
   },
   { immediate: true, deep: true }
 )
