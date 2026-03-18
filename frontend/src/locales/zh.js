@@ -133,7 +133,6 @@ export default {
     createSource: '添加 GitHub 任务源',
     editSource: '编辑任务源',
     sourceName: '名称',
-    syncInterval: '同步间隔 (分钟)',
     lastSync: '上次同步',
     syncNow: '立即同步',
     syncing: '同步中...',

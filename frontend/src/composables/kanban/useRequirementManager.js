@@ -14,8 +14,8 @@ export function useRequirementManager({
   const editingRequirement = ref(null)
 
   // Requirement status filter (like task status filter)
-  // Default: show only CONVERTED (已转换)
-  const requirementStatusFilter = ref(['CONVERTED'])
+  // Default: show only NEW (待转换)
+  const requirementStatusFilter = ref(['NEW'])
 
   // Watch for project changes and fetch requirements
   watch(
