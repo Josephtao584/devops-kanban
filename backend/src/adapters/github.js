@@ -119,7 +119,13 @@ class GitHubAdapter extends TaskSourceAdapter {
    * @returns {Promise<Array>} Issues
    */
   async fetch() {
+    if (!this.repo) {
+      throw new Error('GitHub repository not configured. Please set the repo in task source settings.');
+    }
     const issues = await this._request(`/repos/${this.repo}/issues`);
+    if (!Array.isArray(issues)) {
+      throw new Error(`Unexpected GitHub API response: expected array, got ${typeof issues}`);
+    }
     return issues.map((issue) => this.convertToTask(issue));
   }
 
@@ -149,7 +155,7 @@ class GitHubAdapter extends TaskSourceAdapter {
       external_id: issue.id.toString(),
       external_url: issue.html_url,
       status: issue.state === 'open' ? 'TODO' : 'DONE',
-      labels: issue.labels.map((label) => label.name),
+      labels: (issue.labels || []).map((label) => label.name),
       created_at: issue.created_at,
       updated_at: issue.updated_at,
     };

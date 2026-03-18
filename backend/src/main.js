@@ -18,7 +18,6 @@ const sessionRoutes = require('./routes/sessions');
 const taskSourceRoutes = require('./routes/taskSources');
 const executionRoutes = require('./routes/executions');
 const agentRoutes = require('./routes/agents');
-const requirementRoutes = require('./routes/requirements');
 const roleRoutes = require('./routes/roles');
 const memberRoutes = require('./routes/members');
 
@@ -57,7 +56,6 @@ fastify.get('/', async (request, reply) => {
         taskSources: '/api/task-sources',
         executions: '/api/executions',
         agents: '/api/agents',
-        requirements: '/api/requirements',
         roles: '/api/roles',
         members: '/api/members',
         websocket: '/ws',
@@ -80,7 +78,6 @@ fastify.register(sessionRoutes, { prefix: '/api' });
 fastify.register(taskSourceRoutes, { prefix: '/api/task-sources' });
 fastify.register(executionRoutes, { prefix: '/api/executions' });
 fastify.register(agentRoutes, { prefix: '/api/agents' });
-fastify.register(requirementRoutes, { prefix: '/api/requirements' });
 fastify.register(roleRoutes, { prefix: '/api/roles' });
 fastify.register(memberRoutes, { prefix: '/api/members' });
 

@@ -1,0 +1,260 @@
+/**
+ * Global component styles
+ * Reusable CSS classes shared across multiple components
+ */
+
+/* ==================== Worktree Button ==================== */
+.worktree-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.worktree-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.worktree-btn .el-icon {
+  font-size: 14px;
+}
+
+.worktree-btn.worktree-none {
+  color: var(--el-text-color-secondary);
+}
+
+.worktree-btn.worktree-none:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.worktree-btn.worktree-created {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.worktree-btn.worktree-created:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.worktree-btn.worktree-error {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+/* ==================== Status Badge ==================== */
+.status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.status-todo {
+  background: var(--el-color-info-light-9);
+  color: var(--el-color-info);
+}
+
+.status-in-progress {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+}
+
+.status-done {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.status-blocked {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.status-requirement {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.status-unknown {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-placeholder);
+}
+
+/* ==================== Status Colors for Headers ==================== */
+.status-todo-dot { background: var(--el-color-info); box-shadow: 0 0 6px currentColor; }
+.status-in-progress-dot { background: var(--el-color-warning); box-shadow: 0 0 6px currentColor; }
+.status-done-dot { background: var(--el-color-success); box-shadow: 0 0 6px currentColor; }
+.status-blocked-dot { background: var(--el-color-danger); box-shadow: 0 0 6px currentColor; }
+.status-requirement-dot { background: var(--el-color-primary); box-shadow: 0 0 6px currentColor; }
+
+/* ==================== Task Card ==================== */
+.task-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  border: 1px solid rgba(100, 116, 139, 0.15);
+  border-left: 4px solid #94a3b8;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  margin-bottom: 12px;
+}
+
+.task-card[data-status="TODO"] {
+  border-left-color: #6b7280;
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+}
+
+.task-card[data-status="IN_PROGRESS"] {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.task-card[data-status="DONE"] {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%);
+}
+
+.task-card[data-status="BLOCKED"] {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+}
+
+.task-card:hover {
+  border-color: rgba(100, 116, 139, 0.3);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.15);
+  transform: translateY(-1px);
+}
+
+.task-card.task-selected {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2), 0 2px 8px rgba(100, 116, 139, 0.15);
+}
+
+.task-card.task-running {
+  border-left: 3px solid var(--el-color-primary);
+}
+
+/* ==================== Task List Item ==================== */
+.task-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: #fff;
+  border: 1px solid var(--el-border-color-light);
+  border-left: 4px solid #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.task-list-item[data-status="TODO"] {
+  border-left-color: #6b7280;
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+}
+
+.task-list-item[data-status="IN_PROGRESS"] {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.task-list-item[data-status="DONE"] {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%);
+}
+
+.task-list-item[data-status="BLOCKED"] {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+}
+
+.task-list-item:hover {
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.task-list-item.task-selected {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+}
+
+.task-list-item.task-running {
+  border-left: 3px solid var(--el-color-primary);
+}
+
+/* ==================== Drag and Drop ==================== */
+.ghost-card {
+  opacity: 0.5;
+  background: var(--el-color-primary-light-9);
+}
+
+.drag-card {
+  transform: rotate(2deg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.task-ghost {
+  opacity: 0.5;
+  background: #f5f5f5;
+  border: 1px dashed var(--el-border-color);
+}
+
+.task-drag {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+}
+
+/* ==================== Common Button Styles ==================== */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+}
+
+.action-btn:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.action-btn.delete-btn:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+/* ==================== Loading Animation ==================== */
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.is-loading {
+  animation: spin 1s linear infinite;
+}

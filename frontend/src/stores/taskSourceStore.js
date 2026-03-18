@@ -1,28 +1,41 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useCrudStore } from '../composables/useCrudStore'
 import * as taskSourceApi from '../api/taskSource'
 
 export const useTaskSourceStore = defineStore('taskSource', () => {
-  // State
-  const taskSources = ref([])
-  const currentTaskSource = ref(null)
-  const loading = ref(false)
-  const syncing = ref(null) // ID of currently syncing source
-  const testing = ref(null) // ID of currently testing connection
+  // Use useCrudStore for basic CRUD operations
+  const crud = useCrudStore({
+    api: taskSourceApi,
+    apiMethods: {
+      getAll: 'getTaskSources',
+      getById: 'getTaskSource',
+      create: 'createTaskSource',
+      update: 'updateTaskSource',
+      delete: 'deleteTaskSource'
+    }
+    // Note: fetchAllParams not used - fetchTaskSources handles projectId directly
+  })
+
+  // TaskSource-specific state
+  const syncing = ref(null)
+  const testing = ref(null)
   const error = ref(null)
+
   // Preview state
   const previewItems = ref([])
   const showPreviewDialog = ref(false)
   const previewLoading = ref(false)
+  const currentProjectId = ref(null)
 
   // Getters
   const enabledSources = computed(() =>
-    taskSources.value.filter(s => s.enabled)
+    crud.items.value.filter(s => s.enabled)
   )
 
   const sourcesByType = computed(() => {
     const grouped = {}
-    taskSources.value.forEach(source => {
+    crud.items.value.forEach(source => {
       const type = source.type || 'OTHER'
       if (!grouped[type]) {
         grouped[type] = []
@@ -33,101 +46,53 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   })
 
   const githubSources = computed(() =>
-    taskSources.value.filter(s => s.type === 'GITHUB')
+    crud.items.value.filter(s => s.type === 'GITHUB')
   )
 
-  // Actions
+  // TaskSource-specific actions
+
+  /**
+   * Fetch task sources for a project
+   * @param {String} projectId - Project ID
+   */
   async function fetchTaskSources(projectId) {
-    loading.value = true
+    currentProjectId.value = projectId
+    // Call getTaskSources directly with projectId
+    crud.loading.value = true
     error.value = null
     try {
       const response = await taskSourceApi.getTaskSources(projectId)
-      if (response.success) {
-        taskSources.value = response.data || []
-        return taskSources.value
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function fetchTaskSource(id) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskSourceApi.getTaskSource(id)
-      if (response.success) {
-        currentTaskSource.value = response.data
-        return response.data
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function createTaskSource(data) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskSourceApi.createTaskSource(data)
-      if (response.success) {
-        taskSources.value.push(response.data)
-        return response.data
+      if (response && response.success) {
+        crud.items.value = response.data || []
+        return response
       } else {
-        error.value = response.message
-        throw new Error(response.message)
+        error.value = response?.message || 'Failed to fetch task sources'
+        throw new Error(error.value)
       }
     } catch (e) {
       error.value = e.message
       throw e
     } finally {
-      loading.value = false
+      crud.loading.value = false
     }
   }
 
-  async function updateTaskSource(id, data) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskSourceApi.updateTaskSource(id, data)
-      if (response.success) {
-        const index = taskSources.value.findIndex(s => s.id === id)
-        if (index !== -1) {
-          taskSources.value[index] = response.data
-        }
-        if (currentTaskSource.value?.id === id) {
-          currentTaskSource.value = response.data
-        }
-        return response.data
-      } else {
-        error.value = response.message
-        throw new Error(response.message)
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
+  /**
+   * Sync a task source
+   * @param {String} id - Task source ID
+   * @returns {Boolean} True if sync successful
+   */
   async function syncTaskSource(id) {
     syncing.value = id
     error.value = null
     try {
       const response = await taskSourceApi.syncTaskSource(id)
-      if (response.success) {
+      if (response && response.success) {
         // Refresh the source to get updated lastSyncAt
-        await fetchTaskSource(id)
+        await crud.fetchById(id)
         return true
       } else {
-        error.value = response.message
+        error.value = response?.message || 'Failed to sync task source'
         return false
       }
     } catch (e) {
@@ -138,18 +103,22 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
+  /**
+   * Preview sync to get items to import
+   * @param {String} sourceId - Task source ID
+   * @returns {Array} Preview items
+   */
   async function previewSync(sourceId) {
     previewLoading.value = true
     error.value = null
     try {
       const response = await taskSourceApi.previewSync(sourceId)
-      if (response.success) {
+      if (response && response.success) {
         previewItems.value = response.data || []
-        showPreviewDialog.value = true
         return previewItems.value
       } else {
-        error.value = response.message
-        throw new Error(response.message)
+        error.value = response?.message || 'Failed to preview sync'
+        throw new Error(error.value)
       }
     } catch (e) {
       error.value = e.message
@@ -159,46 +128,60 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
+  /**
+   * Import selected issues from preview
+   * @param {String} sourceId - Task source ID
+   * @param {Array} selectedItems - Selected items to import
+   * @param {String} projectId - Project ID
+   * @returns {Object} Import result
+   */
   async function importSelectedIssues(sourceId, selectedItems, projectId) {
-    loading.value = true
+    crud.loading.value = true
     error.value = null
     try {
       const response = await taskSourceApi.importIssues(sourceId, {
         items: selectedItems,
         project_id: projectId
       })
-      if (response.success) {
-        showPreviewDialog.value = false
+      if (response && response.success) {
         previewItems.value = []
         // Refresh the source to get updated lastSyncAt
-        await fetchTaskSource(sourceId)
+        await crud.fetchById(sourceId)
         return response.data
       } else {
-        error.value = response.message
-        throw new Error(response.message)
+        error.value = response?.message || 'Failed to import issues'
+        throw new Error(error.value)
       }
     } catch (e) {
       error.value = e.message
       throw e
     } finally {
-      loading.value = false
+      crud.loading.value = false
     }
   }
 
+  /**
+   * Close preview dialog
+   */
   function closePreviewDialog() {
     showPreviewDialog.value = false
     previewItems.value = []
   }
 
+  /**
+   * Test task source connection
+   * @param {String} id - Task source ID
+   * @returns {Boolean|Object} Connection test result
+   */
   async function testConnection(id) {
     testing.value = id
     error.value = null
     try {
       const response = await taskSourceApi.testTaskSourceConnection(id)
-      if (response.success) {
+      if (response && response.success) {
         return response.data || true
       } else {
-        error.value = response.message
+        error.value = response?.message || 'Connection test failed'
         return false
       }
     } catch (e) {
@@ -209,65 +192,60 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
-  async function deleteTaskSource(id) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await taskSourceApi.deleteTaskSource(id)
-      if (response.success) {
-        taskSources.value = taskSources.value.filter(s => s.id !== id)
-        if (currentTaskSource.value?.id === id) {
-          currentTaskSource.value = null
-        }
-      }
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
+  /**
+   * Set current task source
+   * @param {Object} source - Task source object
+   */
   function setCurrentTaskSource(source) {
-    currentTaskSource.value = source
+    crud.setCurrentItem(source)
   }
 
+  /**
+   * Clear task sources
+   */
   function clearTaskSources() {
-    taskSources.value = []
-    currentTaskSource.value = null
+    crud.clearItems()
+    currentProjectId.value = null
   }
 
+  /**
+   * Clear error
+   */
   function clearError() {
     error.value = null
   }
 
   return {
-    // State
-    taskSources,
-    currentTaskSource,
-    loading,
+    // State from crud
+    taskSources: crud.items,
+    currentTaskSource: crud.currentItem,
+    loading: crud.loading,
+    error,
+    // TaskSource-specific state
     syncing,
     testing,
-    error,
     // Preview state
     previewItems,
     showPreviewDialog,
     previewLoading,
+    currentProjectId,
     // Getters
     enabledSources,
     sourcesByType,
     githubSources,
-    // Actions
+    // Actions from crud
     fetchTaskSources,
-    fetchTaskSource,
-    createTaskSource,
-    updateTaskSource,
+    fetchTaskSource: crud.fetchById,
+    createTaskSource: crud.create,
+    updateTaskSource: crud.update,
+    deleteTaskSource: crud.deleteItem,
+    // TaskSource-specific actions
     syncTaskSource,
     previewSync,
     importSelectedIssues,
     closePreviewDialog,
     testConnection,
-    deleteTaskSource,
+    // Helpers
     setCurrentTaskSource,
     clearTaskSources,
     clearError

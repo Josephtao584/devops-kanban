@@ -11,6 +11,9 @@ import router from './router'
 import i18n from './locales'
 import api from './api/index.js'
 
+// Import global component styles
+import './assets/styles/components.css'
+
 // Setup mock if enabled
 if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
   const { setupMock } = await import('./mock/index.js')
