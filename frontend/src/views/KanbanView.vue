@@ -437,6 +437,7 @@
                 <span class="preview-item-title">
                   #{{ issue.number }} {{ issue.title }}
                   <span v-if="issue.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
+                  <span v-if="issue.state" class="issue-state" :class="issue.state">{{ issue.state }}</span>
                 </span>
                 <span class="preview-item-labels" v-if="issue.labels && issue.labels.length > 0">
                   <span
@@ -2370,14 +2371,14 @@ onUnmounted(() => {
 }
 
 .preview-item-title {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .imported-badge {
@@ -2387,6 +2388,24 @@ onUnmounted(() => {
   background: var(--el-color-success-light-9);
   color: var(--el-color-success);
   font-weight: 500;
+}
+
+.issue-state {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.issue-state.open {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.issue-state.closed {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 .preview-item-meta {
