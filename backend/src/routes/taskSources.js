@@ -123,6 +123,56 @@ async function taskSourceRoutes(fastify) {
     }
   });
 
+  // Preview sync - get issues without creating requirements
+  fastify.post('/:id/sync/preview', async (request, reply) => {
+    try {
+      const sourceId = parseInt(request.params.id, 10);
+      const source = await service.getById(sourceId);
+      if (!source) {
+        reply.code(404);
+        return errorResponse('Task source not found');
+      }
+
+      const issues = await service.previewSync(sourceId);
+      return successResponse(issues);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500);
+      return errorResponse('Failed to preview sync: ' + error.message);
+    }
+  });
+
+  // Import selected issues as requirements
+  fastify.post('/:id/sync/import', async (request, reply) => {
+    try {
+      const sourceId = parseInt(request.params.id, 10);
+      const { items, project_id } = request.body;
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        reply.code(400);
+        return errorResponse('items array is required');
+      }
+
+      if (!project_id) {
+        reply.code(400);
+        return errorResponse('project_id is required');
+      }
+
+      const source = await service.getById(sourceId);
+      if (!source) {
+        reply.code(404);
+        return errorResponse('Task source not found');
+      }
+
+      const result = await service.importIssues(sourceId, items, project_id);
+      return successResponse(result, 'Import completed');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500);
+      return errorResponse('Failed to import: ' + error.message);
+    }
+  });
+
   // Test task source connection
   fastify.get('/:id/test', async (request, reply) => {
     try {

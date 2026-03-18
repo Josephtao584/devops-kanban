@@ -10,7 +10,6 @@ class TaskSourceService {
   constructor() {
     this.taskSourceRepo = new TaskSourceRepository();
     this.projectRepo = new ProjectRepository();
-    this.requirementRepo = new BaseRepository('requirements.json');
   }
 
   /**
@@ -101,7 +100,7 @@ class TaskSourceService {
   }
 
   /**
-   * Preview issues from task source (without creating requirements)
+   * Preview issues from task source (without creating tasks)
    * @param {number} sourceId - Source ID
    * @returns {Promise<Array>} Issues list
    */
@@ -114,12 +113,13 @@ class TaskSourceService {
     const adapter = this.getAdapter(source);
     const issues = await adapter.fetch();
 
-    // Check which issues are already imported
-    const allRequirements = await this.requirementRepo.findAll();
+    // Check which issues are already imported (using task repository)
+    const taskRepo = new BaseRepository('tasks.json');
+    const allTasks = await taskRepo.findAll();
     const importedExternalIds = new Set(
-      allRequirements
-        .filter((req) => req.external_id)
-        .map((req) => req.external_id)
+      allTasks
+        .filter((task) => task.external_id)
+        .map((task) => task.external_id)
     );
 
     // Mark each issue with import status
@@ -130,7 +130,7 @@ class TaskSourceService {
   }
 
   /**
-   * Import selected issues as requirements
+   * Import selected issues as tasks
    * @param {number} sourceId - Source ID
    * @param {Array} selectedItems - Selected issues to import
    * @param {number} projectId - Project ID
@@ -148,28 +148,34 @@ class TaskSourceService {
       throw new Error('Project not found');
     }
 
+    // Use task repository instead of requirement repository
+    const taskRepo = new BaseRepository('tasks.json');
+
     let created = 0;
     let skipped = 0;
 
     for (const item of selectedItems) {
-      // Check if already imported
-      const existing = await this.requirementRepo.findByExternalId(item.external_id);
+      // Check if already imported (by external_id)
+      const allTasks = await taskRepo.findAll();
+      const existing = allTasks.find(t => t.external_id === item.external_id);
       if (existing) {
         skipped++;
         continue;
       }
 
-      // Create requirement
-      await this.requirementRepo.create({
+      // Create task
+      await taskRepo.create({
         project_id: projectId,
         title: item.title,
         description: item.description,
-        status: item.status || 'PENDING',
+        status: 'TODO',
         priority: 'MEDIUM',
         external_id: item.external_id,
         external_url: item.external_url,
         source: source.type,
         labels: item.labels || [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
       created++;
     }

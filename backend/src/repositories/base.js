@@ -157,6 +157,16 @@ class BaseRepository {
     const data = await this._loadAll();
     return data.length;
   }
+
+  /**
+   * Find entity by external ID
+   * @param {string} externalId - External ID
+   * @returns {Promise<object|null>} Entity or null
+   */
+  async findByExternalId(externalId) {
+    const data = await this._loadAll();
+    return data.find((item) => item.external_id === externalId) || null;
+  }
 }
 
 module.exports = { BaseRepository };

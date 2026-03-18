@@ -56,81 +56,8 @@
           </div>
         </div>
 
-        <!-- Workflow Timeline -->
-        <WorkflowTimeline
-          v-if="currentWorkflow && viewMode === 'kanban'"
-          :workflow="currentWorkflow"
-          :selected-node-id="selectedNodeId"
-          :default-collapsed="true"
-          @select-node="onNodeSelect"
-          @view-details="onNodeViewDetails"
-          @start-workflow="onStartWorkflow"
-        />
-
         <!-- Kanban Board -->
         <div v-if="viewMode === 'kanban'" class="kanban-board" ref="kanbanBoardRef">
-          <!-- Requirements Column -->
-          <div class="kanban-column requirement-column" data-status="REQUIREMENTS">
-            <div class="column-header">
-              <span class="column-status status-requirement"></span>
-              <span class="column-title">{{ $t('requirement.title') }}</span>
-              <button class="sync-requirements-btn-header" @click="openSyncDialog" :disabled="syncing" :title="$t('requirement.syncAllRequirements')">
-                <svg v-if="!syncing" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
-                </svg>
-                <svg v-else class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-                </svg>
-              </button>
-              <span class="column-count">{{ requirements.length }}</span>
-              <!-- Status filter like task filter -->
-              <div class="status-filter-group">
-                <el-checkbox-group v-model="requirementStatusFilter" size="small">
-                  <el-checkbox-button value="NEW">
-                    {{ $t('requirement.statuses.NEW') }}
-                  </el-checkbox-button>
-                  <el-checkbox-button value="CONVERTED">
-                    {{ $t('requirement.statuses.CONVERTED') }}
-                  </el-checkbox-button>
-                </el-checkbox-group>
-              </div>
-            </div>
-            <div class="column-content">
-              <draggable
-                :list="localRequirements"
-                group="requirements"
-                :animation="200"
-                ghost-class="ghost-card"
-                drag-class="drag-card"
-                item-key="id"
-                @end="onRequirementDragEnd"
-              >
-                <template #item="{ element }">
-                  <RequirementCard
-                    :requirement="element"
-                    :is-selected="selectedRequirementIds.includes(element.id)"
-                    @edit="handleEditRequirement"
-                    @delete="deleteRequirement"
-                  />
-                </template>
-              </draggable>
-              <div v-if="localRequirements.length === 0" class="empty-column">
-                <p>{{ $t('requirement.noRequirements') }}</p>
-              </div>
-              <!-- Add requirement button at bottom -->
-              <div class="requirement-actions-row-bottom">
-                <button class="add-requirement-btn" @click="openRequirementModal">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  {{ $t('requirement.addRequirement') }}
-                </button>
-              </div>
-            </div>
-          </div>
-
           <!-- TODO Column -->
           <KanbanColumn
             status="TODO"
@@ -145,6 +72,7 @@
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @add-task="openTaskModal()"
+            @worktree-update="handleWorktreeUpdate"
           />
 
           <!-- IN_PROGRESS Column -->
@@ -159,6 +87,7 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
+            @worktree-update="handleWorktreeUpdate"
           />
 
           <!-- DONE Column -->
@@ -173,32 +102,25 @@
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
+            @worktree-update="handleWorktreeUpdate"
           />
         </div>
 
         <!-- List View -->
         <KanbanListView
           v-else
-          :requirements="requirements"
           :tasks="filteredTasksForList"
           :selected-task="selectedTask"
           :running-task-ids="runningTasks"
-          :requirement-status-filter="requirementStatusFilter"
           :status-filter="listStatusFilter"
-          :selected-requirement-ids="selectedRequirementIds"
-          :syncing="syncing"
-          @open-requirement-modal="openRequirementModal"
-          @sync-requirements="openSyncDialog"
-          @delete-requirement="deleteRequirement"
-          @edit-requirement="openRequirementModal"
           @select-task="selectTask"
           @edit-task="openTaskModal"
           @delete-task="deleteTask"
-          @update:requirement-status-filter="requirementStatusFilter = $event"
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
-          @reorder-requirements="handleReorderRequirements"
+          @sync-task="onSyncTask"
           @reorder-tasks="handleReorderTasks"
+          @worktree-update="handleWorktreeUpdate"
         />
       </div>
 
@@ -207,7 +129,7 @@
         <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? 'Expand Chat' : 'Collapse Chat'">
           <span class="collapse-arrow" :class="{ collapsed: isChatCollapsed }">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="15 18 9 12 15 6"></polyline>
+              <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </span>
         </div>
@@ -311,15 +233,6 @@
       @select="handleAgentSelect"
     />
 
-    <!-- Requirement Form Modal -->
-    <RequirementForm
-      v-if="showRequirementModal"
-      :requirement="editingRequirement"
-      :visible="showRequirementModal"
-      @submit="handleRequirementSubmit"
-      @cancel="closeRequirementModal"
-    />
-
     <!-- Workflow Timeline Dialog -->
     <WorkflowTimelineDialog
       v-model="showWorkflowDialog"
@@ -329,70 +242,11 @@
       @start-workflow="onStartWorkflow"
     />
 
-    <!-- Auto Assign Requirements Dialog -->
-    <div v-if="showAutoAssignDialog" class="modal-overlay" @click.self="closeAutoAssignDialog">
-      <div class="modal auto-assign-modal">
-        <div class="modal-header">
-          <h2>{{ $t('requirement.selectRequirementsTitle') }}</h2>
-          <button class="modal-close" @click="closeAutoAssignDialog">&times;</button>
-        </div>
-        <div class="modal-body">
-          <p class="dialog-hint">{{ $t('requirement.selectRequirementsHint') }}</p>
-          <div class="select-actions">
-            <button class="btn btn-link" @click="selectAllRequirements">{{ $t('requirement.selectAll') }}</button>
-            <button class="btn btn-link" @click="deselectAllRequirements">{{ $t('requirement.deselectAll') }}</button>
-          </div>
-          <div class="requirements-list">
-            <label
-              v-for="req in pendingRequirements"
-              :key="req.id"
-              class="requirement-item"
-              :class="{ 'is-selected': selectedRequirementIds.includes(req.id) }"
-            >
-              <input
-                type="checkbox"
-                :value="req.id"
-                v-model="selectedRequirementIds"
-              />
-              <span class="requirement-item-content">
-                <span class="requirement-item-header">
-                  <span class="requirement-item-title">{{ req.title }}</span>
-                  <span class="requirement-item-priority" :class="`priority-${(req.priority || 'MEDIUM').toLowerCase()}`">
-                    {{ $t(`priority.${req.priority || 'MEDIUM'}`) }}
-                  </span>
-                </span>
-                <span class="requirement-item-desc">{{ req.description }}</span>
-              </span>
-            </label>
-          </div>
-          <p v-if="selectedRequirementIds.length > 0" class="selected-count">
-            {{ $t('requirement.selectedCount', { count: selectedRequirementIds.length }) }}
-          </p>
-        </div>
-        <div class="modal-footer">
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="closeAutoAssignDialog">{{ $t('common.cancel') }}</button>
-            <button
-              class="btn btn-primary"
-              @click="confirmAutoAssign"
-              :disabled="selectedRequirementIds.length === 0 || assigningRequirements"
-            >
-              <svg v-if="assigningRequirements" class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-              </svg>
-              {{ $t('requirement.assignSelected') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Sync Requirements Dialog -->
+    <!-- Sync Tasks Dialog -->
     <div v-if="showSyncDialog" class="modal-overlay" @click.self="closeSyncDialog">
       <div class="modal sync-modal">
         <div class="modal-header">
-          <h2>{{ $t('requirement.syncAllConfirmTitle') }}</h2>
+          <h2>{{ $t('taskSource.previewTitle') }}</h2>
           <button class="modal-close" @click="closeSyncDialog">&times;</button>
         </div>
         <div class="modal-body">
@@ -415,10 +269,10 @@
           <!-- Preview List -->
           <div v-else-if="previewItems.length > 0" class="preview-list">
             <div class="preview-header">
-              <span class="preview-hint">从 GitHub Issues 导入，选择要创建为需求的 Issue：</span>
+              <span class="preview-hint">从 GitHub Issues 导入，选择要创建为任务的 Issue：</span>
               <div class="preview-actions">
-                <button class="btn btn-link" @click="selectAllIssues">{{ $t('requirement.selectAll') }}</button>
-                <button class="btn btn-link" @click="deselectAllIssues">{{ $t('requirement.deselectAll') }}</button>
+                <button class="btn btn-link" @click="selectAllIssues">{{ $t('taskSource.selectAll') }}</button>
+                <button class="btn btn-link" @click="deselectAllIssues">{{ $t('taskSource.deselectAll') }}</button>
               </div>
             </div>
             <label
@@ -623,17 +477,12 @@ import { getActiveSessionByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
-import WorkflowTimeline from '../components/workflow/WorkflowTimeline.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
-import RequirementCard from '../components/requirement/RequirementCard.vue'
-import RequirementForm from '../components/requirement/RequirementForm.vue'
 import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
-import { useRequirementManager } from '../composables/kanban/useRequirementManager'
-import { useRequirementStore } from '../stores/requirementStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
 import {
   getWorkflowByProject,
@@ -641,7 +490,6 @@ import {
   getOrCreateWorkflowForProject,
   addNodeToWorkflow
 } from '../mock/workflowData'
-import { reorderRequirements } from '../api/requirement.js'
 import { reorderTasks } from '../api/task.js'
 
 const { t } = useI18n()
@@ -649,7 +497,6 @@ const { t } = useI18n()
 // Use Pinia stores
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
-const requirementStore = useRequirementStore()
 const taskSourceStore = useTaskSourceStore()
 
 // Icon mappings
@@ -665,11 +512,8 @@ const selectedTask = ref(null)
 const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
-const showAutoAssignDialog = ref(false)
 const showSyncDialog = ref(false)
-const pendingRequirements = ref([])
-const selectedRequirementIds = ref([])
-// Sync requirements state
+// Sync state
 const availableSources = ref([])
 const selectedSourceId = ref(null)
 const previewItems = ref([])
@@ -705,11 +549,9 @@ const {
 
 // Use useWorkflowManager composable
 const {
-  selectedNodeId,
   selectedNode,
   showNodeDialog,
   workflowVersion,
-  currentWorkflow,
   onNodeSelect,
   onNodeViewDetails,
   handleButlerControl,
@@ -724,45 +566,6 @@ const {
   getWorkflowByProject,
   t
 })
-
-// Use useRequirementManager composable
-const {
-  requirementStatusFilter,
-  showRequirementModal,
-  editingRequirement,
-  allRequirements,
-  requirements,
-  openRequirementModal,
-  closeRequirementModal,
-  handleRequirementSubmit,
-  handleDeleteRequirement
-} = useRequirementManager({
-  selectedProjectId,
-  requirementStore,
-  taskStore,
-  t
-})
-
-// Alias handleDeleteRequirement to deleteRequirement for template compatibility
-const deleteRequirement = handleDeleteRequirement
-
-// Handle requirements reorder from drag-and-drop
-const handleReorderRequirements = async (newOrder) => {
-  try {
-    // Update local state immediately for responsive UI
-    localRequirements.value = [...newOrder]
-    requirements.value = [...newOrder]
-
-    // Send update to backend
-    await reorderRequirements(newOrder)
-
-    console.log('[KanbanView] Requirements reordered successfully')
-  } catch (error) {
-    console.error('[KanbanView] Failed to reorder requirements:', error)
-    // Reload requirements from server on error
-    await requirementStore.fetchRequirements(selectedProjectId.value)
-  }
-}
 
 // Handle tasks reorder from drag-and-drop
 const handleReorderTasks = async (newOrder) => {
@@ -782,10 +585,10 @@ const handleReorderTasks = async (newOrder) => {
   }
 }
 
-// Wrapper for openRequirementModal with debug logging
-const handleEditRequirement = (requirement) => {
-  console.log('[KanbanView] handleEditRequirement called with:', requirement)
-  openRequirementModal(requirement)
+// Handle worktree update from child components
+const handleWorktreeUpdate = (task) => {
+  // Task object is mutated by reference, no additional action needed
+  console.log('[KanbanView] Worktree updated for task:', task.id)
 }
 
 // Computed - tasks and projects
@@ -796,7 +599,6 @@ const projects = computed(() => projectStore.projects)
 const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
 const localDoneTasks = ref([])
-const localRequirements = ref([])
 
 // Sync store to local arrays
 watch(
@@ -805,16 +607,6 @@ watch(
     localTodoTasks.value = newTasks.filter(t => t.status === 'TODO')
     localInProgressTasks.value = newTasks.filter(t => t.status === 'IN_PROGRESS')
     localDoneTasks.value = newTasks.filter(t => t.status === 'DONE')
-  },
-  { immediate: true, deep: true }
-)
-
-// Sync requirements for draggable (filtered by requirementStatusFilter)
-watch(
-  () => ({ requirements: requirements.value, statusFilter: requirementStatusFilter.value }),
-  ({ requirements: newRequirements, statusFilter }) => {
-    const filtered = newRequirements.filter(req => statusFilter.includes(req.status))
-    localRequirements.value = [...filtered]
   },
   { immediate: true, deep: true }
 )
@@ -890,27 +682,6 @@ const getPriorityLabel = (priority) => {
     CRITICAL: t('priority.CRITICAL')
   }
   return labels[priority] || 'Medium'
-}
-
-// Requirement status helpers
-const getReqStatusClass = (status) => {
-  const classes = {
-    NEW: 'req-status-new',
-    ANALYZING: 'req-status-analyzing',
-    CONVERTED: 'req-status-converted',
-    ARCHIVED: 'req-status-archived'
-  }
-  return classes[status] || 'req-status-new'
-}
-
-const getReqStatusLabel = (status) => {
-  const labels = {
-    NEW: t('requirement.status.new'),
-    ANALYZING: t('requirement.status.analyzing'),
-    CONVERTED: t('requirement.status.converted'),
-    ARCHIVED: t('requirement.status.archived')
-  }
-  return labels[status] || status
 }
 
 // Workflow node display helpers
@@ -993,27 +764,14 @@ const closeTaskModal = () => {
   editingTaskId.value = null
 }
 
-// Auto-assign dialog functions (placeholder)
-const closeAutoAssignDialog = () => {
-  showAutoAssignDialog.value = false
-  selectedRequirementIds.value = []
-}
-
-const selectAllRequirements = () => {
-  selectedRequirementIds.value = pendingRequirements.value.map(r => r.id)
-}
-
-const deselectAllRequirements = () => {
-  selectedRequirementIds.value = []
-}
-
-const confirmAutoAssign = async () => {
-  // TODO: Implement auto-assign logic
-  closeAutoAssignDialog()
-}
-
-// Sync requirements dialog functions
+// Sync tasks dialog functions
 const openSyncDialog = async () => {
+  // Check if project is selected
+  if (!selectedProjectId.value) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
+
   // Fetch task sources for current project
   try {
     await taskSourceStore.fetchTaskSources(selectedProjectId.value)
@@ -1048,9 +806,9 @@ const loadPreview = async (sourceId) => {
   previewItems.value = []
   selectedIssueIds.value = []
   try {
-    await taskSourceStore.previewSync(sourceId)
+    const result = await taskSourceStore.previewSync(sourceId)
     // Map the preview items to include checkbox IDs
-    previewItems.value = taskSourceStore.previewItems.map(item => ({
+    previewItems.value = (result || []).map(item => ({
       ...item,
       id: item.external_id || item.id
     }))
@@ -1088,10 +846,13 @@ const confirmSync = async () => {
       selectedProjectId.value
     )
     console.log('[KanbanView] Import result:', result)
-    ElMessage.success(`成功导入 ${result?.created || selectedItems.length} 个需求`)
+    // Get source name for display
+    const source = availableSources.value.find(s => s.id === selectedSourceId.value)
+    const sourceName = source?.name || '任务源'
+    ElMessage.success(`从 ${sourceName} 成功导入 ${result?.created || 0} 个任务`)
     closeSyncDialog()
-    // Refresh requirements list
-    await requirementStore.fetchRequirements(selectedProjectId.value)
+    // Refresh tasks list
+    await taskStore.fetchTasks(selectedProjectId.value)
   } catch (error) {
     console.error('[KanbanView] Failed to import issues:', error)
     ElMessage.error('导入失败：' + error.message)
@@ -1107,6 +868,10 @@ const closeSyncDialog = () => {
   previewItems.value = []
   selectedIssueIds.value = []
   taskSourceStore.closePreviewDialog()
+}
+
+const onSyncTask = () => {
+  openSyncDialog()
 }
 
 // Save task
@@ -1213,14 +978,6 @@ const onDragEnd = async (evt) => {
     console.error('Failed to update task status:', error)
     ElMessage.error(t('task.statusUpdateFailed'))
   }
-}
-
-// Requirement drag and drop handler (for reordering)
-const onRequirementDragEnd = (evt) => {
-  // Update local requirements to reflect new order after drag
-  // The vuedraggable will automatically update localRequirements
-  // Here we can sync back to store if needed (optional for now)
-  console.log('Requirement reordered:', localRequirements.value.map(r => r.id))
 }
 
 // Session handlers
@@ -1480,37 +1237,48 @@ onUnmounted(() => {
   border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
   position: relative;
   flex-shrink: 0;
 }
 
 .chat-container.collapsed {
-  width: 10px;
-  border-left: none;
+  width: 0;
   overflow: visible;
+  border-left: none;
 }
 
 .chat-toggle-btn {
-  position: absolute;
+  position: fixed;
   top: 50%;
-  left: -2px;
   transform: translateY(-50%);
-  width: 12px;
+  right: 0;
+  width: 24px;
   height: 48px;
   background: var(--accent-color);
   border: none;
-  border-radius: 0 4px 4px 0;
+  border-radius: 4px 0 0 4px;
   cursor: pointer;
-  z-index: 10;
+  z-index: 100;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-left: 4px;
+}
+
+.chat-container:not(.collapsed) .chat-toggle-btn {
+  right: 0;
+  border-radius: 4px 0 0 4px;
+}
+
+.chat-container.collapsed .chat-toggle-btn {
+  right: 0;
+  border-radius: 0 4px 4px 0;
+  padding-left: 0;
 }
 
 .chat-toggle-btn:hover {
-  width: 16px;
+  width: 28px;
 }
 
 .collapse-arrow {
@@ -2079,6 +1847,11 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-wrap: nowrap;
+}
+
+.column-header > * {
+  flex-shrink: 0;
 }
 
 .column-status {
@@ -2086,6 +1859,7 @@ onUnmounted(() => {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .column-status.status-requirement {
@@ -2113,6 +1887,7 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  align-self: center;
 }
 
 .column-count {
@@ -2128,6 +1903,7 @@ onUnmounted(() => {
 
 .status-filter-group {
   margin-left: auto;
+  align-self: center;
 }
 
 .status-filter-group .el-checkbox-button__inner {
@@ -2135,54 +1911,11 @@ onUnmounted(() => {
   padding: 3px 8px;
 }
 
-.column-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* Requirement Column Actions */
-.add-requirement-btn,
-.sync-requirements-btn,
-.auto-assign-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+.column-count {
   font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.add-requirement-btn {
-  width: 100%;
-  border: 1px dashed var(--el-border-color-light);
-  color: var(--el-text-color-secondary);
-  background: transparent;
-}
-
-.add-requirement-btn:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: #eff6ff;
-}
-
-.requirement-actions-row {
-  display: flex;
-  gap: 8px;
-}
-
-.requirement-actions-row-bottom {
-  margin-top: 8px;
+  min-width: 24px;
+  text-align: center;
+  align-self: center;
 }
 
 .sync-requirements-btn-header {
@@ -2198,7 +1931,8 @@ onUnmounted(() => {
   background: transparent;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  vertical-align: middle;
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .sync-requirements-btn-header:hover:not(:disabled) {
@@ -2209,6 +1943,15 @@ onUnmounted(() => {
 .sync-requirements-btn-header:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.column-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .sync-requirements-btn {
@@ -2458,5 +2201,32 @@ onUnmounted(() => {
   text-align: center;
   padding: 48px 16px;
   color: var(--text-placeholder);
+}
+
+/* Add requirement button styles */
+.requirement-actions-row-bottom {
+  margin-top: 8px;
+}
+
+.add-requirement-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px dashed var(--el-border-color-light);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.add-requirement-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: #eef2ff;
 }
 </style>
