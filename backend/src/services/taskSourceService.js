@@ -3,11 +3,14 @@
  */
 const { TaskSourceRepository } = require('../repositories/taskSourceRepository');
 const { ProjectRepository } = require('../repositories/projectRepository');
+const { BaseRepository } = require('../repositories/base');
+const { getAdapter, getAvailableTypes } = require('../adapters');
 
 class TaskSourceService {
   constructor() {
     this.taskSourceRepo = new TaskSourceRepository();
     this.projectRepo = new ProjectRepository();
+    this.requirementRepo = new BaseRepository('requirements.json');
   }
 
   /**
@@ -85,29 +88,96 @@ class TaskSourceService {
    * @returns {object} Available source types
    */
   getAvailableSourceTypes() {
-    return {
-      GITHUB: {
-        name: 'GitHub Issues',
-        description: 'Sync tasks from GitHub Issues',
-        config: {
-          repo: {
-            type: 'string',
-            required: true,
-            description: 'Repository in format owner/repo',
-          },
-          token: {
-            type: 'string',
-            required: false,
-            description: 'GitHub Personal Access Token',
-          },
-          labels: {
-            type: 'array',
-            required: false,
-            description: 'Filter by labels',
-          },
-        },
-      },
-    };
+    return getAvailableTypes();
+  }
+
+  /**
+   * Get adapter based on source type
+   * @param {object} source - Task source
+   * @returns {object} Adapter instance
+   */
+  getAdapter(source) {
+    return getAdapter(source.type, source);
+  }
+
+  /**
+   * Preview issues from task source (without creating requirements)
+   * @param {number} sourceId - Source ID
+   * @returns {Promise<Array>} Issues list
+   */
+  async previewSync(sourceId) {
+    const source = await this.getById(sourceId);
+    if (!source) {
+      throw new Error('Task source not found');
+    }
+
+    const adapter = this.getAdapter(source);
+    const issues = await adapter.fetch();
+
+    // Check which issues are already imported
+    const allRequirements = await this.requirementRepo.findAll();
+    const importedExternalIds = new Set(
+      allRequirements
+        .filter((req) => req.external_id)
+        .map((req) => req.external_id)
+    );
+
+    // Mark each issue with import status
+    return issues.map((issue) => ({
+      ...issue,
+      imported: importedExternalIds.has(issue.external_id),
+    }));
+  }
+
+  /**
+   * Import selected issues as requirements
+   * @param {number} sourceId - Source ID
+   * @param {Array} selectedItems - Selected issues to import
+   * @param {number} projectId - Project ID
+   * @returns {Promise<object>} Import result
+   */
+  async importIssues(sourceId, selectedItems, projectId) {
+    const source = await this.getById(sourceId);
+    if (!source) {
+      throw new Error('Task source not found');
+    }
+
+    // Verify project exists
+    const projectExists = await this.projectRepo.exists(projectId);
+    if (!projectExists) {
+      throw new Error('Project not found');
+    }
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const item of selectedItems) {
+      // Check if already imported
+      const existing = await this.requirementRepo.findByExternalId(item.external_id);
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Create requirement
+      await this.requirementRepo.create({
+        project_id: projectId,
+        title: item.title,
+        description: item.description,
+        status: item.status || 'PENDING',
+        priority: 'MEDIUM',
+        external_id: item.external_id,
+        external_url: item.external_url,
+        source: source.type,
+        labels: item.labels || [],
+      });
+      created++;
+    }
+
+    // Update source last sync time
+    await this.update(sourceId, { last_sync_at: new Date().toISOString() });
+
+    return { created, skipped, total: selectedItems.length };
   }
 }
 
