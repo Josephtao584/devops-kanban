@@ -80,9 +80,22 @@
                 </span>
               </div>
               <div class="requirement-list-content">
-                <div class="requirement-list-title">{{ req.title }}</div>
-                <div v-if="req.source" class="requirement-source">
-                  <span class="source-badge">{{ getSourceLabel(req.source) }}</span>
+                <div class="requirement-list-title-row">
+                  <span class="requirement-list-title">{{ req.title }}</span>
+                  <span v-if="req.source" class="source-badge-inline">{{ getSourceLabel(req.source) }}</span>
+                  <a
+                    v-if="req.external_url"
+                    :href="req.external_url"
+                    target="_blank"
+                    class="external-link-inline"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    {{ $t('requirement.viewOriginal') }}
+                  </a>
                 </div>
                 <div v-if="req.labels && req.labels.length > 0" class="requirement-labels">
                   <el-tag
@@ -98,38 +111,6 @@
                 <div v-if="req.description" class="requirement-list-desc">
                   <span class="desc-label">描述:</span> {{ req.description }}
                 </div>
-                <div v-if="isExternalRequirement(req)" class="requirement-meta">
-                  <a
-                    v-if="req.external_url"
-                    :href="req.external_url"
-                    target="_blank"
-                    class="external-link"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                      <polyline points="15 3 21 3 21 9"></polyline>
-                      <line x1="10" y1="14" x2="21" y2="3"></line>
-                    </svg>
-                    {{ $t('requirement.viewOriginal') }}
-                  </a>
-                  <span v-if="req.created_at" class="meta-time">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                      <line x1="16" y1="2" x2="16" y2="6"></line>
-                      <line x1="8" y1="2" x2="8" y2="6"></line>
-                      <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                    {{ formatDate(req.created_at) }}
-                  </span>
-                </div>
-              </div>
-              <div class="requirement-list-tags">
-                <span class="req-status-badge" :class="getReqStatusClass(req.status)">
-                  {{ getReqStatusLabel(req.status) }}
-                </span>
-                <span class="priority-badge" :class="getPriorityClass(req.priority)">
-                  {{ getPriorityLabel(req.priority) }}
-                </span>
               </div>
               <div class="requirement-list-actions">
                 <button
@@ -430,11 +411,6 @@ const getPriorityLabel = (priority) => {
   return labelMap[priority] || t('priority.MEDIUM')
 }
 
-// Helper function to check if requirement is from external source
-const isExternalRequirement = (requirement) => {
-  return !!requirement.source
-}
-
 // Helper function to get source type label
 const getSourceLabel = (source) => {
   const labelMap = {
@@ -444,21 +420,6 @@ const getSourceLabel = (source) => {
     LINEAR: 'Linear'
   }
   return labelMap[source] || source
-}
-
-// Helper function to format date
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  } catch {
-    return dateStr
-  }
 }
 </script>
 
@@ -698,6 +659,37 @@ const formatDate = (dateStr) => {
   min-width: 0;
 }
 
+.requirement-list-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.source-badge-inline {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.external-link-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--el-color-primary);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.external-link-inline:hover {
+  text-decoration: underline;
+}
+
 .requirement-list-title {
   font-size: 13px;
   font-weight: 500;
@@ -719,19 +711,6 @@ const formatDate = (dateStr) => {
   font-size: 11px;
 }
 
-.requirement-source {
-  margin-top: 4px;
-}
-
-.source-badge {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-weight: 500;
-}
-
 .requirement-labels {
   display: flex;
   flex-wrap: wrap;
@@ -742,33 +721,6 @@ const formatDate = (dateStr) => {
 .requirement-label {
   font-size: 10px;
   padding: 0 4px;
-}
-
-.requirement-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-}
-
-.external-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--el-color-primary);
-  text-decoration: none;
-}
-
-.external-link:hover {
-  text-decoration: underline;
-}
-
-.meta-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .requirement-list-tags {
