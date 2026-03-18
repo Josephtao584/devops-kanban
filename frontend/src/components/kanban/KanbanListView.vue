@@ -75,9 +75,7 @@
                 </span>
               </div>
               <div class="requirement-list-priority">
-                <span class="priority-badge" :class="getPriorityClass(req.priority)">
-                  {{ getPriorityLabel(req.priority) }}
-                </span>
+                <PriorityBadge :priority="req.priority" />
               </div>
               <div class="requirement-list-content">
                 <div class="requirement-list-title-row">
@@ -208,9 +206,7 @@
                 </span>
               </div>
               <div class="task-list-priority">
-                <span class="priority-badge" :class="getPriorityClass(task.priority)">
-                  {{ getPriorityLabel(task.priority) }}
-                </span>
+                <PriorityBadge :priority="task.priority" />
               </div>
               <div class="task-list-content">
                 <div class="task-list-title">{{ task.title || $t('task.untitled') }}</div>
@@ -227,7 +223,7 @@
                 <button
                   class="worktree-btn"
                   :class="getWorktreeClass(task)"
-                  @click.stop="handleWorktree(task)"
+                  @click.stop="handleWorktreeClick(task)"
                   :disabled="isWorktreeLoading(task.id)"
                 >
                   <el-icon v-if="isWorktreeLoading(task.id)" class="is-loading"><Loading /></el-icon>
@@ -270,8 +266,8 @@ import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
-import * as taskWorktreeApi from '../../api/taskWorktree'
-import { ElMessage } from 'element-plus'
+import { useWorktree } from '../../composables/useWorktree'
+import PriorityBadge from '../common/PriorityBadge.vue'
 
 const props = defineProps({
   requirements: {
@@ -326,54 +322,13 @@ const emit = defineEmits([
 
 const { t } = useI18n()
 
-// Worktree state
-const worktreeLoading = ref(new Set())
+// Use worktree composable
+const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, handleWorktree } = useWorktree()
 
-const isWorktreeLoading = (taskId) => worktreeLoading.value.has(taskId)
-
-const getWorktreeClass = (task) => {
-  if (task.worktree_status === 'created') return 'worktree-created'
-  if (task.worktree_status === 'error') return 'worktree-error'
-  return 'worktree-none'
-}
-
-const getWorktreeTooltip = (task) => {
-  if (task.worktree_status === 'created') return 'Worktree 已创建，点击删除'
-  if (task.worktree_status === 'error') return 'Worktree 创建失败'
-  return '创建 Worktree 沙箱'
-}
-
-const handleWorktree = async (task) => {
-  if (worktreeLoading.value.has(task.id)) return
-
-  try {
-    worktreeLoading.value.add(task.id)
-    if (task.worktree_status === 'created') {
-      // Delete worktree
-      const response = await taskWorktreeApi.deleteTaskWorktree(task.id)
-      if (response.success) {
-        task.worktree_path = null
-        task.worktree_branch = null
-        task.worktree_status = 'none'
-        ElMessage.success('Worktree 已删除')
-        emit('worktree-update', task)
-      }
-    } else {
-      // Create worktree
-      const response = await taskWorktreeApi.createTaskWorktree(task.id)
-      if (response.success) {
-        task.worktree_path = response.data.worktree_path
-        task.worktree_branch = response.data.worktree_branch
-        task.worktree_status = 'created'
-        ElMessage.success('Worktree 创建成功')
-        emit('worktree-update', task)
-      }
-    }
-  } catch (error) {
-    ElMessage.error(error.message || '操作失败')
-  } finally {
-    worktreeLoading.value.delete(task.id)
-  }
+const handleWorktreeClick = (task) => {
+  handleWorktree(task, (updatedTask) => {
+    emit('worktree-update', updatedTask)
+  })
 }
 
 const isRequirementsCollapsed = ref(false)
@@ -459,26 +414,6 @@ const getStatusClass = (status) => {
     BLOCKED: 'status-blocked'
   }
   return classMap[status] || 'status-todo'
-}
-
-const getPriorityClass = (priority) => {
-  const classMap = {
-    CRITICAL: 'priority-critical',
-    HIGH: 'priority-high',
-    MEDIUM: 'priority-medium',
-    LOW: 'priority-low'
-  }
-  return classMap[priority] || 'priority-medium'
-}
-
-const getPriorityLabel = (priority) => {
-  const labelMap = {
-    CRITICAL: t('priority.CRITICAL'),
-    HIGH: t('priority.HIGH'),
-    MEDIUM: t('priority.MEDIUM'),
-    LOW: t('priority.LOW')
-  }
-  return labelMap[priority] || t('priority.MEDIUM')
 }
 
 // Helper function to get source type label

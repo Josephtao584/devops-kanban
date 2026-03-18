@@ -28,9 +28,7 @@
         <span class="status-badge" :class="statusClass">
           {{ $t(`requirement.statuses.${requirement.status}`) }}
         </span>
-        <span class="priority-badge" :class="priorityClass">
-          {{ $t(`priority.${requirement.priority}`) }}
-        </span>
+        <PriorityBadge :priority="requirement.priority" />
       </div>
     </div>
 
@@ -60,28 +58,13 @@
 
     <div class="requirement-footer">
       <div class="requirement-actions">
-        <el-tooltip :content="$t('common.edit')" placement="top">
-          <button
-            class="btn btn-icon action-btn"
-            @click="$emit('edit', requirement)"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-          </button>
-        </el-tooltip>
-        <el-tooltip :content="$t('common.delete')" placement="top">
-          <button
-            class="btn btn-icon action-btn delete-btn"
-            @click="handleDelete"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 6h18"></path>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
-        </el-tooltip>
+        <ActionButtons
+          :item="requirement"
+          :edit-tooltip="$t('common.edit')"
+          :delete-tooltip="$t('common.delete')"
+          @edit="$emit('edit', requirement)"
+          @delete="handleDelete"
+        />
       </div>
     </div>
   </div>
@@ -90,6 +73,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { REQUIREMENT_STATUS } from '../../constants/requirement.js'
+import ActionButtons from '../common/ActionButtons.vue'
+import PriorityBadge from '../common/PriorityBadge.vue'
 
 const props = defineProps({
   requirement: {
@@ -105,10 +90,6 @@ const props = defineProps({
 const emit = defineEmits(['edit', 'delete'])
 
 const expanded = ref(false)
-
-const priorityClass = computed(() => {
-  return `priority-${(props.requirement.priority || 'MEDIUM').toLowerCase()}`
-})
 
 const statusClass = computed(() => {
   const status = props.requirement.status
@@ -244,40 +225,14 @@ const handleDelete = () => {
   word-break: break-word;
 }
 
-.priority-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.priority-badge.priority-critical {
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
-}
-
-.priority-badge.priority-high {
-  background: var(--el-color-warning-light-9);
-  color: var(--el-color-warning);
-}
-
-.priority-badge.priority-medium {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-}
-
-.priority-badge.priority-low {
-  background: var(--el-color-info-light-9);
-  color: var(--el-color-info);
-}
-
 .requirement-title {
   font-size: 14px;
   font-weight: 600;
   margin: 0;
   color: #1f2937;
   line-height: 1.4;
+  text-align: left;
+  word-break: break-word;
 }
 
 .requirement-body {
@@ -359,38 +314,6 @@ const handleDelete = () => {
 .status-badge.status-converted {
   background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
   color: #065f46;
-}
-
-/* Action button styles */
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  color: var(--el-text-color-secondary);
-}
-
-.action-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.action-btn:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-}
-
-.action-btn.delete-btn:hover {
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
 }
 
 .btn {
