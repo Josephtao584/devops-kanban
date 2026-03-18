@@ -234,7 +234,7 @@ const props = defineProps({
   },
   requirementStatusFilter: {
     type: Array,
-    default: () => ['NEW', 'CONVERTED']
+    default: () => ['NEW']
   },
   statusFilter: {
     type: Array,
