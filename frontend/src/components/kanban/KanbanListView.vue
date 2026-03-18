@@ -132,59 +132,79 @@
         </div>
       </div>
       <div class="task-list-container">
-        <div v-if="filteredTasks.length === 0" class="empty-list">
+        <div v-if="localTasks.length === 0" class="empty-list">
           <p>{{ $t('view.noTasksFound') }}</p>
         </div>
-        <div
-          v-for="task in filteredTasks"
-          :key="task.id"
-          class="task-list-item"
-          :class="{
-            'task-selected': selectedTask?.id === task.id,
-            'task-running': isTaskRunning(task.id)
-          }"
-          @click="$emit('select-task', task)"
+        <draggable
+          v-model="localTasks"
+          item-key="id"
+          class="tasks-draggable-list"
+          @end="onTasksReorder"
+          :animation="200"
+          ghost-class="task-ghost"
+          drag-class="task-drag"
         >
-          <div class="task-list-status">
-            <span class="status-badge" :class="getStatusClass(task.status)">
-              {{ $t(`status.${task.status}`) }}
-            </span>
-          </div>
-          <div class="task-list-priority">
-            <span class="priority-badge" :class="getPriorityClass(task.priority)">
-              {{ getPriorityLabel(task.priority) }}
-            </span>
-          </div>
-          <div class="task-list-content">
-            <div class="task-list-title">{{ task.title || $t('task.untitled') }}</div>
-            <div v-if="task.description" class="task-list-description">{{ task.description }}</div>
-          </div>
-          <div v-if="isTaskRunning(task.id)" class="task-list-running">
-            <span class="running-time">{{ formatElapsedTime(task.id) }}</span>
-          </div>
-          <div class="task-list-actions">
-            <button
-              class="edit-btn"
-              @click.stop="$emit('edit-task', task)"
-              :title="$t('common.edit')"
+          <template #item="{ element: task }">
+            <div
+              class="task-list-item"
+              :class="{
+                'task-selected': selectedTask?.id === task.id,
+                'task-running': isTaskRunning(task.id)
+              }"
+              @click="$emit('select-task', task)"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-            </button>
-            <button
-              class="delete-btn"
-              @click.stop="$emit('delete-task', task.id)"
-              :title="$t('common.delete')"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
+              <div class="task-drag-handle">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+              </div>
+              <div class="task-list-status">
+                <span class="status-badge" :class="getStatusClass(task.status)">
+                  {{ $t(`status.${task.status}`) }}
+                </span>
+              </div>
+              <div class="task-list-priority">
+                <span class="priority-badge" :class="getPriorityClass(task.priority)">
+                  {{ getPriorityLabel(task.priority) }}
+                </span>
+              </div>
+              <div class="task-list-content">
+                <div class="task-list-title">{{ task.title || $t('task.untitled') }}</div>
+                <div v-if="task.description" class="task-list-description">{{ task.description }}</div>
+              </div>
+              <div v-if="isTaskRunning(task.id)" class="task-list-running">
+                <span class="running-time">{{ formatElapsedTime(task.id) }}</span>
+              </div>
+              <div class="task-list-actions">
+                <button
+                  class="edit-btn"
+                  @click.stop="$emit('edit-task', task)"
+                  :title="$t('common.edit')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button
+                  class="delete-btn"
+                  @click.stop="$emit('delete-task', task.id)"
+                  :title="$t('common.delete')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </template>
+        </draggable>
       </div>
     </div>
   </div>
@@ -214,7 +234,7 @@ const props = defineProps({
   },
   requirementStatusFilter: {
     type: Array,
-    default: () => ['CONVERTED']
+    default: () => ['NEW', 'CONVERTED']
   },
   statusFilter: {
     type: Array,
@@ -236,7 +256,8 @@ const emit = defineEmits([
   'update:requirementStatusFilter',
   'update:statusFilter',
   'add-task',
-  'reorder-requirements'
+  'reorder-requirements',
+  'reorder-tasks'
 ])
 
 const { t } = useI18n()
@@ -259,6 +280,24 @@ watch(
 const onRequirementsReorder = (event) => {
   // Emit the new order to parent component
   emit('reorder-requirements', localRequirements.value)
+}
+
+// Local copy of tasks for draggable
+const localTasks = ref([])
+
+// Sync tasks from props
+watch(
+  () => props.tasks,
+  (newTasks) => {
+    localTasks.value = [...newTasks]
+  },
+  { immediate: true, deep: true }
+)
+
+// Handle tasks reorder
+const onTasksReorder = (event) => {
+  // Emit the new order to parent component
+  emit('reorder-tasks', localTasks.value)
 }
 
 const localStatusFilter = computed({
@@ -632,6 +671,10 @@ const getPriorityLabel = (priority) => {
   padding-bottom: 16px;
 }
 
+.tasks-draggable-list {
+  width: 100%;
+}
+
 .task-list-item {
   display: flex;
   align-items: center;
@@ -643,6 +686,35 @@ const getPriorityLabel = (priority) => {
   border: 1px solid var(--el-border-color-light);
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.task-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--el-text-color-placeholder);
+  cursor: grab;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.task-list-item:hover .task-drag-handle {
+  opacity: 1;
+}
+
+.task-ghost {
+  opacity: 0.5;
+  background: #f5f5f5;
+  border: 1px dashed var(--el-border-color);
+}
+
+.task-drag {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
 }
 
 .task-list-item:hover {

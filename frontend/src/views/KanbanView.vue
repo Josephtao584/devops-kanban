@@ -198,6 +198,7 @@
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
           @reorder-requirements="handleReorderRequirements"
+          @reorder-tasks="handleReorderTasks"
         />
       </div>
 
@@ -543,6 +544,7 @@ import {
   addNodeToWorkflow
 } from '../mock/workflowData'
 import { reorderRequirements } from '../api/requirement.js'
+import { reorderTasks } from '../api/task.js'
 
 const { t } = useI18n()
 
@@ -647,6 +649,24 @@ const handleReorderRequirements = async (newOrder) => {
     console.error('[KanbanView] Failed to reorder requirements:', error)
     // Reload requirements from server on error
     await requirementStore.fetchRequirements(selectedProjectId.value)
+  }
+}
+
+// Handle tasks reorder from drag-and-drop
+const handleReorderTasks = async (newOrder) => {
+  try {
+    // Update local state immediately for responsive UI
+    localTasks.value = [...newOrder]
+    taskStore.tasks = [...newOrder]
+
+    // Send update to backend
+    await reorderTasks(newOrder)
+
+    console.log('[KanbanView] Tasks reordered successfully')
+  } catch (error) {
+    console.error('[KanbanView] Failed to reorder tasks:', error)
+    // Reload tasks from server on error
+    await taskStore.fetchTasks(selectedProjectId.value)
   }
 }
 
