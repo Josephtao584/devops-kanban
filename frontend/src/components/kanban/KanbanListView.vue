@@ -123,6 +123,14 @@
                   </span>
                 </div>
               </div>
+              <div class="requirement-list-tags">
+                <span class="req-status-badge" :class="getReqStatusClass(req.status)">
+                  {{ getReqStatusLabel(req.status) }}
+                </span>
+                <span class="priority-badge" :class="getPriorityClass(req.priority)">
+                  {{ getPriorityLabel(req.priority) }}
+                </span>
+              </div>
               <div class="requirement-list-actions">
                 <button
                   class="edit-req-btn"
@@ -761,6 +769,15 @@ const formatDate = (dateStr) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.requirement-list-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .requirement-list-actions {
