@@ -70,13 +70,30 @@ class SessionService {
       throw error;
     }
 
-    // Create worktree for the session
-    const worktreePath = createWorktree(sessionData.task_id, task.title);
+    // Use existing worktree if available, otherwise create new one
+    let worktreePath;
+    let branchName = `task/${sessionData.task_id}`;
+
+    if (task.worktree_path && task.worktree_status === 'created') {
+      // Use existing worktree
+      worktreePath = task.worktree_path;
+      branchName = task.worktree_branch || branchName;
+    } else {
+      // Create new worktree using TaskService
+      try {
+        const worktreeResult = await this.taskService.createWorktree(sessionData.task_id);
+        worktreePath = worktreeResult.worktree_path;
+        branchName = worktreeResult.worktree_branch;
+      } catch (error) {
+        // Fall back to old behavior if task has no project git config
+        worktreePath = createWorktree(sessionData.task_id, task.title);
+      }
+    }
 
     const sessionDataWithWorktree = {
       ...sessionData,
       worktree_path: worktreePath,
-      branch: `task/${sessionData.task_id}`,
+      branch: branchName,
       initial_prompt: sessionData.initial_prompt || task.description || '',
     };
 

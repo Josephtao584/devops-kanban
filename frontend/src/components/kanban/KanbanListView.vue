@@ -219,6 +219,22 @@
               <div v-if="isTaskRunning(task.id)" class="task-list-running">
                 <span class="running-time">{{ formatElapsedTime(task.id) }}</span>
               </div>
+              <!-- Worktree button -->
+              <el-tooltip
+                :content="getWorktreeTooltip(task)"
+                placement="top"
+              >
+                <button
+                  class="worktree-btn"
+                  :class="getWorktreeClass(task)"
+                  @click.stop="handleWorktree(task)"
+                  :disabled="isWorktreeLoading(task.id)"
+                >
+                  <el-icon v-if="isWorktreeLoading(task.id)" class="is-loading"><Loading /></el-icon>
+                  <el-icon v-else-if="task.worktree_status === 'created'"><FolderOpened /></el-icon>
+                  <el-icon v-else><Folder /></el-icon>
+                </button>
+              </el-tooltip>
               <div class="task-list-actions">
                 <button
                   class="edit-btn"
@@ -253,6 +269,9 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
+import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
+import * as taskWorktreeApi from '../../api/taskWorktree'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   requirements: {
@@ -301,10 +320,61 @@ const emit = defineEmits([
   'update:statusFilter',
   'add-task',
   'reorder-requirements',
-  'reorder-tasks'
+  'reorder-tasks',
+  'worktree-update'
 ])
 
 const { t } = useI18n()
+
+// Worktree state
+const worktreeLoading = ref(new Set())
+
+const isWorktreeLoading = (taskId) => worktreeLoading.value.has(taskId)
+
+const getWorktreeClass = (task) => {
+  if (task.worktree_status === 'created') return 'worktree-created'
+  if (task.worktree_status === 'error') return 'worktree-error'
+  return 'worktree-none'
+}
+
+const getWorktreeTooltip = (task) => {
+  if (task.worktree_status === 'created') return 'Worktree 已创建，点击删除'
+  if (task.worktree_status === 'error') return 'Worktree 创建失败'
+  return '创建 Worktree 沙箱'
+}
+
+const handleWorktree = async (task) => {
+  if (worktreeLoading.value.has(task.id)) return
+
+  try {
+    worktreeLoading.value.add(task.id)
+    if (task.worktree_status === 'created') {
+      // Delete worktree
+      const response = await taskWorktreeApi.deleteTaskWorktree(task.id)
+      if (response.success) {
+        task.worktree_path = null
+        task.worktree_branch = null
+        task.worktree_status = 'none'
+        ElMessage.success('Worktree 已删除')
+        emit('worktree-update', task)
+      }
+    } else {
+      // Create worktree
+      const response = await taskWorktreeApi.createTaskWorktree(task.id)
+      if (response.success) {
+        task.worktree_path = response.data.worktree_path
+        task.worktree_branch = response.data.worktree_branch
+        task.worktree_status = 'created'
+        ElMessage.success('Worktree 创建成功')
+        emit('worktree-update', task)
+      }
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '操作失败')
+  } finally {
+    worktreeLoading.value.delete(task.id)
+  }
+}
 
 const isRequirementsCollapsed = ref(false)
 
@@ -934,6 +1004,55 @@ const getSourceLabel = (source) => {
 }
 
 .task-list-actions .delete-btn:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+/* Worktree button styles for list view */
+.worktree-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.worktree-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.worktree-btn .el-icon {
+  font-size: 14px;
+}
+
+.worktree-btn.worktree-none {
+  color: var(--el-text-color-secondary);
+}
+
+.worktree-btn.worktree-none:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.worktree-btn.worktree-created {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.worktree-btn.worktree-created:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.worktree-btn.worktree-error {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
 }

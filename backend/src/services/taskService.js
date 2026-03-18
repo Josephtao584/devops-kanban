@@ -3,6 +3,10 @@
  */
 const { TaskRepository } = require('../repositories/taskRepository');
 const { ProjectRepository } = require('../repositories/projectRepository');
+const { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository } = require('../utils/git');
+const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
 
 class TaskService {
   constructor() {
@@ -119,6 +123,175 @@ class TaskService {
    */
   async exists(taskId) {
     return await this.taskRepo.findById(taskId) !== null;
+  }
+
+  /**
+   * Get or clone repository for a project
+   * @param {object} project - Project object
+   * @returns {Promise<string>} Repository path
+   */
+  async getOrCloneRepo(project) {
+    // Priority: local_path > git_url
+    if (project.local_path && fs.existsSync(project.local_path)) {
+      if (!isGitRepository(project.local_path)) {
+        throw new Error(`local_path is not a valid git repository: ${project.local_path}`);
+      }
+      return project.local_path;
+    }
+
+    // Clone git_url to temp directory
+    if (project.git_url) {
+      const cloneDir = path.join('/tmp/claude-repos', String(project.id));
+      if (!fs.existsSync(cloneDir) || !isGitRepository(cloneDir)) {
+        // Remove invalid directory if exists
+        if (fs.existsSync(cloneDir)) {
+          fs.rmSync(cloneDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(cloneDir, { recursive: true });
+        console.log(`Cloning ${project.git_url} to ${cloneDir}...`);
+        try {
+          execSync(`git clone ${project.git_url} .`, {
+            cwd: cloneDir,
+            encoding: 'utf-8',
+            stdio: 'pipe'
+          });
+        } catch (error) {
+          throw new Error(`Failed to clone repository: ${error.message}`);
+        }
+      }
+      if (!isGitRepository(cloneDir)) {
+        throw new Error(`Failed to clone valid git repository to: ${cloneDir}`);
+      }
+      return cloneDir;
+    }
+
+    throw new Error('Project has neither local_path nor git_url');
+  }
+
+  /**
+   * Create a worktree for a task
+   * @param {number} taskId - Task ID
+   * @returns {Promise<object>} Worktree info
+   */
+  async createWorktree(taskId) {
+    const task = await this.taskRepo.findById(taskId);
+    if (!task) {
+      const error = new Error('Task not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const project = await this.projectRepo.findById(task.project_id);
+    if (!project) {
+      const error = new Error('Project not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (!project.git_url && !project.local_path) {
+      const error = new Error('Project has no git repository configured');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    try {
+      // Get or clone the repository
+      const repoPath = await this.getOrCloneRepo(project);
+
+      // Create worktree
+      const worktreePath = createWorktree(taskId, task.title, repoPath);
+
+      // Update task with worktree info
+      const branchName = `task/${taskId}`;
+      await this.taskRepo.update(taskId, {
+        worktree_path: worktreePath,
+        worktree_branch: branchName,
+        worktree_status: 'created'
+      });
+
+      return {
+        worktree_path: worktreePath,
+        worktree_branch: branchName,
+        worktree_status: 'created'
+      };
+    } catch (error) {
+      // Update task with error status
+      await this.taskRepo.update(taskId, {
+        worktree_status: 'error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a worktree for a task
+   * @param {number} taskId - Task ID
+   * @returns {Promise<object>} Result
+   */
+  async deleteWorktree(taskId) {
+    const task = await this.taskRepo.findById(taskId);
+    if (!task) {
+      const error = new Error('Task not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (!task.worktree_path) {
+      return { success: true, message: 'No worktree to delete' };
+    }
+
+    try {
+      // Get repo path for cleanup
+      const project = await this.projectRepo.findById(task.project_id);
+      const repoPath = project?.local_path || (project?.git_url ? path.join('/tmp/claude-repos', String(project.id)) : process.cwd());
+
+      // Cleanup worktree
+      cleanupWorktree(task.worktree_path, repoPath);
+
+      // Update task
+      await this.taskRepo.update(taskId, {
+        worktree_path: null,
+        worktree_branch: null,
+        worktree_status: 'none'
+      });
+
+      return { success: true, message: 'Worktree deleted' };
+    } catch (error) {
+      // Still clear the fields even if cleanup fails
+      await this.taskRepo.update(taskId, {
+        worktree_path: null,
+        worktree_branch: null,
+        worktree_status: 'none'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get worktree status for a task
+   * @param {number} taskId - Task ID
+   * @returns {Promise<object>} Worktree status
+   */
+  async getWorktreeStatus(taskId) {
+    const task = await this.taskRepo.findById(taskId);
+    if (!task) {
+      const error = new Error('Task not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const worktreePath = task.worktree_path;
+    let exists = false;
+
+    if (worktreePath && fs.existsSync(worktreePath)) {
+      exists = true;
+    }
+
+    return {
+      worktree_path: worktreePath || null,
+      worktree_branch: task.worktree_branch || null,
+      worktree_status: exists ? 'created' : (task.worktree_status || 'none')
+    };
   }
 }
 
