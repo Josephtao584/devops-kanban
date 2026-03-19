@@ -142,6 +142,19 @@ async function taskSourceRoutes(fastify) {
     }
   });
 
+  // Preview task source (fetch issues without importing)
+  fastify.get('/:id/preview', async (request, reply) => {
+    try {
+      const sourceId = parseInt(request.params.id, 10);
+      const issues = await service.previewSync(sourceId);
+      return successResponse(issues);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500);
+      return errorResponse('Failed to preview task source: ' + error.message);
+    }
+  });
+
   // Get available source types
   fastify.get('/types/available', async (request, reply) => {
     try {
