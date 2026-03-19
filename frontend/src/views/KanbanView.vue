@@ -578,7 +578,7 @@ const diffDialogData = ref({})
 watch(viewMode, (newValue) => {
   localStorage.setItem('kanban-view-mode', newValue)
 })
-const listStatusFilter = ref(['TODO', 'IN_PROGRESS'])
+const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
 // Use useTaskTimer composable
@@ -752,12 +752,11 @@ const taskForm = reactive({
 const showAgentSelector = ref(false)
 const pendingTask = ref(null)
 
-// Filtered tasks for list view
+// Filtered tasks for list view - only sort, don't filter by status
+// Status filtering is handled by KanbanListView components
 const filteredTasksForList = computed(() => {
-  if (listStatusFilter.value.length === 0) return []
-  const filtered = taskStore.tasks.filter(task => listStatusFilter.value.includes(task.status))
   const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 2, 'DONE': 3, 'BLOCKED': 4 }
-  return filtered.sort((a, b) => {
+  return [...taskStore.tasks].sort((a, b) => {
     const orderA = statusOrder[a.status] ?? 5
     const orderB = statusOrder[b.status] ?? 5
     return orderA - orderB

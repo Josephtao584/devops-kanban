@@ -26,9 +26,14 @@ async function taskRoutes(fastify) {
   // Get all tasks
   fastify.get('/', async (request, reply) => {
     try {
-      const { project_id } = request.query;
+      const { project_id, iteration_id } = request.query;
       let tasks;
-      if (project_id) {
+
+      if (iteration_id !== undefined) {
+        // Filter by iteration
+        const iterId = iteration_id === 'null' ? null : parseInt(iteration_id, 10);
+        tasks = await service.getByProjectAndIteration(parseInt(project_id, 10), iterId);
+      } else if (project_id) {
         tasks = await service.getByProject(parseInt(project_id, 10));
       } else {
         tasks = await service.getAll();

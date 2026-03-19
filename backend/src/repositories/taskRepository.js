@@ -103,6 +103,30 @@ class TaskRepository extends BaseRepository {
 
     return grouped;
   }
+
+  /**
+   * Find tasks by iteration
+   * @param {number} iterationId - Iteration ID
+   * @returns {Promise<Array>} Tasks
+   */
+  async findByIteration(iterationId) {
+    const data = await this._loadAll();
+    return data.filter((item) => item.iteration_id === iterationId);
+  }
+
+  /**
+   * Find tasks by project and iteration
+   * @param {number} projectId - Project ID
+   * @param {number|null} iterationId - Iteration ID (null for unassigned)
+   * @returns {Promise<Array>} Tasks
+   */
+  async findByProjectAndIteration(projectId, iterationId) {
+    const tasks = await this.findByProject(projectId);
+    if (iterationId === null || iterationId === undefined) {
+      return tasks.filter((t) => !t.iteration_id);
+    }
+    return tasks.filter((t) => t.iteration_id === iterationId);
+  }
 }
 
 export { TaskRepository };

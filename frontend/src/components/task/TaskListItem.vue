@@ -234,9 +234,8 @@ const openWorktreeDirectory = () => {
 
 .task-item.task-selected,
 .task-item.task-selected:hover {
-  border-color: #f97316 !important;
-  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 0.15s ease;
 }
 
 .task-item.task-running {
