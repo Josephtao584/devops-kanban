@@ -1,7 +1,8 @@
 /**
  * Project Repository
  */
-const { BaseRepository } = require('./base');
+import { BaseRepository } from './base.js';
+import { TaskRepository } from './taskRepository.js';
 
 class ProjectRepository extends BaseRepository {
   constructor() {
@@ -19,7 +20,7 @@ class ProjectRepository extends BaseRepository {
       return null;
     }
 
-    const taskRepo = new (require('./taskRepository'))();
+    const taskRepo = new TaskRepository();
     const counts = await taskRepo.countByProject(projectId);
 
     return {
@@ -42,4 +43,4 @@ class ProjectRepository extends BaseRepository {
   }
 }
 
-module.exports = { ProjectRepository };
+export { ProjectRepository };

@@ -2,11 +2,14 @@
  * Mastra instance initialization
  *
  * Provides a singleton Mastra instance with LibSQLStore for workflow state persistence.
- * All ESM imports are done in one place to avoid CJS/ESM interop issues.
  */
 
-const path = require('path');
-const { STORAGE_PATH } = require('../config');
+import path from 'path';
+import { z } from 'zod';
+import { Mastra } from '@mastra/core';
+import { LibSQLStore } from '@mastra/libsql';
+import { createStep, createWorkflow } from '@mastra/core/workflows';
+import { STORAGE_PATH } from '../config/index.js';
 
 let _mastra = null;
 let _devWorkflow = null;
@@ -16,21 +19,8 @@ let _initialized = false;
  * Initialize Mastra and register workflows.
  * Call once at server startup.
  */
-async function initWorkflows() {
+export async function initWorkflows() {
   if (_initialized) return;
-
-  // Do ALL ESM imports in a single dynamic import batch
-  const [
-    { Mastra },
-    { LibSQLStore },
-    { createStep, createWorkflow },
-  ] = await Promise.all([
-    import('@mastra/core'),
-    import('@mastra/libsql'),
-    import('@mastra/core/workflows'),
-  ]);
-
-  const { z } = require('zod');
 
   // 1. Create Mastra instance with storage
   const dbPath = path.join(STORAGE_PATH, 'mastra.db');
@@ -41,14 +31,14 @@ async function initWorkflows() {
     }),
   });
 
-  // 2. Build dev workflow (inline to avoid cross-module ESM issues)
-  _devWorkflow = buildDevWorkflow(createStep, createWorkflow, z);
+  // 2. Build dev workflow
+  _devWorkflow = buildDevWorkflow();
 
   _initialized = true;
   console.log('[Workflow] Mastra initialized with LibSQLStore');
 }
 
-function buildDevWorkflow(createStep, createWorkflow, z) {
+function buildDevWorkflow() {
   const requirementDesignStep = createStep({
     id: 'requirement-design',
     inputSchema: z.object({
@@ -195,14 +185,12 @@ function buildDevWorkflow(createStep, createWorkflow, z) {
   return workflow;
 }
 
-function getMastra() {
+export function getMastra() {
   if (!_mastra) throw new Error('Mastra not initialized. Call initWorkflows() first.');
   return _mastra;
 }
 
-function getDevWorkflow() {
+export function getDevWorkflow() {
   if (!_devWorkflow) throw new Error('Workflow not initialized. Call initWorkflows() first.');
   return _devWorkflow;
 }
-
-module.exports = { getMastra, initWorkflows, getDevWorkflow };

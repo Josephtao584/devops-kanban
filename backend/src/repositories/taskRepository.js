@@ -1,7 +1,7 @@
 /**
  * Task Repository
  */
-const { BaseRepository } = require('./base');
+import { BaseRepository } from './base.js';
 
 class TaskRepository extends BaseRepository {
   constructor() {
@@ -105,4 +105,4 @@ class TaskRepository extends BaseRepository {
   }
 }
 
-module.exports = { TaskRepository };
+export { TaskRepository };

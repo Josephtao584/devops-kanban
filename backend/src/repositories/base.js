@@ -1,9 +1,9 @@
 /**
  * Base repository with JSON file storage
  */
-const fs = require('fs').promises;
-const path = require('path');
-const { STORAGE_PATH } = require('../config');
+import fs from 'fs/promises';
+import path from 'path';
+import { STORAGE_PATH } from '../config/index.js';
 
 class BaseRepository {
   /**
@@ -169,4 +169,4 @@ class BaseRepository {
   }
 }
 
-module.exports = { BaseRepository };
+export { BaseRepository };

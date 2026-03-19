@@ -3,9 +3,9 @@
  * Business logic for triggering, querying, and cancelling workflows.
  */
 
-const { WorkflowRunRepository } = require('../repositories/workflowRunRepository');
-const { TaskRepository } = require('../repositories/taskRepository');
-const { getDevWorkflow } = require('../workflows');
+import { WorkflowRunRepository } from '../repositories/workflowRunRepository.js';
+import { TaskRepository } from '../repositories/taskRepository.js';
+import { getDevWorkflow } from '../workflows/index.js';
 
 const STEP_DEFINITIONS = [
   { step_id: 'requirement-design', name: '需求设计' },
@@ -181,4 +181,4 @@ class WorkflowService {
   }
 }
 
-module.exports = { WorkflowService };
+export { WorkflowService };

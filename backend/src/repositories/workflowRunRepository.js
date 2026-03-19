@@ -2,7 +2,7 @@
  * Workflow Run Repository
  * Manages workflow_runs.json using BaseRepository
  */
-const { BaseRepository } = require('./base');
+import { BaseRepository } from './base.js';
 
 class WorkflowRunRepository extends BaseRepository {
   constructor() {
@@ -54,4 +54,4 @@ class WorkflowRunRepository extends BaseRepository {
   }
 }
 
-module.exports = { WorkflowRunRepository };
+export { WorkflowRunRepository };

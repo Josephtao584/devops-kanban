@@ -1,7 +1,7 @@
 /**
  * Execution Repository
  */
-const { BaseRepository } = require('./base');
+import { BaseRepository } from './base.js';
 
 class ExecutionRepository extends BaseRepository {
   constructor() {
@@ -44,4 +44,4 @@ class ExecutionRepository extends BaseRepository {
   }
 }
 
-module.exports = { ExecutionRepository };
+export { ExecutionRepository };

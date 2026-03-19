@@ -1,7 +1,7 @@
 /**
  * Adapter Registry - SPI for task source adapters
  */
-const { GitHubAdapter } = require('./github')
+import { GitHubAdapter } from './github.js'
 
 // Adapter registry
 const adapters = {}
@@ -52,7 +52,7 @@ function getAvailableTypes() {
 // Register default adapters
 registerAdapter('GITHUB', GitHubAdapter)
 
-module.exports = {
+export {
   registerAdapter,
   getAdapter,
   getAvailableTypes,

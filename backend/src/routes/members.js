@@ -1,7 +1,7 @@
 /**
  * Members Routes
  */
-const { BaseRepository } = require('../repositories/base');
+import { BaseRepository } from '../repositories/base.js';
 
 const repo = new BaseRepository('members.json');
 
@@ -98,4 +98,4 @@ async function membersRoutes(fastify) {
   });
 }
 
-module.exports = membersRoutes;
+export default membersRoutes;

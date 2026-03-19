@@ -1,10 +1,10 @@
 /**
  * Task Source Service
  */
-const { TaskSourceRepository } = require('../repositories/taskSourceRepository');
-const { ProjectRepository } = require('../repositories/projectRepository');
-const { BaseRepository } = require('../repositories/base');
-const { getAdapter, getAvailableTypes } = require('../adapters');
+import { TaskSourceRepository } from '../repositories/taskSourceRepository.js';
+import { ProjectRepository } from '../repositories/projectRepository.js';
+import { BaseRepository } from '../repositories/base.js';
+import { getAdapter, getAvailableTypes } from '../adapters/index.js';
 
 class TaskSourceService {
   constructor() {
@@ -187,4 +187,4 @@ class TaskSourceService {
   }
 }
 
-module.exports = { TaskSourceService };
+export { TaskSourceService };

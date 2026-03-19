@@ -1,8 +1,8 @@
 /**
  * Workflow Routes
  */
-const { WorkflowService } = require('../services/WorkflowService');
-const { successResponse, errorResponse } = require('../utils/response');
+import { WorkflowService } from '../services/WorkflowService.js';
+import { successResponse, errorResponse } from '../utils/response.js';
 
 const service = new WorkflowService();
 
@@ -92,4 +92,4 @@ async function workflowRoutes(fastify) {
   });
 }
 
-module.exports = workflowRoutes;
+export default workflowRoutes;

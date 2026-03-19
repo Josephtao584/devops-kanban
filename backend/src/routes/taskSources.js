@@ -1,7 +1,7 @@
 /**
  * Task Source Routes
  */
-const { TaskSourceService } = require('../services/taskSourceService');
+import { TaskSourceService } from '../services/taskSourceService.js';
 
 const service = new TaskSourceService();
 
@@ -217,4 +217,4 @@ async function taskSourceRoutes(fastify) {
   });
 }
 
-module.exports = taskSourceRoutes;
+export default taskSourceRoutes;

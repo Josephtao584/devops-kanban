@@ -1,8 +1,8 @@
 /**
  * GitHub Issues Adapter
  */
-const { TaskSourceAdapter } = require('./base');
-const https = require('https');
+import { TaskSourceAdapter } from './base.js';
+import https from 'https';
 
 class GitHubAdapter extends TaskSourceAdapter {
   constructor(source) {
@@ -162,4 +162,4 @@ class GitHubAdapter extends TaskSourceAdapter {
   }
 }
 
-module.exports = { GitHubAdapter };
+export { GitHubAdapter };

@@ -1,7 +1,7 @@
 /**
  * Execution Routes
  */
-const { ExecutionService } = require('../services/executionService');
+import { ExecutionService } from '../services/executionService.js';
 
 const service = new ExecutionService();
 
@@ -126,4 +126,4 @@ async function executionRoutes(fastify) {
   });
 }
 
-module.exports = executionRoutes;
+export default executionRoutes;
