@@ -20,6 +20,7 @@ const executionRoutes = require('./routes/executions');
 const agentRoutes = require('./routes/agents');
 const roleRoutes = require('./routes/roles');
 const memberRoutes = require('./routes/members');
+const workflowRoutes = require('./routes/workflows');
 
 // Create Fastify instance
 const fastify = Fastify({
@@ -58,6 +59,7 @@ fastify.get('/', async (request, reply) => {
         agents: '/api/agents',
         roles: '/api/roles',
         members: '/api/members',
+        workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',
       },
@@ -80,10 +82,15 @@ fastify.register(executionRoutes, { prefix: '/api/executions' });
 fastify.register(agentRoutes, { prefix: '/api/agents' });
 fastify.register(roleRoutes, { prefix: '/api/roles' });
 fastify.register(memberRoutes, { prefix: '/api/members' });
+fastify.register(workflowRoutes, { prefix: '/api/workflows' });
 
 // Start server
 const start = async () => {
   try {
+    // Initialize Mastra workflow engine
+    const { initWorkflows } = require('./workflows');
+    await initWorkflows();
+
     await fastify.listen({
       port: config.SERVER_PORT,
       host: config.SERVER_HOST,
