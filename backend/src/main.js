@@ -20,6 +20,7 @@ import agentRoutes from './routes/agents.js';
 import roleRoutes from './routes/roles.js';
 import memberRoutes from './routes/members.js';
 import workflowRoutes from './routes/workflows.js';
+import gitRoutes from './routes/git.js';
 
 import { initWorkflows } from './workflows/index.js';
 
@@ -84,6 +85,7 @@ fastify.register(agentRoutes, { prefix: '/api/agents' });
 fastify.register(roleRoutes, { prefix: '/api/roles' });
 fastify.register(memberRoutes, { prefix: '/api/members' });
 fastify.register(workflowRoutes, { prefix: '/api/workflows' });
+fastify.register(gitRoutes, { prefix: '/api/git' });
 
 // Start server
 const start = async () => {

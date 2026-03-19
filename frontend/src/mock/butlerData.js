@@ -251,10 +251,12 @@ export const getQuickActions = (task, workflow) => {
   const isRunning = task?.status === 'IN_PROGRESS'
   const isCompleted = task?.status === 'DONE'
   const isPending = task?.status === 'TODO'
+  const hasWorktree = !!task?.worktree_branch
 
   return [
     { id: 'start', label: '启动', icon: 'play', disabled: isRunning || isCompleted, action: 'start' },
     { id: 'pause', label: '暂停', icon: 'pause', disabled: !isRunning, action: 'pause' },
+    { id: 'diff', label: '差异', icon: 'compare', disabled: !hasWorktree, action: 'diff' },
     { id: 'progress', label: '进度', icon: 'chart', disabled: false, action: 'status' },
     { id: 'help', label: '帮助', icon: 'help', disabled: false, action: 'help' }
   ]
@@ -267,6 +269,14 @@ export const getResponseForAction = (action, task, workflow) => {
     return {
       action: 'status',
       response: getDetailedWorkflowStatus(workflow, task)
+    }
+  }
+
+  // 特殊处理差异比较 - 不需要文本响应，会通过事件触发对话框
+  if (action === 'diff') {
+    return {
+      action: 'diff',
+      response: '正在打开差异比较...'
     }
   }
 

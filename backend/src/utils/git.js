@@ -1,18 +1,31 @@
 import { execSync } from 'child_process';
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 
-export function getWorktreePath(taskId, taskTitle) {
-  const safeTitle = taskTitle.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
-  const baseDir = path.join(os.tmpdir(), 'claude-worktrees');
-  return path.join(baseDir, `task_${taskId}_${safeTitle}`);
+/**
+ * Sanitize a string for use in file/directory names
+ * @param {string} str - String to sanitize
+ * @returns {string} Sanitized string
+ */
+export function sanitizeName(str) {
+  return str.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_');
 }
 
-export function createWorktree(taskId, taskTitle, repoPath = process.cwd()) {
-  const worktreePath = getWorktreePath(taskId, taskTitle);
-  const branchName = `task/${taskId}`;
+export function getWorktreePath(taskId, taskTitle, projectName, repoPath) {
+  const safeTitle = sanitizeName(taskTitle).substring(0, 50);
+  const safeProjectName = sanitizeName(projectName);
+  const baseDir = path.join(repoPath, '.worktrees');
+  return path.join(baseDir, safeProjectName, `task-${taskId}-${safeTitle}`);
+}
+
+export function createWorktree(taskId, taskTitle, projectName, repoPath = process.cwd()) {
+  const worktreePath = getWorktreePath(taskId, taskTitle, projectName, repoPath);
+  const safeProjectName = sanitizeName(projectName);
+  const branchName = `task/${safeProjectName}/${taskId}`;
   try {
+    // Ensure .worktrees/ is in .gitignore
+    ensureWorktreesGitignore(repoPath);
+
     if (fs.existsSync(worktreePath)) {
       return worktreePath;
     }
@@ -20,7 +33,7 @@ export function createWorktree(taskId, taskTitle, repoPath = process.cwd()) {
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
-    execSync(`git worktree add -b ${branchName} ${worktreePath}`, {
+    execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
       cwd: repoPath,
       encoding: 'utf-8',
     });
@@ -28,6 +41,33 @@ export function createWorktree(taskId, taskTitle, repoPath = process.cwd()) {
   } catch (error) {
     const stderr = error.stderr || error.message;
     throw new Error(`Failed to create worktree: ${stderr}`);
+  }
+}
+
+/**
+ * Ensure .worktrees/ is in .gitignore
+ * @param {string} repoPath - Repository path
+ */
+function ensureWorktreesGitignore(repoPath) {
+  const gitignorePath = path.join(repoPath, '.gitignore');
+  const worktreesEntry = '.worktrees/';
+
+  try {
+    let existingContent = '';
+    if (fs.existsSync(gitignorePath)) {
+      existingContent = fs.readFileSync(gitignorePath, 'utf-8');
+    }
+
+    // Check if .worktrees/ is already in .gitignore
+    const lines = existingContent.split('\n');
+    const hasWorktrees = lines.some(line => line.trim() === worktreesEntry);
+
+    if (!hasWorktrees) {
+      const newContent = existingContent ? existingContent.trim() + '\n' + worktreesEntry + '\n' : worktreesEntry + '\n';
+      fs.writeFileSync(gitignorePath, newContent, 'utf-8');
+    }
+  } catch (error) {
+    console.error(`Failed to update .gitignore: ${error.message}`);
   }
 }
 

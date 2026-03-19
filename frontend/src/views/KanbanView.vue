@@ -154,6 +154,16 @@
                 <span class="worktree-badge" :title="selectedTask.worktree_path">
                   {{ selectedTaskWorktreeName }}
                 </span>
+                <button
+                  class="butler-worktree-delete"
+                  @click.stop="handleDeleteWorktree(selectedTask)"
+                  title="删除 Worktree"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -164,6 +174,7 @@
             @view-workflow="handleViewWorkflow"
             @task-started="handleTaskStarted"
             @view-progress="handleViewProgress"
+            @show-diff="handleShowDiff"
           />
         </div>
       </div>
@@ -257,6 +268,15 @@
       :workflow-run-id="progressRunId"
       :task-title="selectedTask?.title"
       @workflow-completed="handleWorkflowCompleted"
+    />
+
+    <!-- Diff Select Dialog -->
+    <DiffSelectDialog
+      v-if="showDiffDialog"
+      :project-id="diffDialogData.projectId"
+      :task-id="diffDialogData.taskId"
+      :worktree-branch="diffDialogData.worktreeBranch"
+      @close="showDiffDialog = false"
     />
 
     <!-- Sync Tasks Dialog -->
@@ -494,6 +514,7 @@ import { getActiveSessionByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
+import DiffSelectDialog from '../components/DiffSelectDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import draggable from 'vuedraggable'
@@ -509,6 +530,7 @@ import {
   addNodeToWorkflow
 } from '../mock/workflowData'
 import { reorderTasks } from '../api/task.js'
+import { deleteTaskWorktree } from '../api/taskWorktree.js'
 
 const { t } = useI18n()
 
@@ -549,6 +571,8 @@ const nodeChatBoxRef = ref(null)
 const isChatCollapsed = ref(false)
 const kanbanBoardRef = ref(null)
 const viewMode = ref(localStorage.getItem('kanban-view-mode') || 'list')
+const showDiffDialog = ref(false)
+const diffDialogData = ref({})
 
 // 监听 viewMode 变化并保存到 localStorage
 watch(viewMode, (newValue) => {
@@ -642,6 +666,41 @@ const handleReorderTasks = async (newOrder) => {
 const handleWorktreeUpdate = (task) => {
   // Task object is mutated by reference, no additional action needed
   console.log('[KanbanView] Worktree updated for task:', task.id)
+}
+
+// Handle show diff dialog from butler chat
+const handleShowDiff = (data) => {
+  diffDialogData.value = data
+  showDiffDialog.value = true
+}
+
+// Handle delete worktree from butler header
+const handleDeleteWorktree = async (task) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除 Worktree "${task.worktree_branch}" 吗？`,
+      '确认删除',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    const response = await deleteTaskWorktree(task.id)
+    if (response.success) {
+      task.worktree_path = null
+      task.worktree_branch = null
+      task.worktree_status = 'none'
+      ElMessage.success('Worktree 已删除')
+      await taskStore.fetchTasks(selectedProjectId.value)
+    }
+  } catch (error) {
+    const isCancelled = error === 'cancel' || error === 'esc'
+    if (!isCancelled) {
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
 }
 
 // Computed - tasks and projects
@@ -1434,6 +1493,27 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+}
+
+.butler-worktree-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.butler-worktree-delete:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 /* Modal Styles */

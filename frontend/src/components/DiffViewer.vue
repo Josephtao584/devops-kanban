@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="true"
     title="Code Changes"
-    width="80%"
+    width="90%"
     top="5vh"
     :close-on-click-modal="false"
     @close="$emit('close')"
@@ -22,26 +22,76 @@
       <el-skeleton :rows="10" animated />
     </div>
 
-    <el-empty v-else-if="!diffContent" description="No changes to display" />
+    <el-empty v-else-if="!diffData?.files?.length" description="No changes to display" />
 
     <div v-else class="diff-container">
       <div class="diff-stats">
         <el-tag type="success">
           <el-icon><Plus /></el-icon>
-          {{ additions }} additions
+          {{ totalAdditions }} additions
         </el-tag>
         <el-tag type="danger">
           <el-icon><Minus /></el-icon>
-          {{ deletions }} deletions
+          {{ totalDeletions }} deletions
         </el-tag>
         <el-tag type="info">
-          {{ changedFiles }} files changed
+          {{ diffData.files.length }} files changed
         </el-tag>
       </div>
 
-      <el-scrollbar height="60vh">
-        <pre class="diff-content">{{ diffContent }}</pre>
-      </el-scrollbar>
+      <div class="diff-panels">
+        <!-- Left panel: File list -->
+        <div class="file-list-panel">
+          <el-scrollbar height="55vh">
+            <el-menu
+              :default-active="selectedFile"
+              @select="handleFileSelect"
+            >
+              <el-menu-item
+                v-for="file in diffData.files"
+                :key="file.path"
+                :index="file.path"
+                class="file-menu-item"
+              >
+                <div class="file-item-content">
+                  <span class="file-name" :title="file.path">{{ file.path }}</span>
+                  <div class="file-stats">
+                    <span v-if="file.additions > 0" class="stat-additions">+{{ file.additions }}</span>
+                    <span v-if="file.deletions > 0" class="stat-deletions">-{{ file.deletions }}</span>
+                    <el-tag
+                      :type="getStatusType(file.status)"
+                      size="small"
+                      class="status-tag"
+                    >
+                      {{ getStatusLabel(file.status) }}
+                    </el-tag>
+                  </div>
+                </div>
+              </el-menu-item>
+            </el-menu>
+          </el-scrollbar>
+        </div>
+
+        <!-- Right panel: Diff content -->
+        <div class="diff-content-panel">
+          <el-scrollbar height="55vh">
+            <div class="diff-view">
+              <div
+                v-for="(line, index) in parsedDiff"
+                :key="index"
+                :class="['diff-line', line.type]"
+              >
+                <span class="line-number">{{ line.lineNumber || '' }}</span>
+                <span class="line-prefix">{{ line.prefix }}</span>
+                <span class="line-content">{{ line.content }}</span>
+              </div>
+              <div v-if="!parsedDiff.length" class="no-diff">
+                Select a file to view changes
+              </div>
+            </div>
+          </el-scrollbar>
+        </div>
+      </div>
     </div>
 
     <template #footer>
@@ -70,6 +120,10 @@ const props = defineProps({
     type: Number,
     required: true
   },
+  taskId: {
+    type: Number,
+    required: true
+  },
   sourceRef: {
     type: String,
     required: true
@@ -83,20 +137,119 @@ const props = defineProps({
 const emit = defineEmits(['close', 'accept', 'reject'])
 
 const loading = ref(true)
-const diffContent = ref('')
-const changedFiles = ref(0)
+const diffData = ref(null)
+const selectedFile = ref('')
 
-const additions = computed(() => {
-  if (!diffContent.value) return 0
-  const matches = diffContent.value.match(/^\+/gm)
-  return matches ? matches.length : 0
+const totalAdditions = computed(() => {
+  if (!diffData.value?.files) return 0
+  return diffData.value.files.reduce((sum, f) => sum + f.additions, 0)
 })
 
-const deletions = computed(() => {
-  if (!diffContent.value) return 0
-  const matches = diffContent.value.match(/^-/gm)
-  return matches ? matches.length : 0
+const totalDeletions = computed(() => {
+  if (!diffData.value?.files) return 0
+  return diffData.value.files.reduce((sum, f) => sum + f.deletions, 0)
 })
+
+const parsedDiff = computed(() => {
+  if (!selectedFile.value || !diffData.value?.diffs) return []
+
+  const diffContent = diffData.value.diffs[selectedFile.value]
+  if (!diffContent) return []
+
+  const lines = diffContent.split('\n')
+  const result = []
+  let oldLineNum = 0
+  let newLineNum = 0
+
+  for (const line of lines) {
+    // Skip header lines
+    if (line.startsWith('diff --git') ||
+        line.startsWith('index ') ||
+        line.startsWith('--- ') ||
+        line.startsWith('+++ ')) {
+      if (line.startsWith('--- ') || line.startsWith('+++ ')) {
+        result.push({
+          type: 'header',
+          lineNumber: '',
+          prefix: '',
+          content: line
+        })
+      }
+      continue
+    }
+
+    if (line.startsWith('@@')) {
+      // Parse hunk header like @@ -1,5 +1,7 @@
+      const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/)
+      if (match) {
+        oldLineNum = parseInt(match[1])
+        newLineNum = parseInt(match[2])
+      }
+      result.push({
+        type: 'hunk',
+        lineNumber: '',
+        prefix: '',
+        content: line
+      })
+      continue
+    }
+
+    if (line.startsWith('+')) {
+      result.push({
+        type: 'addition',
+        lineNumber: newLineNum++,
+        prefix: '+',
+        content: line.substring(1)
+      })
+    } else if (line.startsWith('-')) {
+      result.push({
+        type: 'deletion',
+        lineNumber: oldLineNum++,
+        prefix: '-',
+        content: line.substring(1)
+      })
+    } else if (line.startsWith(' ')) {
+      result.push({
+        type: 'context',
+        lineNumber: newLineNum++,
+        prefix: ' ',
+        content: line.substring(1)
+      })
+    } else if (line.trim()) {
+      // Other lines (like file mode changes)
+      result.push({
+        type: 'other',
+        lineNumber: '',
+        prefix: '',
+        content: line
+      })
+    }
+  }
+
+  return result
+})
+
+const getStatusType = (status) => {
+  const types = {
+    added: 'success',
+    modified: 'warning',
+    deleted: 'danger'
+  }
+  return types[status] || 'info'
+}
+
+const getStatusLabel = (status) => {
+  const labels = {
+    added: 'A',
+    modified: 'M',
+    deleted: 'D'
+  }
+  return labels[status] || '?'
+}
+
+const handleFileSelect = (filePath) => {
+  selectedFile.value = filePath
+}
 
 onMounted(async () => {
   await loadDiff()
@@ -105,7 +258,7 @@ onMounted(async () => {
 const loadDiff = async () => {
   loading.value = true
   try {
-    const response = await axios.get(`/api/git/diff`, {
+    const response = await axios.get(`/api/tasks/${props.taskId}/worktree/diff`, {
       params: {
         projectId: props.projectId,
         source: props.sourceRef,
@@ -113,8 +266,11 @@ const loadDiff = async () => {
       }
     })
     if (response.data.success) {
-      diffContent.value = response.data.data.content || ''
-      changedFiles.value = response.data.data.filesChanged || 0
+      diffData.value = response.data.data
+      // Select first file by default
+      if (diffData.value.files?.length > 0) {
+        selectedFile.value = diffData.value.files[0].path
+      }
     }
   } catch (e) {
     console.error('Failed to load diff:', e)
@@ -156,19 +312,139 @@ const loadDiff = async () => {
   border-bottom: 1px solid var(--el-border-color-light);
 }
 
-.diff-content {
-  margin: 0;
-  padding: 16px;
+.diff-panels {
+  display: flex;
+  height: 60vh;
+}
+
+.file-list-panel {
+  width: 35%;
+  min-width: 250px;
+  border-right: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color);
+}
+
+.file-list-panel :deep(.el-menu) {
+  border-right: none;
+}
+
+.file-menu-item {
+  height: auto !important;
+  padding: 10px 16px !important;
+  line-height: 1.4;
+}
+
+.file-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 13px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.stat-additions {
+  color: #67c23a;
+  font-weight: 500;
+}
+
+.stat-deletions {
+  color: #f56c6c;
+  font-weight: 500;
+}
+
+.status-tag {
+  font-size: 10px !important;
+  padding: 0 4px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+}
+
+.diff-content-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.diff-view {
+  padding: 0;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--el-text-color-primary);
 }
 
-.diff-content :deep() {
-  /* Style diff lines */
+.diff-line {
+  display: flex;
+  padding: 1px 8px;
+  white-space: pre;
+}
+
+.diff-line.addition {
+  background-color: rgba(103, 194, 58, 0.15);
+}
+
+.diff-line.deletion {
+  background-color: rgba(245, 108, 108, 0.15);
+}
+
+.diff-line.hunk {
+  background-color: rgba(64, 158, 255, 0.15);
+  color: #409eff;
+  font-weight: 500;
+}
+
+.diff-line.header {
+  color: #909399;
+  font-style: italic;
+}
+
+.line-number {
+  width: 40px;
+  text-align: right;
+  padding-right: 12px;
+  color: #909399;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-prefix {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.diff-line.addition .line-prefix {
+  color: #67c23a;
+}
+
+.diff-line.deletion .line-prefix {
+  color: #f56c6c;
+}
+
+.line-content {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.no-diff {
+  padding: 40px;
+  text-align: center;
+  color: var(--el-text-color-secondary);
 }
 
 .dialog-footer {
