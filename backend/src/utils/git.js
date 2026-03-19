@@ -54,18 +54,31 @@ function createWorktree(taskId, taskTitle, repoPath = process.cwd()) {
 }
 
 /**
- * Remove a git worktree
+ * Remove a git worktree and optionally delete the branch
  * @param {string} worktreePath - Worktree path to remove
  * @param {string} repoPath - Repository path (optional, defaults to cwd)
+ * @param {string} branchName - Branch name to delete (optional)
  * @returns {boolean} True if removed successfully
  */
-function cleanupWorktree(worktreePath, repoPath = process.cwd()) {
+function cleanupWorktree(worktreePath, repoPath = process.cwd(), branchName = null) {
   try {
     if (require('fs').existsSync(worktreePath)) {
       execSync(`git worktree remove ${worktreePath} --force`, {
         cwd: repoPath,
         encoding: 'utf-8',
       });
+    }
+    // Delete the branch if provided
+    if (branchName) {
+      try {
+        execSync(`git branch -D ${branchName} --force`, {
+          cwd: repoPath,
+          encoding: 'utf-8',
+        });
+      } catch (e) {
+        // Branch may not exist, ignore error
+        console.log(`Branch ${branchName} may not exist, skipping deletion`);
+      }
     }
     return true;
   } catch (error) {
