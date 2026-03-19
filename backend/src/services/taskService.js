@@ -3,6 +3,7 @@
  */
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
+import { WorkflowService } from './WorkflowService.js';
 import { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository } from '../utils/git.js';
 import path from 'path';
 import fs from 'fs';
@@ -105,6 +106,36 @@ class TaskService {
    */
   async updateStatus(taskId, status) {
     return await this.taskRepo.update(taskId, { status });
+  }
+
+  /**
+   * Start a task: set status to IN_PROGRESS and launch workflow
+   * @param {number} taskId - Task ID
+   * @returns {Promise<object>} Updated task with workflow_run_id
+   */
+  async startTask(taskId) {
+    const task = await this.taskRepo.findById(taskId);
+    if (!task) {
+      const error = new Error('Task not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (task.status !== 'TODO') {
+      const error = new Error('只有待处理的任务可以启动');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // 1. Update task status to IN_PROGRESS
+    await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
+
+    // 2. Create and start workflow
+    const workflowService = new WorkflowService();
+    await workflowService.startWorkflow(taskId);
+
+    // 3. Return updated task
+    return await this.taskRepo.findById(taskId);
   }
 
   /**
