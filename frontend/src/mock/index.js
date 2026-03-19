@@ -108,12 +108,12 @@ const createMockAdapter = (originalAdapter) => {
       }
     }
 
-    // No mock handler found, use original adapter (if any)
-    if (originalAdapter) {
+    // No mock handler found, use original adapter (if available and is a function)
+    if (typeof originalAdapter === 'function') {
       return originalAdapter(config)
     }
 
-    // No handler and no original adapter
+    // No handler and no usable adapter
     return Promise.reject(new Error(`[Mock] No handler for ${config.method?.toUpperCase()} ${path}`))
   }
 }
