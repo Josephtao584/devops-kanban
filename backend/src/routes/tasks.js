@@ -26,7 +26,13 @@ async function taskRoutes(fastify) {
   // Get all tasks
   fastify.get('/', async (request, reply) => {
     try {
-      const tasks = await service.getAll();
+      const { project_id } = request.query;
+      let tasks;
+      if (project_id) {
+        tasks = await service.getByProject(parseInt(project_id, 10));
+      } else {
+        tasks = await service.getAll();
+      }
       return successResponse(tasks);
     } catch (error) {
       request.log.error(error);

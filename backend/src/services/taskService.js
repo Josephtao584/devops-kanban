@@ -245,8 +245,9 @@ class TaskService {
       const project = await this.projectRepo.findById(task.project_id);
       const repoPath = project?.local_path || (project?.git_url ? path.join('/tmp/claude-repos', String(project.id)) : process.cwd());
 
-      // Cleanup worktree
-      cleanupWorktree(task.worktree_path, repoPath);
+      // Cleanup worktree and delete branch
+      const branchName = task.worktree_branch || `task/${taskId}`;
+      cleanupWorktree(task.worktree_path, repoPath, branchName);
 
       // Update task
       await this.taskRepo.update(taskId, {

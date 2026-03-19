@@ -149,6 +149,12 @@
             <div class="butler-avatar">🤖</div>
             <div class="butler-info">
               <h3>{{ $t('butler.title') }} - {{ selectedTask.title }}</h3>
+              <div v-if="selectedTaskWorktreeName" class="butler-worktree">
+                <span class="worktree-label">{{ $t('git.worktree', 'Worktree') }}:</span>
+                <span class="worktree-badge" :title="selectedTask.worktree_path">
+                  {{ selectedTaskWorktreeName }}
+                </span>
+              </div>
             </div>
           </div>
           <TaskButlerChat
@@ -595,6 +601,13 @@ const handleWorktreeUpdate = (task) => {
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
 
+// Worktree name from selected task
+const selectedTaskWorktreeName = computed(() => {
+  if (!selectedTask.value?.worktree_path) return ''
+  const parts = selectedTask.value.worktree_path.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || selectedTask.value.worktree_path
+})
+
 // Local reactive arrays for draggable
 const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
@@ -721,6 +734,10 @@ const onProjectChange = async () => {
 
 // Task selection
 const selectTask = (task) => {
+  // Prevent selecting the same task that's already selected
+  if (selectedTask.value && selectedTask.value.id === task.id) {
+    return
+  }
   console.log('[KanbanView] selectTask called with:', task)
   selectedTask.value = task
   loadActiveSession()
@@ -1047,8 +1064,10 @@ const handleRequestAgentSelect = (task) => {
 
 const loadActiveSession = async () => {
   if (!selectedTask.value) return
+  // Store task ID before async operation to prevent stale reference
+  const taskId = selectedTask.value.id
   try {
-    const response = await getActiveSessionByTask(selectedTask.value.id)
+    const response = await getActiveSessionByTask(taskId)
     if (response.success && response.data) {
       activeSession.value = response.data
     } else {
@@ -1344,6 +1363,30 @@ onUnmounted(() => {
   margin: 0;
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.butler-worktree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.butler-worktree .worktree-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.butler-worktree .worktree-badge {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 /* Modal Styles */

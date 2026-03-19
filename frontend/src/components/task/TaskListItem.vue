@@ -217,9 +217,11 @@ const handleWorktree = async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.task-item.task-selected {
-  border-color: #f97316;
+.task-item.task-selected,
+.task-item.task-selected:hover {
+  border-color: #f97316 !important;
   box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .task-item.task-running {

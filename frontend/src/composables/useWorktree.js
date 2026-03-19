@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import * as taskWorktreeApi from '../api/taskWorktree'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 /**
  * Composable for managing worktree operations
@@ -44,6 +44,17 @@ export function useWorktree() {
       worktreeLoading.value.add(task.id)
 
       if (task.worktree_status === 'created') {
+        // Confirm before delete
+        await ElMessageBox.confirm(
+          `确定要删除 Worktree "${task.worktree_branch}" 吗？`,
+          '确认删除',
+          {
+            confirmButtonText: '删除',
+            cancelButtonText: '取消',
+            type: 'warning',
+          }
+        )
+
         // Delete worktree
         const response = await taskWorktreeApi.deleteTaskWorktree(task.id)
         if (response.success) {
@@ -69,7 +80,11 @@ export function useWorktree() {
         }
       }
     } catch (error) {
-      ElMessage.error(error.message || '操作失败')
+      // Check if user cancelled (error will be 'cancel' or 'esc' string)
+      const isCancelled = error === 'cancel' || error === 'esc'
+      if (!isCancelled) {
+        ElMessage.error(error.message || '操作失败')
+      }
     } finally {
       worktreeLoading.value.delete(task.id)
     }
