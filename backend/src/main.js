@@ -1,26 +1,27 @@
 /**
  * Application entry point
  */
-require('dotenv').config();
+import 'dotenv/config';
+import Fastify from 'fastify';
+import fastifyWebSocket from '@fastify/websocket';
 
-const Fastify = require('fastify');
-const path = require('path');
-
-const config = require('./config');
-const corsPlugin = require('./middleware/cors');
-const errorHandlerPlugin = require('./middleware/errorHandler');
+import * as config from './config/index.js';
+import corsPlugin from './middleware/cors.js';
+import errorHandlerPlugin from './middleware/errorHandler.js';
 
 // Import routes
-const projectRoutes = require('./routes/projects');
-const taskRoutes = require('./routes/tasks');
-const taskWorktreeRoutes = require('./routes/taskWorktree');
-const sessionRoutes = require('./routes/sessions');
-const taskSourceRoutes = require('./routes/taskSources');
-const executionRoutes = require('./routes/executions');
-const agentRoutes = require('./routes/agents');
-const roleRoutes = require('./routes/roles');
-const memberRoutes = require('./routes/members');
-const workflowRoutes = require('./routes/workflows');
+import projectRoutes from './routes/projects.js';
+import taskRoutes from './routes/tasks.js';
+import taskWorktreeRoutes from './routes/taskWorktree.js';
+import sessionRoutes from './routes/sessions.js';
+import taskSourceRoutes from './routes/taskSources.js';
+import executionRoutes from './routes/executions.js';
+import agentRoutes from './routes/agents.js';
+import roleRoutes from './routes/roles.js';
+import memberRoutes from './routes/members.js';
+import workflowRoutes from './routes/workflows.js';
+
+import { initWorkflows } from './workflows/index.js';
 
 // Create Fastify instance
 const fastify = Fastify({
@@ -37,7 +38,7 @@ fastify.register(corsPlugin);
 fastify.register(errorHandlerPlugin);
 
 // Register WebSocket plugin for Fastify (provides fastify.websocketServer)
-fastify.register(require('@fastify/websocket'), {
+fastify.register(fastifyWebSocket, {
   options: {
     maxPayload: 1048576, // 1MB max payload
   },
@@ -88,7 +89,6 @@ fastify.register(workflowRoutes, { prefix: '/api/workflows' });
 const start = async () => {
   try {
     // Initialize Mastra workflow engine
-    const { initWorkflows } = require('./workflows');
     await initWorkflows();
 
     await fastify.listen({

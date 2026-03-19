@@ -1,7 +1,8 @@
 /**
  * Project Routes
  */
-const { ProjectService } = require('../services/projectService');
+import { ProjectService } from '../services/projectService.js';
+import { TaskService } from '../services/taskService.js';
 
 const service = new ProjectService();
 
@@ -106,7 +107,6 @@ async function projectRoutes(fastify) {
         return errorResponse('Project not found');
       }
 
-      const { TaskService } = require('../services/taskService');
       const taskService = new TaskService();
       const tasks = await taskService.getByProject(projectId);
       return successResponse(tasks);
@@ -126,7 +126,6 @@ async function projectRoutes(fastify) {
         return errorResponse('Project not found');
       }
 
-      const { TaskService } = require('../services/taskService');
       const taskService = new TaskService();
       const grouped = await taskService.getByProjectGrouped(projectId);
       return successResponse(grouped);
@@ -138,4 +137,4 @@ async function projectRoutes(fastify) {
   });
 }
 
-module.exports = projectRoutes;
+export default projectRoutes;

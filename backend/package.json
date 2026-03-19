@@ -2,6 +2,7 @@
   "name": "devops-kanban-backend",
   "version": "0.1.0",
   "description": "DevOps Kanban Backend API - Node.js Fastify",
+  "type": "module",
   "main": "src/main.js",
   "scripts": {
     "start": "node src/main.js",

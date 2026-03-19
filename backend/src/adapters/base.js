@@ -32,4 +32,4 @@ class TaskSourceAdapter {
   }
 }
 
-module.exports = { TaskSourceAdapter };
+export { TaskSourceAdapter };

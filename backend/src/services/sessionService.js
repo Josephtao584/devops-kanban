@@ -1,12 +1,12 @@
 /**
  * Session Service
  */
-const { SessionRepository } = require('../repositories/sessionRepository');
-const { TaskService } = require('./taskService');
-const { createWorktree, cleanupWorktree } = require('../utils/git');
-const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { SessionRepository } from '../repositories/sessionRepository.js';
+import { TaskService } from './taskService.js';
+import { createWorktree, cleanupWorktree } from '../utils/git.js';
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
 
 class SessionService {
   constructor() {
@@ -405,4 +405,4 @@ class SessionService {
   }
 }
 
-module.exports = { SessionService };
+export { SessionService };

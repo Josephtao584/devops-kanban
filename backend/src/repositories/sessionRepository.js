@@ -1,7 +1,7 @@
 /**
  * Session Repository
  */
-const { BaseRepository } = require('./base');
+import { BaseRepository } from './base.js';
 
 class SessionRepository extends BaseRepository {
   constructor() {
@@ -86,4 +86,4 @@ class SessionRepository extends BaseRepository {
   }
 }
 
-module.exports = { SessionRepository };
+export { SessionRepository };

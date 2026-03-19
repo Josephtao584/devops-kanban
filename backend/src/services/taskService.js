@@ -1,12 +1,12 @@
 /**
  * Task Service
  */
-const { TaskRepository } = require('../repositories/taskRepository');
-const { ProjectRepository } = require('../repositories/projectRepository');
-const { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository } = require('../utils/git');
-const path = require('path');
-const fs = require('fs');
-const { execSync } = require('child_process');
+import { TaskRepository } from '../repositories/taskRepository.js';
+import { ProjectRepository } from '../repositories/projectRepository.js';
+import { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository } from '../utils/git.js';
+import path from 'path';
+import fs from 'fs';
+import { execSync } from 'child_process';
 
 class TaskService {
   constructor() {
@@ -296,4 +296,4 @@ class TaskService {
   }
 }
 
-module.exports = { TaskService };
+export { TaskService };

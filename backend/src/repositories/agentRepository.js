@@ -1,7 +1,7 @@
 /**
  * Agent Repository
  */
-const { BaseRepository } = require('./base');
+import { BaseRepository } from './base.js';
 
 class AgentRepository extends BaseRepository {
   constructor() {
@@ -9,4 +9,4 @@ class AgentRepository extends BaseRepository {
   }
 }
 
-module.exports = { AgentRepository };
+export { AgentRepository };

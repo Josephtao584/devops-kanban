@@ -1,17 +1,6 @@
-/**
- * Error Handler Middleware
- */
-
-/**
- * Register global error handler
- * @param {FastifyInstance} fastify - Fastify instance
- */
-async function errorHandlerPlugin(fastify) {
-  // Global error handler
+export default async function errorHandlerPlugin(fastify) {
   fastify.setErrorHandler((error, request, reply) => {
     request.log.error(error);
-
-    // Validation errors
     if (error.validation) {
       return reply.code(400).send({
         success: false,
@@ -20,8 +9,6 @@ async function errorHandlerPlugin(fastify) {
         data: null,
       });
     }
-
-    // Not found
     if (error.code === 'FWR_NOT_FOUND') {
       return reply.code(404).send({
         success: false,
@@ -30,8 +17,6 @@ async function errorHandlerPlugin(fastify) {
         data: null,
       });
     }
-
-    // Default error
     const statusCode = error.statusCode || error.status || 500;
     return reply.code(statusCode).send({
       success: false,
@@ -41,7 +26,6 @@ async function errorHandlerPlugin(fastify) {
     });
   });
 
-  // 404 handler
   fastify.setNotFoundHandler((request, reply) => {
     reply.code(404).send({
       success: false,
@@ -51,5 +35,3 @@ async function errorHandlerPlugin(fastify) {
     });
   });
 }
-
-module.exports = errorHandlerPlugin;

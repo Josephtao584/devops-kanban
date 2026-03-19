@@ -1,7 +1,7 @@
 /**
  * Agent Routes
  */
-const { AgentRepository } = require('../repositories/agentRepository');
+import { AgentRepository } from '../repositories/agentRepository.js';
 
 const repo = new AgentRepository();
 
@@ -98,4 +98,4 @@ async function agentRoutes(fastify) {
   });
 }
 
-module.exports = agentRoutes;
+export default agentRoutes;

@@ -1,7 +1,7 @@
 /**
  * Task Worktree Routes
  */
-const { TaskService } = require('../services/taskService');
+import { TaskService } from '../services/taskService.js';
 
 async function taskWorktreeRoutes(fastify, options) {
   const taskService = new TaskService();
@@ -72,4 +72,4 @@ async function taskWorktreeRoutes(fastify, options) {
   });
 }
 
-module.exports = taskWorktreeRoutes;
+export default taskWorktreeRoutes;

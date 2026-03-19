@@ -1,7 +1,7 @@
 /**
  * Roles Routes
  */
-const { BaseRepository } = require('../repositories/base');
+import { BaseRepository } from '../repositories/base.js';
 
 const repo = new BaseRepository('roles.json');
 
@@ -98,4 +98,4 @@ async function rolesRoutes(fastify) {
   });
 }
 
-module.exports = rolesRoutes;
+export default rolesRoutes;

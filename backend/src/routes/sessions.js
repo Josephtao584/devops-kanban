@@ -1,10 +1,10 @@
 /**
  * Session Routes with WebSocket support
  */
-const { SessionService } = require('../services/sessionService');
-const { createWorktree, cleanupWorktree } = require('../utils/git');
-const { TaskService } = require('../services/taskService');
-const { SessionRepository } = require('../repositories/sessionRepository');
+import { SessionService } from '../services/sessionService.js';
+import { createWorktree, cleanupWorktree } from '../utils/git.js';
+import { TaskService } from '../services/taskService.js';
+import { SessionRepository } from '../repositories/sessionRepository.js';
 
 const service = new SessionService();
 const sessionRepo = new SessionRepository();
@@ -338,4 +338,4 @@ async function sessionRoutes(fastify) {
   });
 }
 
-module.exports = sessionRoutes;
+export default sessionRoutes;

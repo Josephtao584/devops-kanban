@@ -1,9 +1,9 @@
 /**
  * Execution Service
  */
-const { ExecutionRepository } = require('../repositories/executionRepository');
-const { SessionRepository } = require('../repositories/sessionRepository');
-const { TaskRepository } = require('../repositories/taskRepository');
+import { ExecutionRepository } from '../repositories/executionRepository.js';
+import { SessionRepository } from '../repositories/sessionRepository.js';
+import { TaskRepository } from '../repositories/taskRepository.js';
 
 class ExecutionService {
   constructor() {
@@ -88,4 +88,4 @@ class ExecutionService {
   }
 }
 
-module.exports = { ExecutionService };
+export { ExecutionService };

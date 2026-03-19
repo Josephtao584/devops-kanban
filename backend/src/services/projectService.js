@@ -1,8 +1,8 @@
 /**
  * Project Service
  */
-const { ProjectRepository } = require('../repositories/projectRepository');
-const { TaskRepository } = require('../repositories/taskRepository');
+import { ProjectRepository } from '../repositories/projectRepository.js';
+import { TaskRepository } from '../repositories/taskRepository.js';
 
 class ProjectService {
   constructor() {
@@ -76,4 +76,4 @@ class ProjectService {
   }
 }
 
-module.exports = { ProjectService };
+export { ProjectService };
