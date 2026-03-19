@@ -269,6 +269,45 @@ export const mockSessions = [
   }
 ]
 
+export const mockIterations = [
+  {
+    id: 1,
+    project_id: 1,
+    name: 'Sprint 1',
+    goal: '完成基础功能开发',
+    status: 'DONE',
+    startDate: '2024-03-01',
+    endDate: '2024-03-14',
+    taskCount: 5,
+    completedCount: 3,
+    createdAt: '2024-03-01T09:00:00Z'
+  },
+  {
+    id: 2,
+    project_id: 1,
+    name: 'Sprint 2',
+    goal: '性能优化与Bug修复',
+    status: 'IN_PROGRESS',
+    startDate: '2024-03-15',
+    endDate: '2024-03-28',
+    taskCount: 8,
+    completedCount: 2,
+    createdAt: '2024-03-15T09:00:00Z'
+  },
+  {
+    id: 3,
+    project_id: 1,
+    name: 'Sprint 3',
+    goal: '新功能规划',
+    status: 'PLANNING',
+    startDate: '2024-03-29',
+    endDate: '2024-04-11',
+    taskCount: 0,
+    completedCount: 0,
+    createdAt: '2024-03-20T09:00:00Z'
+  }
+]
+
 export const mockExecutions = [
   {
     id: 1,
@@ -382,11 +421,13 @@ let nextProjectId = 10
 let nextAgentId = 10
 let nextSessionId = 10
 let nextExecutionId = 100
+let nextIterationId = 10
 
 export const generateId = {
   task: () => nextTaskId++,
   project: () => nextProjectId++,
   agent: () => nextAgentId++,
   session: () => `session-${nextSessionId++}`,
-  execution: () => nextExecutionId++
+  execution: () => nextExecutionId++,
+  iteration: () => nextIterationId++
 }

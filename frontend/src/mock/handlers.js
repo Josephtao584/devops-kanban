@@ -6,6 +6,7 @@ import {
   mockTaskSources,
   mockSessions,
   mockExecutions,
+  mockIterations,
   generateId
 } from './data.js'
 import { mockWorkflows } from './workflowData.js'
@@ -27,6 +28,7 @@ let tasks = [...mockTasks]
 let taskSources = [...mockTaskSources]
 let sessions = [...mockSessions]
 let executions = [...mockExecutions]
+let iterations = [...mockIterations]
 
 // Reset data to initial state
 export const resetMockData = () => {
@@ -36,6 +38,7 @@ export const resetMockData = () => {
   taskSources = [...mockTaskSources]
   sessions = [...mockSessions]
   executions = [...mockExecutions]
+  iterations = [...mockIterations]
 }
 
 // API Handlers
@@ -307,5 +310,58 @@ export const mockHandlers = {
     await delay()
     const workflow = mockWorkflows.find(w => w.projectId === Number(projectId))
     return workflow ? response(workflow) : response(null, false, 'Workflow not found')
+  },
+
+  // Iterations
+  'GET /iterations': async (params) => {
+    await delay()
+    let result = iterations
+    if (params?.project_id) {
+      result = result.filter(i => i.project_id === Number(params.project_id))
+    }
+    return response(result)
+  },
+
+  'GET /iterations/:id': async (id) => {
+    await delay()
+    const iteration = iterations.find(i => i.id === Number(id))
+    return iteration ? response(iteration) : response(null, false, 'Iteration not found')
+  },
+
+  'POST /iterations': async (data) => {
+    await delay()
+    const newIteration = {
+      id: generateId.iteration(),
+      ...data,
+      taskCount: 0,
+      completedCount: 0,
+      createdAt: new Date().toISOString()
+    }
+    iterations.push(newIteration)
+    return response(newIteration)
+  },
+
+  'PUT /iterations/:id': async (id, data) => {
+    await delay()
+    const index = iterations.findIndex(i => i.id === Number(id))
+    if (index === -1) return response(null, false, 'Iteration not found')
+    iterations[index] = { ...iterations[index], ...data }
+    return response(iterations[index])
+  },
+
+  'PATCH /iterations/:id/status': async (id, data) => {
+    await delay()
+    const index = iterations.findIndex(i => i.id === Number(id))
+    if (index === -1) return response(null, false, 'Iteration not found')
+    iterations[index].status = data.status
+    return response(iterations[index])
+  },
+
+  'DELETE /iterations/:id': async (id) => {
+    await delay()
+    const index = iterations.findIndex(i => i.id === Number(id))
+    if (index === -1) return response(null, false, 'Iteration not found')
+    iterations.splice(index, 1)
+    return response(null)
   }
 }
