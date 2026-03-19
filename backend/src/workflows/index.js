@@ -58,7 +58,7 @@ function buildDevWorkflow() {
       console.log(`[Workflow]   Worktree: ${inputData.worktreePath}`);
 
       // TODO: Replace with real Claude Code CLI spawn
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 60000));
 
       const designDocContent = [
         `# Design Document: ${inputData.taskTitle}`,
@@ -95,7 +95,7 @@ function buildDevWorkflow() {
       console.log(`[Workflow]   Design doc: ${inputData.designDocPath} (${inputData.designDocContent.length} chars)`);
 
       // TODO: Replace with real Claude Code CLI spawn
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 60000));
 
       const changedFiles = ['src/feature/index.js', 'src/feature/utils.js', 'src/feature/types.js'];
       const commitHash = 'mock-' + Date.now().toString(36);
@@ -121,7 +121,7 @@ function buildDevWorkflow() {
       console.log(`[Workflow]   Files: ${inputData.changedFiles.join(', ')}`);
 
       // TODO: Replace with real Claude Code CLI spawn
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 60000));
 
       console.log(`[Workflow] Step "testing" completed — passed: true`);
       return {
@@ -149,7 +149,7 @@ function buildDevWorkflow() {
       console.log(`[Workflow]   Tests passed: ${inputData.passed}`);
 
       // TODO: Replace with real Claude Code CLI spawn
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 60000));
 
       const approved = inputData.passed;
       const comments = approved

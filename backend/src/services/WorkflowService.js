@@ -102,26 +102,49 @@ class WorkflowService {
 
       console.log(`[Workflow] Starting workflow run #${runId} for task #${task.id}`);
 
-      // Run the Mastra workflow — steps execute sequentially inside Mastra
+      // Run the Mastra workflow with streaming to get step-level events
       const mastraRun = await workflow.createRun();
-      const result = await mastraRun.start({ inputData });
+      const stream = mastraRun.stream({ inputData });
+
+      // Process stream events to update step status in real-time
+      for await (const event of stream.fullStream) {
+        console.log(`[Workflow] Stream event: ${event.type}`, event.payload?.stepName || '');
+
+        if (event.type === 'workflow-step-start' && event.payload?.stepName) {
+          const stepId = event.payload.stepName;
+          await this.workflowRunRepo.updateStep(runId, stepId, {
+            status: 'RUNNING',
+            started_at: new Date().toISOString(),
+          });
+          await this.workflowRunRepo.update(runId, { current_step: stepId });
+        }
+
+        if (event.type === 'workflow-step-result' && event.payload?.stepName) {
+          const stepId = event.payload.stepName;
+          await this.workflowRunRepo.updateStep(runId, stepId, {
+            status: 'COMPLETED',
+            completed_at: new Date().toISOString(),
+          });
+        }
+
+        if (event.type === 'workflow-step-error' && event.payload?.stepName) {
+          const stepId = event.payload.stepName;
+          await this.workflowRunRepo.updateStep(runId, stepId, {
+            status: 'FAILED',
+            completed_at: new Date().toISOString(),
+            error: event.payload.error || 'Step failed',
+          });
+        }
+      }
+
+      // Get the final result
+      const result = await stream.result;
 
       console.log(`[Workflow] Mastra workflow finished, status: ${result.status}`);
 
       if (result.status === 'success') {
-        // Mark all steps as completed
-        const now = new Date().toISOString();
-        for (const stepDef of STEP_DEFINITIONS) {
-          await this.workflowRunRepo.updateStep(runId, stepDef.step_id, {
-            status: 'COMPLETED',
-            started_at: now,
-            completed_at: now,
-          });
-        }
-
         await this.workflowRunRepo.update(runId, {
           status: 'COMPLETED',
-          current_step: 'code-review',
           context: result.result || {},
         });
 

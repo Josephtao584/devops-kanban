@@ -156,14 +156,11 @@ function stepStatusClass(step) {
 }
 
 function isStepRunning(step) {
-  // A step is "running" if the workflow is running and this is the current step
-  if (!run.value || run.value.status !== 'RUNNING') return false
-  return step.status === 'PENDING' && run.value.current_step === step.step_id
+  return step.status === 'RUNNING'
 }
 
 function stepStatusText(step) {
-  if (isStepRunning(step)) return '进行中'
-  const texts = { PENDING: '待处理', COMPLETED: '已完成', FAILED: '失败' }
+  const texts = { PENDING: '待处理', RUNNING: '进行中', COMPLETED: '已完成', FAILED: '失败' }
   return texts[step.status] || step.status
 }
 
@@ -335,6 +332,11 @@ watch(() => props.workflowRunId, () => {
   color: #6b7280;
 }
 
+.step-running .step-icon {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
 .step-completed .step-icon {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
@@ -364,6 +366,7 @@ watch(() => props.workflowRunId, () => {
 }
 
 .step-completed .step-status-text { color: #10b981; }
+.step-running .step-status-text { color: #3b82f6; }
 .step-failed .step-status-text { color: #ef4444; }
 
 .step-time {
