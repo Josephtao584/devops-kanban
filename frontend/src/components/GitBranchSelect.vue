@@ -61,7 +61,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Link } from '@element-plus/icons-vue'
 import { listBranches } from '../api/git'
-import { useToast } from '../composables/ui/useToast'
 
 const props = defineProps({
   projectId: {
@@ -85,7 +84,6 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 
 const { t } = useI18n()
-const toast = useToast()
 
 const loading = ref(false)
 const branches = ref([])

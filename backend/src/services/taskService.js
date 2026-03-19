@@ -4,7 +4,7 @@
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
 import { WorkflowService } from './WorkflowService.js';
-import { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository } from '../utils/git.js';
+import { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository, sanitizeName } from '../utils/git.js';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
@@ -230,10 +230,11 @@ class TaskService {
       const repoPath = await this.getOrCloneRepo(project);
 
       // Create worktree
-      const worktreePath = createWorktree(taskId, task.title, repoPath);
+      const worktreePath = createWorktree(taskId, task.title, project.name, repoPath);
 
       // Update task with worktree info
-      const branchName = `task/${taskId}`;
+      const safeProjectName = sanitizeName(project.name);
+      const branchName = `task/${safeProjectName}/${taskId}`;
       await this.taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: branchName,
@@ -276,8 +277,12 @@ class TaskService {
       const project = await this.projectRepo.findById(task.project_id);
       const repoPath = project?.local_path || (project?.git_url ? path.join('/tmp/claude-repos', String(project.id)) : process.cwd());
 
-      // Cleanup worktree and delete branch
-      const branchName = task.worktree_branch || `task/${taskId}`;
+      // Determine branch name - use stored branch or generate new format
+      let branchName = task.worktree_branch;
+      if (!branchName && project) {
+        const safeProjectName = sanitizeName(project.name);
+        branchName = `task/${safeProjectName}/${taskId}`;
+      }
       cleanupWorktree(task.worktree_path, repoPath, branchName);
 
       // Update task

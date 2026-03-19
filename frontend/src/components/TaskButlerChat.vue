@@ -42,6 +42,23 @@
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
+          <svg v-else-if="action.icon === 'lightbulb'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18h6"></path>
+            <path d="M10 22h4"></path>
+            <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"></path>
+          </svg>
+          <svg v-else-if="action.icon === 'brain'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a5 5 0 0 0-5 5v2a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5z"></path>
+            <path d="M12 22c-4 0-7-3-7-7V9c0-1 1-2 2-2h10c1 0 2 1 2 2v6c0 4-3 7-7 7z"></path>
+            <path d="M8 11h8"></path>
+            <path d="M8 15h8"></path>
+          </svg>
+          <svg v-else-if="action.icon === 'compare'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+            <path d="M3 3v18"></path>
+          </svg>
           {{ action.label }}
         </button>
       </div>
@@ -100,7 +117,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['control-workflow', 'view-workflow', 'task-started', 'view-progress'])
+const emit = defineEmits(['control-workflow', 'view-workflow', 'task-started', 'view-progress', 'show-diff'])
 
 const { t } = useI18n()
 
@@ -277,8 +294,37 @@ const handleQuickAction = (action) => {
   })
   scrollToBottom()
 
-  const result = getResponseForAction(action.action, props.task, null)
-  addAssistantMessage(result.response)
+  // Get response for action
+  const result = getResponseForAction(action.action, props.task, workflow.value)
+
+  // Add assistant response
+  setTimeout(() => {
+    const assistantMessage = {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content: result.response,
+      timestamp: new Date().toISOString()
+    }
+    messages.value.push(assistantMessage)
+    scrollToBottom()
+
+    // Emit action if it's a control command
+    if (['start', 'pause', 'continue', 'stop', 'retry'].includes(action.action)) {
+      emit('control-workflow', {
+        action: action.action,
+        taskId: props.task.id
+      })
+    }
+
+    // Emit show-diff event for diff action
+    if (action.action === 'diff') {
+      emit('show-diff', {
+        taskId: props.task.id,
+        projectId: props.task.project_id,
+        worktreeBranch: props.task.worktree_branch
+      })
+    }
+  }, 300)
 }
 
 // Watch for task changes

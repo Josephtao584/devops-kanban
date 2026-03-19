@@ -53,3 +53,4 @@ backend/__pycache__/
 backend/*.log
 backend/data/
 __pycache__/
+.worktrees/

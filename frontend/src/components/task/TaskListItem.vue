@@ -67,7 +67,7 @@
       <button
         class="worktree-btn"
         :class="worktreeClass"
-        @click.stop="handleWorktree"
+        @click.stop="openWorktreeDirectory"
         :disabled="worktreeLoading"
       >
         <el-icon v-if="worktreeLoading" class="is-loading"><Loading /></el-icon>
@@ -106,6 +106,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import PriorityBadge from '../common/PriorityBadge.vue'
@@ -164,13 +165,27 @@ const { getStatusClass } = useStatusStyle()
 // Computed
 const worktreeLoading = computed(() => isWorktreeLoading(props.task.id))
 const worktreeClass = computed(() => getWorktreeClass(props.task))
-const worktreeTooltip = computed(() => getWorktreeTooltip(props.task))
+const worktreeTooltip = computed(() => {
+  if (props.task.worktree_status === 'created') return '打开本地目录'
+  if (props.task.worktree_status === 'error') return 'Worktree 创建失败'
+  return '创建 Worktree 沙箱'
+})
 const statusClass = computed(() => getStatusClass(props.task.status))
 
-const handleWorktree = async () => {
-  await handleWorktreeAction(props.task, (updatedTask) => {
-    emit('worktree-update', updatedTask)
-  })
+const openWorktreeDirectory = () => {
+  if (props.task.worktree_status === 'created' && props.task.worktree_path) {
+    // Copy path to clipboard and show message
+    navigator.clipboard.writeText(props.task.worktree_path).then(() => {
+      ElMessage.success('路径已复制到剪贴板')
+    }).catch(() => {
+      ElMessage.info(`Worktree 路径: ${props.task.worktree_path}`)
+    })
+  } else if (props.task.worktree_status !== 'created') {
+    // Create worktree if not created
+    handleWorktreeAction(props.task, (updatedTask) => {
+      emit('worktree-update', updatedTask)
+    })
+  }
 }
 </script>
 
