@@ -107,7 +107,8 @@ import { startTask } from '../api/task.js'
 import {
   getButlerWelcomeMessage,
   processButlerInput,
-  getResponseForAction
+  getResponseForAction,
+  getQuickActions
 } from '../mock/butlerData'
 
 const props = defineProps({
@@ -154,13 +155,9 @@ const taskStatusText = computed(() => {
   return t(`status.${props.task.status}`)
 })
 
-// Quick actions
+// Quick actions - use getQuickActions from butlerData
 const quickActions = computed(() => {
-  return [
-    { id: 'start', label: '启动', icon: 'play', disabled: !canStart.value, loading: starting.value, action: 'start' },
-    { id: 'progress', label: '进度', icon: 'chart', disabled: !hasWorkflow.value, action: 'progress' },
-    { id: 'help', label: '帮助', icon: 'help', disabled: false, action: 'help' }
-  ]
+  return getQuickActions(props.task, null)
 })
 
 // Handle view progress button click
@@ -295,7 +292,7 @@ const handleQuickAction = (action) => {
   scrollToBottom()
 
   // Get response for action
-  const result = getResponseForAction(action.action, props.task, workflow.value)
+  const result = getResponseForAction(action.action, props.task, null)
 
   // Add assistant response
   setTimeout(() => {
