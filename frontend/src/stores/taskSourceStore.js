@@ -115,6 +115,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       const response = await taskSourceApi.previewSync(sourceId)
       if (response && response.success) {
         previewItems.value = response.data || []
+        showPreviewDialog.value = true
         return previewItems.value
       } else {
         error.value = response?.message || 'Failed to preview sync'
