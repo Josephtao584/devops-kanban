@@ -133,15 +133,17 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
    * @param {String} sourceId - Task source ID
    * @param {Array} selectedItems - Selected items to import
    * @param {String} projectId - Project ID
+   * @param {String|null} iterationId - Iteration ID (optional)
    * @returns {Object} Import result
    */
-  async function importSelectedIssues(sourceId, selectedItems, projectId) {
+  async function importSelectedIssues(sourceId, selectedItems, projectId, iterationId = null) {
     crud.loading.value = true
     error.value = null
     try {
       const response = await taskSourceApi.importIssues(sourceId, {
         items: selectedItems,
-        project_id: projectId
+        project_id: projectId,
+        iteration_id: iterationId
       })
       if (response && response.success) {
         previewItems.value = []

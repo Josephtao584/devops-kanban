@@ -59,6 +59,9 @@
             <line x1="6" y1="20" x2="6" y2="14"></line>
             <path d="M3 3v18"></path>
           </svg>
+          <svg v-else-if="action.icon === 'check'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
           {{ action.label }}
         </button>
       </div>
@@ -118,7 +121,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['control-workflow', 'view-workflow', 'task-started', 'view-progress', 'show-diff'])
+const emit = defineEmits(['control-workflow', 'view-workflow', 'task-started', 'view-progress', 'show-diff', 'show-commit'])
 
 const { t } = useI18n()
 
@@ -316,6 +319,15 @@ const handleQuickAction = (action) => {
     // Emit show-diff event for diff action
     if (action.action === 'diff') {
       emit('show-diff', {
+        taskId: props.task.id,
+        projectId: props.task.project_id,
+        worktreeBranch: props.task.worktree_branch
+      })
+    }
+
+    // Emit show-commit event for commit action
+    if (action.action === 'commit') {
+      emit('show-commit', {
         taskId: props.task.id,
         projectId: props.task.project_id,
         worktreeBranch: props.task.worktree_branch

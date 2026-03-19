@@ -4,8 +4,16 @@ import api from './index.js'
 // Note: Backend expects 'project_id' (snake_case), not 'projectId' (camelCase)
 export const getTasks = (projectId) => api.get('/tasks', { params: { project_id: projectId } })
 export const getTask = (id) => api.get(`/tasks/${id}`)
-export const createTask = (data) => api.post('/tasks', data)
-export const updateTask = (id, data) => api.put(`/tasks/${id}`, data)
+
+// Convert camelCase to snake_case for backend
+const convertTaskData = (data) => ({
+  ...data,
+  project_id: data.projectId || data.project_id,
+  iteration_id: data.iterationId || data.iteration_id
+})
+
+export const createTask = (data) => api.post('/tasks', convertTaskData(data))
+export const updateTask = (id, data) => api.put(`/tasks/${id}`, convertTaskData(data))
 export const updateTaskStatus = (id, status) => api.patch(`/tasks/${id}/status`, { status })
 export const updateTaskAutoTransition = (id, autoTransitionEnabled) => api.put(`/tasks/${id}`, { autoTransitionEnabled })
 export const deleteTask = (id) => api.delete(`/tasks/${id}`)

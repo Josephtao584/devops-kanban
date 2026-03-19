@@ -57,6 +57,15 @@
       <el-input v-model="formData.assignee" :placeholder="$t('task.assigneePlaceholder')" />
     </el-form-item>
 
+    <el-form-item :label="$t('task.iteration')" prop="iteration_id">
+      <IterationSelect
+        v-model="formData.iteration_id"
+        :iterations="iterations"
+        :placeholder="$t('task.selectIteration')"
+      />
+      <div class="form-item-hint">{{ $t('task.iterationHint') }}</div>
+    </el-form-item>
+
     <el-form-item :label="$t('task.autoTransitionLabel')">
       <el-switch
         v-model="formData.autoTransitionEnabled"
@@ -89,11 +98,16 @@ import { ref, reactive, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS, TASK_PRIORITY } from '../../constants/task'
 import { TaskCategory, getCategoryOptions, analyzeTaskCategory } from '../../mock/workflowAssignment'
+import IterationSelect from '../iteration/IterationSelect.vue'
 
 const props = defineProps({
   task: {
     type: Object,
     default: null
+  },
+  iterations: {
+    type: Array,
+    default: () => []
   },
   loading: {
     type: Boolean,
@@ -115,6 +129,7 @@ const formData = reactive({
   status: TASK_STATUS.TODO,
   priority: TASK_PRIORITY.MEDIUM,
   assignee: '',
+  iteration_id: null,
   autoTransitionEnabled: false,
   autoAssignWorkflow: true  // Default to true for new tasks
 })
@@ -128,7 +143,8 @@ const rules = {
 const statusOptions = computed(() => [
   { value: TASK_STATUS.TODO, label: t('status.TODO', '待处理') },
   { value: TASK_STATUS.IN_PROGRESS, label: t('status.IN_PROGRESS', '处理中') },
-  { value: TASK_STATUS.DONE, label: t('status.DONE', '已完成') }
+  { value: TASK_STATUS.DONE, label: t('status.DONE', '已完成') },
+  { value: TASK_STATUS.BLOCKED, label: t('status.BLOCKED', '挂起') }
 ])
 
 const priorityOptions = computed(() => [
@@ -152,6 +168,7 @@ watch(() => props.task, (newTask) => {
     formData.status = newTask.status || TASK_STATUS.TODO
     formData.priority = newTask.priority || TASK_PRIORITY.MEDIUM
     formData.assignee = newTask.assignee || ''
+    formData.iteration_id = newTask.iteration_id || null
     formData.autoTransitionEnabled = newTask.autoTransitionEnabled === true
     formData.autoAssignWorkflow = newTask.autoAssignWorkflow !== false
   }

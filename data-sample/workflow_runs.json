@@ -1,0 +1,60 @@
+[
+  {
+    "task_id": 1,
+    "workflow_id": "dev-workflow-v1",
+    "status": "COMPLETED",
+    "current_step": "code-review",
+    "steps": [
+      {
+        "step_id": "requirement-design",
+        "name": "需求设计",
+        "status": "COMPLETED",
+        "started_at": "2026-03-17T07:03:51.577170",
+        "completed_at": "2026-03-17T07:03:51.577170",
+        "retry_count": 0,
+        "output": null,
+        "error": null
+      },
+      {
+        "step_id": "code-development",
+        "name": "代码开发",
+        "status": "COMPLETED",
+        "started_at": "2026-03-17T07:03:51.577170",
+        "completed_at": "2026-03-17T07:03:51.577170",
+        "retry_count": 0,
+        "output": null,
+        "error": null
+      },
+      {
+        "step_id": "testing",
+        "name": "测试",
+        "status": "COMPLETED",
+        "started_at": "2026-03-17T07:03:51.577170",
+        "completed_at": "2026-03-17T07:03:51.577170",
+        "retry_count": 0,
+        "output": null,
+        "error": null
+      },
+      {
+        "step_id": "code-review",
+        "name": "代码审查",
+        "status": "COMPLETED",
+        "started_at": "2026-03-17T07:03:51.577170",
+        "completed_at": "2026-03-17T07:03:51.577170",
+        "retry_count": 0,
+        "output": null,
+        "error": null
+      }
+    ],
+    "worktree_path": "/tmp/mock-worktree",
+    "branch": "task/1",
+    "context": {
+      "reviewReportPath": "docs/review.md",
+      "approved": true,
+      "comments": "[Mock] Code looks good. All tests pass. Approved."
+    },
+    "id": 1,
+    "created_at": "2026-03-17T07:03:51.577170",
+    "updated_at": "2026-03-17T07:03:51.577170"
+  }
+]

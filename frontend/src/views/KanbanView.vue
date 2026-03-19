@@ -54,6 +54,24 @@
               </el-radio-button>
             </el-radio-group>
           </div>
+          <div class="iteration-filter">
+            <IterationSelect
+              v-model="selectedIterationId"
+              :iterations="projectIterations"
+              :placeholder="$t('iteration.allIterations')"
+              clearable
+              style="width: 200px"
+            />
+            <el-button
+              type="primary"
+              size="small"
+              :disabled="!selectedProjectId"
+              @click="openCreateIteration"
+              style="margin-left: 8px"
+            >
+              {{ $t('iteration.createIteration') }}
+            </el-button>
+          </div>
         </div>
 
         <!-- Kanban Board -->
@@ -98,6 +116,21 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noDoneTasks')"
+            @drag-end="onDragEnd"
+            @select-task="selectTask"
+            @edit-task="openTaskModal"
+            @delete-task="deleteTask"
+            @worktree-update="handleWorktreeUpdate"
+          />
+
+          <!-- BLOCKED Column -->
+          <KanbanColumn
+            status="BLOCKED"
+            :title="$t('status.BLOCKED')"
+            :tasks="localBlockedTasks"
+            :selected-task="selectedTask"
+            :running-task-ids="runningTasks"
+            :empty-text="$t('task.noBlockedTasks')"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
@@ -175,6 +208,7 @@
             @task-started="handleTaskStarted"
             @view-progress="handleViewProgress"
             @show-diff="handleShowDiff"
+            @show-commit="handleShowCommit"
           />
         </div>
       </div>
@@ -233,6 +267,15 @@
             </label>
             <p class="form-help">{{ $t('task.autoAssignWorkflowHelp') }}</p>
           </div>
+          <div class="form-group">
+            <label>{{ $t('task.iteration') }}</label>
+            <IterationSelect
+              v-model="taskForm.iteration_id"
+              :iterations="projectIterations"
+              :placeholder="$t('task.selectIteration')"
+            />
+            <p class="form-help">{{ $t('task.iterationHint') }}</p>
+          </div>
         </div>
         <div class="modal-footer">
           <div class="modal-actions">
@@ -277,6 +320,24 @@
       :task-id="diffDialogData.taskId"
       :worktree-branch="diffDialogData.worktreeBranch"
       @close="showDiffDialog = false"
+    />
+
+    <!-- Commit Dialog -->
+    <CommitDialog
+      v-if="showCommitDialog"
+      :project-id="commitDialogData.projectId"
+      :task-id="commitDialogData.taskId"
+      :current-branch="commitDialogData.worktreeBranch"
+      @close="showCommitDialog = false"
+    />
+
+    <!-- Iteration Form Dialog -->
+    <IterationForm
+      v-model="showIterationModal"
+      :iteration="editingIteration"
+      :loading="creatingIteration"
+      @submit="handleIterationSubmit"
+      @cancel="showIterationModal = false"
     />
 
     <!-- Sync Tasks Dialog -->
@@ -510,19 +571,24 @@ import {
 } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
+import { useIterationStore } from '../stores/iterationStore'
 import { getActiveSessionByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
 import DiffSelectDialog from '../components/DiffSelectDialog.vue'
+import CommitDialog from '../components/CommitDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
+import IterationSelect from '../components/iteration/IterationSelect.vue'
+import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
+import { analyzeTaskCategory } from '../mock/workflowAssignment'
 import {
   getWorkflowByProject,
   getWorkflowByTask,
@@ -537,6 +603,7 @@ const { t } = useI18n()
 // Use Pinia stores
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
+const iterationStore = useIterationStore()
 const taskSourceStore = useTaskSourceStore()
 
 // Icon mappings
@@ -553,6 +620,9 @@ const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
 const showProgressDialog = ref(false)
+const showIterationModal = ref(false)
+const editingIteration = ref(null)
+const creatingIteration = ref(false)
 const progressRunId = ref(null)
 const showSyncDialog = ref(false)
 // Sync state
@@ -573,6 +643,12 @@ const kanbanBoardRef = ref(null)
 const viewMode = ref(localStorage.getItem('kanban-view-mode') || 'list')
 const showDiffDialog = ref(false)
 const diffDialogData = ref({})
+
+const showCommitDialog = ref(false)
+const commitDialogData = ref({})
+
+// Iteration filter
+const selectedIterationId = ref(null)
 
 // 监听 viewMode 变化并保存到 localStorage
 watch(viewMode, (newValue) => {
@@ -674,6 +750,12 @@ const handleShowDiff = (data) => {
   showDiffDialog.value = true
 }
 
+// Handle show commit dialog from butler chat
+const handleShowCommit = (data) => {
+  commitDialogData.value = data
+  showCommitDialog.value = true
+}
+
 // Handle delete worktree from butler header
 const handleDeleteWorktree = async (task) => {
   try {
@@ -707,6 +789,18 @@ const handleDeleteWorktree = async (task) => {
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
 
+// Iterations for current project
+const projectIterations = computed(() => {
+  if (!selectedProjectId.value) return []
+  return iterationStore.iterations.filter(i => i.project_id === selectedProjectId.value)
+})
+
+// Filtered tasks by iteration
+const filteredTasks = computed(() => {
+  if (!selectedIterationId.value) return tasks.value
+  return tasks.value.filter(t => t.iteration_id === selectedIterationId.value)
+})
+
 // Worktree name from selected task
 const selectedTaskWorktreeName = computed(() => {
   if (!selectedTask.value?.worktree_path) return ''
@@ -718,14 +812,16 @@ const selectedTaskWorktreeName = computed(() => {
 const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
 const localDoneTasks = ref([])
+const localBlockedTasks = ref([])
 
-// Sync store to local arrays
+// Sync store to local arrays with iteration filter
 watch(
-  () => taskStore.tasks,
+  () => filteredTasks.value,
   (newTasks) => {
     localTodoTasks.value = newTasks.filter(t => t.status === 'TODO')
     localInProgressTasks.value = newTasks.filter(t => t.status === 'IN_PROGRESS')
     localDoneTasks.value = newTasks.filter(t => t.status === 'DONE')
+    localBlockedTasks.value = newTasks.filter(t => t.status === 'BLOCKED')
   },
   { immediate: true, deep: true }
 )
@@ -745,6 +841,7 @@ const taskForm = reactive({
   status: 'TODO',
   priority: 'MEDIUM',
   assignee: '',
+  iteration_id: null,
   autoAssignWorkflow: true
 })
 
@@ -756,7 +853,7 @@ const pendingTask = ref(null)
 // Status filtering is handled by KanbanListView components
 const filteredTasksForList = computed(() => {
   const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 2, 'DONE': 3, 'BLOCKED': 4 }
-  return [...taskStore.tasks].sort((a, b) => {
+  return [...filteredTasks.value].sort((a, b) => {
     const orderA = statusOrder[a.status] ?? 5
     const orderB = statusOrder[b.status] ?? 5
     return orderA - orderB
@@ -765,9 +862,10 @@ const filteredTasksForList = computed(() => {
 
 // Helper functions
 const updateColumnRefs = () => {
-  localTodoTasks.value = taskStore.tasks.filter(t => t.status === 'TODO')
-  localInProgressTasks.value = taskStore.tasks.filter(t => t.status === 'IN_PROGRESS')
-  localDoneTasks.value = taskStore.tasks.filter(t => t.status === 'DONE')
+  localTodoTasks.value = filteredTasks.value.filter(t => t.status === 'TODO')
+  localInProgressTasks.value = filteredTasks.value.filter(t => t.status === 'IN_PROGRESS')
+  localDoneTasks.value = filteredTasks.value.filter(t => t.status === 'DONE')
+  localBlockedTasks.value = filteredTasks.value.filter(t => t.status === 'BLOCKED')
 }
 
 const getStatusClass = (status) => {
@@ -831,8 +929,15 @@ const getStatusText = (status) => {
 // Project change handler
 const onProjectChange = async () => {
   selectedTask.value = null
+  selectedIterationId.value = null
   if (selectedProjectId.value) {
     await taskStore.fetchTasks(selectedProjectId.value)
+    await iterationStore.fetchByProject(selectedProjectId.value)
+    // 默认选中 "26.3.0" 迭代
+    const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+    if (defaultIteration) {
+      selectedIterationId.value = defaultIteration.id
+    }
   }
   updateColumnRefs()
 }
@@ -865,6 +970,7 @@ const openTaskModal = (task = null) => {
     taskForm.status = task.status
     taskForm.priority = task.priority || 'MEDIUM'
     taskForm.assignee = task.assignee || ''
+    taskForm.iteration_id = task.iteration_id || null
     taskForm.autoAssignWorkflow = task.autoAssignWorkflow !== false
   } else {
     isEditing.value = false
@@ -875,6 +981,7 @@ const openTaskModal = (task = null) => {
     taskForm.status = 'TODO'
     taskForm.priority = 'MEDIUM'
     taskForm.assignee = ''
+    taskForm.iteration_id = null
     taskForm.autoAssignWorkflow = true
   }
   showTaskModal.value = true
@@ -965,7 +1072,8 @@ const confirmSync = async () => {
     const result = await taskSourceStore.importSelectedIssues(
       selectedSourceId.value,
       selectedItems,
-      selectedProjectId.value
+      selectedProjectId.value,
+      selectedIterationId.value
     )
     console.log('[KanbanView] Import result:', result)
     // Get source name for display
@@ -1035,6 +1143,40 @@ const saveTask = async () => {
     ElMessage.error(t('task.saveFailed'))
   } finally {
     loading.saving = false
+  }
+}
+
+// Open create iteration dialog
+const openCreateIteration = () => {
+  editingIteration.value = null
+  showIterationModal.value = true
+}
+
+// Handle iteration form submit
+const handleIterationSubmit = async (formData) => {
+  creatingIteration.value = true
+  try {
+    const iterationData = {
+      ...formData,
+      project_id: selectedProjectId.value
+    }
+
+    if (editingIteration.value?.id) {
+      await iterationStore.updateIteration(editingIteration.value.id, iterationData)
+      ElMessage.success(t('common.saveSuccess'))
+    } else {
+      await iterationStore.createIteration(iterationData)
+      ElMessage.success(t('common.createSuccess'))
+    }
+
+    showIterationModal.value = false
+    // Refresh iterations
+    await iterationStore.fetchByProject(selectedProjectId.value)
+  } catch (error) {
+    console.error('Failed to save iteration:', error)
+    ElMessage.error(t('common.saveFailed'))
+  } finally {
+    creatingIteration.value = false
   }
 }
 
@@ -1191,6 +1333,12 @@ onMounted(async () => {
     if (projectStore.projects.length > 0) {
       selectedProjectId.value = projectStore.projects[0].id
       await taskStore.fetchTasks(selectedProjectId.value)
+      await iterationStore.fetchByProject(selectedProjectId.value)
+      // 默认选中 "26.3.0" 迭代
+      const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+      if (defaultIteration) {
+        selectedIterationId.value = defaultIteration.id
+      }
     }
   } catch (error) {
     console.error('Failed to fetch initial data:', error)
@@ -1341,11 +1489,19 @@ onUnmounted(() => {
   padding: 12px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .view-toggle {
   display: flex;
   gap: 8px;
+}
+
+.iteration-filter {
+  display: flex;
+  align-items: center;
 }
 
 .view-btn-content {
