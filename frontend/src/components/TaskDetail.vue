@@ -374,14 +374,22 @@ const handleSave = async (formData) => {
   }
 
   try {
+    let response
     if (isNew.value) {
-      await createTask(data)
+      response = await createTask(data)
     } else {
-      await updateTask(props.task.id, data)
+      response = await updateTask(props.task.id, data)
     }
-    toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
-    emit('saved')
-    emit('close')
+    // Check response.success to handle cases where backend returns { success: false }
+    if (response && response.success) {
+      toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
+      emit('saved')
+      emit('close')
+    } else {
+      // Backend returned success: false
+      console.error('Save task failed:', response?.message)
+      toast.error(response?.message || t('messages.saveFailed', { name: t('task.title') }))
+    }
   } catch (e) {
     console.error('Failed to save task:', e)
     toast.apiError(e, t('messages.saveFailed', { name: t('task.title') }))
@@ -400,10 +408,14 @@ const handleDelete = async () => {
   }
 
   try {
-    await deleteTask(props.task.id)
-    toast.success(t('messages.deleted', { name: t('task.title') }))
-    emit('deleted')
-    emit('close')
+    const response = await deleteTask(props.task.id)
+    if (response && response.success) {
+      toast.success(t('messages.deleted', { name: t('task.title') }))
+      emit('deleted')
+      emit('close')
+    } else {
+      toast.error(response?.message || t('messages.deleteFailed', { name: t('task.title') }))
+    }
   } catch (e) {
     console.error('Failed to delete task:', e)
     toast.apiError(e, t('messages.deleteFailed', { name: t('task.title') }))
@@ -449,9 +461,13 @@ const deleteCurrentSession = async () => {
   }
 
   try {
-    await deleteSession(localSession.value.id)
-    localSession.value = null
-    toast.success(t('messages.deleted', { name: t('session.title') }))
+    const response = await deleteSession(localSession.value.id)
+    if (response && response.success) {
+      localSession.value = null
+      toast.success(t('messages.deleted', { name: t('session.title') }))
+    } else {
+      toast.error(response?.message || t('messages.deleteFailed', { name: t('session.title') }))
+    }
   } catch (e) {
     console.error('Failed to delete session:', e)
     toast.apiError(e, t('messages.deleteFailed', { name: t('session.title') }))

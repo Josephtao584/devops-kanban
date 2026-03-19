@@ -9,7 +9,7 @@
   >
     <el-option
       :label="$t('iteration.allIterations')"
-      :value="null"
+      :value="ALL_ITERATIONS_VALUE"
     >
       <span>{{ $t('iteration.allIterations') }}</span>
     </el-option>
@@ -31,6 +31,10 @@
 
 <script setup>
 import { computed } from 'vue'
+
+// Use a symbol or special string to represent "all iterations" instead of null
+// This avoids Element Plus prop validation issues with null values
+const ALL_ITERATIONS_VALUE = '__ALL__'
 
 const props = defineProps({
   modelValue: {
@@ -54,8 +58,15 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const selectedIteration = computed({
-  get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
+  get: () => {
+    const val = props.modelValue
+    // Convert null/undefined to ALL_ITERATIONS_VALUE for display
+    return val == null ? ALL_ITERATIONS_VALUE : val
+  },
+  set: (value) => {
+    // Convert ALL_ITERATIONS_VALUE back to null for emission
+    emit('update:modelValue', value === ALL_ITERATIONS_VALUE ? null : value)
+  }
 })
 
 const statusMap = {

@@ -1129,13 +1129,6 @@ const saveTask = async () => {
       savedTask = await taskStore.createTask(taskData)
     }
 
-    if (taskForm.autoAssignWorkflow && !isEditing.value && savedTask) {
-      const node = autoAssignTaskToWorkflow(savedTask)
-      if (node) {
-        ElMessage.success(t('task.workflowAssigned', { stage: node.role }))
-      }
-    }
-
     closeTaskModal()
     ElMessage.success(isEditing.value ? t('task.updated') : t('task.created'))
   } catch (error) {

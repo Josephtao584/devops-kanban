@@ -14,13 +14,6 @@ import api from './api/index.js'
 // Import global component styles
 import './assets/styles/components.css'
 
-// Setup mock if enabled
-if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
-  const { setupMock } = await import('./mock/index.js')
-  setupMock(api)
-  console.log('[Demo Mode] Using mock data - no backend required')
-}
-
 const pinia = createPinia()
 
 const app = createApp(App)
