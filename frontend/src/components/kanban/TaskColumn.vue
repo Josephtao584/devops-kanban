@@ -1,7 +1,7 @@
 <template>
   <div class="kanban-column" :data-status="status">
     <div class="column-header">
-      <span :class="['column-status', `status-${statusClass}`]"></span>
+      <span :class="['column-status', `status-${statusClass}-dot`]"></span>
       <span class="column-title">{{ title }}</span>
       <span class="column-count">{{ taskCount }}</span>
     </div>
@@ -17,54 +17,16 @@
         item-key="id"
       >
         <template #item="{ element }">
-          <div
-            class="task-card"
-            :data-id="element.id"
-            :class="{
-              'task-selected': selectedTask?.id === element.id,
-              'task-running': isTaskRunning(element.id)
-            }"
-            @click="handleSelectTask(element)"
-          >
-            <div class="task-card-content">
-              <div class="task-card-main">
-                <span class="task-card-title">{{ element.title }}</span>
-                <span v-if="isTaskRunning(element.id)" class="task-running-time">
-                  {{ formatTaskElapsedTime(element.id) }}
-                </span>
-              </div>
-              <div v-if="element.description" class="task-card-description">
-                {{ element.description }}
-              </div>
-              <div class="task-card-footer">
-                <span class="task-card-priority" :class="getPriorityClass(element.priority)">
-                  {{ getPriorityLabel(element.priority) }}
-                </span>
-              </div>
-              <div class="task-card-actions">
-                <button
-                  class="btn btn-secondary btn-sm"
-                  @click.stop="handleEditTask(element)"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                  </svg>
-                  {{ $t('common.edit') }}
-                </button>
-                <button
-                  class="btn btn-danger btn-sm"
-                  @click.stop="handleDeleteTask(element.id)"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                  {{ $t('common.delete') }}
-                </button>
-              </div>
-            </div>
-          </div>
+          <TaskListItem
+            :task="element"
+            :selected="selectedTask?.id === element.id"
+            :running="isTaskRunning(element.id)"
+            :elapsed-time="formatTaskElapsedTime(element.id)"
+            @click="handleSelectTask"
+            @edit="handleEditTask"
+            @delete="handleDeleteTask"
+            @worktree-update="handleWorktreeUpdate"
+          />
         </template>
       </draggable>
       <div v-if="tasks.length === 0" class="empty-column">
@@ -85,6 +47,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
+import { useStatusStyle } from '../../composables/useStatusStyle'
+import TaskListItem from '../task/TaskListItem.vue'
 
 const props = defineProps({
   status: {
@@ -121,9 +85,10 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update'])
 
 const { t } = useI18n()
+const { getStatusClass } = useStatusStyle()
 
 // Default empty text based on status
 const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
@@ -153,26 +118,6 @@ const formatTaskElapsedTime = (taskId) => {
   return ''
 }
 
-const getPriorityClass = (priority) => {
-  const classMap = {
-    CRITICAL: 'priority-critical',
-    HIGH: 'priority-high',
-    MEDIUM: 'priority-medium',
-    LOW: 'priority-low'
-  }
-  return classMap[priority] || 'priority-medium'
-}
-
-const getPriorityLabel = (priority) => {
-  const labelMap = {
-    CRITICAL: t('priority.CRITICAL'),
-    HIGH: t('priority.HIGH'),
-    MEDIUM: t('priority.MEDIUM'),
-    LOW: t('priority.LOW')
-  }
-  return labelMap[priority] || t('priority.MEDIUM')
-}
-
 const handleDragEnd = (evt) => {
   emit('drag-end', evt)
 }
@@ -189,6 +134,10 @@ const handleDeleteTask = (taskId) => {
   emit('delete-task', taskId)
 }
 
+const handleWorktreeUpdate = (updatedTask) => {
+  emit('worktree-update', updatedTask)
+}
+
 const taskCount = computed(() => props.tasks.length)
 </script>
 
@@ -198,8 +147,10 @@ const taskCount = computed(() => props.tasks.length)
   flex-direction: column;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  min-width: 300px;
-  max-width: 300px;
+  min-width: 350px;
+  max-width: 500px;
+  width: 100%;
+  flex: 1 1 0;
   max-height: 100%;
 }
 
@@ -221,11 +172,11 @@ const taskCount = computed(() => props.tasks.length)
   box-shadow: 0 0 6px currentColor;
 }
 
-.status-todo { background: var(--el-color-info); }
-.status-in-progress { background: var(--el-color-warning); }
-.status-done { background: var(--el-color-success); }
-.status-blocked { background: var(--el-color-danger); }
-.status-requirement { background: var(--el-color-primary); }
+.status-todo-dot { background: var(--el-color-info); }
+.status-in-progress-dot { background: var(--el-color-warning); }
+.status-done-dot { background: var(--el-color-success); }
+.status-blocked-dot { background: var(--el-color-danger); }
+.status-requirement-dot { background: var(--el-color-primary); }
 
 .column-title {
   flex: 1;
@@ -247,7 +198,6 @@ const taskCount = computed(() => props.tasks.length)
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 0;
 }
 
 .empty-column {
@@ -279,152 +229,7 @@ const taskCount = computed(() => props.tasks.length)
   background: #eff6ff;
 }
 
-/* Task Card Styles */
-.task-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 10px;
-  padding: 14px;
-  cursor: pointer;
-  border: 1px solid rgba(100, 116, 139, 0.15);
-  border-left: 4px solid #94a3b8;
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  margin-bottom: 12px;
-}
-
-.task-card:hover {
-  border-color: rgba(100, 116, 139, 0.3);
-  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.15);
-  transform: translateY(-1px);
-}
-
-.task-card.task-selected {
-  border-color: #64748b;
-  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.2), 0 2px 8px rgba(100, 116, 139, 0.15);
-}
-
-.task-card.task-running {
-  border-left: 3px solid var(--el-color-primary);
-}
-
-.task-card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.task-card-main {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.task-card-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  flex: 1;
-  min-width: 0;
-  word-break: break-word;
-  line-height: 1.4;
-}
-
-.task-card-priority {
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-  flex-shrink: 0;
-  min-width: 32px;
-  text-align: center;
-}
-
-.task-card-priority.priority-critical {
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
-}
-
-.task-card-priority.priority-high {
-  background: var(--el-color-warning-light-9);
-  color: var(--el-color-warning);
-}
-
-.task-card-priority.priority-medium {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-}
-
-.task-card-priority.priority-low {
-  background: var(--el-color-info-light-9);
-  color: var(--el-color-info);
-}
-
-.task-running-time {
-  font-size: 11px;
-  color: var(--el-color-primary);
-  font-family: monospace;
-}
-
-.task-card-description {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.task-card-footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-top: 6px;
-}
-
-.task-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.task-card-actions .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.task-card-actions .btn-secondary {
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  color: #374151;
-}
-
-.task-card-actions .btn-secondary:hover {
-  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
-}
-
-.task-card-actions .btn-danger {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #991b1b;
-}
-
-.task-card-actions .btn-danger:hover {
-  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
-  transform: translateY(-1px);
-}
-
+/* Drag and drop styles */
 .ghost-card {
   opacity: 0.5;
   background: var(--el-color-primary-light-9);

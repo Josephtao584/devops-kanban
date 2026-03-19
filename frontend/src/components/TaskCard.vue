@@ -1,7 +1,7 @@
 <template>
   <el-card
     class="task-card"
-    :class="[priorityClass, { 'is-running': isRunning }]"
+    :class="[statusClass, { 'is-running': isRunning }]"
     shadow="hover"
     @click="$emit('click')"
   >
@@ -25,7 +25,41 @@
             </el-icon>
           </el-tooltip>
         </div>
-        <div class="header-actions">
+      </div>
+    </template>
+
+    <div class="task-title-row">
+      <h4 class="task-title">{{ task.title || $t('task.untitled') }}</h4>
+      <a
+        v-if="task.source === 'GITHUB' && task.external_url"
+        :href="task.external_url"
+        target="_blank"
+        class="github-link"
+        @click.stop
+      >
+        <el-tag type="success" size="small">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+          GitHub
+        </el-tag>
+      </a>
+    </div>
+    <p v-if="task.description" class="task-description">{{ truncatedDescription }}</p>
+
+    <template #footer>
+      <div class="task-footer">
+        <span v-if="task.assignee" class="assignee">
+          <el-avatar :size="18" class="avatar">
+            {{ task.assignee.charAt(0).toUpperCase() }}
+          </el-avatar>
+          <span class="assignee-name">{{ task.assignee }}</span>
+        </span>
+        <div class="footer-actions">
+          <span v-if="task.syncedAt" class="sync-info">
+            <el-icon><Clock /></el-icon>
+            {{ formatTime(task.syncedAt) }}
+          </span>
           <el-button
             v-if="!isRunning"
             type="primary"
@@ -38,24 +72,6 @@
           </el-button>
           <el-icon v-else class="running-indicator"><Loading /></el-icon>
         </div>
-      </div>
-    </template>
-
-    <h4 class="task-title">{{ task.title || $t('task.untitled') }}</h4>
-    <p v-if="task.description" class="task-description">{{ truncatedDescription }}</p>
-
-    <template #footer>
-      <div class="task-footer">
-        <span v-if="task.assignee" class="assignee">
-          <el-avatar :size="18" class="avatar">
-            {{ task.assignee.charAt(0).toUpperCase() }}
-          </el-avatar>
-          <span class="assignee-name">{{ task.assignee }}</span>
-        </span>
-        <span v-if="task.syncedAt" class="sync-info">
-          <el-icon><Clock /></el-icon>
-          {{ formatTime(task.syncedAt) }}
-        </span>
       </div>
     </template>
   </el-card>
@@ -78,8 +94,8 @@ const props = defineProps({
 
 defineEmits(['click', 'run', 'toggle-auto-transition'])
 
-const priorityClass = computed(() => {
-  return `priority-${(props.task.priority || 'MEDIUM').toLowerCase()}`
+const statusClass = computed(() => {
+  return `status-${(props.task.status || 'TODO').toLowerCase()}`
 })
 
 const priorityTagType = computed(() => {
@@ -114,42 +130,78 @@ const formatTime = (dateStr) => {
   const date = new Date(dateStr)
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString().substring(0, 5)
 }
+
+const getSourceTagType = (source) => {
+  const types = {
+    GITHUB: 'warning',
+    GITLAB: 'info',
+    JIRA: 'danger',
+    MANUAL: 'success'
+  }
+  return types[source] || 'info'
+}
+
+const getSourceName = (source) => {
+  const names = {
+    GITHUB: 'GitHub',
+    GITLAB: 'GitLab',
+    JIRA: 'Jira',
+    MANUAL: '手动'
+  }
+  return names[source] || source
+}
 </script>
 
 <style scoped>
 .task-card {
   margin-bottom: 8px;
   cursor: pointer;
-  border-left: 3px solid #ccc;
+  border-left: 4px solid #ccc;
   background: #fff;
+  transition: all 0.3s ease;
+  border-radius: 8px;
 }
 
-.task-card.priority-critical {
-  border-left-color: var(--el-color-danger);
+.task-card.status-todo {
+  border-left-color: #6b7280;
+  background: linear-gradient(135deg, #f9fafb 0%, #fff 100%);
 }
 
-.task-card.priority-high {
-  border-left-color: var(--el-color-warning);
+.task-card.status-todo:hover {
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.2);
+  transform: translateY(-2px);
 }
 
-.task-card.priority-medium {
-  border-left-color: var(--el-color-primary);
+.task-card.status-in_progress {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #fff 100%);
 }
 
-.task-card.priority-low {
-  border-left-color: var(--el-color-info);
+.task-card.status-in_progress:hover {
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+}
+
+.task-card.status-done {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ecfdf5 0%, #fff 100%);
+}
+
+.task-card.status-done:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  transform: translateY(-2px);
 }
 
 .task-card :deep(.el-card__header) {
-  padding: 8px 12px;
+  padding: 10px 14px;
 }
 
 .task-card :deep(.el-card__body) {
-  padding: 8px 12px;
+  padding: 10px 14px;
 }
 
 .task-card :deep(.el-card__footer) {
-  padding: 6px 12px;
+  padding: 8px 14px;
 }
 
 .task-header {
@@ -164,11 +216,6 @@ const formatTime = (dateStr) => {
   gap: 8px;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-}
-
 .running-indicator {
   color: var(--el-color-primary);
   animation: spin 1s linear infinite;
@@ -180,8 +227,13 @@ const formatTime = (dateStr) => {
 }
 
 .task-card.is-running {
-  border-left-color: var(--el-color-primary);
-  box-shadow: 0 0 0 1px var(--el-color-primary-light-5);
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.task-card.is-running:hover {
+  transform: translateY(-2px);
 }
 
 .external-id {
@@ -194,6 +246,23 @@ const formatTime = (dateStr) => {
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.task-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.github-link {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.github-link:hover {
+  opacity: 0.8;
 }
 
 .task-description {
@@ -209,6 +278,12 @@ const formatTime = (dateStr) => {
   align-items: center;
   font-size: 11px;
   color: var(--el-text-color-secondary);
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .assignee {
