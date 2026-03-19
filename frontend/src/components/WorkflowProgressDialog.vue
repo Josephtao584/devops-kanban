@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
-    width="500px"
+    width="600px"
     class="workflow-progress-dialog"
     @close="handleClose"
     @opened="startPolling"
@@ -30,26 +30,27 @@
 
       <!-- Steps -->
       <div class="steps-list">
-        <div
-          v-for="step in run.steps"
-          :key="step.step_id"
-          class="step-item"
-          :class="stepStatusClass(step)"
-        >
-          <div class="step-icon">
-            <span v-if="step.status === 'COMPLETED'">✓</span>
-            <span v-else-if="step.status === 'FAILED'">✗</span>
-            <el-icon v-else-if="isStepRunning(step)" class="is-loading"><Loading /></el-icon>
-            <span v-else>○</span>
+        <template v-for="(step, index) in run.steps" :key="step.step_id">
+          <div
+            class="step-item"
+            :class="stepStatusClass(step)"
+          >
+            <div class="step-icon">
+              <span v-if="step.status === 'COMPLETED'">✓</span>
+              <span v-else-if="step.status === 'FAILED'">✗</span>
+              <el-icon v-else-if="isStepRunning(step)" class="is-loading"><Loading /></el-icon>
+              <span v-else>○</span>
+            </div>
+            <div class="step-info">
+              <span class="step-name">{{ step.name }}</span>
+              <span class="step-status-text">{{ stepStatusText(step) }}</span>
+            </div>
           </div>
-          <div class="step-info">
-            <span class="step-name">{{ step.name }}</span>
-            <span class="step-status-text">{{ stepStatusText(step) }}</span>
+          <!-- Arrow connector between steps -->
+          <div v-if="index < run.steps.length - 1" class="step-connector" :class="getConnectorClass(step)">
+            →
           </div>
-          <div class="step-time" v-if="step.completed_at">
-            {{ formatTime(step.completed_at) }}
-          </div>
-        </div>
+        </template>
       </div>
 
       <!-- Result context (when completed) -->
@@ -152,7 +153,17 @@ const isTerminal = computed(() => {
 })
 
 function stepStatusClass(step) {
+  // If this is the current running step, show as running even if status is PENDING
+  if (isStepRunning(step)) {
+    return 'step-running'
+  }
   return `step-${step.status.toLowerCase()}`
+}
+
+function getConnectorClass(step) {
+  // If current step is completed, connector is also "completed" style
+  if (step.status === 'COMPLETED') return 'connector-completed'
+  return 'connector-pending'
 }
 
 function isStepRunning(step) {
@@ -295,36 +306,71 @@ watch(() => props.workflowRunId, () => {
   color: var(--text-muted, #94a3b8);
 }
 
-/* Steps */
+/* Steps - Horizontal pipeline layout */
 .steps-list {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding: 8px 0;
 }
 
 .step-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  transition: background 0.2s;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  min-width: 100px;
+  max-width: 140px;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+  background: #f8fafc;
 }
 
 .step-item:hover {
-  background: var(--bg-tertiary, #f8fafc);
+  background: #f1f5f9;
 }
 
+/* Step connector arrow */
+.step-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  font-size: 16px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.connector-pending {
+  color: #d1d5db;
+}
+
+.connector-completed {
+  color: #10b981;
+}
+
+/* Step icon */
 .step-icon {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+/* Pending step */
+.step-pending {
+  border-color: #e5e7eb;
+  background: #f9fafb;
 }
 
 .step-pending .step-icon {
@@ -332,9 +378,40 @@ watch(() => props.workflowRunId, () => {
   color: #6b7280;
 }
 
+.step-pending .step-name {
+  color: #6b7280;
+}
+
+/* Running step (current executing) */
+.step-running {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: #3b82f6; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+}
+
 .step-running .step-icon {
   background: rgba(59, 130, 246, 0.15);
   color: #3b82f6;
+}
+
+.step-running .step-name {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.step-running .step-status-text {
+  color: #3b82f6;
+}
+
+/* Completed step */
+.step-completed {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.05);
 }
 
 .step-completed .step-icon {
@@ -342,38 +419,59 @@ watch(() => props.workflowRunId, () => {
   color: #10b981;
 }
 
+.step-completed .step-name {
+  color: #059669;
+}
+
+.step-completed .step-status-text {
+  color: #10b981;
+}
+
+/* Failed step */
+.step-failed {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
 .step-failed .step-icon {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
 
+.step-failed .step-name {
+  color: #dc2626;
+}
+
+.step-failed .step-status-text {
+  color: #ef4444;
+}
+
 .step-info {
-  flex: 1;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
+  gap: 4px;
+  text-align: center;
 }
 
 .step-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-primary, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .step-status-text {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted, #94a3b8);
 }
 
 .step-completed .step-status-text { color: #10b981; }
 .step-running .step-status-text { color: #3b82f6; }
 .step-failed .step-status-text { color: #ef4444; }
-
-.step-time {
-  font-size: 11px;
-  color: var(--text-muted, #94a3b8);
-  flex-shrink: 0;
-}
 
 /* Result section */
 .result-section {

@@ -80,7 +80,7 @@
       </div>
       <div class="task-list-container">
         <div v-if="localActiveTasks.length === 0" class="empty-list">
-          <p>暂无进行中和已完成任务</p>
+          <p>暂无执行任务</p>
         </div>
         <draggable
           v-model="localActiveTasks"
@@ -184,11 +184,11 @@ const onPendingTasksReorder = (event) => {
   emit('reorder-tasks', localTasks.value)
 }
 
-// Active tasks (IN_PROGRESS + DONE status)
+// Active tasks (IN_PROGRESS + DONE + BLOCKED status) - filtered by status filter
 const activeTasks = computed(() => {
   return props.tasks.filter(task =>
-    localStatusFilter.value.includes(task.status) &&
-    task.status !== 'TODO'
+    task.status !== 'TODO' &&
+    localStatusFilter.value.includes(task.status)
   )
 })
 
@@ -205,11 +205,21 @@ const onActiveTasksReorder = (event) => {
   emit('reorder-tasks', localTasks.value)
 }
 
-const activeStatusOptions = ['IN_PROGRESS', 'DONE']
+const activeStatusOptions = ['IN_PROGRESS', 'DONE', 'BLOCKED']
 
+// localStatusFilter only manages the active status filter (excludes TODO)
+// Use computed with proper get/set for v-model binding
 const localStatusFilter = computed({
-  get: () => props.statusFilter,
-  set: (value) => emit('update:statusFilter', value)
+  get: () => {
+    const filter = props.statusFilter.filter(s => s !== 'TODO')
+    // Ensure all active options are included if not explicitly excluded
+    return filter.length === 0 ? [...activeStatusOptions] : filter
+  },
+  set: (value) => {
+    // Add TODO back to maintain compatibility with parent component
+    const fullFilter = ['TODO', ...value]
+    emit('update:statusFilter', fullFilter)
+  }
 })
 
 const isTaskRunning = (taskId) => {

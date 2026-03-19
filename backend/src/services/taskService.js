@@ -42,6 +42,16 @@ class TaskService {
   }
 
   /**
+   * Get tasks for a project and iteration
+   * @param {number} projectId - Project ID
+   * @param {number|null} iterationId - Iteration ID (null for unassigned)
+   * @returns {Promise<Array>} Tasks
+   */
+  async getByProjectAndIteration(projectId, iterationId) {
+    return await this.taskRepo.findByProjectAndIteration(projectId, iterationId);
+  }
+
+  /**
    * Get tasks for a project grouped by status
    * @param {number} projectId - Project ID
    * @returns {Promise<object>} Tasks grouped by status
