@@ -9,6 +9,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const loading = ref(false)
   const syncing = ref(null) // ID of currently syncing source
   const testing = ref(null) // ID of currently testing connection
+  const previewItems = ref([]) // Preview items from task source
   const error = ref(null)
 
   // Getters
@@ -153,6 +154,27 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
+  async function previewSync(id) {
+    error.value = null
+    try {
+      const response = await taskSourceApi.previewTaskSource(id)
+      if (response.success) {
+        previewItems.value = response.data || []
+        return previewItems.value
+      } else {
+        error.value = response.message
+        return []
+      }
+    } catch (e) {
+      error.value = e.message
+      return []
+    }
+  }
+
+  function clearPreviewItems() {
+    previewItems.value = []
+  }
+
   async function deleteTaskSource(id) {
     loading.value = true
     error.value = null
@@ -192,6 +214,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     loading,
     syncing,
     testing,
+    previewItems,
     error,
     // Getters
     enabledSources,
@@ -204,6 +227,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     updateTaskSource,
     syncTaskSource,
     testConnection,
+    previewSync,
+    clearPreviewItems,
     deleteTaskSource,
     setCurrentTaskSource,
     clearTaskSources,
