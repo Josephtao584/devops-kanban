@@ -63,40 +63,25 @@
           <span class="form-hint">{{ $t('git.pushHint', 'Required to create MR') }}</span>
         </el-form-item>
       </template>
-
-      <el-divider content-position="left">
-        {{ $t('git.authorInfo', 'Author Info (Optional)') }}
-      </el-divider>
-
-      <el-form-item :label="$t('git.authorName', 'Name')">
-        <el-input
-          v-model="form.authorName"
-          :placeholder="$t('git.authorNamePlaceholder', 'Default: current git config')"
-        />
-      </el-form-item>
-
-      <el-form-item :label="$t('git.authorEmail', 'Email')">
-        <el-input
-          v-model="form.authorEmail"
-          :placeholder="$t('git.authorEmailPlaceholder', 'Default: current git config')"
-        />
-      </el-form-item>
     </el-form>
 
     <!-- Uncommitted Changes Preview -->
     <div v-if="changes.length > 0" class="changes-preview">
       <h4>{{ $t('git.filesToCommit', 'Files to be committed') }}</h4>
-      <el-tag
-        v-for="file in changes.slice(0, 10)"
-        :key="file"
-        size="small"
-        style="margin: 2px"
-      >
-        {{ file }}
-      </el-tag>
-      <el-tag v-if="changes.length > 10" size="small" type="info">
-        +{{ changes.length - 10 }} more
-      </el-tag>
+      <div class="file-tags">
+        <el-tag
+          v-for="file in changes.slice(0, 10)"
+          :key="file"
+          size="small"
+          type="primary"
+          effect="light"
+        >
+          {{ file }}
+        </el-tag>
+        <el-tag v-if="changes.length > 10" size="small" type="info" effect="plain">
+          +{{ changes.length - 10 }} more
+        </el-tag>
+      </div>
     </div>
 
     <template #footer>
@@ -126,8 +111,8 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import { commit, getUncommittedChanges, listBranches, push, listRemotes } from '../api/git'
-import { useToast } from '../composables/ui/useToast'
 
 const props = defineProps({
   projectId: {
@@ -147,7 +132,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'committed'])
 
 const { t } = useI18n()
-const toast = useToast()
 
 const formRef = ref(null)
 const committing = ref(false)
@@ -160,8 +144,6 @@ const mrLink = ref(null)
 const form = reactive({
   message: '',
   addAll: true,
-  authorName: '',
-  authorEmail: '',
   createMR: false,
   targetBranch: 'main',
   mrTitle: '',
@@ -277,7 +259,7 @@ const handleCommit = async () => {
   }
 
   if (form.createMR && !form.targetBranch) {
-    toast.warning(t('git.selectTargetBranch', 'Please select a target branch'))
+    ElMessage.warning(t('git.selectTargetBranch', 'Please select a target branch'))
     return
   }
 
@@ -285,9 +267,7 @@ const handleCommit = async () => {
   try {
     const response = await commit(props.projectId, props.taskId, {
       message: form.message,
-      addAll: form.addAll,
-      authorName: form.authorName || null,
-      authorEmail: form.authorEmail || null
+      addAll: form.addAll
     })
 
     if (response.success) {
@@ -297,7 +277,7 @@ const handleCommit = async () => {
           await push(props.projectId, props.taskId, { setUpstream: true })
         } catch (pushError) {
           console.error('Push failed:', pushError)
-          toast.warning(t('git.pushFailed', 'Push failed, MR link may not work'))
+          ElMessage.warning(t('git.pushFailed', 'Push failed, MR link may not work'))
         }
       }
 
@@ -312,7 +292,7 @@ const handleCommit = async () => {
         )
       }
 
-      toast.success(t('git.commitSuccess', 'Changes committed successfully'))
+      ElMessage.success(t('git.commitSuccess', 'Changes committed successfully'))
       emit('committed', response.data)
 
       // If MR link generated, don't close immediately
@@ -320,11 +300,11 @@ const handleCommit = async () => {
         emit('close')
       }
     } else {
-      toast.error(response.message || t('git.commitFailed', 'Failed to commit changes'))
+      ElMessage.error(response.message || t('git.commitFailed', 'Failed to commit changes'))
     }
   } catch (e) {
     console.error('Commit failed:', e)
-    toast.apiError(e, t('git.commitFailed', 'Failed to commit changes'))
+    ElMessage.error(t('git.commitFailed', 'Failed to commit changes'))
   } finally {
     committing.value = false
   }
@@ -355,28 +335,172 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.changes-preview {
-  margin-top: 16px;
-  padding: 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
+:deep(.el-dialog__header) {
+  margin: 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e4e7ed;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.changes-preview h4 {
-  margin: 0 0 8px 0;
+:deep(.el-dialog__title) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+:deep(.el-dialog__headerbtn .el-dialog__close) {
+  color: #fff;
+  opacity: 0.8;
+}
+
+:deep(.el-dialog__headerbtn:hover .el-dialog__close) {
+  opacity: 1;
+}
+
+:deep(.el-dialog__body) {
+  padding: 24px;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #303133;
+}
+
+:deep(.el-textarea__inner) {
+  border-radius: 8px;
+  padding: 12px;
   font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+:deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+:deep(.el-divider) {
+  margin: 24px 0;
+}
+
+:deep(.el-divider__text) {
+  font-size: 13px;
+  font-weight: 500;
   color: #606266;
+  background: #fff;
+  padding: 0 12px;
+}
+
+:deep(.el-divider--horizontal) {
+  border-color: #ebeef5;
+}
+
+:deep(.el-select .el-input__inner) {
+  border-radius: 6px;
+}
+
+:deep(.el-switch__core) {
+  width: 44px !important;
 }
 
 .form-hint {
-  margin-left: 8px;
+  margin-left: 10px;
   font-size: 12px;
   color: #909399;
+  font-style: italic;
+}
+
+.changes-preview {
+  margin-top: 20px;
+  padding: 16px;
+  background: linear-gradient(145deg, #f8f9fa 0%, #f0f2f5 100%);
+  border-radius: 10px;
+  border: 1px solid #e4e7ed;
+}
+
+.changes-preview h4 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.changes-preview h4::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #67c23a;
+  border-radius: 50%;
+}
+
+.file-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.changes-preview :deep(.el-tag) {
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  transition: all 0.2s ease;
+}
+
+.changes-preview :deep(.el-tag:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.el-dialog__footer) {
+  padding: 16px 24px;
+  border-top: 1px solid #e4e7ed;
+  background: #fafbfc;
 }
 
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
+}
+
+.dialog-footer :deep(.el-button) {
+  padding: 10px 20px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.dialog-footer :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+.dialog-footer :deep(.el-button--primary:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.dialog-footer :deep(.el-button--success) {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  border: none;
+}
+
+.dialog-footer :deep(.el-button--success:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
+}
+
+:deep(.el-checkbox__label) {
+  font-weight: 500;
+  color: #303133;
 }
 </style>

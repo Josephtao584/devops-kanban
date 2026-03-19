@@ -134,9 +134,10 @@ class TaskSourceService {
    * @param {number} sourceId - Source ID
    * @param {Array} selectedItems - Selected issues to import
    * @param {number} projectId - Project ID
+   * @param {number|null} iterationId - Iteration ID (optional)
    * @returns {Promise<object>} Import result
    */
-  async importIssues(sourceId, selectedItems, projectId) {
+  async importIssues(sourceId, selectedItems, projectId, iterationId = null) {
     const source = await this.getById(sourceId);
     if (!source) {
       throw new Error('Task source not found');
@@ -174,6 +175,7 @@ class TaskSourceService {
         external_url: item.external_url,
         source: source.type,
         labels: item.labels || [],
+        iteration_id: iterationId || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });

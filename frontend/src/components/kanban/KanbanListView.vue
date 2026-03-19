@@ -70,7 +70,7 @@
           执行区
           <span class="section-count">{{ activeTasks.length }}</span>
         </div>
-        <div class="list-status-filter">
+        <div class="list-status-filter" @click.stop>
           <el-checkbox-group v-model="localStatusFilter" size="small">
             <el-checkbox-button v-for="status in activeStatusOptions" :key="status" :value="status">
               {{ $t(`status.${status}`) }}
@@ -207,20 +207,23 @@ const onActiveTasksReorder = (event) => {
 
 const activeStatusOptions = ['IN_PROGRESS', 'DONE', 'BLOCKED']
 
-// localStatusFilter only manages the active status filter (excludes TODO)
-// Use computed with proper get/set for v-model binding
-const localStatusFilter = computed({
-  get: () => {
-    const filter = props.statusFilter.filter(s => s !== 'TODO')
-    // Ensure all active options are included if not explicitly excluded
-    return filter.length === 0 ? [...activeStatusOptions] : filter
-  },
-  set: (value) => {
-    // Add TODO back to maintain compatibility with parent component
-    const fullFilter = ['TODO', ...value]
-    emit('update:statusFilter', fullFilter)
+// localStatusFilter as a ref for proper v-model binding with el-checkbox-group
+const localStatusFilter = ref([...activeStatusOptions])
+
+// Sync from parent prop when it changes
+watch(() => props.statusFilter, (newFilter) => {
+  const activeFilter = newFilter.filter(s => s !== 'TODO')
+  // Only update if different to avoid unnecessary re-renders
+  if (JSON.stringify(activeFilter.sort()) !== JSON.stringify(localStatusFilter.value.sort())) {
+    localStatusFilter.value = activeFilter
   }
-})
+}, { immediate: true })
+
+// Emit changes to parent when localStatusFilter changes
+watch(localStatusFilter, (newFilter) => {
+  const fullFilter = ['TODO', ...newFilter]
+  emit('update:statusFilter', fullFilter)
+}, { immediate: true })
 
 const isTaskRunning = (taskId) => {
   return props.runningTaskIds?.has?.(taskId) || false

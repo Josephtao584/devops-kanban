@@ -146,7 +146,7 @@ async function taskSourceRoutes(fastify) {
   fastify.post('/:id/sync/import', async (request, reply) => {
     try {
       const sourceId = parseInt(request.params.id, 10);
-      const { items, project_id } = request.body;
+      const { items, project_id, iteration_id } = request.body;
 
       if (!items || !Array.isArray(items) || items.length === 0) {
         reply.code(400);
@@ -164,7 +164,7 @@ async function taskSourceRoutes(fastify) {
         return errorResponse('Task source not found');
       }
 
-      const result = await service.importIssues(sourceId, items, project_id);
+      const result = await service.importIssues(sourceId, items, project_id, iteration_id);
       return successResponse(result, 'Import completed');
     } catch (error) {
       request.log.error(error);

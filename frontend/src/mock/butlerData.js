@@ -257,6 +257,7 @@ export const getQuickActions = (task, workflow) => {
     { id: 'start', label: '启动', icon: 'play', disabled: isRunning || isCompleted, action: 'start' },
     { id: 'pause', label: '暂停', icon: 'pause', disabled: !isRunning, action: 'pause' },
     { id: 'diff', label: '差异', icon: 'compare', disabled: !hasWorktree, action: 'diff' },
+    { id: 'commit', label: '提交', icon: 'check', disabled: !hasWorktree, action: 'commit' },
     { id: 'progress', label: '进度', icon: 'chart', disabled: false, action: 'status' },
     { id: 'help', label: '帮助', icon: 'help', disabled: false, action: 'help' }
   ]
@@ -277,6 +278,14 @@ export const getResponseForAction = (action, task, workflow) => {
     return {
       action: 'diff',
       response: '正在打开差异比较...'
+    }
+  }
+
+  // 特殊处理提交 - 不需要文本响应，会通过事件触发对话框
+  if (action === 'commit') {
+    return {
+      action: 'commit',
+      response: '正在打开提交对话框...'
     }
   }
 

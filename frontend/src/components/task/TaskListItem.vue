@@ -201,7 +201,8 @@ const openWorktreeDirectory = () => {
   border: 1px solid var(--el-border-color-light);
   border-left: 4px solid #94a3b8;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  will-change: transform;
   width: 100%;
   box-sizing: border-box;
 }
@@ -209,22 +210,22 @@ const openWorktreeDirectory = () => {
 /* Status-based colors */
 .task-item[data-status="TODO"] {
   border-left-color: #6b7280;
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  background-color: #fafafa;
 }
 
 .task-item[data-status="IN_PROGRESS"] {
   border-left-color: #3b82f6;
-  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  background-color: #f0f7ff;
 }
 
 .task-item[data-status="DONE"] {
   border-left-color: #10b981;
-  background: linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%);
+  background-color: #f0fdf4;
 }
 
 .task-item[data-status="BLOCKED"] {
   border-left-color: #ef4444;
-  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+  background-color: #fef2f2;
 }
 
 .task-item:hover {
@@ -235,7 +236,6 @@ const openWorktreeDirectory = () => {
 .task-item.task-selected,
 .task-item.task-selected:hover {
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
-  transition: box-shadow 0.15s ease;
 }
 
 .task-item.task-running {
@@ -313,6 +313,11 @@ const openWorktreeDirectory = () => {
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.task-iteration {
+  margin-top: 4px;
+  display: inline-flex;
 }
 
 /* Running time */
