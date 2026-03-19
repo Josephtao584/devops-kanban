@@ -125,7 +125,10 @@ class WorkflowService {
           context: result.result || {},
         });
 
-        console.log(`[Workflow] Run #${runId} completed successfully`);
+        // Workflow succeeded → update task status to DONE
+        await this.taskRepo.update(task.id, { status: 'DONE' });
+
+        console.log(`[Workflow] Run #${runId} completed successfully, task #${task.id} marked DONE`);
         console.log(`[Workflow] Result:`, JSON.stringify(result.result));
       } else {
         await this.workflowRunRepo.update(runId, {

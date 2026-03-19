@@ -131,6 +131,19 @@ async function taskRoutes(fastify) {
     }
   });
 
+  // Start task (set IN_PROGRESS + launch workflow)
+  fastify.post('/:id/start', async (request, reply) => {
+    try {
+      const taskId = parseInt(request.params.id, 10);
+      const task = await service.startTask(taskId);
+      return successResponse(task, 'Task started successfully');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(error.statusCode || 500);
+      return errorResponse(error.message);
+    }
+  });
+
   // Batch update task order
   fastify.put('/reorder', async (request, reply) => {
     try {
