@@ -4,13 +4,15 @@
     <div class="task-status-card">
       <div class="status-info">
         <span class="status-badge" :class="taskStatusClass">{{ taskStatusText }}</span>
-        <span class="progress" v-if="workflowProgress > 0">{{ $t('butler.progressLabel') }}: {{ workflowProgress }}%</span>
+        <span class="progress" v-if="task && task.workflow_run_id">
+          {{ $t('workflow.viewWorkflow', '工作流') }} #{{ task.workflow_run_id }}
+        </span>
         <button
           class="workflow-btn"
-          :class="{ disabled: !hasWorkflow }"
-          :disabled="!hasWorkflow"
-          @click="handleViewWorkflow"
-          :title="$t('workflow.viewWorkflow')"
+          :class="{ disabled: !task?.workflow_run_id }"
+          :disabled="!task?.workflow_run_id"
+          @click="handleViewProgress"
+          :title="$t('workflow.viewWorkflow', '查看工作流进度')"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -22,17 +24,13 @@
           v-for="action in quickActions"
           :key="action.id"
           class="quick-action-btn"
-          :class="{ disabled: action.disabled }"
-          :disabled="action.disabled"
+          :class="{ disabled: action.disabled, loading: action.loading }"
+          :disabled="action.disabled || action.loading"
           @click="handleQuickAction(action)"
           :title="action.label"
         >
           <svg v-if="action.icon === 'play'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <svg v-else-if="action.icon === 'pause'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="6" y="4" width="4" height="16"></rect>
-            <rect x="14" y="4" width="4" height="16"></rect>
           </svg>
           <svg v-else-if="action.icon === 'chart'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -43,17 +41,6 @@
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-          <svg v-else-if="action.icon === 'lightbulb'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18h6"></path>
-            <path d="M10 22h4"></path>
-            <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"></path>
-          </svg>
-          <svg v-else-if="action.icon === 'brain'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2a5 5 0 0 0-5 5v2a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5z"></path>
-            <path d="M12 22c-4 0-7-3-7-7V9c0-1 1-2 2-2h10c1 0 2 1 2 2v6c0 4-3 7-7 7z"></path>
-            <path d="M8 11h8"></path>
-            <path d="M8 15h8"></path>
           </svg>
           {{ action.label }}
         </button>
@@ -97,16 +84,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { startTask } from '../api/task.js'
 import {
   getButlerWelcomeMessage,
   processButlerInput,
-  getQuickActions,
-  getWorkflowProgress,
   getResponseForAction
 } from '../mock/butlerData'
-import { getWorkflowByTask } from '../mock/workflowData'
 
 const props = defineProps({
   task: {
@@ -115,36 +100,24 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['control-workflow', 'view-workflow'])
+const emit = defineEmits(['control-workflow', 'view-workflow', 'task-started', 'view-progress'])
 
 const { t } = useI18n()
 
 const messages = ref([])
 const inputText = ref('')
 const messagesRef = ref(null)
+const starting = ref(false)
 
-// Get workflow for current task
-const workflow = computed(() => {
-  if (!props.task) return null
-  return getWorkflowByTask(props.task.id)
+// Check if task can be started
+const canStart = computed(() => {
+  return props.task && props.task.status === 'TODO' && !starting.value
 })
 
-// Calculate workflow progress
-const workflowProgress = computed(() => {
-  return getWorkflowProgress(workflow.value)
-})
-
-// Check if current task has a workflow
+// Check if task has a workflow to view
 const hasWorkflow = computed(() => {
-  return workflow.value !== null
+  return props.task && props.task.workflow_run_id
 })
-
-// Handle view workflow button click
-const handleViewWorkflow = () => {
-  if (hasWorkflow.value) {
-    emit('view-workflow')
-  }
-}
 
 // Task status class
 const taskStatusClass = computed(() => {
@@ -166,8 +139,22 @@ const taskStatusText = computed(() => {
 
 // Quick actions
 const quickActions = computed(() => {
-  return getQuickActions(props.task, workflow.value)
+  return [
+    { id: 'start', label: '启动', icon: 'play', disabled: !canStart.value, loading: starting.value, action: 'start' },
+    { id: 'progress', label: '进度', icon: 'chart', disabled: !hasWorkflow.value, action: 'progress' },
+    { id: 'help', label: '帮助', icon: 'help', disabled: false, action: 'help' }
+  ]
 })
+
+// Handle view progress button click
+const handleViewProgress = () => {
+  if (hasWorkflow.value) {
+    emit('view-progress', {
+      taskId: props.task.id,
+      workflowRunId: props.task.workflow_run_id
+    })
+  }
+}
 
 // Format timestamp
 const formatTime = (timestamp) => {
@@ -188,99 +175,120 @@ const scrollToBottom = () => {
   })
 }
 
+// Add assistant message with delay
+const addAssistantMessage = (content, delay = 300) => {
+  setTimeout(() => {
+    messages.value.push({
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      content,
+      timestamp: new Date().toISOString()
+    })
+    scrollToBottom()
+  }, delay)
+}
+
+// Start task via real API
+const doStartTask = async () => {
+  if (!canStart.value) return
+
+  starting.value = true
+
+  try {
+    const response = await startTask(props.task.id)
+    if (response.success) {
+      emit('task-started', response.data)
+    } else {
+      addAssistantMessage(`❌ 启动失败: ${response.message || '未知错误'}`)
+    }
+  } catch (error) {
+    const msg = error.message || '网络错误'
+    addAssistantMessage(`❌ 启动失败: ${msg}`)
+  } finally {
+    starting.value = false
+  }
+}
+
 // Send message
 const sendMessage = () => {
   if (!inputText.value.trim() || !props.task) return
 
   const input = inputText.value.trim()
 
-  const userMessage = {
+  messages.value.push({
     id: `user-${Date.now()}`,
     role: 'user',
     content: input,
     timestamp: new Date().toISOString()
-  }
-
-  messages.value.push(userMessage)
+  })
   inputText.value = ''
   scrollToBottom()
 
-  // Process input and get response
-  const result = processButlerInput(userMessage.content, props.task, workflow.value)
-
-  // Add assistant response with slight delay for natural feel
-  setTimeout(() => {
-    const assistantMessage = {
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      content: result.response,
-      timestamp: new Date().toISOString()
+  // Check for start command
+  if (input.includes('启动') || input.includes('开始')) {
+    if (canStart.value) {
+      doStartTask()
+      return
     }
-    messages.value.push(assistantMessage)
-    scrollToBottom()
+  }
 
-    // Emit action if it's a control command
-    if (['start', 'pause', 'continue', 'stop', 'retry'].includes(result.action)) {
-      emit('control-workflow', {
-        action: result.action,
-        taskId: props.task.id
-      })
+  // Check for progress command
+  if (input.includes('进度') || input.includes('状态')) {
+    if (hasWorkflow.value) {
+      addAssistantMessage('正在打开工作流进度面板...')
+      handleViewProgress()
+      return
     }
-  }, 300)
+  }
+
+  // Fall back to mock butler responses for other interactions
+  const result = processButlerInput(input, props.task, null)
+  addAssistantMessage(result.response)
+
+  // Emit control actions for non-start actions
+  if (['pause', 'continue', 'stop', 'retry'].includes(result.action)) {
+    emit('control-workflow', {
+      action: result.action,
+      taskId: props.task.id
+    })
+  }
 }
 
 // Handle quick action button click
 const handleQuickAction = (action) => {
-  if (action.disabled || !props.task) return
+  if (action.disabled || action.loading || !props.task) return
 
-  // Add user action message
-  const userMessage = {
+  if (action.action === 'start') {
+    doStartTask()
+    return
+  }
+
+  if (action.action === 'progress') {
+    handleViewProgress()
+    return
+  }
+
+  // Other actions: add to chat and use mock response
+  messages.value.push({
     id: `user-${Date.now()}`,
     role: 'user',
     content: action.label,
     timestamp: new Date().toISOString()
-  }
-  messages.value.push(userMessage)
+  })
   scrollToBottom()
 
-  // Get response for action
-  const result = getResponseForAction(action.action, props.task, workflow.value)
-
-  // Add assistant response
-  setTimeout(() => {
-    const assistantMessage = {
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      content: result.response,
-      timestamp: new Date().toISOString()
-    }
-    messages.value.push(assistantMessage)
-    scrollToBottom()
-
-    // Emit action if it's a control command
-    if (['start', 'pause', 'continue', 'stop', 'retry'].includes(action.action)) {
-      emit('control-workflow', {
-        action: action.action,
-        taskId: props.task.id
-      })
-    }
-  }, 300)
+  const result = getResponseForAction(action.action, props.task, null)
+  addAssistantMessage(result.response)
 }
 
 // Watch for task changes
 watch(() => props.task, (newTask, oldTask) => {
-  console.log('[TaskButlerChat] watch triggered - newTask:', newTask, 'oldTask:', oldTask)
-  // Clear messages when task changes
   if (newTask && (!oldTask || newTask.id !== oldTask.id)) {
-    console.log('[TaskButlerChat] Adding welcome message for task:', newTask.title)
     messages.value = []
-
-    // Add welcome message for new task
     const welcomeMsg = getButlerWelcomeMessage(newTask.title)
     messages.value.push(welcomeMsg)
     scrollToBottom()
   } else if (!newTask) {
-    // Clear messages when no task selected
     messages.value = []
   }
 }, { immediate: true })
@@ -401,7 +409,7 @@ defineExpose({
   transition: all 0.2s ease;
 }
 
-.quick-action-btn:hover:not(.disabled) {
+.quick-action-btn:hover:not(.disabled):not(.loading) {
   background: var(--bg-tertiary, #f1f5f9);
   border-color: var(--primary-color, #6366f1);
 }
@@ -409,6 +417,11 @@ defineExpose({
 .quick-action-btn.disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.quick-action-btn.loading {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 /* Messages Area */

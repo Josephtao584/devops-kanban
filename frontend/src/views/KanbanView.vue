@@ -162,6 +162,8 @@
             :task="selectedTask"
             @control-workflow="handleButlerControl"
             @view-workflow="handleViewWorkflow"
+            @task-started="handleTaskStarted"
+            @view-progress="handleViewProgress"
           />
         </div>
       </div>
@@ -246,6 +248,15 @@
       @select-node="onNodeSelect"
       @view-details="onNodeViewDetails"
       @start-workflow="onStartWorkflow"
+    />
+
+    <!-- Workflow Progress Dialog -->
+    <WorkflowProgressDialog
+      v-model="showProgressDialog"
+      :task-id="selectedTask?.id"
+      :workflow-run-id="progressRunId"
+      :task-title="selectedTask?.title"
+      @workflow-completed="handleWorkflowCompleted"
     />
 
     <!-- Sync Tasks Dialog -->
@@ -484,6 +495,7 @@ import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
+import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
@@ -518,6 +530,8 @@ const selectedTask = ref(null)
 const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
+const showProgressDialog = ref(false)
+const progressRunId = ref(null)
 const showSyncDialog = ref(false)
 // Sync state
 const availableSources = ref([])
@@ -572,6 +586,39 @@ const {
   getWorkflowByProject,
   t
 })
+
+// Handle task started event from TaskButlerChat
+const handleTaskStarted = async (updatedTask) => {
+  // Refresh tasks to reflect status change
+  if (selectedProjectId.value) {
+    await taskStore.fetchTasks(selectedProjectId.value)
+  }
+  // Update selected task with new data
+  if (selectedTask.value && selectedTask.value.id === updatedTask.id) {
+    selectedTask.value = updatedTask
+  }
+}
+
+// Handle view progress event from TaskButlerChat
+const handleViewProgress = ({ taskId, workflowRunId }) => {
+  progressRunId.value = workflowRunId
+  showProgressDialog.value = true
+}
+
+// Handle workflow completed event from WorkflowProgressDialog
+const handleWorkflowCompleted = async () => {
+  // Refresh tasks to reflect status change (task should now be DONE)
+  if (selectedProjectId.value) {
+    await taskStore.fetchTasks(selectedProjectId.value)
+  }
+  // Update selected task from refreshed store
+  if (selectedTask.value) {
+    const updated = taskStore.tasks.find(t => t.id === selectedTask.value.id)
+    if (updated) {
+      selectedTask.value = updated
+    }
+  }
+}
 
 // Handle tasks reorder from drag-and-drop
 const handleReorderTasks = async (newOrder) => {
