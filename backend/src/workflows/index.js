@@ -13,15 +13,27 @@ import { STORAGE_PATH } from '../config/index.js';
 import { executeWorkflowStep } from '../services/workflowStepExecutor.js';
 import { getWorkflowExecutionContext } from '../services/workflowExecutionContext.js';
 
-export function attachWorktreePath(result, worktreePath) {
+const sharedStateSchema = z.object({
+  taskTitle: z.string(),
+  taskDescription: z.string(),
+  worktreePath: z.string(),
+});
+
+function buildWorkflowSharedState({ taskTitle, taskDescription, worktreePath }) {
   return {
-    ...result,
+    taskTitle,
+    taskDescription,
     worktreePath,
   };
 }
 
-export function resolveStepWorktreePath(inputData, context = getWorkflowExecutionContext()) {
-  return inputData.worktreePath || context?.worktreePath || process.cwd();
+function buildStepExecutorInput({ state, inputData, upstreamStepIds }) {
+  return {
+    worktreePath: state.worktreePath,
+    state,
+    inputData,
+    upstreamStepIds,
+  };
 }
 
 let _mastra = null;
@@ -35,7 +47,6 @@ let _initialized = false;
 export async function initWorkflows() {
   if (_initialized) return;
 
-  // 1. Create Mastra instance with storage
   const dbPath = path.join(STORAGE_PATH, 'mastra.db');
   _mastra = new Mastra({
     storage: new LibSQLStore({
@@ -44,7 +55,6 @@ export async function initWorkflows() {
     }),
   });
 
-  // 2. Build dev workflow
   _devWorkflow = buildDevWorkflow();
 
   _initialized = true;
@@ -64,42 +74,42 @@ function buildDevWorkflow() {
       taskDescription: z.string(),
       worktreePath: z.string(),
     }),
-    outputSchema: stepResultSchema.extend({
-      worktreePath: z.string(),
-    }),
-    execute: async ({ inputData }) => {
+    outputSchema: stepResultSchema,
+    stateSchema: sharedStateSchema,
+    execute: async ({ inputData, state }) => {
       console.log(`[Workflow] Step "requirement-design" started`);
       console.log(`[Workflow]   Task: #${inputData.taskId} - ${inputData.taskTitle}`);
-      console.log(`[Workflow]   Worktree: ${inputData.worktreePath}`);
+      console.log(`[Workflow]   Worktree: ${state.worktreePath}`);
 
-      return attachWorktreePath(await executeWorkflowStep({
+      return await executeWorkflowStep({
         context: getWorkflowExecutionContext(),
         stepId: 'requirement-design',
-        worktreePath: inputData.worktreePath,
-        taskTitle: inputData.taskTitle,
-        taskDescription: inputData.taskDescription,
-      }), inputData.worktreePath);
+        ...buildStepExecutorInput({
+          state,
+          inputData,
+          upstreamStepIds: [],
+        }),
+      });
     },
   });
 
   const codeDevelopmentStep = createStep({
     id: 'code-development',
-    inputSchema: z.object({
-      summary: z.string(),
-      worktreePath: z.string().optional(),
-    }),
+    inputSchema: stepResultSchema,
     outputSchema: stepResultSchema,
-    execute: async ({ inputData }) => {
+    stateSchema: sharedStateSchema,
+    execute: async ({ inputData, state }) => {
       console.log(`[Workflow] Step "code-development" started`);
-      console.log(`[Workflow]   Previous summary: ${inputData.summary}`);
+      console.log(`[Workflow]   Upstream summary: ${inputData.summary}`);
 
       return await executeWorkflowStep({
         context: getWorkflowExecutionContext(),
         stepId: 'code-development',
-        worktreePath: resolveStepWorktreePath(inputData),
-        taskTitle: '代码开发',
-        taskDescription: inputData.summary,
-        previousSummary: inputData.summary,
+        ...buildStepExecutorInput({
+          state,
+          inputData,
+          upstreamStepIds: ['requirement-design'],
+        }),
       });
     },
   });
@@ -108,11 +118,18 @@ function buildDevWorkflow() {
     id: 'testing',
     inputSchema: stepResultSchema,
     outputSchema: stepResultSchema,
-    execute: async ({ inputData }) => {
+    stateSchema: sharedStateSchema,
+    execute: async ({ inputData, state }) => {
       console.log(`[Workflow] Step "testing" started`);
-      return {
-        summary: `[Mock] Testing skipped. ${inputData.summary}`,
-      };
+      return await executeWorkflowStep({
+        context: getWorkflowExecutionContext(),
+        stepId: 'testing',
+        ...buildStepExecutorInput({
+          state,
+          inputData,
+          upstreamStepIds: ['code-development'],
+        }),
+      });
     },
   });
 
@@ -120,11 +137,18 @@ function buildDevWorkflow() {
     id: 'code-review',
     inputSchema: stepResultSchema,
     outputSchema: stepResultSchema,
-    execute: async ({ inputData }) => {
+    stateSchema: sharedStateSchema,
+    execute: async ({ inputData, state }) => {
       console.log(`[Workflow] Step "code-review" started`);
-      return {
-        summary: `[Mock] Code review skipped. ${inputData.summary}`,
-      };
+      return await executeWorkflowStep({
+        context: getWorkflowExecutionContext(),
+        stepId: 'code-review',
+        ...buildStepExecutorInput({
+          state,
+          inputData,
+          upstreamStepIds: ['testing'],
+        }),
+      });
     },
   });
 
@@ -137,6 +161,7 @@ function buildDevWorkflow() {
       worktreePath: z.string(),
     }),
     outputSchema: stepResultSchema,
+    stateSchema: sharedStateSchema,
   })
     .then(requirementDesignStep)
     .then(codeDevelopmentStep)
@@ -156,3 +181,5 @@ export function getDevWorkflow() {
   if (!_devWorkflow) throw new Error('Workflow not initialized. Call initWorkflows() first.');
   return _devWorkflow;
 }
+
+export { buildWorkflowSharedState, buildStepExecutorInput, sharedStateSchema };

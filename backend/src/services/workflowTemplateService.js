@@ -1,10 +1,26 @@
 import { WorkflowTemplateRepository } from '../repositories/workflowTemplateRepository.js';
 
 const FIXED_STEPS = [
-  { id: 'requirement-design', name: '需求设计' },
-  { id: 'code-development', name: '代码开发' },
-  { id: 'testing', name: '测试' },
-  { id: 'code-review', name: '代码审查' },
+  {
+    id: 'requirement-design',
+    name: '需求设计',
+    instructionPrompt: '先完成需求分析，整理实现思路、关键约束和交付方案。',
+  },
+  {
+    id: 'code-development',
+    name: '代码开发',
+    instructionPrompt: '根据上游步骤摘要完成代码实现，保持改动聚焦，并总结主要修改结果。',
+  },
+  {
+    id: 'testing',
+    name: '测试',
+    instructionPrompt: '根据上游步骤摘要执行必要验证，说明测试结果、发现的问题和结论。',
+  },
+  {
+    id: 'code-review',
+    name: '代码审查',
+    instructionPrompt: '根据上游步骤摘要完成代码审查，说明主要风险、问题和审查结论。',
+  },
 ];
 
 const SUPPORTED_EXECUTOR_TYPES = new Set(['CLAUDE_CODE', 'CODEX', 'OPENCODE']);
@@ -30,6 +46,38 @@ function isStringRecord(value) {
     && Object.entries(value).every(([key, item]) => typeof key === 'string' && typeof item === 'string');
 }
 
+function normalizeStep(step, fixedStep) {
+  return {
+    ...fixedStep,
+    ...step,
+    instructionPrompt: typeof step?.instructionPrompt === 'string' && step.instructionPrompt.trim()
+      ? step.instructionPrompt
+      : fixedStep.instructionPrompt,
+    executor: {
+      type: 'CLAUDE_CODE',
+      commandOverride: null,
+      args: [],
+      env: {},
+      ...(step?.executor || {}),
+    },
+  };
+}
+
+function normalizeTemplate(template) {
+  if (!template || template.template_id !== 'dev-workflow-v1') {
+    return template;
+  }
+
+  if (!Array.isArray(template.steps)) {
+    return template;
+  }
+
+  return {
+    ...template,
+    steps: FIXED_STEPS.map((fixedStep, index) => normalizeStep(template.steps[index], fixedStep)),
+  };
+}
+
 class WorkflowTemplateService {
   constructor({ workflowTemplateRepo } = {}) {
     this.workflowTemplateRepo = workflowTemplateRepo || new WorkflowTemplateRepository();
@@ -38,7 +86,11 @@ class WorkflowTemplateService {
   async getTemplate() {
     const existing = await this.workflowTemplateRepo.get();
     if (existing) {
-      return existing;
+      const normalized = normalizeTemplate(existing);
+      if (JSON.stringify(normalized) !== JSON.stringify(existing)) {
+        await this.workflowTemplateRepo.save(normalized);
+      }
+      return normalized;
     }
 
     const template = buildDefaultTemplate();
@@ -64,6 +116,10 @@ class WorkflowTemplateService {
     }
 
     for (const step of template.steps) {
+      if (typeof step.instructionPrompt !== 'string' || !step.instructionPrompt.trim()) {
+        throw new Error('instructionPrompt must be a non-empty string');
+      }
+
       if (!step.executor || !SUPPORTED_EXECUTOR_TYPES.has(step.executor.type)) {
         throw new Error('Unsupported executor type');
       }
@@ -85,4 +141,4 @@ class WorkflowTemplateService {
   }
 }
 
-export { WorkflowTemplateService, FIXED_STEPS, SUPPORTED_EXECUTOR_TYPES, buildDefaultTemplate };
+export { WorkflowTemplateService, FIXED_STEPS, SUPPORTED_EXECUTOR_TYPES, buildDefaultTemplate, normalizeTemplate };
