@@ -49,6 +49,19 @@
               </el-select>
             </template>
           </el-table-column>
+          <el-table-column :label="$t('workflowTemplate.instructionPrompt')" min-width="420">
+            <template #default="scope">
+              <div class="prompt-editor">
+                <el-input
+                  v-model="scope.row.instructionPrompt"
+                  type="textarea"
+                  :rows="4"
+                  resize="vertical"
+                  :placeholder="$t('workflowTemplate.instructionPromptHint')"
+                />
+              </div>
+            </template>
+          </el-table-column>
         </el-table>
       </template>
     </el-card>
@@ -155,6 +168,10 @@ onMounted(() => {
 .meta-value {
   color: #222;
   font-weight: 500;
+}
+
+.prompt-editor {
+  width: 100%;
 }
 
 .state-block {

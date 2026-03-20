@@ -1,6 +1,7 @@
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { adaptStepResult } from './stepResultAdapter.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
+import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
 const defaultTemplateService = new WorkflowTemplateService();
@@ -11,9 +12,9 @@ export async function executeWorkflowStep({
   context,
   stepId,
   worktreePath,
-  taskTitle,
-  taskDescription,
-  previousSummary = '',
+  state,
+  inputData,
+  upstreamStepIds = [],
 }) {
   const template = await templateService.getTemplate();
   const step = template.steps.find((item) => item.id === stepId);
@@ -22,13 +23,17 @@ export async function executeWorkflowStep({
     throw new Error(`Workflow template step not found: ${stepId}`);
   }
 
+  const prompt = assembleWorkflowPrompt({
+    step,
+    state,
+    inputData,
+    upstreamStepIds,
+  });
+
   const executor = registry.getExecutor(step.executor.type);
   const execution = await executor.execute({
-    stepId,
+    prompt,
     worktreePath,
-    taskTitle,
-    taskDescription,
-    previousSummary,
     executorConfig: step.executor,
     onSpawn: (proc) => {
       if (context) {
