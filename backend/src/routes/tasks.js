@@ -78,6 +78,7 @@ async function taskRoutes(fastify) {
     }
   });
 
+
   // Update task
   fastify.put('/:id', async (request, reply) => {
     try {
