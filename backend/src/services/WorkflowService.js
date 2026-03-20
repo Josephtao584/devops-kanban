@@ -5,7 +5,9 @@
 
 import { WorkflowRunRepository } from '../repositories/workflowRunRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
+import { ProjectRepository } from '../repositories/projectRepository.js';
 import { getDevWorkflow } from '../workflows/index.js';
+import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
 
 const STEP_DEFINITIONS = [
   { step_id: 'requirement-design', name: '需求设计' },
@@ -15,9 +17,10 @@ const STEP_DEFINITIONS = [
 ];
 
 class WorkflowService {
-  constructor() {
-    this.workflowRunRepo = new WorkflowRunRepository();
-    this.taskRepo = new TaskRepository();
+  constructor({ workflowRunRepo, taskRepo, projectRepo } = {}) {
+    this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
+    this.taskRepo = taskRepo || new TaskRepository();
+    this.projectRepo = projectRepo || new ProjectRepository();
     this._activeRuns = new Map();
   }
 
@@ -31,6 +34,8 @@ class WorkflowService {
       error.statusCode = 404;
       throw error;
     }
+
+    const executionPath = await this._resolveExecutionPath(task);
 
     // Check no active workflow for this task
     const existing = await this.workflowRunRepo.findByTaskId(taskId);
@@ -58,7 +63,7 @@ class WorkflowService {
       status: 'PENDING',
       current_step: null,
       steps,
-      worktree_path: task.worktree_path || '/tmp/mock-worktree',
+      worktree_path: executionPath,
       branch: task.worktree_branch || `task/${taskId}`,
       context: {},
     });
@@ -67,17 +72,28 @@ class WorkflowService {
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
 
     // Start workflow execution asynchronously
-    this._executeWorkflow(run.id, task).catch((err) => {
+    this._executeWorkflow(run.id, { ...task, execution_path: executionPath }).catch((err) => {
       console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
     });
 
     return run;
   }
 
-  /**
-   * Execute the workflow (called asynchronously)
-   * @private
-   */
+  async _resolveExecutionPath(task) {
+    if (task.worktree_path) {
+      return task.worktree_path;
+    }
+
+    const project = await this.projectRepo.findById(task.project_id);
+    if (project?.local_path) {
+      return project.local_path;
+    }
+
+    const error = new Error('No workspace path configured for workflow execution');
+    error.statusCode = 400;
+    throw error;
+  }
+
   async _executeWorkflow(runId, task) {
     let cancelled = false;
     this._activeRuns.set(runId, {
@@ -96,15 +112,26 @@ class WorkflowService {
         taskId: task.id,
         taskTitle: task.title || 'Untitled Task',
         taskDescription: task.description || '',
-        requirementContent: task.requirement_content || task.description || 'No requirements provided.',
-        worktreePath: task.worktree_path || '/tmp/mock-worktree',
+        worktreePath: task.execution_path,
       };
 
       console.log(`[Workflow] Starting workflow run #${runId} for task #${task.id}`);
 
+      const context = {
+        cancelled: false,
+        proc: null,
+        worktreePath: inputData.worktreePath,
+      };
+
+      this._activeRuns.set(runId, {
+        cancel: () => { context.cancelled = true; },
+        proc: null,
+        context,
+      });
+
       // Run the Mastra workflow with streaming to get step-level events
       const mastraRun = await workflow.createRun();
-      const stream = mastraRun.stream({ inputData });
+      const stream = await runWithWorkflowExecutionContext(context, async () => mastraRun.stream({ inputData }));
 
       // Process stream events to update step status in real-time
       for await (const event of stream.fullStream) {
@@ -121,9 +148,14 @@ class WorkflowService {
 
         if (event.type === 'workflow-step-result' && event.payload?.stepName) {
           const stepId = event.payload.stepName;
+          const activeRun = this._activeRuns.get(runId);
+          if (activeRun && activeRun.context?.proc) {
+            activeRun.proc = activeRun.context.proc;
+          }
           await this.workflowRunRepo.updateStep(runId, stepId, {
             status: 'COMPLETED',
             completed_at: new Date().toISOString(),
+            output: event.payload.result || null,
           });
         }
 
@@ -200,7 +232,9 @@ class WorkflowService {
 
     const activeRun = this._activeRuns.get(runId);
     if (activeRun) {
-      activeRun.cancel();
+      activeRun.cancel?.();
+      activeRun.proc?.kill?.('SIGTERM');
+      activeRun.context?.proc?.kill?.('SIGTERM');
     }
 
     return await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });

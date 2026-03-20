@@ -20,6 +20,11 @@ const routes = [
     path: '/agents',
     name: 'AgentConfig',
     component: () => import('../views/AgentConfig.vue')
+  },
+  {
+    path: '/workflow-template',
+    name: 'WorkflowTemplateConfig',
+    component: () => import('../views/WorkflowTemplateConfig.vue')
   }
 ]
 
