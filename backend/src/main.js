@@ -28,7 +28,7 @@ import { initWorkflows } from './workflows/index.js';
 // Create Fastify instance
 const fastify = Fastify({
   logger: {
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.LOG_LEVEL || 'warn',
   },
 });
 
