@@ -58,10 +58,10 @@ adapterTypes:
     name: GitLab Issues
     description: 从 GitLab Issues 同步任务
     configFields:
-      repo:
+      project_id:
         type: string
         required: true
-        description: "Project path in format group/project"
+        description: "Project ID from GitLab"
       token:
         type: string
         required: false
@@ -70,31 +70,24 @@ adapterTypes:
         type: string
         required: false
         description: "GitLab API base URL"
-        default: "https://gitlab.com/api/v4"
-      labels:
-        type: array
-        required: false
-        description: "Filter by labels"
+        default: "https://git.com/api/v4"
     request:
       baseUrl: "{baseUrl}"
-      path: "/projects/{repo}/issues"
+      path: "/projects/{project_id}/issues"
       method: GET
       headers:
         User-Agent: "DevOps-Kanban-App"
         Accept: "application/json"
         PRIVATE-TOKEN: "{token}"
-      params:
-        labels: "{labels}"
     response:
-      type: array
-      path: ""
+      type: object
+      path: "$.issues"
     mapping:
       title: "$.title"
       description: "$.description"
       external_id: "$.id"
-      external_url: "$.web_url"
+      external_url: "$.project_id"
       status: "$.state"
-      labels: "$.labels"
       created_at: "$.created_at"
       updated_at: "$.updated_at"
     transforms:
