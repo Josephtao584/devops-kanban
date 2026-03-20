@@ -115,7 +115,7 @@ project/
 | **WebSocket** | ws 8.x (原生) |
 | **数据存储** | JSON 文件存储 |
 
-**注意**: 后端已从 Python FastAPI 迁移到 Node.js Fastify。如需使用旧版 Python 后端，请切换到 `python-backend` 分支。
+**注意**: 项目分为前端 (Vue 3) 和后端 (Node.js Fastify) 两部分。
 
 ---
 
@@ -123,7 +123,6 @@ project/
 
 ### 环境要求
 
-- **Python 3.10+**
 - **Node.js 18+**
 
 ### 一键启动（推荐）
@@ -149,7 +148,7 @@ cd devops-kanban
 #### 启动后端
 
 ```bash
-cd backend-nodejs
+cd backend
 
 # 安装依赖
 npm install
@@ -282,7 +281,7 @@ devops-kanban/
 │   ├── agents.json          # AI 代理数据
 │   └── task_sources.json    # 任务源数据
 │
-├── backend-nodejs/          # Node.js Fastify 后端
+├── backend/                 # Node.js Fastify 后端
 │   ├── src/
 │   │   ├── main.js          # 应用入口
 │   │   ├── config/          # 配置管理
@@ -295,7 +294,11 @@ devops-kanban/
 │   │   │   ├── agents.js
 │   │   │   ├── requirements.js
 │   │   │   ├── roles.js
-│   │   │   └── members.js
+│   │   │   ├── members.js
+│   │   │   ├── iterations.js
+│   │   │   ├── git.js
+│   │   │   ├── taskWorktree.js
+│   │   │   └── workflows.js
 │   │   ├── services/        # 业务逻辑层
 │   │   ├── repositories/    # 数据访问层
 │   │   ├── middleware/      # 中间件
@@ -325,7 +328,7 @@ devops-kanban/
 
 ### 环境变量
 
-在 `backend-nodejs/.env` 中配置：
+在 `backend/.env` 中配置：
 
 ```env
 # 数据存储路径
@@ -362,17 +365,188 @@ LOG_LEVEL=info
 
 ---
 
+## 🔌 扩展任务源
+
+### 架构概述
+
+UniversalAdapter 是一个通用的任务源适配器，通过 `config.yaml` 配置文件驱动，能够适配任何支持 HTTP API 的任务管理系统（如 GitHub Issues、GitLab Issues、Jira 等）。
+
+**工作流程：**
+
+```
+用户配置 → config.yaml → UniversalAdapter → HTTP 请求 → 解析响应 → 映射转换 → 任务
+```
+
+适配器通过 YAML 配置定义：
+- **request**: HTTP 请求参数（URL、Headers、Query 参数）
+- **response**: 响应数据路径
+- **mapping**: 字段映射（外部字段 → 内部字段）
+- **transforms**: 数据转换规则
+
+### config.yaml 结构
+
+```yaml
+adapterTypes:
+  - key: TYPE_KEY              # 唯一标识符
+    name: 显示名称              # UI 显示名称
+    description: 描述          # 功能描述
+    configFields:              # 用户配置字段
+      field_name:
+        type: string | array   # 字段类型
+        required: true | false # 是否必填
+        description: "说明"     # 字段描述
+        default: 默认值         # 可选默认值
+    request:                   # HTTP 请求配置
+      baseUrl: "https://api.example.com"
+      path: "/issues"
+      method: GET | POST | ...
+      headers:                 # 请求头（支持 {config.field} 占位符）
+        User-Agent: "DevOps-Kanban-App"
+        Authorization: "token {token}"
+      params:                  # Query 参数
+        state: "{state}"
+    response:
+      type: array | object
+      path: ""                 # JSONPath 路径，空表示根级别
+    mapping:                   # 字段映射
+      internal_field: "$.external.field"  # 内部字段: JSONPath
+      title: "$.title"
+      status: "$.state"
+    transforms:                 # 数据转换
+      status:                  # 状态映射
+        open: TODO
+        closed: DONE
+      external_id: "toString"   # 类型转换
+      labels: "arrayMap(name)"  # 数组处理
+```
+
+### 示例：添加 Jira 任务源
+
+```yaml
+  - key: JIRA
+    name: Jira Issues
+    description: 从 Jira Issues 同步任务
+    configFields:
+      domain:
+        type: string
+        required: true
+        description: "Jira 域名 (如 your-company.atlassian.net)"
+      project:
+        type: string
+        required: true
+        description: "Jira 项目 Key (如 PROJ)"
+      email:
+        type: string
+        required: true
+        description: "Jira 账号邮箱"
+      token:
+        type: string
+        required: true
+        description: "Jira API Token"
+      jql:
+        type: string
+        required: false
+        description: "JQL 查询语句"
+        default: "project={project} ORDER BY created DESC"
+    request:
+      baseUrl: "https://{domain}/rest/api/3"
+      path: "/search"
+      method: GET
+      headers:
+        Authorization: "Basic {base64(email:token)}"
+        Content-Type: "application/json"
+        Accept: "application/json"
+      params:
+        jql: "{jql}"
+        maxResults: "100"
+        fields: "summary,description,status,created,updated,labels"
+    response:
+      type: array
+      path: "$.issues"
+    mapping:
+      title: "$.fields.summary"
+      description: "$.fields.description"
+      external_id: "$.id"
+      external_url: "$.self"
+      status: "$.fields.status.name"
+      labels: "$.fields.labels"
+      created_at: "$.fields.created"
+      updated_at: "$.fields.updated"
+    transforms:
+      status:
+        "To Do": TODO
+        "In Progress": IN_PROGRESS
+        Done: DONE
+      external_id: "toString"
+      labels: "arrayMap(name)"
+```
+
+### JSONPath 语法
+
+UniversalAdapter 支持类似 JSONPath 的路径语法：
+
+| 语法 | 说明 | 示例 |
+|------|------|------|
+| `$.field` | 根字段 | `$.title` 获取 `item.title` |
+| `$.nested.field` | 嵌套字段 | `$.fields.summary` 获取嵌套值 |
+| `$.array[*].name` | 数组展开 | `$.labels[*].name` 提取所有 label 的 name |
+
+**示例：**
+
+```yaml
+# 原始数据
+# { "issue": { "labels": [{ "name": "bug", "id": 1 }, { "name": "urgent", "id": 2 }] } }
+
+mapping:
+  label_names: "$.issue.labels[*].name"
+  # 结果: ["bug", "urgent"]
+```
+
+### transforms 语法
+
+transforms 用于转换映射后的字段值：
+
+**状态映射（对象）：**
+
+```yaml
+transforms:
+  status:
+    open: TODO
+    closed: DONE
+    in_progress: IN_PROGRESS
+```
+
+**类型转换（字符串）：**
+
+| 转换函数 | 说明 | 示例 |
+|----------|------|------|
+| `toString` | 转为字符串 | `123` → `"123"` |
+| `toInt` | 转为整数 | `"123"` → `123` |
+| `toFloat` | 转为浮点数 | `"3.14"` → `3.14` |
+| `toBoolean` | 转为布尔值 | `"true"` → `true` |
+| `arrayMap(name)` | 提取数组对象 name 属性 | `[{name: "a"}, {name: "b"}]` → `["a", "b"]` |
+| `arrayMap(id)` | 提取数组对象 id 属性 | `[{id: 1}, {id: 2}]` → `[1, 2]` |
+
+---
+
 ## 🤝 贡献指南
 
 欢迎贡献代码、报告问题或提出建议！
 
 ### 添加新的 AI 代理
 
-通过 SPI 接口扩展新的 AI 代理：
+通过 UI 或 API 配置新的 AI 代理：
 
-```python
-# 实现 AgentAdapter 接口
-# 参考 backend/adapters/ 目录
+```bash
+# 或通过 API 创建
+curl -X POST http://localhost:8000/api/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Claude Code",
+    "type": "CLAUDE",
+    "command": "claude",
+    "config": {}
+  }'
 ```
 
 ---
