@@ -11,21 +11,25 @@ function buildValidTemplate() {
       {
         id: 'requirement-design',
         name: '需求设计',
+        instructionPrompt: '先做需求分析和设计拆解。',
         executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
       },
       {
         id: 'code-development',
         name: '代码开发',
+        instructionPrompt: '根据设计摘要完成代码实现。',
         executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
       },
       {
         id: 'testing',
         name: '测试',
+        instructionPrompt: '根据开发结果执行测试验证。',
         executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
       },
       {
         id: 'code-review',
         name: '代码审查',
+        instructionPrompt: '根据测试结果完成代码审查总结。',
         executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
       },
     ],
@@ -81,6 +85,7 @@ test('GET /api/workflow-template returns the global template', async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().success, true);
   assert.equal(response.json().data.template_id, 'dev-workflow-v1');
+  assert.equal(response.json().data.steps[0].instructionPrompt, '先做需求分析和设计拆解。');
 });
 
 test('PUT /api/workflow-template updates step executor bindings', async () => {
@@ -100,10 +105,13 @@ test('PUT /api/workflow-template updates step executor bindings', async () => {
   await workflowTemplateRoutes(app, { service });
   const payload = buildValidTemplate();
   payload.steps[1].executor.type = 'CODEX';
+  payload.steps[1].instructionPrompt = '根据设计摘要完成代码实现并记录主要改动。';
 
   const response = await app.inject({ method: 'PUT', url: '/', payload });
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().data.steps[1].executor.type, 'CODEX');
+  assert.equal(response.json().data.steps[1].instructionPrompt, '根据设计摘要完成代码实现并记录主要改动。');
   assert.equal(savedTemplate.steps[1].executor.type, 'CODEX');
+  assert.equal(savedTemplate.steps[1].instructionPrompt, '根据设计摘要完成代码实现并记录主要改动。');
 });
