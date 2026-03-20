@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import crossSpawn from 'cross-spawn';
 import { buildStepPrompt } from './claudeStepPromptBuilder.js';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './executors/commandResolver.js';
@@ -17,6 +17,10 @@ function buildClaudeSpawnCommand(executorConfig = {}, processEnv = process.env) 
   });
 }
 
+async function resolveCrossSpawn() {
+  return crossSpawn;
+}
+
 function summarizeCommand(command, args) {
   return [command, ...args].map((arg) => JSON.stringify(arg)).join(' ');
 }
@@ -27,6 +31,7 @@ async function defaultSpawnImpl({ worktreePath, prompt, onSpawn, executorConfig 
   const spawnCommand = resolved.command;
   const commandArgs = [...resolved.args, ...cliArgs];
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
+  const spawnImpl = await resolveCrossSpawn();
 
   console.log('[ClaudeStepRunner] Launching Claude command');
   console.log(`[ClaudeStepRunner]   cwd: ${worktreePath}`);
@@ -34,7 +39,7 @@ async function defaultSpawnImpl({ worktreePath, prompt, onSpawn, executorConfig 
   console.log(`[ClaudeStepRunner]   prompt:\n${prompt}`);
 
   return await new Promise((resolve, reject) => {
-    const proc = spawn(spawnCommand, commandArgs, {
+    const proc = spawnImpl(spawnCommand, commandArgs, {
       cwd: worktreePath,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: resolved.env,
@@ -133,4 +138,4 @@ class ClaudeStepRunner {
   }
 }
 
-export { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand };
+export { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand, resolveCrossSpawn };

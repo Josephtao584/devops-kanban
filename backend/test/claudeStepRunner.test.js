@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand } from '../src/services/claudeStepRunner.js';
+import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand, resolveCrossSpawn } from '../src/services/claudeStepRunner.js';
 
 test('buildClaudeCliArgs uses -p prompt and skip permissions', () => {
   assert.deepEqual(buildClaudeCliArgs('生成测试文档'), [
@@ -15,6 +15,11 @@ test('buildClaudeSpawnCommand uses npx-based default command', () => {
   assert.equal(resolved.command, 'npx');
   assert.deepEqual(resolved.args, CLAUDE_DEFAULT_COMMAND.slice(1));
   assert.equal(resolved.env.PATH, 'x');
+});
+
+test('resolveCrossSpawn loads spawn function from package', async () => {
+  const crossSpawn = await resolveCrossSpawn();
+  assert.equal(typeof crossSpawn, 'function');
 });
 
 test('buildClaudeSpawnCommand applies override args and env', () => {
