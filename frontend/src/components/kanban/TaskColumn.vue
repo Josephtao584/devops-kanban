@@ -4,6 +4,11 @@
       <span :class="['column-status', `status-${statusClass}-dot`]"></span>
       <span class="column-title">{{ title }}</span>
       <span class="column-count">{{ taskCount }}</span>
+      <button v-if="showSyncButton" class="sync-btn" @click.stop="emit('sync')" :title="$t('taskSource.sync')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+      </button>
     </div>
     <div class="column-content">
       <draggable
@@ -82,10 +87,14 @@ const props = defineProps({
   showAddButton: {
     type: Boolean,
     default: false
+  },
+  showSyncButton: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync'])
 
 const { t } = useI18n()
 const { getStatusClass } = useStatusStyle()
@@ -190,6 +199,24 @@ const taskCount = computed(() => props.tasks.length)
   background: var(--el-bg-color);
   padding: 2px 8px;
   border-radius: 10px;
+}
+
+.sync-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.sync-btn:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
 }
 
 .column-content {
