@@ -10,9 +10,10 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 
 class TaskService {
-  constructor() {
-    this.taskRepo = new TaskRepository();
-    this.projectRepo = new ProjectRepository();
+  constructor({ taskRepo, projectRepo, repoRootResolver } = {}) {
+    this.taskRepo = taskRepo || new TaskRepository();
+    this.projectRepo = projectRepo || new ProjectRepository();
+    this.repoRootResolver = repoRootResolver || (() => process.cwd());
   }
 
   /**
@@ -148,14 +149,6 @@ class TaskService {
     return await this.taskRepo.findById(taskId);
   }
 
-  /**
-   * Delete a task
-   * @param {number} taskId - Task ID
-   * @returns {Promise<boolean>} True if deleted
-   */
-  async delete(taskId) {
-    return await this.taskRepo.delete(taskId);
-  }
 
   /**
    * Check if task exists

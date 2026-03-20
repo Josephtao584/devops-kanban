@@ -51,6 +51,15 @@
           </svg>
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.taskSources') }}</span>
         </router-link>
+
+        <router-link to="/workflow-template" class="nav-item" :title="$t('nav.workflowTemplate')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="4" rx="1"></rect>
+            <rect x="3" y="10" width="18" height="4" rx="1"></rect>
+            <rect x="3" y="16" width="18" height="4" rx="1"></rect>
+          </svg>
+          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.workflowTemplate') }}</span>
+        </router-link>
       </nav>
 
       <!-- 底部操作区 -->

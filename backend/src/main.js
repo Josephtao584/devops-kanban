@@ -20,6 +20,7 @@ import agentRoutes from './routes/agents.js';
 import roleRoutes from './routes/roles.js';
 import memberRoutes from './routes/members.js';
 import workflowRoutes from './routes/workflows.js';
+import workflowTemplateRoutes from './routes/workflowTemplate.js';
 import gitRoutes from './routes/git.js';
 import iterationRoutes from './routes/iterations.js';
 
@@ -28,7 +29,7 @@ import { initWorkflows } from './workflows/index.js';
 // Create Fastify instance
 const fastify = Fastify({
   logger: {
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.LOG_LEVEL || 'warn',
   },
 });
 
@@ -86,6 +87,7 @@ fastify.register(agentRoutes, { prefix: '/api/agents' });
 fastify.register(roleRoutes, { prefix: '/api/roles' });
 fastify.register(memberRoutes, { prefix: '/api/members' });
 fastify.register(workflowRoutes, { prefix: '/api/workflows' });
+fastify.register(workflowTemplateRoutes, { prefix: '/api/workflow-template' });
 fastify.register(gitRoutes, { prefix: '/api/git' });
 fastify.register(iterationRoutes, { prefix: '/api/iterations' });
 
