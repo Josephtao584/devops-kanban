@@ -1,21 +1,9 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { spawn } from 'child_process';
 import { buildStepPrompt } from './claudeStepPromptBuilder.js';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './executors/commandResolver.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
-
-async function prepareStepResultFile(worktreePath) {
-  const resultDirPath = path.join(worktreePath, '.kanban');
-  const resultFilePath = path.join(resultDirPath, 'step-result.json');
-
-  await fs.mkdir(resultDirPath, { recursive: true });
-  await fs.rm(resultFilePath, { force: true });
-
-  return resultFilePath;
-}
 
 function buildClaudeCliArgs(prompt) {
   return ['-p', prompt, '--dangerously-skip-permissions'];
@@ -34,7 +22,6 @@ function summarizeCommand(command, args) {
 }
 
 async function defaultSpawnImpl({ worktreePath, prompt, onSpawn, executorConfig = {} }) {
-  const resultFilePath = await prepareStepResultFile(worktreePath);
   const cliArgs = buildClaudeCliArgs(prompt);
   const resolved = buildClaudeSpawnCommand(executorConfig);
   const spawnCommand = resolved.command;
@@ -71,19 +58,10 @@ async function defaultSpawnImpl({ worktreePath, prompt, onSpawn, executorConfig 
 
     proc.on('error', reject);
     proc.on('close', async (exitCode) => {
-      let resultFileContent = '';
-      try {
-        resultFileContent = await fs.readFile(resultFilePath, 'utf-8');
-      } catch {
-        resultFileContent = '';
-      }
-
       resolve({
         exitCode,
         stdout,
         stderr,
-        resultFileContent,
-        resultFilePath,
         commandSummary,
         cwd: worktreePath,
         prompt,
@@ -139,7 +117,6 @@ class ClaudeStepRunner {
     let parsedResult;
     try {
       parsedResult = validateStepResult(await parseStepResult({
-        resultFileContent: execution.resultFileContent,
         stdout: execution.stdout,
       }));
     } catch (error) {
@@ -151,10 +128,9 @@ class ClaudeStepRunner {
       stdout: execution.stdout,
       stderr: execution.stderr,
       parsedResult,
-      resultFilePath: execution.resultFilePath,
       proc: execution.proc,
     };
   }
 }
 
-export { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, prepareStepResultFile, buildClaudeCliArgs, buildClaudeSpawnCommand };
+export { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand };

@@ -29,17 +29,12 @@ test('buildClaudeSpawnCommand applies override args and env', () => {
   assert.equal(resolved.env.DEBUG, '1');
 });
 
-test('ClaudeStepRunner returns parsed structured result', async () => {
+test('ClaudeStepRunner returns stdout summary result', async () => {
   const runner = new ClaudeStepRunner({
     spawnImpl: async () => ({
       exitCode: 0,
-      stdout: '__STEP_RESULT__{"changedFiles":["docs/design.md"],"summary":"ok"}',
+      stdout: '已完成需求分析\n修改了 workflow 定义并简化结果传递',
       stderr: '',
-      resultFileContent: JSON.stringify({
-        changedFiles: ['docs/design.md'],
-        summary: 'ok',
-      }),
-      resultFilePath: '/tmp/worktree/.kanban/step-result.json',
     }),
   });
 
@@ -51,8 +46,7 @@ test('ClaudeStepRunner returns parsed structured result', async () => {
   });
 
   assert.equal(result.exitCode, 0);
-  assert.deepEqual(result.parsedResult.changedFiles, ['docs/design.md']);
-  assert.equal(result.parsedResult.summary, 'ok');
+  assert.equal(result.parsedResult.summary, '已完成需求分析\n修改了 workflow 定义并简化结果传递');
 });
 
 test('ClaudeStepRunner throws on non-zero exit code', async () => {
@@ -61,8 +55,6 @@ test('ClaudeStepRunner throws on non-zero exit code', async () => {
       exitCode: 1,
       stdout: '',
       stderr: 'boom',
-      resultFileContent: '',
-      resultFilePath: '/tmp/worktree/.kanban/step-result.json',
     }),
   });
 
@@ -74,14 +66,12 @@ test('ClaudeStepRunner throws on non-zero exit code', async () => {
   }), /Claude step failed/);
 });
 
-test('ClaudeStepRunner includes diagnostics when result marker is missing', async () => {
+test('ClaudeStepRunner includes diagnostics when stdout summary is missing', async () => {
   const runner = new ClaudeStepRunner({
     spawnImpl: async () => ({
       exitCode: 0,
-      stdout: 'stdout line 1\nstdout line 2',
+      stdout: '   \n\n',
       stderr: 'stderr line 1',
-      resultFileContent: '',
-      resultFilePath: '/tmp/worktree/.kanban/step-result.json',
       commandSummary: '"npx" "-y" "@anthropic-ai/claude-code@2.1.62" "-p" "prompt"',
       cwd: '/tmp/worktree',
       prompt: 'prompt body',
@@ -94,8 +84,7 @@ test('ClaudeStepRunner includes diagnostics when result marker is missing', asyn
     taskTitle: '测试任务',
     taskDescription: '测试描述',
   }), (error) => {
-    assert.match(error.message, /Missing __STEP_RESULT__ marker/);
-    assert.match(error.message, /stdout line 1/);
+    assert.match(error.message, /summary is required/);
     assert.match(error.message, /stderr line 1/);
     assert.match(error.message, /@anthropic-ai\/claude-code@2\.1\.62/);
     return true;

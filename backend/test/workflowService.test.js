@@ -83,7 +83,6 @@ test('_resolveExecutionPath 在没有 worktree 时回退到 project.local_path',
 test('resolveStepWorktreePath 优先使用上一步携带的 worktreePath', () => {
   const resolvedPath = resolveStepWorktreePath(
     {
-      changedFiles: ['docs/design.md'],
       summary: '设计完成',
       worktreePath: '/repo/worktree/task-1',
     },
@@ -96,7 +95,6 @@ test('resolveStepWorktreePath 优先使用上一步携带的 worktreePath', () =
 test('resolveStepWorktreePath 在上一步未携带路径时回退到上下文路径', () => {
   const resolvedPath = resolveStepWorktreePath(
     {
-      changedFiles: ['docs/design.md'],
       summary: '设计完成',
     },
     { worktreePath: '/repo/context/fallback' }

@@ -11,13 +11,10 @@ export function buildStepPrompt({
     previousSummary ? `上一步摘要:${previousSummary}` : '',
   ].filter(Boolean).join(',');
 
-    return [
-        '请你完成以下需求的设计文档',
-        taskBody,
-        '执行完成后，只输出最后结果。',
-        '必须在stdout最后一行输出__STEP_RESULT__(json)。',
-        '结果JSON固定格式为{\"changedFiles\":[...],\"summary\":\"...\"}。',
-        'changedFiles必须填写实际修改过的相对路径文件列表。',
-        'summary必须概括完成的主要工作。',
-    ].join('\\n');
+  return [
+    '请你完成以下需求的设计文档',
+    taskBody,
+    '执行完成后，只输出最后结果总结。',
+    '总结中说明本步骤做了什么、是否修改了文件、以及主要结果。',
+  ].join('\n');
 }

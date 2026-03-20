@@ -53,7 +53,6 @@ export async function initWorkflows() {
 
 function buildDevWorkflow() {
   const stepResultSchema = z.object({
-    changedFiles: z.array(z.string()),
     summary: z.string(),
   });
 
@@ -65,7 +64,9 @@ function buildDevWorkflow() {
       taskDescription: z.string(),
       worktreePath: z.string(),
     }),
-    outputSchema: stepResultSchema,
+    outputSchema: stepResultSchema.extend({
+      worktreePath: z.string(),
+    }),
     execute: async ({ inputData }) => {
       console.log(`[Workflow] Step "requirement-design" started`);
       console.log(`[Workflow]   Task: #${inputData.taskId} - ${inputData.taskTitle}`);
@@ -84,14 +85,13 @@ function buildDevWorkflow() {
   const codeDevelopmentStep = createStep({
     id: 'code-development',
     inputSchema: z.object({
-      changedFiles: z.array(z.string()),
       summary: z.string(),
       worktreePath: z.string().optional(),
     }),
     outputSchema: stepResultSchema,
     execute: async ({ inputData }) => {
       console.log(`[Workflow] Step "code-development" started`);
-      console.log(`[Workflow]   Previous changed files: ${inputData.changedFiles.join(', ')}`);
+      console.log(`[Workflow]   Previous summary: ${inputData.summary}`);
 
       return await executeWorkflowStep({
         context: getWorkflowExecutionContext(),
@@ -111,7 +111,6 @@ function buildDevWorkflow() {
     execute: async ({ inputData }) => {
       console.log(`[Workflow] Step "testing" started`);
       return {
-        changedFiles: inputData.changedFiles,
         summary: `[Mock] Testing skipped. ${inputData.summary}`,
       };
     },
@@ -124,7 +123,6 @@ function buildDevWorkflow() {
     execute: async ({ inputData }) => {
       console.log(`[Workflow] Step "code-review" started`);
       return {
-        changedFiles: inputData.changedFiles,
         summary: `[Mock] Code review skipped. ${inputData.summary}`,
       };
     },

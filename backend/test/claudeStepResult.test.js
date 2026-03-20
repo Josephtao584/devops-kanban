@@ -2,40 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseStepResult, validateStepResult } from '../src/services/claudeStepResult.js';
 
-test('parseStepResult 优先读取结果文件 JSON', async () => {
+test('parseStepResult 从 stdout 提取 summary', async () => {
   const result = await parseStepResult({
-    resultFileContent: JSON.stringify({
-      changedFiles: ['docs/design.md'],
-      summary: '已生成设计文档',
-    }),
-    stdout: '__STEP_RESULT__{"changedFiles":["docs/ignored.md"],"summary":"ignored"}',
+    stdout: '已生成设计文档\n补充了 workflow summary 传递',
   });
 
   assert.deepEqual(result, {
-    changedFiles: ['docs/design.md'],
-    summary: '已生成设计文档',
+    summary: '已生成设计文档\n补充了 workflow summary 传递',
   });
 });
 
-test('parseStepResult 在没有结果文件时回退到 stdout marker', async () => {
+test('parseStepResult 保留原始 stdout 文本，清理首尾空白', async () => {
   const result = await parseStepResult({
-    stdout: 'log line\n__STEP_RESULT__{"changedFiles":["docs/design.md"],"summary":"from stdout"}',
+    stdout: '\n  log line 1\nlog line 2\n\n',
   });
 
   assert.deepEqual(result, {
-    changedFiles: ['docs/design.md'],
-    summary: 'from stdout',
+    summary: 'log line 1\nlog line 2',
   });
-});
-
-test('validateStepResult 在 changedFiles 为空时抛错', () => {
-  assert.throws(() => {
-    validateStepResult({ changedFiles: [], summary: 'ok' });
-  }, /changedFiles/);
 });
 
 test('validateStepResult 在 summary 为空时抛错', () => {
-  assert.throws(() => {
-    validateStepResult({ changedFiles: ['docs/design.md'], summary: '   ' });
-  }, /summary/);
+  assert.throws(() => validateStepResult({ summary: '   ' }), /summary is required/);
+});
+
+test('validateStepResult 返回修剪后的 summary', () => {
+  assert.deepEqual(validateStepResult({ summary: '  done  ' }), { summary: 'done' });
 });

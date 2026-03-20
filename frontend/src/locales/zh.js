@@ -31,6 +31,7 @@ export default {
     kanban: '看板',
     taskSources: '任务源',
     agents: '我的团队',
+    workflowTemplate: '工作流模板',
     settings: '设置'
   },
   project: {
@@ -174,6 +175,18 @@ export default {
     selectAtLeastOne: '请至少选择一个 Issue',
     importSuccess: '成功导入 {count} 个任务',
     importFailed: '导入失败'
+  },
+  workflowTemplate: {
+    title: '工作流模板',
+    description: '配置全局固定工作流中每个步骤使用的执行器。',
+    name: '模板名称',
+    stepName: '步骤名称',
+    stepId: '步骤 ID',
+    executor: '执行器',
+    retry: '重试',
+    loadFailed: '加载工作流模板失败',
+    saveSuccess: '工作流模板已保存',
+    saveFailed: '保存工作流模板失败'
   },
   agent: {
     title: '我的团队',

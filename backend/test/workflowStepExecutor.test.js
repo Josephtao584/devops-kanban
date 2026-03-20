@@ -24,7 +24,7 @@ test('executeWorkflowStep selects executor from global template for the current 
       return {
         async execute({ onSpawn }) {
           onSpawn(proc);
-          return { rawResult: { changedFiles: ['x'], summary: 'ok' }, proc };
+          return { rawResult: { summary: 'ok' }, proc };
         },
       };
     },
@@ -41,7 +41,7 @@ test('executeWorkflowStep selects executor from global template for the current 
   });
 
   assert.equal(context.proc, proc);
-  assert.deepEqual(result, { changedFiles: ['x'], summary: 'ok' });
+  assert.deepEqual(result, { summary: 'ok' });
 });
 
 test('executeWorkflowStep passes worktreePath through to executor', async () => {
@@ -64,7 +64,7 @@ test('executeWorkflowStep passes worktreePath through to executor', async () => 
       return {
         async execute({ worktreePath }) {
           receivedWorktreePath = worktreePath;
-          return { rawResult: { changedFiles: ['docs/design.md'], summary: 'ok' } };
+          return { rawResult: { summary: 'ok' } };
         },
       };
     },

@@ -21,7 +21,6 @@ class ClaudeCodeExecutor {
       stdout: result.stdout,
       stderr: result.stderr,
       proc: result.proc,
-      resultFilePath: result.resultFilePath,
       rawResult: result.parsedResult,
     };
   }
