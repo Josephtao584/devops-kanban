@@ -3,6 +3,9 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { buildStepPrompt } from './claudeStepPromptBuilder.js';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
+import { resolveCommand } from './executors/commandResolver.js';
+
+const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
 async function prepareStepResultFile(worktreePath) {
   const resultDirPath = path.join(worktreePath, '.kanban');
@@ -18,19 +21,25 @@ function buildClaudeCliArgs(prompt) {
   return ['-p', prompt, '--dangerously-skip-permissions'];
 }
 
-function buildClaudeSpawnCommand(platform = process.platform) {
-  return platform === 'win32' ? 'claude' : 'claude';
+function buildClaudeSpawnCommand(executorConfig = {}, processEnv = process.env) {
+  return resolveCommand({
+    defaultCommand: CLAUDE_DEFAULT_COMMAND,
+    executorConfig,
+    processEnv,
+  });
 }
 
-function summarizeCommand(args) {
-  return args.map((arg) => JSON.stringify(arg)).join(' ');
+function summarizeCommand(command, args) {
+  return [command, ...args].map((arg) => JSON.stringify(arg)).join(' ');
 }
 
-async function defaultSpawnImpl({ worktreePath, prompt, onSpawn }) {
+async function defaultSpawnImpl({ worktreePath, prompt, onSpawn, executorConfig = {} }) {
   const resultFilePath = await prepareStepResultFile(worktreePath);
-  const commandArgs = buildClaudeCliArgs(prompt);
-  const commandSummary = summarizeCommand(commandArgs);
-  const spawnCommand = buildClaudeSpawnCommand();
+  const cliArgs = buildClaudeCliArgs(prompt);
+  const resolved = buildClaudeSpawnCommand(executorConfig);
+  const spawnCommand = resolved.command;
+  const commandArgs = [...resolved.args, ...cliArgs];
+  const commandSummary = summarizeCommand(spawnCommand, commandArgs);
 
   console.log('[ClaudeStepRunner] Launching Claude command');
   console.log(`[ClaudeStepRunner]   cwd: ${worktreePath}`);
@@ -41,7 +50,8 @@ async function defaultSpawnImpl({ worktreePath, prompt, onSpawn }) {
     const proc = spawn(spawnCommand, commandArgs, {
       cwd: worktreePath,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
+      env: resolved.env,
+      shell: false,
     });
 
     if (onSpawn) {
@@ -103,6 +113,7 @@ class ClaudeStepRunner {
     taskTitle,
     taskDescription,
     previousSummary = '',
+    executorConfig = {},
     onSpawn,
   }) {
     const prompt = buildStepPrompt({
@@ -117,6 +128,7 @@ class ClaudeStepRunner {
       stepId,
       worktreePath,
       prompt,
+      executorConfig,
       onSpawn,
     });
 
@@ -145,4 +157,4 @@ class ClaudeStepRunner {
   }
 }
 
-export { ClaudeStepRunner, prepareStepResultFile, buildClaudeCliArgs, buildClaudeSpawnCommand };
+export { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, prepareStepResultFile, buildClaudeCliArgs, buildClaudeSpawnCommand };

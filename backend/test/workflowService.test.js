@@ -152,6 +152,12 @@ test('startWorkflow 使用解析后的执行路径写入 workflow run', async ()
 
   assert.equal(run.id, 7);
   assert.equal(createdRuns[0].worktree_path, '/repo/project');
+  assert.deepEqual(createdRuns[0].steps.map((step) => step.step_id), [
+    'requirement-design',
+    'code-development',
+    'testing',
+    'code-review',
+  ]);
   assert.deepEqual(updatedTasks, [{ taskId: 123, data: { workflow_run_id: 7 } }]);
 });
 

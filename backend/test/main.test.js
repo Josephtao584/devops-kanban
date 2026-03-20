@@ -4,11 +4,16 @@ import { spawn } from 'node:child_process';
 
 const serverPath = 'D:/workspace/devops-kanban/backend/src/main.js';
 
+function createTestPort() {
+  return String(8100 + Math.floor(Math.random() * 500));
+}
+
 test('backend 默认日志级别不输出请求日志', async () => {
+  const port = createTestPort();
   const child = spawn('node', [serverPath], {
     env: {
       ...process.env,
-      SERVER_PORT: '8013',
+      SERVER_PORT: port,
       SERVER_HOST: '127.0.0.1',
       LOG_LEVEL: 'warn',
     },
@@ -32,7 +37,7 @@ test('backend 默认日志级别不输出请求日志', async () => {
 
     const onData = (chunk) => {
       const text = chunk.toString();
-      if (text.includes('Server: http://127.0.0.1:8013')) {
+      if (text.includes(`Server: http://127.0.0.1:${port}`)) {
         clearTimeout(timeout);
         child.stdout.off('data', onData);
         resolve();
@@ -41,10 +46,10 @@ test('backend 默认日志级别不输出请求日志', async () => {
 
     child.stdout.on('data', onData);
     child.on('error', reject);
-    child.on('exit', (code) => reject(new Error(`server exited early: ${code}`)));
+    child.on('exit', (code) => reject(new Error(`server exited early: ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`)));
   });
 
-  const response = await fetch('http://127.0.0.1:8013/health');
+  const response = await fetch(`http://127.0.0.1:${port}/health`);
   assert.equal(response.status, 200);
 
   await new Promise((resolve) => {

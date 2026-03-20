@@ -10,7 +10,7 @@ import { Mastra } from '@mastra/core';
 import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../config/index.js';
-import { executeClaudeWorkflowStep } from '../services/workflowStepExecutor.js';
+import { executeWorkflowStep } from '../services/workflowStepExecutor.js';
 import { getWorkflowExecutionContext } from '../services/workflowExecutionContext.js';
 
 export function attachWorktreePath(result, worktreePath) {
@@ -71,7 +71,7 @@ function buildDevWorkflow() {
       console.log(`[Workflow]   Task: #${inputData.taskId} - ${inputData.taskTitle}`);
       console.log(`[Workflow]   Worktree: ${inputData.worktreePath}`);
 
-      return attachWorktreePath(await executeClaudeWorkflowStep({
+      return attachWorktreePath(await executeWorkflowStep({
         context: getWorkflowExecutionContext(),
         stepId: 'requirement-design',
         worktreePath: inputData.worktreePath,
@@ -93,7 +93,7 @@ function buildDevWorkflow() {
       console.log(`[Workflow] Step "code-development" started`);
       console.log(`[Workflow]   Previous changed files: ${inputData.changedFiles.join(', ')}`);
 
-      return await executeClaudeWorkflowStep({
+      return await executeWorkflowStep({
         context: getWorkflowExecutionContext(),
         stepId: 'code-development',
         worktreePath: resolveStepWorktreePath(inputData),
