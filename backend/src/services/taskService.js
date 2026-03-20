@@ -160,6 +160,15 @@ class TaskService {
   }
 
   /**
+   * Delete a task
+   * @param {number} taskId - Task ID
+   * @returns {Promise<boolean>} True if deleted
+   */
+  async delete(taskId) {
+    return await this.taskRepo.delete(taskId);
+  }
+
+  /**
    * Get or clone repository for a project
    * @param {object} project - Project object
    * @returns {Promise<string>} Repository path

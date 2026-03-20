@@ -5,11 +5,13 @@ import { TaskSourceAdapter } from './base.js';
 import https from 'https';
 
 class GitHubAdapter extends TaskSourceAdapter {
+  static type = 'GITHUB';
   constructor(source) {
     super(source);
     this.baseUrl = 'https://api.github.com';
     this.repo = this._normalizeRepo(source.config?.repo);
     this.token = source.config?.token;
+    this.state = source.config?.state || 'open';
     this.labels = source.config?.labels;
   }
 
@@ -19,7 +21,7 @@ class GitHubAdapter extends TaskSourceAdapter {
   static metadata = {
     name: 'GitHub Issues',
     description: '从 GitHub Issues 同步任务',
-    config: {
+    configFields: {
       repo: {
         type: 'string',
         required: true,
@@ -29,6 +31,11 @@ class GitHubAdapter extends TaskSourceAdapter {
         type: 'string',
         required: false,
         description: 'GitHub Personal Access Token',
+      },
+      state: {
+        type: 'string',
+        required: false,
+        description: 'Issue state filter: open, closed, or all',
       },
       labels: {
         type: 'array',
@@ -78,6 +85,7 @@ class GitHubAdapter extends TaskSourceAdapter {
   _request(path) {
     return new Promise((resolve, reject) => {
       const url = new URL(path, this.baseUrl);
+      url.searchParams.set('state', this.state);
       if (this.labels && this.labels.length > 0) {
         url.searchParams.set('labels', this.labels.join(','));
       }
