@@ -343,7 +343,6 @@ const getTypeLabel = (type) => {
 const getTypeIcon = (type) => {
   const icons = {
     GITHUB: '🐙',
-    GITLAB: '🦊',
     JIRA: '📋',
     LINEAR: '📊'
   }
