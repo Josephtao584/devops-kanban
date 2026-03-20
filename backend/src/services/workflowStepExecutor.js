@@ -1,9 +1,13 @@
-import { ClaudeStepRunner } from './claudeStepRunner.js';
+import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
+import { adaptStepResult } from './stepResultAdapter.js';
+import { WorkflowTemplateService } from './workflowTemplateService.js';
 
-const defaultRunner = new ClaudeStepRunner();
+const defaultRegistry = new AgentExecutorRegistry();
+const defaultTemplateService = new WorkflowTemplateService();
 
-export async function executeClaudeWorkflowStep({
-  runner = defaultRunner,
+export async function executeWorkflowStep({
+  registry = defaultRegistry,
+  templateService = defaultTemplateService,
   context,
   stepId,
   worktreePath,
@@ -11,12 +15,21 @@ export async function executeClaudeWorkflowStep({
   taskDescription,
   previousSummary = '',
 }) {
-  const result = await runner.runStep({
+  const template = await templateService.getTemplate();
+  const step = template.steps.find((item) => item.id === stepId);
+
+  if (!step) {
+    throw new Error(`Workflow template step not found: ${stepId}`);
+  }
+
+  const executor = registry.getExecutor(step.executor.type);
+  const execution = await executor.execute({
     stepId,
     worktreePath,
     taskTitle,
     taskDescription,
     previousSummary,
+    executorConfig: step.executor,
     onSpawn: (proc) => {
       if (context) {
         context.proc = proc;
@@ -24,5 +37,9 @@ export async function executeClaudeWorkflowStep({
     },
   });
 
-  return result.parsedResult;
+  if (context && execution?.proc) {
+    context.proc = execution.proc;
+  }
+
+  return adaptStepResult(step.executor.type, execution);
 }

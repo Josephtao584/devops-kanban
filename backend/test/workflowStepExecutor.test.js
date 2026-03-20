@@ -1,28 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { executeClaudeWorkflowStep } from '../src/services/workflowStepExecutor.js';
+import { executeWorkflowStep } from '../src/services/workflowStepExecutor.js';
 
-test('executeClaudeWorkflowStep 返回统一结构化结果并记录活跃进程', async () => {
+test('executeWorkflowStep selects executor from global template for the current step', async () => {
   const proc = { pid: 123 };
   const context = {};
-  const runner = {
-    async runStep({ onSpawn }) {
-      onSpawn(proc);
+  const templateService = {
+    async getTemplate() {
       return {
-        exitCode: 0,
-        stdout: '',
-        stderr: '',
-        resultFilePath: '/tmp/worktree/.kanban/step-result.json',
-        parsedResult: {
-          changedFiles: ['docs/workflow-step-test.md'],
-          summary: 'ok',
+        template_id: 'dev-workflow-v1',
+        steps: [
+          { id: 'requirement-design', executor: { type: 'CODEX', commandOverride: null, args: [], env: {} } },
+          { id: 'code-development', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+          { id: 'testing', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+          { id: 'code-review', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+        ],
+      };
+    },
+  };
+  const registry = {
+    getExecutor(type) {
+      assert.equal(type, 'CODEX');
+      return {
+        async execute({ onSpawn }) {
+          onSpawn(proc);
+          return { rawResult: { changedFiles: ['x'], summary: 'ok' }, proc };
         },
       };
     },
   };
 
-  const result = await executeClaudeWorkflowStep({
-    runner,
+  const result = await executeWorkflowStep({
+    templateService,
+    registry,
     context,
     stepId: 'requirement-design',
     worktreePath: '/tmp/worktree',
@@ -31,32 +41,38 @@ test('executeClaudeWorkflowStep 返回统一结构化结果并记录活跃进程
   });
 
   assert.equal(context.proc, proc);
-  assert.deepEqual(result, {
-    changedFiles: ['docs/workflow-step-test.md'],
-    summary: 'ok',
-  });
+  assert.deepEqual(result, { changedFiles: ['x'], summary: 'ok' });
 });
 
-test('executeClaudeWorkflowStep 透传传入的 worktreePath 给 runner', async () => {
+test('executeWorkflowStep passes worktreePath through to executor', async () => {
   let receivedWorktreePath = null;
-  const runner = {
-    async runStep({ worktreePath }) {
-      receivedWorktreePath = worktreePath;
+  const templateService = {
+    async getTemplate() {
       return {
-        exitCode: 0,
-        stdout: '',
-        stderr: '',
-        resultFilePath: '/tmp/project/.kanban/step-result.json',
-        parsedResult: {
-          changedFiles: ['docs/design.md'],
-          summary: 'ok',
+        template_id: 'dev-workflow-v1',
+        steps: [
+          { id: 'requirement-design', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+          { id: 'code-development', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+          { id: 'testing', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+          { id: 'code-review', executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} } },
+        ],
+      };
+    },
+  };
+  const registry = {
+    getExecutor() {
+      return {
+        async execute({ worktreePath }) {
+          receivedWorktreePath = worktreePath;
+          return { rawResult: { changedFiles: ['docs/design.md'], summary: 'ok' } };
         },
       };
     },
   };
 
-  await executeClaudeWorkflowStep({
-    runner,
+  await executeWorkflowStep({
+    templateService,
+    registry,
     context: {},
     stepId: 'code-development',
     worktreePath: '/tmp/project',

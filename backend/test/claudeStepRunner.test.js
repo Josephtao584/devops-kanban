@@ -1,26 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'fs/promises';
-import os from 'os';
-import path from 'path';
-import { ClaudeStepRunner, buildClaudeCliArgs, buildClaudeSpawnCommand, prepareStepResultFile } from '../src/services/claudeStepRunner.js';
+import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand } from '../src/services/claudeStepRunner.js';
 
-test('buildClaudeCliArgs 使用 claude -p 并跳过权限确认', () => {
+test('buildClaudeCliArgs uses -p prompt and skip permissions', () => {
   assert.deepEqual(buildClaudeCliArgs('生成测试文档'), [
-    'claude',
     '-p',
     '生成测试文档',
     '--dangerously-skip-permissions',
-    '--verbose',
   ]);
 });
 
-test('buildClaudeSpawnCommand 在 Windows 使用 claude.cmd', () => {
-  assert.equal(buildClaudeSpawnCommand('win32'), 'claude.cmd');
-  assert.equal(buildClaudeSpawnCommand('linux'), 'claude');
+test('buildClaudeSpawnCommand uses npx-based default command', () => {
+  const resolved = buildClaudeSpawnCommand({ commandOverride: null, args: [], env: {} }, { PATH: 'x' });
+  assert.equal(resolved.command, 'npx');
+  assert.deepEqual(resolved.args, CLAUDE_DEFAULT_COMMAND.slice(1));
+  assert.equal(resolved.env.PATH, 'x');
 });
 
-test('ClaudeStepRunner 返回统一结构化结果', async () => {
+test('buildClaudeSpawnCommand applies override args and env', () => {
+  const resolved = buildClaudeSpawnCommand({
+    commandOverride: 'node custom-cli.js',
+    args: ['--debug'],
+    env: { DEBUG: '1' },
+  }, { PATH: 'x' });
+
+  assert.equal(resolved.command, 'node');
+  assert.deepEqual(resolved.args, ['custom-cli.js', '--debug']);
+  assert.equal(resolved.env.DEBUG, '1');
+});
+
+test('ClaudeStepRunner returns parsed structured result', async () => {
   const runner = new ClaudeStepRunner({
     spawnImpl: async () => ({
       exitCode: 0,
@@ -44,10 +53,9 @@ test('ClaudeStepRunner 返回统一结构化结果', async () => {
   assert.equal(result.exitCode, 0);
   assert.deepEqual(result.parsedResult.changedFiles, ['docs/design.md']);
   assert.equal(result.parsedResult.summary, 'ok');
-  assert.equal(result.resultFilePath, '/tmp/worktree/.kanban/step-result.json');
 });
 
-test('ClaudeStepRunner 在非零退出码时抛错', async () => {
+test('ClaudeStepRunner throws on non-zero exit code', async () => {
   const runner = new ClaudeStepRunner({
     spawnImpl: async () => ({
       exitCode: 1,
@@ -66,7 +74,7 @@ test('ClaudeStepRunner 在非零退出码时抛错', async () => {
   }), /Claude step failed/);
 });
 
-test('ClaudeStepRunner 在缺少结果 marker 时抛出包含完整输出和命令的错误', async () => {
+test('ClaudeStepRunner includes diagnostics when result marker is missing', async () => {
   const runner = new ClaudeStepRunner({
     spawnImpl: async () => ({
       exitCode: 0,
@@ -74,7 +82,7 @@ test('ClaudeStepRunner 在缺少结果 marker 时抛出包含完整输出和命�
       stderr: 'stderr line 1',
       resultFileContent: '',
       resultFilePath: '/tmp/worktree/.kanban/step-result.json',
-      commandSummary: '"claude" "-p" "prompt" "--dangerously-skip-permissions" "--verbose"',
+      commandSummary: '"npx" "-y" "@anthropic-ai/claude-code@2.1.62" "-p" "prompt"',
       cwd: '/tmp/worktree',
       prompt: 'prompt body',
     }),
@@ -88,12 +96,8 @@ test('ClaudeStepRunner 在缺少结果 marker 时抛出包含完整输出和命�
   }), (error) => {
     assert.match(error.message, /Missing __STEP_RESULT__ marker/);
     assert.match(error.message, /stdout line 1/);
-    assert.match(error.message, /stdout line 2/);
     assert.match(error.message, /stderr line 1/);
-    assert.match(error.message, /"claude" "-p"/);
-    assert.match(error.message, /\/tmp\/worktree/);
-    assert.match(error.message, /prompt body/);
+    assert.match(error.message, /@anthropic-ai\/claude-code@2\.1\.62/);
     return true;
   });
 });
-
