@@ -115,7 +115,7 @@ project/
 | **WebSocket** | ws 8.x (原生) |
 | **数据存储** | JSON 文件存储 |
 
-**注意**: 后端已从 Python FastAPI 迁移到 Node.js Fastify。如需使用旧版 Python 后端，请切换到 `python-backend` 分支。
+**注意**: 项目分为前端 (Vue 3) 和后端 (Node.js Fastify) 两部分。
 
 ---
 
@@ -123,7 +123,6 @@ project/
 
 ### 环境要求
 
-- **Python 3.10+**
 - **Node.js 18+**
 
 ### 一键启动（推荐）
@@ -149,7 +148,7 @@ cd devops-kanban
 #### 启动后端
 
 ```bash
-cd backend-nodejs
+cd backend
 
 # 安装依赖
 npm install
@@ -282,7 +281,7 @@ devops-kanban/
 │   ├── agents.json          # AI 代理数据
 │   └── task_sources.json    # 任务源数据
 │
-├── backend-nodejs/          # Node.js Fastify 后端
+├── backend/                 # Node.js Fastify 后端
 │   ├── src/
 │   │   ├── main.js          # 应用入口
 │   │   ├── config/          # 配置管理
@@ -295,7 +294,11 @@ devops-kanban/
 │   │   │   ├── agents.js
 │   │   │   ├── requirements.js
 │   │   │   ├── roles.js
-│   │   │   └── members.js
+│   │   │   ├── members.js
+│   │   │   ├── iterations.js
+│   │   │   ├── git.js
+│   │   │   ├── taskWorktree.js
+│   │   │   └── workflows.js
 │   │   ├── services/        # 业务逻辑层
 │   │   ├── repositories/    # 数据访问层
 │   │   ├── middleware/      # 中间件
@@ -325,7 +328,7 @@ devops-kanban/
 
 ### 环境变量
 
-在 `backend-nodejs/.env` 中配置：
+在 `backend/.env` 中配置：
 
 ```env
 # 数据存储路径
@@ -368,11 +371,18 @@ LOG_LEVEL=info
 
 ### 添加新的 AI 代理
 
-通过 SPI 接口扩展新的 AI 代理：
+通过 UI 或 API 配置新的 AI 代理：
 
-```python
-# 实现 AgentAdapter 接口
-# 参考 backend/adapters/ 目录
+```bash
+# 或通过 API 创建
+curl -X POST http://localhost:8000/api/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Claude Code",
+    "type": "CLAUDE",
+    "command": "claude",
+    "config": {}
+  }'
 ```
 
 ---
