@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AgentExecutorRegistry } from '../src/services/agentExecutorRegistry.js';
+import { AgentExecutorRegistry } from '../src/services/workflow/agentExecutorRegistry.js';
 
 test('AgentExecutorRegistry resolves CLAUDE_CODE, CODEX, and OPENCODE executors', () => {
   const registry = new AgentExecutorRegistry();

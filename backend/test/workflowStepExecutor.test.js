@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { executeWorkflowStep } from '../src/services/workflowStepExecutor.js';
+import { executeWorkflowStep } from '../src/services/workflow/workflowStepExecutor.js';
 
 const sharedState = {
   taskTitle: '测试任务',
@@ -51,9 +51,9 @@ test('executeWorkflowStep selects executor from global template for the current 
         async execute({ prompt, worktreePath, onSpawn }) {
           assert.equal(worktreePath, sharedState.worktreePath);
           assert.match(prompt, /当前步骤：需求设计/);
-          assert.match(prompt, /原始需求标题：\n测试任务/);
-          assert.match(prompt, /原始需求内容：\n测试描述/);
-          assert.match(prompt, /本步骤要求：\n先完成需求分析和设计拆解。/);
+          assert.match(prompt, /原始需求标题：\\n测试任务/);
+          assert.match(prompt, /原始需求内容：\\n测试描述/);
+          assert.match(prompt, /本步骤要求：\\n先完成需求分析和设计拆解。/);
           onSpawn(proc);
           return { rawResult: { summary: 'ok' }, proc };
         },
@@ -146,6 +146,6 @@ test('executeWorkflowStep passes worktreePath and upstream summary through assem
   });
 
   assert.equal(receivedWorktreePath, '/tmp/project');
-  assert.match(receivedPrompt, /- requirement-design:\n已完成设计摘要/);
-  assert.match(receivedPrompt, /本步骤要求：\n根据设计摘要完成代码实现。/);
+  assert.match(receivedPrompt, /- requirement-design:\\n已完成设计摘要/);
+  assert.match(receivedPrompt, /本步骤要求：\\n根据设计摘要完成代码实现。/);
 });

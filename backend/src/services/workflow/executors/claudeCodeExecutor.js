@@ -1,4 +1,4 @@
-import { ClaudeStepRunner } from '../claudeStepRunner.js';
+import { ClaudeStepRunner } from './claudeStepRunner.js';
 
 class ClaudeCodeExecutor {
   constructor({ runner = new ClaudeStepRunner() } = {}) {

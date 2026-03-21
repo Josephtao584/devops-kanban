@@ -24,7 +24,7 @@ import workflowTemplateRoutes from './routes/workflowTemplate.js';
 import gitRoutes from './routes/git.js';
 import iterationRoutes from './routes/iterations.js';
 
-import { initWorkflows } from './workflows/index.js';
+import { initWorkflows } from './services/workflow/workflows.js';
 
 // Create Fastify instance
 const fastify = Fastify({

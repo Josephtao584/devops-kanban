@@ -1,4 +1,4 @@
-import { WorkflowTemplateRepository } from '../repositories/workflowTemplateRepository.js';
+import { WorkflowTemplateRepository } from '../../repositories/workflowTemplateRepository.js';
 
 const FIXED_STEPS = [
   {

@@ -1,6 +1,6 @@
 import crossSpawn from 'cross-spawn';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
-import { resolveCommand } from './executors/commandResolver.js';
+import { resolveCommand } from './commandResolver.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 

@@ -1,7 +1,7 @@
 /**
  * Workflow Routes
  */
-import { WorkflowService } from '../services/WorkflowService.js';
+import { WorkflowService } from '../services/workflow/workflowService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
 const service = new WorkflowService();
