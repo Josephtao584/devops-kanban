@@ -4,6 +4,9 @@
 Perform a one-shot migration of the backend from JavaScript to TypeScript with `strict` type checking enabled, while preserving current backend behavior and making workflow, repository, and route boundaries explicitly typed.
 
 ## Scope
+This migration is split into primary backend conversion work and required collateral updates.
+
+### Primary migration scope
 This migration covers the full backend codebase under `backend/`:
 - `src/main`
 - `src/routes`
@@ -14,6 +17,18 @@ This migration covers the full backend codebase under `backend/`:
 - `src/config`
 - `src/middleware`
 - backend tests under `backend/test`
+- `backend/package.json`
+- new `backend/tsconfig.json`
+
+### Required collateral updates
+These files are outside `backend/` but are in scope because the backend entrypoint and commands will change:
+- `start.sh`
+- relevant backend command sections in `CLAUDE.md`
+
+### Explicitly out of scope
+- frontend TypeScript work
+- unrelated docs cleanup
+- feature work or broad behavioral refactors
 
 ### Exact migration inventory
 The migration should convert all active backend runtime and test modules, including:
@@ -108,6 +123,21 @@ Add TypeScript tooling for a Node ESM backend:
 - `typescript`
 - `tsx`
 - `@types/node`
+
+### Runtime baseline
+The migration assumes a Node runtime new enough to support the required ESM features used by the backend and the TS toolchain.
+
+Migration decision:
+- target Node.js 22.x as the supported runtime baseline for development and production
+- compiled/runtime path helpers should use `fileURLToPath(import.meta.url)` plus explicit repo-root/backend-root resolution helpers rather than relying on ambiguous source-only behavior
+
+### Bootstrap structure decision
+The migration will split app construction from process startup.
+
+Migration decision:
+- introduce a typed `buildApp` / `createApp` module that constructs and configures the Fastify instance
+- keep `main.ts` focused on process startup, signal handling, and calling the app builder
+- route tests and startup verification should use the typed app builder rather than importing a side-effectful process entrypoint
 
 ### Required package changes
 Update `backend/package.json` to reflect the TypeScript runtime model:
@@ -211,8 +241,22 @@ The backend currently uses a standard `{ success, message, data, error }` respon
 
 Migration decision:
 - preserve the current `/health` shape as an explicit typed exception: `{ status: 'ok' }`
-- preserve the current root route `/` shape as an explicit typed exception rather than forcing it into the standard envelope during the migration
+- preserve the current root route `/` shape explicitly as:
+  ```ts
+  {
+    success: true;
+    message: string;
+    version: string;
+    data: {
+      endpoints: Record<string, string>;
+    };
+  }
+  ```
 - keep the standard envelope for existing API routes that already use `successResponse` / `errorResponse`
+- route contract ownership follows a hybrid rule:
+  - shared reusable DTO/entity/response types live in `src/types/**`
+  - each route module uses explicit Fastify route generics wired to those shared types
+  - ad hoc inline route payload types should be avoided unless they are truly route-local and non-reusable
 - document response-envelope exceptions centrally in `src/types/api.ts` so route typing remains explicit rather than accidental
 
 ## Boundary Typing Strategy
@@ -302,8 +346,9 @@ Why:
 
 Key requirements:
 - test files use `.test.ts`
-- tests run directly through `node --import tsx --test test/**/*.test.ts`
+- `backend/package.json` `test` script is exactly: `node --import tsx --test test/**/*.test.ts`
 - no separate watch-mode test script is required for migration completion
+- tests that need an app instance should import the typed app builder rather than the process entrypoint
 - test imports follow the same NodeNext ESM `.js` specifier rule used by source files
 - repository stubs, service fakes, and workflow executor mocks are typed rather than left structurally implicit
 - keep tests behavior-focused; avoid rewriting test intent unnecessarily
