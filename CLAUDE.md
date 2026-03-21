@@ -18,9 +18,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 cd backend
 npm install
-npm run dev          # Dev server with nodemon (port 8000)
-node src/main.js     # Direct run
-npm test             # Node.js built-in test runner
+npm run dev          # Dev server with tsx watch (port 8000)
+npm run build        # Build TypeScript output to dist/
+node dist/src/main.js # Direct run of built backend
+npm test             # TypeScript tests via Node test runner + tsx
 ```
 
 **Frontend (Vue 3):**

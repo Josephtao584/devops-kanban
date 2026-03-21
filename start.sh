@@ -57,8 +57,8 @@ cleanup() {
     pkill -f "vite" 2>/dev/null
 
     # 停止后端
-    pkill -f "node src/main.js" 2>/dev/null
-    pkill -f "nodemon" 2>/dev/null
+    pkill -f "tsx watch src/main.ts" 2>/dev/null
+    pkill -f "node dist/src/main.js" 2>/dev/null
 
     # 清理端口
     cleanup_port $FRONTEND_PORT "前端服务"
@@ -81,6 +81,13 @@ if ! command -v node &> /dev/null; then
     echo -e "${RED}✗ 错误：未找到 Node.js，请先安装 Node.js${NC}"
     exit 1
 fi
+
+NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
+if [ "$NODE_MAJOR" -lt 22 ] || [ "$NODE_MAJOR" -ge 23 ]; then
+    echo -e "${RED}✗ 错误：后端需要 Node.js 22.x，当前版本为 $(node -v)${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}✓ Node.js: $(node -v)${NC}"
 
 # 检查并清理端口占用
@@ -136,8 +143,8 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # 清理旧的后端进程
-pkill -f "node src/main.js" 2>/dev/null || true
-pkill -f "nodemon" 2>/dev/null || true
+pkill -f "tsx watch src/main.ts" 2>/dev/null || true
+pkill -f "node dist/src/main.js" 2>/dev/null || true
 
 # 启动后端进程
 npm run dev > /tmp/kanban-backend.log 2>&1 &
