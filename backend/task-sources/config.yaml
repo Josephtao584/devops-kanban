@@ -1,0 +1,110 @@
+# Task Source Configuration
+# Defines available adapter types for task sources
+# To add support for a new system (e.g., Jira, Linear), add a new adapter type here
+
+adapterTypes:
+  - key: GITHUB
+    name: GitHub Issues
+    description: 从 GitHub Issues 同步任务
+    configFields:
+      repo:
+        type: string
+        required: true
+        description: "Repository in format owner/repo"
+      token:
+        type: string
+        required: false
+        description: "GitHub Personal Access Token"
+      state:
+        type: string
+        required: false
+        description: "Issue state filter: open, closed, or all"
+        default: open
+      labels:
+        type: array
+        required: false
+        description: "Filter by labels"
+    request:
+      baseUrl: "https://api.github.com"
+      path: "/repos/{repo}/issues"
+      method: GET
+      headers:
+        User-Agent: "DevOps-Kanban-App"
+        Accept: "application/vnd.github.v3+json"
+        Authorization: "token {token}"
+      params:
+        state: "{state}"
+        labels: "{labels}"
+    response:
+      type: array
+      path: ""  # 空路径表示根级别
+    mapping:
+      title: "$.title"
+      description: "$.body"
+      external_id: "$.id"
+      external_url: "$.html_url"
+      status: "$.state"
+      labels: "$.labels[*].name"
+      created_at: "$.created_at"
+      updated_at: "$.updated_at"
+    transforms:
+      status:
+        open: TODO
+        closed: DONE
+      external_id: "toString"
+      labels: "arrayMap(name)"
+
+  - key: GITLAB
+    name: GitLab Issues
+    description: 从 GitLab Issues 同步任务
+    configFields:
+      project_id:
+        type: string
+        required: true
+        description: "Project ID from GitLab"
+      token:
+        type: string
+        required: false
+        description: "GitLab Personal Access Token"
+      baseUrl:
+        type: string
+        required: false
+        description: "GitLab API base URL"
+        default: "https://git.com/api/v4"
+    request:
+      baseUrl: "{baseUrl}"
+      path: "/projects/{project_id}/issues"
+      method: GET
+      headers:
+        User-Agent: "DevOps-Kanban-App"
+        Accept: "application/json"
+        PRIVATE-TOKEN: "{token}"
+    response:
+      type: object
+      path: "$.issues"
+    mapping:
+      title: "$.title"
+      description: "$.description"
+      external_id: "$.id"
+      external_url: "$.project_id"
+      status: "$.state"
+      created_at: "$.created_at"
+      updated_at: "$.updated_at"
+    transforms:
+      status:
+        opened: TODO
+        closed: DONE
+      external_id: "toString"
+
+# Future adapters can be added here, e.g.:
+#   - key: JIRA
+#     name: Jira Issues
+#     description: 从 Jira 同步任务
+#     configFields:
+#       ...
+#     request:
+#       ...
+#     response:
+#       ...
+#     mapping:
+#       ...

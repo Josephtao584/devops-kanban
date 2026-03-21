@@ -11,13 +11,11 @@
           <span class="section-count">{{ pendingTasks.length }}</span>
         </div>
         <div class="list-section-actions" @click.stop>
-          <button class="sync-task-btn-list" @click="$emit('sync-task')">
+          <button class="sync-btn-list" @click="$emit('sync')" :title="$t('taskSource.sync')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
             </svg>
-            同步任务
+            同步
           </button>
           <button class="add-task-btn-list" @click="$emit('add-task')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -47,10 +45,14 @@
               :show-status="true"
               :show-drag-handle="true"
               :status-text="$t(`status.${task.status}`)"
+              :workflowExpanded="expandedTaskId === task.id"
+              :currentNodeId="currentNodeId"
               @click="$emit('select-task', task)"
               @edit="$emit('edit-task', task)"
               @delete="$emit('delete-task', task.id)"
               @worktree-update="$emit('worktree-update', $event)"
+              @toggle-workflow="$emit('toggle-workflow', $event)"
+              @workflow-action="$emit('workflow-action', $event)"
             />
           </template>
         </draggable>
@@ -100,10 +102,14 @@
               :show-status="true"
               :show-drag-handle="true"
               :status-text="$t(`status.${task.status}`)"
+              :workflowExpanded="expandedTaskId === task.id"
+              :currentNodeId="currentNodeId"
               @click="$emit('select-task', task)"
               @edit="$emit('edit-task', task)"
               @delete="$emit('delete-task', task.id)"
               @worktree-update="$emit('worktree-update', $event)"
+              @toggle-workflow="$emit('toggle-workflow', $event)"
+              @workflow-action="$emit('workflow-action', $event)"
             />
           </template>
         </draggable>
@@ -134,6 +140,14 @@ const props = defineProps({
   statusFilter: {
     type: Array,
     default: () => ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
+  },
+  expandedTaskId: {
+    type: [String, Number],
+    default: null
+  },
+  currentNodeId: {
+    type: [String, Number],
+    default: null
   }
 })
 
@@ -143,9 +157,11 @@ const emit = defineEmits([
   'delete-task',
   'update:statusFilter',
   'add-task',
-  'sync-task',
   'reorder-tasks',
-  'worktree-update'
+  'worktree-update',
+  'sync',
+  'toggle-workflow',
+  'workflow-action'
 ])
 
 const { t } = useI18n()
@@ -297,26 +313,6 @@ const formatElapsedTime = (taskId) => {
   gap: 8px;
 }
 
-.sync-task-btn-list {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  border: 1px solid var(--el-border-color);
-  background: var(--el-bg-color);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--el-text-color-regular);
-  transition: all 0.2s;
-}
-
-.sync-task-btn-list:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-
 .add-task-btn-list {
   display: flex;
   align-items: center;
@@ -332,6 +328,26 @@ const formatElapsedTime = (taskId) => {
 }
 
 .add-task-btn-list:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.sync-btn-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--el-text-color-regular);
+  transition: all 0.2s;
+}
+
+.sync-btn-list:hover {
   border-color: var(--el-color-primary);
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);

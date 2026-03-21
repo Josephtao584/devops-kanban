@@ -1,17 +1,14 @@
-import { ClaudeStepRunner } from '../claudeStepRunner.js';
+import { ClaudeStepRunner } from './claudeStepRunner.js';
 
 class ClaudeCodeExecutor {
   constructor({ runner = new ClaudeStepRunner() } = {}) {
     this.runner = runner;
   }
 
-  async execute({ stepId, worktreePath, taskTitle, taskDescription, previousSummary = '', executorConfig = {}, onSpawn }) {
+  async execute({ prompt, worktreePath, executorConfig = {}, onSpawn }) {
     const result = await this.runner.runStep({
-      stepId,
+      prompt,
       worktreePath,
-      taskTitle,
-      taskDescription,
-      previousSummary,
       executorConfig,
       onSpawn,
     });

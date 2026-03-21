@@ -69,8 +69,8 @@ const handleSend = () => {
 <style scoped>
 .message-input-container {
   padding: 12px 16px;
-  background: var(--panel-bg, #171717);
-  border-top: 1px solid var(--border-color, #262626);
+  background: var(--panel-bg, #ffffff);
+  border-top: 1px solid var(--border-color, #e0e0e0);
 }
 
 .input-wrapper {
@@ -84,9 +84,9 @@ const handleSend = () => {
 }
 
 .input-wrapper :deep(.el-textarea__inner) {
-  background: var(--input-bg, #1f1f1f);
-  border-color: var(--input-border, #363636);
-  color: var(--input-text, #f0f0f0);
+  background: var(--input-bg, #ffffff);
+  border-color: var(--input-border, #d1d5db);
+  color: var(--input-text, #333333);
   resize: none;
 }
 
@@ -97,6 +97,6 @@ const handleSend = () => {
 .input-hint {
   margin-top: 6px;
   font-size: 11px;
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted, #999999);
 }
 </style>

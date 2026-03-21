@@ -4,6 +4,11 @@
       <span :class="['column-status', `status-${statusClass}-dot`]"></span>
       <span class="column-title">{{ title }}</span>
       <span class="column-count">{{ taskCount }}</span>
+      <button v-if="showSyncButton" class="sync-btn" @click.stop="emit('sync')" :title="$t('taskSource.sync')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+      </button>
     </div>
     <div class="column-content">
       <draggable
@@ -22,10 +27,14 @@
             :selected="selectedTask?.id === element.id"
             :running="isTaskRunning(element.id)"
             :elapsed-time="formatTaskElapsedTime(element.id)"
+            :workflow-expanded="expandedTaskId === element.id"
+            :current-node-id="currentNodeId"
             @click="handleSelectTask"
             @edit="handleEditTask"
             @delete="handleDeleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="$emit('toggle-workflow', $event)"
+            @workflow-action="$emit('workflow-action', $event)"
           />
         </template>
       </draggable>
@@ -82,10 +91,22 @@ const props = defineProps({
   showAddButton: {
     type: Boolean,
     default: false
+  },
+  showSyncButton: {
+    type: Boolean,
+    default: false
+  },
+  expandedTaskId: {
+    type: String,
+    default: null
+  },
+  currentNodeId: {
+    type: String,
+    default: null
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'workflow-action'])
 
 const { t } = useI18n()
 const { getStatusClass } = useStatusStyle()
@@ -147,8 +168,8 @@ const taskCount = computed(() => props.tasks.length)
   flex-direction: column;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  min-width: 350px;
-  max-width: 500px;
+  min-width: 800px;
+  max-width: 800px;
   width: 100%;
   flex: 1 1 0;
   max-height: 100%;
@@ -190,6 +211,24 @@ const taskCount = computed(() => props.tasks.length)
   background: var(--el-bg-color);
   padding: 2px 8px;
   border-radius: 10px;
+}
+
+.sync-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.sync-btn:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
 }
 
 .column-content {
