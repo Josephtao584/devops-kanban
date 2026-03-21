@@ -2,8 +2,12 @@
  * Application entry point
  */
 import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import Fastify from 'fastify';
 import fastifyWebSocket from '@fastify/websocket';
+import pino from 'pino';
 
 import * as config from './config/index.js';
 import corsPlugin from './middleware/cors.js';
@@ -26,11 +30,49 @@ import iterationRoutes from './routes/iterations.js';
 
 import { initWorkflows } from './workflows/index.js';
 
-// Create Fastify instance
-const fastify = Fastify({
-  logger: {
-    level: process.env.LOG_LEVEL || 'warn',
+// Ensure logs directory exists
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Resolve log path to backend directory (from backend/src to backend)
+const logDir = path.resolve(path.join(__dirname, '..'), config.LOG_DIR);
+
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
+// 文件流使用 pino.destination（Pino 8）；勿与 transport.targets 混用自定义 formatters.level
+function logFileStream(filename) {
+  return pino.destination({ dest: path.join(logDir, filename), append: true });
+}
+
+// Configure log output streams with file rotation
+const streams = [
+  { level: 'trace', stream: logFileStream('trace.log') },
+  { level: 'debug', stream: logFileStream('debug.log') },
+  { level: 'info', stream: logFileStream('info.log') },
+  { level: 'warn', stream: logFileStream('warn.log') },
+  { level: 'error', stream: logFileStream('error.log') },
+  { level: config.LOG_LEVEL, stream: logFileStream('app.log') },
+  { level: config.LOG_LEVEL, stream: process.stdout },
+];
+
+// Create custom logger with file and console output
+// Pino 默认 level 为数字；formatters.level 改为输出 'info' | 'warn' 等文本，便于阅读与检索
+const logger = pino(
+  {
+    level: config.LOG_LEVEL,
+    formatters: {
+      level(label) {
+        return { level: label };
+      },
+    },
   },
+  pino.multistream(streams),
+);
+
+// Fastify 4 使用 logger 选项传入 Pino 实例（无 customLogger）
+const fastify = Fastify({
+  logger,
 });
 
 // Store config in fastify instance
@@ -106,6 +148,8 @@ const start = async () => {
     console.log(`   Server: http://${config.SERVER_HOST}:${config.SERVER_PORT}`);
     console.log(`   API Docs: http://${config.SERVER_HOST}:${config.SERVER_PORT}/docs`);
     console.log(`   Data path: ${config.STORAGE_PATH}`);
+    console.log(`   Log path: ${logDir}`);
+    console.log(`   Log level: ${config.LOG_LEVEL}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
