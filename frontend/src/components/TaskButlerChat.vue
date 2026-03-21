@@ -109,6 +109,7 @@ import { useI18n } from 'vue-i18n'
 import { startTask } from '../api/task.js'
 import {
   getButlerWelcomeMessage,
+  getNodeWelcomeMessage,
   processButlerInput,
   getResponseForAction,
   getQuickActions
@@ -117,6 +118,10 @@ import {
 const props = defineProps({
   task: {
     type: Object,
+    default: null
+  },
+  nodeId: {
+    type: [String, Number],
     default: null
   }
 })
@@ -340,13 +345,27 @@ const handleQuickAction = (action) => {
 watch(() => props.task, (newTask, oldTask) => {
   if (newTask && (!oldTask || newTask.id !== oldTask.id)) {
     messages.value = []
-    const welcomeMsg = getButlerWelcomeMessage(newTask.title)
+    const welcomeMsg = props.nodeId
+      ? getNodeWelcomeMessage(newTask.title, props.nodeId)
+      : getButlerWelcomeMessage(newTask.title)
     messages.value.push(welcomeMsg)
     scrollToBottom()
   } else if (!newTask) {
     messages.value = []
   }
 }, { immediate: true })
+
+// Watch for nodeId changes
+watch(() => props.nodeId, (newNodeId, oldNodeId) => {
+  if (props.task && newNodeId !== oldNodeId) {
+    messages.value = []
+    const welcomeMsg = newNodeId
+      ? getNodeWelcomeMessage(props.task.title, newNodeId)
+      : getButlerWelcomeMessage(props.task.title)
+    messages.value.push(welcomeMsg)
+    scrollToBottom()
+  }
+})
 
 // Expose methods
 defineExpose({

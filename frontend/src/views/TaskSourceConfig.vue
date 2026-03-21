@@ -267,8 +267,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
 import { useTaskStore } from '../stores/taskStore'
@@ -276,23 +277,16 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const projectStore = useProjectStore()
 const taskSourceStore = useTaskSourceStore()
 const taskStore = useTaskStore()
 
+// localStorage key for project selection persistence
+const TASK_SOURCE_LAST_PROJECT_KEY = 'task-source-selected-project-id'
+
 const selectedProjectId = ref('')
 
-// Auto-select first project when project list is loaded
-watch(
-  () => projectStore.projectList,
-  (newList) => {
-    if (newList && newList.length > 0 && !selectedProjectId.value) {
-      selectedProjectId.value = newList[0].id
-      taskSourceStore.fetchTaskSources(selectedProjectId.value)
-    }
-  },
-  { immediate: true }
-)
 const dialogVisible = ref(false)
 const isEditMode = ref(false)
 const submitting = ref(false)
@@ -378,8 +372,20 @@ const loadProjects = async () => {
       taskSourceStore.loadAvailableTypes()
     ])
 
-    if (projectStore.projectList.length > 0) {
-      selectedProjectId.value = projectStore.projectList[0].id
+    // Get projectId from route or localStorage or first project
+    const routeProjectId = route.params.projectId ? String(route.params.projectId) : null
+    const storedProjectId = localStorage.getItem(TASK_SOURCE_LAST_PROJECT_KEY)
+
+    let targetProjectId = routeProjectId || storedProjectId
+
+    // Validate targetProjectId exists in projects list (compare as strings since localStorage stores strings)
+    if (!targetProjectId || !projectStore.projectList.find(p => String(p.id) === targetProjectId)) {
+      targetProjectId = projectStore.projectList[0]?.id ? String(projectStore.projectList[0].id) : ''
+    }
+
+    if (targetProjectId) {
+      selectedProjectId.value = targetProjectId
+      localStorage.setItem(TASK_SOURCE_LAST_PROJECT_KEY, targetProjectId)
       await taskSourceStore.fetchTaskSources(selectedProjectId.value)
     }
   } catch (e) {
@@ -389,6 +395,7 @@ const loadProjects = async () => {
 
 const onProjectChange = async () => {
   if (selectedProjectId.value) {
+    localStorage.setItem(TASK_SOURCE_LAST_PROJECT_KEY, selectedProjectId.value)
     await taskSourceStore.fetchTaskSources(selectedProjectId.value)
   } else {
     taskSourceStore.clearTaskSources()
