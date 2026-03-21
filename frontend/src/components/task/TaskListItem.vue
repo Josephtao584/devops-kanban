@@ -6,6 +6,7 @@
       'task-running': running,
       'task-compact': compact
     }"
+    :data-id="task.id"
     :data-status="task.status"
     @click="$emit('click', task)"
   >
@@ -51,6 +52,17 @@
           </a>
         </div>
         <div class="task-actions">
+          <button
+            class="worktree-btn"
+            :class="worktreeClass"
+            :disabled="worktreeLoading"
+            :title="worktreeTooltip"
+            @click.stop="openWorktreeDirectory"
+          >
+            <el-icon v-if="worktreeLoading" class="icon-spin"><Loading /></el-icon>
+            <el-icon v-else-if="task.worktree_status === 'created'"><FolderOpened /></el-icon>
+            <el-icon v-else><Folder /></el-icon>
+          </button>
           <button
             class="action-btn edit-btn"
             @click.stop="$emit('edit', task)"
@@ -165,6 +177,21 @@
             帮助
           </button>
         </div>
+
+        <div class="workflow-section worktree-summary">
+          <div class="worktree-summary-header">
+            <span class="worktree-summary-title">{{ $t('git.worktree', 'Git Worktree') }}</span>
+            <span class="worktree-summary-status" :class="worktreeClass">{{ workflowWorktreeStatusText }}</span>
+          </div>
+          <div v-if="task.worktree_branch" class="worktree-summary-row">
+            <span class="worktree-summary-label">{{ $t('git.branch', 'Branch') }}</span>
+            <code class="worktree-summary-value worktree-summary-branch">{{ task.worktree_branch }}</code>
+          </div>
+          <div v-if="task.worktree_path" class="worktree-summary-row">
+            <span class="worktree-summary-label">{{ $t('git.path', 'Path') }}</span>
+            <span class="worktree-summary-value worktree-summary-path worktree-summary-path-wrap" :title="task.worktree_path">{{ task.worktree_path }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -255,6 +282,11 @@ const worktreeTooltip = computed(() => {
   if (props.task.worktree_status === 'created') return '打开本地目录'
   if (props.task.worktree_status === 'error') return 'Worktree 创建失败'
   return '创建 Worktree 沙箱'
+})
+const workflowWorktreeStatusText = computed(() => {
+  if (props.task.worktree_status === 'created') return '已创建'
+  if (props.task.worktree_status === 'error') return '创建失败'
+  return '未创建'
 })
 const statusClass = computed(() => getStatusClass(props.task.status))
 
@@ -359,46 +391,75 @@ const openWorktreeDirectory = () => {
   gap: 12px;
   padding: 14px;
   border-radius: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   background: #fff;
   border: 1px solid var(--el-border-color-light);
   border-left: 4px solid #94a3b8;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
   will-change: transform;
   width: 100%;
   box-sizing: border-box;
+  --task-hover-bg: #f8fafc;
+  --task-hover-border: rgba(148, 163, 184, 0.28);
+  --task-selected-bg: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+  --task-selected-border: rgba(59, 130, 246, 0.28);
+  --task-selected-left: #60a5fa;
 }
 
 /* Status-based colors */
 .task-item[data-status="TODO"] {
   border-left-color: #6b7280;
   background-color: #fafafa;
+  --task-hover-bg: #f3f4f6;
+  --task-hover-border: rgba(107, 114, 128, 0.26);
+  --task-selected-bg: linear-gradient(135deg, #fafafa 0%, #f3f4f6 100%);
+  --task-selected-border: rgba(107, 114, 128, 0.22);
+  --task-selected-left: #9ca3af;
 }
 
 .task-item[data-status="IN_PROGRESS"] {
   border-left-color: #3b82f6;
   background-color: #f0f7ff;
+  --task-hover-bg: #eaf4ff;
+  --task-hover-border: rgba(59, 130, 246, 0.24);
+  --task-selected-bg: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+  --task-selected-border: rgba(59, 130, 246, 0.28);
+  --task-selected-left: #60a5fa;
 }
 
 .task-item[data-status="DONE"] {
   border-left-color: #10b981;
   background-color: #f0fdf4;
+  --task-hover-bg: #ecfdf5;
+  --task-hover-border: rgba(16, 185, 129, 0.24);
+  --task-selected-bg: linear-gradient(135deg, #f3fdf7 0%, #e8f8ee 100%);
+  --task-selected-border: rgba(16, 185, 129, 0.24);
+  --task-selected-left: #34d399;
 }
 
 .task-item[data-status="BLOCKED"] {
   border-left-color: #ef4444;
   background-color: #fef2f2;
+  --task-hover-bg: #fef2f2;
+  --task-hover-border: rgba(239, 68, 68, 0.22);
+  --task-selected-bg: linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%);
+  --task-selected-border: rgba(239, 68, 68, 0.22);
+  --task-selected-left: #f87171;
 }
 
 .task-item:hover {
-  border-color: var(--el-color-primary-light-5);
+  border-color: var(--task-hover-border);
+  background: var(--task-hover-bg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .task-item.task-selected,
 .task-item.task-selected:hover {
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--task-selected-border);
+  border-left: 4px solid var(--task-selected-left);
+  background: var(--task-selected-bg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--task-selected-left) 22%, white), 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
 .task-item.task-running {
@@ -564,6 +625,16 @@ const openWorktreeDirectory = () => {
 .worktree-btn.worktree-error {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
+}
+
+/* Icon spin animation */
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Action buttons */
@@ -735,6 +806,99 @@ const openWorktreeDirectory = () => {
 .node-detail-role {
   color: #64748b;
   font-size: 12px;
+}
+
+/* Worktree summary */
+.worktree-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.worktree-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.worktree-summary-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.worktree-summary-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.worktree-summary-status.worktree-none {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.worktree-summary-status.worktree-created {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.worktree-summary-status.worktree-error {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.worktree-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.worktree-summary-label {
+  flex-shrink: 0;
+  min-width: 48px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.worktree-summary-value {
+  min-width: 0;
+  font-size: 12px;
+  color: #334155;
+}
+
+.worktree-summary-branch {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.worktree-summary-path {
+  flex: 1;
+  min-width: 0;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-summary-path-wrap {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.45;
 }
 
 /* Quick actions */
