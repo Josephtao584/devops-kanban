@@ -25,6 +25,11 @@ These files are outside `backend/` but are in scope because the backend entrypoi
 - `start.sh`
 - relevant backend command sections in `CLAUDE.md`
 
+Operational policy:
+- `backend/package.json` enforces the Node 22 baseline via `engines.node`
+- `start.sh` must be updated to launch the TypeScript-based backend flow and should fail fast with a clear message if the installed Node version does not satisfy the backend runtime baseline
+- collateral docs should be updated only where backend command/runtime instructions would otherwise become wrong after the migration
+
 ### Explicitly out of scope
 - frontend TypeScript work
 - unrelated docs cleanup
@@ -33,9 +38,32 @@ These files are outside `backend/` but are in scope because the backend entrypoi
 ### Exact migration inventory
 The migration should convert all active backend runtime and test modules, including:
 - application entrypoint in `src/main`
-- all route modules
+- all current route modules:
+  - `agents`
+  - `executions`
+  - `git`
+  - `iterations`
+  - `members`
+  - `projects`
+  - `roles`
+  - `sessions`
+  - `tasks`
+  - `taskSources`
+  - `taskWorktree`
+  - `workflows`
+  - `workflowTemplate`
+- all current repositories:
+  - `base`
+  - `agentRepository`
+  - `executionRepository`
+  - `iterationRepository`
+  - `projectRepository`
+  - `sessionRepository`
+  - `taskRepository`
+  - `taskSourceRepository`
+  - `workflowRunRepository`
+  - `workflowTemplateRepository`
 - all service modules, including `src/services/workflow/**`
-- all repositories, including the generic JSON base repository currently at `src/repositories/base.js`
 - all task source runtime modules under `src/sources/**`
 - config, middleware, and utility modules
 - backend tests under `backend/test/**`
@@ -138,9 +166,12 @@ Migration decision:
 - introduce a typed `buildApp` / `createApp` module that constructs and configures the Fastify instance
 - keep `main.ts` focused on process startup, signal handling, and calling the app builder
 - route tests and startup verification should use the typed app builder rather than importing a side-effectful process entrypoint
+- workflow initialization runs during startup after app construction and before `listen`, through an explicit typed initialization step rather than hidden module side effects
+- current websocket/session subscription state should move behind a typed module-local store/service boundary that is initialized as part of app setup, so the split does not leave route modules carrying ambiguous global state
 
 ### Required package changes
 Update `backend/package.json` to reflect the TypeScript runtime model:
+- add `engines.node` pinned to the Node 22 baseline used by this migration
 - `main` points to `dist/src/main.js`
 - `dev` becomes `tsx watch src/main.ts`
 - `build` becomes `tsc -p tsconfig.json`
@@ -191,9 +222,12 @@ The migration should adopt explicit Node ESM-compatible TypeScript import behavi
 Compiled runtime code must not accidentally resolve storage/config defaults relative to `dist/` when the intended files live under the repository.
 
 Migration decision:
-- runtime path defaults are anchored to the backend project root, not the emitted `dist/src` directory
+- runtime path defaults are anchored to the backend project root, defined as the `backend/` directory in the repository
 - a dedicated path helper in backend config/utilities should compute the backend root consistently for both `tsx` development and compiled `dist` runtime
-- `STORAGE_PATH`, `TASK_SOURCE_CONFIG_PATH`, and related defaults must be updated so their non-env behavior still points at the correct backend-root-relative locations after compilation
+- default runtime paths must resolve as follows when env vars are not provided:
+  - `STORAGE_PATH` resolves to `<backend-root>/../data`
+  - `TASK_SOURCE_CONFIG_PATH` resolves to `<backend-root>/../task-sources/config.yaml`
+  - other backend-owned local artifacts should resolve from `<backend-root>` unless they intentionally target a documented repo-level sibling path
 - project-level startup assets such as `start.sh` must continue to work with this backend-root-based path strategy
 
 ### Source discovery decision
@@ -203,6 +237,11 @@ Migration decision:
 - replace filesystem suffix-based discovery with an explicit typed source registry
 - the registry remains under the `sources` runtime concept and becomes the single source of truth for available source implementations
 - dynamic filesystem discovery is removed from the backend as part of the migration
+- the typed registry must model both source forms that exist today:
+  - code-defined source implementations that are registered explicitly in code
+  - config-defined source types that continue to be supported through the existing YAML-driven universal-source mechanism
+- `UniversalAdapter`-style config-driven behavior remains supported, but it is represented as an explicit source-registry entry path rather than a side channel outside the registry model
+- registry initialization should occur during app/workflow startup in a typed initialization path; startup should fail fast if required source registration/config loading fails
 - services, config handling, and tests should all integrate through this typed registry so source loading is identical across development, test, and compiled runtime
 
 ### Naming decision
@@ -249,9 +288,20 @@ The backend currently uses a standard `{ success, message, data, error }` respon
 
 Migration decision:
 - `/health` remains an explicit typed exception: `{ status: 'ok' }`
-- the root route `/` remains an explicit typed exception with its current top-level `version` field
-- normalizing API routes to the shared `{ success, message, data, error }` envelope is intentionally in scope for this migration
-- route-local response helper variants should be removed in favor of typed shared response helpers
+- the root route `/` preserves its current shape exactly:
+  ```ts
+  {
+    success: true;
+    message: string;
+    version: string;
+    data: {
+      endpoints: Record<string, string>;
+    };
+  }
+  ```
+- normalizing API routes under `/api/**` to the shared `{ success, message, data, error }` envelope is intentionally in scope for this migration
+- route-local response helper variants under `/api/**` should be removed in favor of typed shared response helpers
+- startup routes outside `/api/**` are not normalized unless explicitly listed; `/` and `/health` are preserved compatibility exceptions
 - route contract ownership follows a hybrid rule:
   - shared reusable DTO/entity/response types live in `src/types/**`
   - each route module uses explicit Fastify route generics wired to those shared types
@@ -313,6 +363,8 @@ Fastify typing approach:
 - explicitly type websocket-related plugin usage where it affects the backend surface
 - represent typed application startup either through a typed app factory or a consistently typed `FastifyInstance` bootstrap path
 - type status-bearing errors as explicit app error shapes rather than repeatedly assuming `error.statusCode` exists
+- preserve the canonical websocket endpoint as `/ws`
+- preserve the current websocket protocol shape as a typed contract, including subscribe-style messages and server push payloads built around `sessionId`, `channel`, and stream/status event data
 
 Why this matters:
 Without route-level contracts, strict TypeScript quickly degrades into casts at every request boundary.
@@ -352,6 +404,7 @@ Key requirements:
 - repository stubs, service fakes, and workflow executor mocks are typed rather than left structurally implicit
 - keep tests behavior-focused; avoid rewriting test intent unnecessarily
 - `tsc --noEmit` and runtime test execution are both required, since type success alone does not prove runtime loader correctness
+- emitting compiled test files under `dist/test` is acceptable for this migration; production startup remains tied to `dist/src/main.js` and does not consume compiled test artifacts
 
 ## External Dependency Boundary Strategy
 Some dependencies may expose awkward or incomplete types at strict-mode boundaries, especially around Fastify plugins, websocket support, Mastra runtime surfaces, LibSQL store integration, and YAML or source-provider integration.
