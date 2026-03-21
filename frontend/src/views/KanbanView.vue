@@ -86,6 +86,8 @@
             :empty-text="$t('task.noTodoTasks')"
             :show-add-button="true"
             :show-sync-button="true"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
@@ -93,6 +95,8 @@
             @add-task="openTaskModal()"
             @worktree-update="handleWorktreeUpdate"
             @sync="handleSyncTaskSources"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
 
           <!-- IN_PROGRESS Column -->
@@ -103,11 +107,15 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noTasks')"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
 
           <!-- DONE Column -->
@@ -118,11 +126,15 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noDoneTasks')"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
 
           <!-- BLOCKED Column -->
@@ -133,11 +145,15 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noBlockedTasks')"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
         </div>
 
