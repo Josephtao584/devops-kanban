@@ -2,12 +2,11 @@
   <div class="task-source-config">
     <div class="header">
       <h1>{{ $t('taskSource.title') }}</h1>
-      <button class="btn btn-primary" @click="createNewSource">
-        + {{ $t('taskSource.createSource') }}
-      </button>
+      <el-button v-if="selectedProjectId" type="primary" size="small" @click="showAddDialog">
+        {{ $t('taskSource.add') }}
+      </el-button>
     </div>
 
-    <!-- Project Selector -->
     <div class="project-selector">
       <label for="project">{{ $t('project.selectProject') }}:</label>
       <select id="project" v-model="selectedProjectId" @change="onProjectChange">
@@ -18,52 +17,50 @@
       </select>
     </div>
 
-    <!-- Task Sources List -->
-    <div class="task-sources-list" v-if="selectedProjectId">
+    <div v-if="selectedProjectId" class="task-sources-list">
       <div v-if="taskSourceStore.loading" class="loading">{{ $t('common.loading') }}</div>
 
       <div v-else-if="taskSourceStore.taskSources.length === 0" class="empty-state">
-        {{ $t('taskSource.createSource') }}
+        {{ $t('taskSource.emptyState') }}
+        <el-button type="primary" size="small" @click="showAddDialog">
+          {{ $t('taskSource.addFirst') }}
+        </el-button>
       </div>
 
       <div v-else class="sources-grid">
         <div v-for="source in taskSourceStore.taskSources" :key="source.id" class="source-card">
           <div class="source-header">
-            <h3>{{ source.name }}</h3>
-            <span class="source-type-badge">{{ $t(`taskSource.types.${source.type}`) }}</span>
+            <div>
+              <h3>{{ source.name }}</h3>
+              <div class="source-id">ID: {{ source.id }}</div>
+            </div>
+            <span class="source-type-badge">{{ getTypeLabel(source.type) }}</span>
           </div>
 
           <div class="source-details">
             <div class="detail-row">
               <span class="label">{{ $t('taskSource.lastSync') }}:</span>
-              <span class="value">{{ formatDateTime(source.updated_at || source.last_sync_at) }}</span>
+              <span class="value">{{ formatDateTime(source.last_sync_at) || '-' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">{{ $t('taskSource.status') }}:</span>
+              <span class="value">{{ source.enabled ? $t('taskSource.enabled') : $t('taskSource.disabled') }}</span>
             </div>
           </div>
 
           <div class="source-actions">
-            <button
-              class="btn btn-secondary"
-              @click="editSource(source)"
-            >
-              {{ $t('common.edit') }}
-            </button>
-            <button
-              class="btn btn-secondary"
-              @click="testConnection(source)"
-              :disabled="taskSourceStore.testing === source.id"
-            >
-              {{ taskSourceStore.testing === source.id ? $t('common.loading') : $t('taskSource.testConnection') }}
-            </button>
-            <button
-              class="btn btn-secondary"
-              @click="syncSource(source)"
-              :disabled="taskSourceStore.syncing === source.id"
-            >
-              {{ taskSourceStore.syncing === source.id ? $t('taskSource.syncing') : $t('taskSource.syncNow') }}
-            </button>
-            <button class="btn btn-danger" @click="confirmDelete(source)">
-              {{ $t('common.delete') }}
-            </button>
+            <el-button size="small" @click="previewAndSync(source)" :loading="taskSourceStore.syncing">
+              {{ $t('taskSource.sync') }}
+            </el-button>
+            <el-button size="small" @click="testSource(source)" :loading="taskSourceStore.testing">
+              {{ $t('taskSource.test') }}
+            </el-button>
+            <el-button size="small" @click="editSource(source)">
+              {{ $t('taskSource.edit') }}
+            </el-button>
+            <el-button size="small" type="danger" @click="confirmDelete(source)">
+              {{ $t('taskSource.delete') }}
+            </el-button>
           </div>
         </div>
       </div>
@@ -73,257 +70,322 @@
       {{ $t('project.noProject') }}
     </div>
 
-    <!-- Add/Edit Form Modal -->
-    <div class="modal-overlay" v-if="showAddForm" @click.self="closeForm">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>{{ editingSource ? $t('taskSource.editSource') : $t('taskSource.createSource') }}</h2>
-          <button class="close-btn" @click="closeForm">&times;</button>
-        </div>
+    <!-- Add/Edit Dialog -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEditMode ? $t('taskSource.editTitle') : $t('taskSource.addTitle')"
+      width="520px"
+      class="task-source-dialog"
+    >
+      <div class="dialog-content">
+        <el-form ref="formRef" :model="formData" :rules="formRules" label-position="top">
+          <div class="form-section">
+            <div class="section-title">基本信息</div>
+            <el-form-item :label="$t('taskSource.name')" prop="name">
+              <el-input v-model="formData.name" :placeholder="$t('taskSource.namePlaceholder')" clearable />
+            </el-form-item>
 
-        <div class="modal-body">
-          <!-- Step 1: Select Source Type -->
-          <div v-if="!editingSource && formStep === 1" class="step-content">
-            <div class="step-title">{{ $t('taskSource.selectSource') || '选择任务源类型' }}</div>
-            <div class="source-type-list">
-              <div
-                v-for="type in availableTypes"
-                :key="type.key"
-                class="source-type-option"
-                :class="{ selected: form.type === type.key }"
-                @click="selectType(type.key)"
+            <el-form-item :label="$t('taskSource.type')" prop="type">
+              <el-select v-model="formData.type" :disabled="isEditMode" @change="onTypeChange" placeholder="选择任务源类型">
+                <el-option
+                  v-for="type in taskSourceStore.availableTypes"
+                  :key="type.key"
+                  :label="type.name"
+                  :value="type.key"
+                >
+                  <div class="type-option">
+                    <span class="type-icon">{{ getTypeIcon(type.key) }}</span>
+                    <span class="type-name">{{ type.name }}</span>
+                  </div>
+                </el-option>
+              </el-select>
+            </el-form-item>
+          </div>
+
+          <template v-if="selectedTypeConfig">
+            <div class="form-section">
+              <div class="section-title">配置信息</div>
+              <el-form-item
+                v-for="(field, key) in selectedTypeConfig.configFields"
+                :key="key"
+                :label="getFieldLabel(key, field)"
+                :prop="`config.${key}`"
+                :required="field.required"
               >
-                <div class="type-info">
-                  <div class="type-name">{{ type.name }}</div>
-                  <div class="type-desc">{{ type.description }}</div>
-                </div>
-              </div>
+                <!-- State 字段使用下拉框 -->
+                <el-select
+                  v-if="key === 'state'"
+                  v-model="formData.config[key]"
+                  :placeholder="getFieldPlaceholder(key, field)"
+                >
+                  <el-option label="仅开放" value="open" />
+                  <el-option label="仅关闭" value="closed" />
+                  <el-option label="全部" value="all" />
+                </el-select>
+                <!-- array 类型使用多选下拉框 -->
+                <el-select
+                  v-else-if="field.type === 'array'"
+                  v-model="formData.config[key]"
+                  multiple
+                  :placeholder="$t('taskSource.selectLabels')"
+                >
+                  <el-option
+                    v-for="label in availableLabels[key]"
+                    :key="label"
+                    :label="label"
+                    :value="label"
+                  />
+                </el-select>
+                <!-- 默认使用输入框 -->
+                <el-input
+                  v-else
+                  v-model="formData.config[key]"
+                  :placeholder="getFieldPlaceholder(key, field)"
+                  clearable
+                />
+              </el-form-item>
             </div>
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" @click="closeForm">
-                {{ $t('common.cancel') }}
-              </button>
-              <button type="button" class="btn btn-primary" @click="goToStep2">
-                {{ $t('common.next') }}
-              </button>
-            </div>
+          </template>
+
+          <div class="form-section">
+            <el-form-item :label="$t('taskSource.enabled')" prop="enabled">
+              <el-switch v-model="formData.enabled" />
+            </el-form-item>
           </div>
-
-          <!-- Step 2: Configure Source -->
-          <form v-else @submit.prevent="saveSource" class="step-content">
-            <div v-if="!editingSource" class="step-indicator">
-              <span class="step-back" @click="formStep = 1">← {{ $t('taskSource.selectSource') || '选择类型' }}</span>
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('taskSource.sourceName') }}</label>
-              <input v-model="form.name" type="text" required />
-            </div>
-
-            <!-- GitHub Config -->
-            <template v-if="form.type === 'GITHUB'">
-              <div class="form-group">
-                <label>
-                  {{ $t('taskSource.github.repo') }}
-                  <span v-if="inheritedRepo && !allowOverride" class="inherited-badge">{{ $t('taskSource.github.inheritedFromProject') }}</span>
-                </label>
-                <input
-                  v-model="githubConfig.repo"
-                  type="text"
-                  :placeholder="inheritedRepo && !allowOverride ? '' : $t('taskSource.github.repoHint')"
-                  :readonly="inheritedRepo && !allowOverride"
-                  :class="{ 'readonly': inheritedRepo && !allowOverride }"
-                />
-                <span class="hint" v-if="allowOverride || !inheritedRepo">{{ $t('taskSource.github.repoHint') }}</span>
-                <label class="checkbox-label" style="margin-top: 0.5rem;">
-                  <input type="checkbox" v-model="allowOverride" />
-                  {{ $t('taskSource.github.overrideDefault') }}
-                </label>
-              </div>
-
-              <div class="form-group">
-                <label>{{ $t('taskSource.github.token') }}</label>
-                <input
-                  v-model="githubConfig.token"
-                  type="password"
-                  :placeholder="$t('taskSource.github.tokenPlaceholder')"
-                />
-                <span class="hint">{{ $t('taskSource.github.tokenHint') }}</span>
-              </div>
-
-              <div class="form-group">
-                <label>{{ $t('taskSource.github.state') }}</label>
-                <select v-model="githubConfig.state">
-                  <option value="open">{{ $t('taskSource.github.stateOpen') }}</option>
-                  <option value="closed">{{ $t('taskSource.github.stateClosed') }}</option>
-                  <option value="all">{{ $t('taskSource.github.stateAll') }}</option>
-                </select>
-              </div>
-            </template>
-
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" @click="closeForm">
-                {{ $t('common.cancel') }}
-              </button>
-              <button type="submit" class="btn btn-primary" :disabled="saving">
-                {{ saving ? $t('common.loading') : $t('common.save') }}
-              </button>
-            </div>
-          </form>
-        </div>
+        </el-form>
       </div>
-    </div>
 
-    <!-- Toast Notification -->
-    <div v-if="toast.show" class="toast" :class="toast.type">
-      {{ toast.message }}
-    </div>
-
-    <!-- Preview Dialog -->
-    <div class="modal-overlay" v-if="taskSourceStore.showPreviewDialog" @click.self="closePreviewDialog">
-      <div class="modal preview-modal">
-        <div class="modal-header">
-          <h2>{{ $t('taskSource.previewTitle') }}</h2>
-          <button class="close-btn" @click="closePreviewDialog">&times;</button>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
+          <el-button type="primary" @click="submitForm" :loading="submitting">
+            {{ $t('common.confirm') }}
+          </el-button>
         </div>
+      </template>
+    </el-dialog>
 
-        <div class="modal-body">
-          <!-- Selection controls -->
-          <div class="preview-controls">
-            <button class="btn btn-secondary btn-sm" @click="selectAll">{{ $t('taskSource.selectAll') }}</button>
-            <button class="btn btn-secondary btn-sm" @click="deselectAll">{{ $t('taskSource.deselectAll') }}</button>
-            <span class="selected-count">
-              {{ selectedItems.size }} / {{ taskSourceStore.previewItems.filter(i => !i.imported).length }} {{ $t('taskSource.selected') }}
-            </span>
-          </div>
-
-          <!-- Issues list -->
-          <div class="preview-list" v-if="!taskSourceStore.previewLoading">
-            <div
-              v-for="item in taskSourceStore.previewItems"
-              :key="item.external_id"
-              class="preview-item"
-              :class="{ imported: item.imported, selected: selectedItems.has(item.external_id) }"
-              @click="toggleSelection(item)"
-            >
-              <div class="item-checkbox">
-                <input
-                  type="checkbox"
-                  :checked="selectedItems.has(item.external_id)"
-                  :disabled="item.imported"
-                  @click.stop="toggleSelection(item)"
-                />
-              </div>
-              <div class="item-content">
-                <div class="item-header">
-                  <span class="item-title">{{ item.title }}</span>
-                  <span class="item-status" :class="item.status.toLowerCase()">{{ item.status }}</span>
-                </div>
-                <span v-if="item.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
-                <div class="item-labels" v-if="item.labels && item.labels.length > 0">
-                  <span v-for="label in item.labels" :key="label" class="label-badge">{{ label }}</span>
-                </div>
-                <div v-if="item.description" class="item-description">
-                  {{ item.description }}
-                </div>
-                <div class="item-meta">
-                  <span class="item-id">#{{ item.external_id }}</span>
-                  <a
-                    v-if="item.external_url"
-                    :href="item.external_url"
-                    target="_blank"
-                    class="external-link"
-                    @click.stop
-                  >
-                    {{ $t('taskSource.viewOnGitHub') }} →
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-else class="loading">{{ $t('common.loading') }}</div>
+    <!-- Sync Preview Dialog -->
+    <el-dialog
+      v-model="taskSourceStore.showPreviewDialog"
+      :title="$t('taskSource.previewTitle')"
+      width="650px"
+      class="sync-preview-dialog"
+    >
+      <div v-if="syncPreviewTasks.length === 0 && !syncError" class="sync-preview-loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>{{ $t('common.loading') }}</span>
+      </div>
+      <div v-else-if="syncError" class="sync-preview-error">
+        {{ syncError }}
+      </div>
+      <div v-else>
+        <div class="sync-preview-controls">
+          <el-button size="small" @click="selectAllSyncTasks">{{ $t('taskSource.selectAll') }}</el-button>
+          <el-button size="small" @click="deselectAllSyncTasks">{{ $t('taskSource.deselectAll') }}</el-button>
+          <span class="selected-count">
+            {{ selectedSyncTasks.size }} / {{ syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected') }}
+          </span>
         </div>
-
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="closePreviewDialog">
-            {{ $t('common.cancel') }}
-          </button>
-          <button
-            class="btn btn-primary"
-            @click="confirmImport(taskSourceStore.currentTaskSource)"
-            :disabled="selectedItems.size === 0"
+        <div class="sync-preview-list">
+          <div
+            v-for="task in syncPreviewTasks"
+            :key="task.external_id"
+            class="sync-preview-item"
+            :class="{ selected: selectedSyncTasks.has(task.external_id), imported: task.imported }"
+            @click="!task.imported && toggleSyncTask(task)"
           >
-            {{ $t('taskSource.confirmImport') }} ({{ selectedItems.size }})
-          </button>
+            <div class="item-checkbox">
+              <input
+                type="checkbox"
+                :checked="selectedSyncTasks.has(task.external_id)"
+                :disabled="task.imported"
+                @click.stop="!task.imported && toggleSyncTask(task)"
+              />
+            </div>
+            <div class="item-content">
+              <div class="item-header">
+                <span class="item-title">{{ task.title }}</span>
+                <span class="item-status" :class="task.status?.toLowerCase()">{{ task.status }}</span>
+              </div>
+              <span v-if="task.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
+              <div class="item-labels" v-if="task.labels && task.labels.length > 0">
+                <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
+              </div>
+              <div v-if="task.description" class="item-description">
+                {{ task.description.substring(0, 150) }}{{ task.description.length > 150 ? '...' : '' }}
+              </div>
+              <div class="item-meta">
+                <span class="item-id">#{{ task.external_id }}</span>
+                <span class="item-source">{{ task.sourceName }}</span>
+                <a
+                  v-if="task.external_url"
+                  :href="task.external_url"
+                  target="_blank"
+                  class="external-link"
+                  @click.stop
+                >
+                  {{ $t('taskSource.viewOnGitHub') }} →
+                </a>
+              </div>
+            </div>
+          </div>
+          <div v-if="syncPreviewTasks.length === 0" class="sync-preview-empty">
+            {{ $t('taskSource.noTasksToImport') }}
+          </div>
         </div>
       </div>
-    </div>
+      <template #footer>
+        <el-button @click="closeSyncPreview">{{ $t('common.cancel') }}</el-button>
+        <el-button
+          type="primary"
+          @click="confirmSyncImport"
+          :disabled="selectedSyncTasks.size === 0"
+        >
+          {{ $t('taskSource.confirmImport') }} ({{ selectedSyncTasks.size }})
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Test Result Dialog -->
+    <el-dialog
+      v-model="testDialogVisible"
+      :title="$t('taskSource.testResult')"
+      width="400px"
+    >
+      <div v-if="testResult !== null">
+        <el-result
+          :icon="testResult ? 'success' : 'error'"
+          :title="testResult ? $t('taskSource.connectionSuccess') : $t('taskSource.connectionFailed')"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="testDialogVisible = false">{{ $t('common.close') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
+import { useTaskStore } from '../stores/taskStore'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const projectStore = useProjectStore()
 const taskSourceStore = useTaskSourceStore()
+const taskStore = useTaskStore()
+
+// localStorage key for project selection persistence
+const TASK_SOURCE_LAST_PROJECT_KEY = 'task-source-selected-project-id'
 
 const selectedProjectId = ref('')
-const saving = ref(false)
-const showAddForm = ref(false)
-const editingSource = ref(null)
-const formStep = ref(2)  // Direct to config step
 
-// Available source types
-const availableTypes = [
-  {
-    key: 'GITHUB',
-    name: 'GitHub',
-    description: '从 GitHub Issues 同步任务'
-  }
-]
+const dialogVisible = ref(false)
+const isEditMode = ref(false)
+const submitting = ref(false)
+const formRef = ref(null)
 
-const form = ref({
+const testDialogVisible = ref(false)
+const testResult = ref(null)
+
+// Sync preview state
+const syncPreviewTasks = ref([])
+const selectedSyncTasks = ref(new Set())
+const syncError = ref(null)
+
+const formData = ref({
   name: '',
-  type: 'GITHUB',
-  config: JSON.stringify({ repo: '', token: '', state: 'open' })
+  type: '',
+  project_id: null,
+  config: {},
+  enabled: true
 })
 
-// Inherited repo from project
-const inheritedRepo = ref('')
-const allowOverride = ref(false)
-
-// GitHub config fields
-const githubConfig = ref({
-  repo: '',
-  token: '',
-  state: 'open'
-})
-
-// Preview dialog state
-const selectedItems = ref(new Set())
-
-const toast = ref({ show: false, message: '', type: 'success' })
-
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  setTimeout(() => { toast.value.show = false }, 3000)
+const formRules = {
+  name: [{ required: true, message: t('taskSource.nameRequired'), trigger: 'blur' }],
+  type: [{ required: true, message: t('taskSource.typeRequired'), trigger: 'change' }]
 }
+
+const availableLabels = ref({})
+
+const selectedTypeConfig = computed(() => {
+  if (!formData.value.type) return null
+  return taskSourceStore.availableTypes.find(t => t.key === formData.value.type) || null
+})
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleString()
 }
 
+const getTypeLabel = (type) => {
+  const typeConfig = taskSourceStore.availableTypes.find(t => t.key === type)
+  if (typeConfig) {
+    return typeConfig.name
+  }
+  const translated = t(`taskSource.types.${type}`)
+  return translated === `taskSource.types.${type}` ? type : translated
+}
+
+const getTypeIcon = (type) => {
+  const icons = {
+    GITHUB: '🐙',
+    JIRA: '📋',
+    LINEAR: '📊'
+  }
+  return icons[type] || '📦'
+}
+
+const getFieldLabel = (key, field) => {
+  const labels = {
+    repo: '仓库',
+    token: '访问令牌',
+    state: 'Issue 状态',
+    labels: '标签筛选',
+    baseUrl: 'API 地址'
+  }
+  return labels[key] || field.description || key
+}
+
+const getFieldPlaceholder = (key, field) => {
+  const placeholders = {
+    repo: '例如: owner/repo',
+    token: 'ghp_xxx...',
+    state: '选择 Issue 状态',
+    labels: '选择标签',
+    baseUrl: 'https://gitlab.com/api/v4'
+  }
+  return placeholders[key] || field.description || ''
+}
+
 const loadProjects = async () => {
   try {
-    await projectStore.fetchProjects()
-    if (projectStore.projectList.length > 0) {
-      selectedProjectId.value = projectStore.projectList[0].id
+    await Promise.all([
+      projectStore.fetchProjects(),
+      taskSourceStore.loadAvailableTypes()
+    ])
+
+    // Get projectId from route or localStorage or first project
+    const routeProjectId = route.params.projectId ? String(route.params.projectId) : null
+    const storedProjectId = localStorage.getItem(TASK_SOURCE_LAST_PROJECT_KEY)
+
+    let targetProjectId = routeProjectId || storedProjectId
+
+    // Validate targetProjectId exists in projects list (compare as strings since localStorage stores strings)
+    if (!targetProjectId || !projectStore.projectList.find(p => String(p.id) === targetProjectId)) {
+      targetProjectId = projectStore.projectList[0]?.id ? String(projectStore.projectList[0].id) : ''
+    }
+
+    if (targetProjectId) {
+      selectedProjectId.value = targetProjectId
+      localStorage.setItem(TASK_SOURCE_LAST_PROJECT_KEY, targetProjectId)
       await taskSourceStore.fetchTaskSources(selectedProjectId.value)
     }
   } catch (e) {
@@ -333,204 +395,212 @@ const loadProjects = async () => {
 
 const onProjectChange = async () => {
   if (selectedProjectId.value) {
+    localStorage.setItem(TASK_SOURCE_LAST_PROJECT_KEY, selectedProjectId.value)
     await taskSourceStore.fetchTaskSources(selectedProjectId.value)
   } else {
     taskSourceStore.clearTaskSources()
   }
 }
 
-const saveSource = async () => {
-  saving.value = true
+const onTypeChange = () => {
+  // Reset config when type changes
+  formData.value.config = {}
+}
+
+const showAddDialog = () => {
+  isEditMode.value = false
+  formData.value = {
+    name: '',
+    type: taskSourceStore.availableTypes.length > 0 ? taskSourceStore.availableTypes[0].key : '',
+    project_id: selectedProjectId.value,
+    config: {},
+    enabled: true
+  }
+  dialogVisible.value = true
+}
+
+const editSource = (source) => {
+  isEditMode.value = true
+  formData.value = {
+    id: source.id,
+    name: source.name,
+    type: source.type,
+    project_id: source.project_id,
+    config: { ...source.config },
+    enabled: source.enabled
+  }
+  dialogVisible.value = true
+}
+
+const submitForm = async () => {
+  if (!formRef.value) return
+
   try {
-    // Use inherited repo if override is not enabled
-    if (!allowOverride.value && inheritedRepo.value) {
-      githubConfig.value.repo = inheritedRepo.value
-    }
+    await formRef.value.validate()
+    submitting.value = true
 
-    const data = {
-      name: form.value.name,
-      type: form.value.type,
-      project_id: selectedProjectId.value,
-      config: githubConfig.value
-    }
-
-    if (editingSource.value) {
-      await taskSourceStore.updateTaskSource(editingSource.value.id, data)
+    if (isEditMode.value) {
+      await taskSourceStore.updateTaskSource(formData.value.id, formData.value)
+      ElMessage.success(t('taskSource.updateSuccess'))
     } else {
-      await taskSourceStore.createTaskSource(data)
+      await taskSourceStore.createTaskSource(formData.value)
+      ElMessage.success(t('taskSource.createSuccess'))
     }
-    closeForm()
-    showToast(t('messages.saved', { name: t('taskSource.title') }))
+
+    dialogVisible.value = false
   } catch (e) {
-    console.error('Failed to save:', e)
-    showToast(t('messages.saveFailed', { name: t('taskSource.title') }), 'error')
+    if (e !== false) { // Validation errors return false
+      console.error('Failed to save task source:', e)
+    }
   } finally {
-    saving.value = false
+    submitting.value = false
   }
 }
 
-const testConnection = async (source) => {
-  const success = await taskSourceStore.testConnection(source.id)
-  showToast(
-    success ? t('taskSource.connectionSuccess') : t('taskSource.connectionFailed'),
-    success ? 'success' : 'error'
-  )
+const confirmDelete = (source) => {
+  ElMessageBox.confirm(
+    t('taskSource.deleteConfirm', { name: source.name }),
+    t('taskSource.deleteConfirmTitle'),
+    {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await taskSourceStore.deleteTaskSource(source.id)
+      ElMessage.success(t('taskSource.deleteSuccess'))
+    } catch (e) {
+      console.error('Failed to delete task source:', e)
+    }
+  }).catch(() => {})
 }
 
-const toggleSelection = (item) => {
-  if (item.imported) return
-  const key = item.external_id
-  if (selectedItems.value.has(key)) {
-    selectedItems.value.delete(key)
+// Preview and import tasks from a source
+const previewAndSync = async (source) => {
+  syncPreviewTasks.value = []
+  selectedSyncTasks.value.clear()
+  syncError.value = null
+
+  try {
+    await taskSourceStore.previewSync(source.id)
+    if (taskSourceStore.previewItems && taskSourceStore.previewItems.length > 0) {
+      syncPreviewTasks.value = taskSourceStore.previewItems.map(item => ({
+        ...item,
+        sourceId: source.id,
+        sourceName: source.name
+      }))
+    }
+
+    if (syncPreviewTasks.value.length === 0) {
+      ElMessage.info(t('taskSource.noTasksToImport'))
+      return
+    }
+
+    // Open store's preview dialog
+    taskSourceStore.showPreviewDialog = true
+
+    // Select all non-imported tasks by default
+    syncPreviewTasks.value.forEach(task => {
+      if (!task.imported) {
+        selectedSyncTasks.value.add(task.external_id)
+      }
+    })
+  } catch (err) {
+    console.error('Failed to sync task source:', err)
+    syncError.value = err.message
+    ElMessage.error(err.message)
+  }
+}
+
+// Toggle task selection in preview
+const toggleSyncTask = (task) => {
+  if (selectedSyncTasks.value.has(task.external_id)) {
+    selectedSyncTasks.value.delete(task.external_id)
   } else {
-    selectedItems.value.add(key)
+    selectedSyncTasks.value.add(task.external_id)
   }
-  selectedItems.value = new Set(selectedItems.value)
 }
 
-const selectAll = () => {
-  taskSourceStore.previewItems.forEach(item => {
-    if (!item.imported) {
-      selectedItems.value.add(item.external_id)
+// Select all tasks in preview
+const selectAllSyncTasks = () => {
+  syncPreviewTasks.value.forEach(task => {
+    if (!task.imported) {
+      selectedSyncTasks.value.add(task.external_id)
     }
   })
-  selectedItems.value = new Set(selectedItems.value)
 }
 
-const deselectAll = () => {
-  selectedItems.value.clear()
-  selectedItems.value = new Set(selectedItems.value)
+// Deselect all tasks in preview
+const deselectAllSyncTasks = () => {
+  selectedSyncTasks.value.clear()
 }
 
-const syncSource = async (source) => {
-  // First preview the issues
-  await taskSourceStore.previewSync(source.id)
-}
-
-const confirmImport = async (source) => {
-  const selectedArray = taskSourceStore.previewItems.filter(
-    item => selectedItems.value.has(item.external_id)
+// Confirm import selected tasks
+const confirmSyncImport = async () => {
+  const tasksToImport = syncPreviewTasks.value.filter(task =>
+    selectedSyncTasks.value.has(task.external_id) && !task.imported
   )
 
-  if (selectedArray.length === 0) {
-    showToast(t('taskSource.selectAtLeastOne'), 'error')
+  if (tasksToImport.length === 0) {
+    ElMessage.warning(t('taskSource.selectAtLeastOne'))
     return
   }
 
   try {
-    const result = await taskSourceStore.importSelectedIssues(
-      source.id,
-      selectedArray,
-      selectedProjectId.value
-    )
-    showToast(t('taskSource.importSuccess', { count: result.created }))
-    selectedItems.value = new Set()
-  } catch (e) {
-    showToast(t('taskSource.importFailed'), 'error')
+    // Group tasks by source
+    const tasksBySource = {}
+    for (const task of tasksToImport) {
+      if (!tasksBySource[task.sourceId]) {
+        tasksBySource[task.sourceId] = []
+      }
+      tasksBySource[task.sourceId].push(task)
+    }
+
+    // Import tasks for each source
+    let totalImported = 0
+    for (const [sourceId, items] of Object.entries(tasksBySource)) {
+      const result = await taskSourceStore.importSelectedIssues(
+        parseInt(sourceId),
+        items,
+        selectedProjectId.value
+      )
+      if (result) {
+        totalImported += result.created || 0
+      }
+    }
+
+    await taskStore.fetchTasks(selectedProjectId.value)
+    ElMessage.success(t('taskSource.importSuccess', { count: totalImported }))
+    closeSyncPreview()
+  } catch (err) {
+    console.error('Failed to import tasks:', err)
+    ElMessage.error(t('taskSource.importFailed'))
   }
 }
 
-const closePreviewDialog = () => {
+// Close preview dialog
+const closeSyncPreview = () => {
   taskSourceStore.closePreviewDialog()
-  selectedItems.value = new Set()
+  syncPreviewTasks.value = []
+  selectedSyncTasks.value.clear()
 }
 
-const confirmDelete = async (source) => {
-  if (!confirm(t('common.delete') + '?')) return
+const testSource = async (source) => {
+  testResult.value = null
+  testDialogVisible.value = true
+
   try {
-    await taskSourceStore.deleteTaskSource(source.id)
-    showToast(t('messages.deleted', { name: t('taskSource.title') }))
-  } catch (e) {
-    showToast(t('messages.deleteFailed', { name: t('taskSource.title') }), 'error')
-  }
-}
-
-const createNewSource = () => {
-  editingSource.value = null
-  formStep.value = 1
-  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }) }
-  githubConfig.value = { repo: '', token: '', state: 'open' }
-  inheritedRepo.value = ''
-  allowOverride.value = false
-
-  // Auto-fill repo from project if available
-  if (selectedProjectId.value) {
-    const project = projectStore.projectList.find(p => p.id === selectedProjectId.value)
-    if (project && (project.gitUrl || project.git_url || project.repository_url)) {
-      inheritedRepo.value = project.gitUrl || project.git_url || project.repository_url
-      githubConfig.value.repo = inheritedRepo.value
-    }
-  }
-
-  showAddForm.value = true
-}
-
-const selectType = (type) => {
-  form.value.type = type
-}
-
-const goToStep2 = () => {
-  if (form.value.type) {
-    formStep.value = 2
-  }
-}
-
-const editSource = (source) => {
-  editingSource.value = source
-  formStep.value = 2  // Edit goes directly to config step
-  form.value = {
-    name: source.name,
-    type: source.type || 'GITHUB',
-    config: source.config || '{}'
-  }
-  // Parse existing config
-  try {
-    const config = JSON.parse(source.config || '{}')
-    githubConfig.value = {
-      repo: config.repo || '',
-      token: config.token || '',
-      state: config.state || 'open'
+    const response = await taskSourceStore.testTaskSource(source.id)
+    if (response && response.success) {
+      testResult.value = response.data?.connected || false
+    } else {
+      testResult.value = false
     }
   } catch (e) {
-    githubConfig.value = { repo: '', token: '', state: 'open' }
+    testResult.value = false
   }
-
-  // For editing, show the inherited value for reference
-  if (selectedProjectId.value) {
-    const project = projectStore.projectList.find(p => p.id === selectedProjectId.value)
-    if (project && (project.gitUrl || project.git_url || project.repository_url)) {
-      inheritedRepo.value = project.gitUrl || project.git_url || project.repository_url
-    }
-  }
-
-  showAddForm.value = true
 }
-
-const closeForm = () => {
-  showAddForm.value = false
-  editingSource.value = null
-  formStep.value = 2
-  inheritedRepo.value = ''
-  allowOverride.value = false
-  form.value = { name: '', type: 'GITHUB', config: JSON.stringify({ repo: '', token: '', state: 'open' }) }
-  githubConfig.value = { repo: '', token: '', state: 'open' }
-}
-
-// Sync githubConfig to form.config
-watch(githubConfig, (newConfig) => {
-  form.value.config = JSON.stringify(newConfig)
-}, { deep: true })
-
-// Watch for project changes to update inherited repo
-watch(selectedProjectId, async (newProjectId) => {
-  inheritedRepo.value = ''
-  if (newProjectId && !showAddForm.value) {
-    const project = projectStore.projectList.find(p => p.id === newProjectId)
-    if (project && (project.gitUrl || project.git_url || project.repository_url)) {
-      inheritedRepo.value = project.gitUrl || project.git_url || project.repository_url
-    }
-  }
-})
 
 onMounted(loadProjects)
 </script>
@@ -602,6 +672,12 @@ onMounted(loadProjects)
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
+.task-sources-list {
+  background: var(--bg-secondary);
+  flex: 1;
+  overflow: auto;
+}
+
 .loading, .empty-state, .select-project-prompt {
   text-align: center;
   padding: 40px 20px;
@@ -635,10 +711,11 @@ onMounted(loadProjects)
 .source-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 10px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
+  gap: 12px;
 }
 
 .source-header h3 {
@@ -646,6 +723,13 @@ onMounted(loadProjects)
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.source-id {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
 }
 
 .source-type-badge {
@@ -657,25 +741,22 @@ onMounted(loadProjects)
   color: white;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 .source-details {
-  margin-bottom: 10px;
   background: var(--bg-tertiary);
   padding: 8px;
   border-radius: 6px;
+  margin-bottom: 10px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  margin-bottom: 4px;
   padding: 2px 0;
-}
-
-.detail-row:last-child {
-  margin-bottom: 0;
+  gap: 12px;
 }
 
 .detail-row .label {
@@ -686,352 +767,73 @@ onMounted(loadProjects)
 .detail-row .value {
   color: var(--text-primary);
   font-weight: 500;
+  text-align: right;
 }
 
 .source-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent-color);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn-secondary {
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  border-color: var(--border-color);
-}
-
-.btn-danger {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #fee2e2;
-  border-color: #fca5a5;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+/* Sync Preview Dialog */
+.sync-preview-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal {
-  background: var(--bg-primary);
-  border-radius: 8px;
-  width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  overflow: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: color 0.2s;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-}
-
-.close-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-}
-
-.modal-body {
-  padding: 16px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 13px;
-  transition: all 0.2s;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.form-group input:hover,
-.form-group select:hover,
-.form-group textarea:hover {
-  border-color: var(--border-color);
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-}
-
-.form-group input.readonly,
-.form-group input[readonly] {
-  background: var(--bg-secondary);
-  cursor: not-allowed;
-  border-color: var(--border-color);
-  color: var(--text-secondary);
-}
-
-.form-group .hint {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.inherited-badge {
-  font-size: 11px;
-  color: #10b981;
-  font-weight: 500;
-  margin-left: 6px;
-  padding: 2px 8px;
-  background: rgba(16, 185, 129, 0.1);
-  border-radius: 4px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
-
-.checkbox-label input[type="checkbox"] {
-  margin-right: 6px;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--accent-color);
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
   gap: 8px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  padding: 40px;
+  color: var(--el-text-color-secondary);
 }
 
-.toast {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 10px 16px;
-  border-radius: 6px;
-  color: white;
-  font-size: 13px;
-  font-weight: 500;
-  z-index: 2000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  animation: slideInRight 0.3s ease;
+.sync-preview-error {
+  padding: 20px;
+  color: var(--el-color-danger);
+  text-align: center;
 }
 
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.toast.success {
-  background: #10b981;
-}
-
-.toast.error {
-  background: #ef4444;
-}
-
-/* Scrollbar styling */
-.modal::-webkit-scrollbar {
-  width: 8px;
-}
-
-.modal::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-  border-radius: 0 8px 8px 0;
-}
-
-.modal::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 4px;
-}
-
-.modal::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-}
-
-/* Preview Modal Styles */
-.preview-modal {
-  max-width: 700px;
-}
-
-.modal-footer {
+.sync-preview-controls {
   display: flex;
-  justify-content: flex-end;
   gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
-
-.preview-controls {
-  display: flex;
   align-items: center;
-  gap: 8px;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.preview-controls .btn-sm {
-  padding: 4px 10px;
-  font-size: 12px;
+  border-bottom: 1px solid var(--el-border-color-lightest);
 }
 
 .selected-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
   margin-left: auto;
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
-.preview-list {
+.sync-preview-list {
   max-height: 400px;
   overflow-y: auto;
 }
 
-.preview-item {
+.sync-preview-item {
   display: flex;
+  align-items: flex-start;
   gap: 12px;
-  padding: 10px;
-  border: 1px solid var(--border-color);
+  padding: 12px;
   border-radius: 6px;
-  margin-bottom: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s;
+  border-bottom: 1px solid var(--el-border-color-lightest);
 }
 
-.preview-item:hover:not(.imported) {
-  background: var(--bg-secondary);
-  border-color: var(--accent-color);
+.sync-preview-item:hover {
+  background: var(--el-fill-color-light);
 }
 
-.preview-item.selected {
-  border-color: var(--accent-color);
-  background: rgba(99, 102, 241, 0.05);
+.sync-preview-item.selected {
+  background: var(--el-color-primary-light-9);
 }
 
-.preview-item.imported {
+.sync-preview-item.imported {
   opacity: 0.6;
   cursor: not-allowed;
-  background: var(--bg-tertiary);
 }
 
 .item-checkbox {
@@ -1039,15 +841,10 @@ onMounted(loadProjects)
   padding-top: 2px;
 }
 
-.item-checkbox input {
+.item-checkbox input[type="checkbox"] {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: var(--accent-color);
-}
-
-.item-checkbox input:disabled {
-  cursor: not-allowed;
 }
 
 .item-content {
@@ -1058,116 +855,93 @@ onMounted(loadProjects)
 .item-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
 }
 
 .item-title {
-  font-weight: 500;
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
   flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .item-status {
-  flex-shrink: 0;
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
-.item-status.open {
+.item-status.todo {
+  background: var(--el-color-info-light-9);
+  color: var(--el-color-info);
+}
+
+.item-status.in_progress {
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+}
+
+.item-status.done {
   background: var(--el-color-success-light-9);
   color: var(--el-color-success);
 }
 
-.item-status.closed {
+.item-status.blocked {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
 }
 
 .imported-badge {
+  display: inline-block;
   font-size: 10px;
   padding: 2px 6px;
-  background: #10b981;
-  color: white;
   border-radius: 4px;
-}
-
-.item-meta {
-  display: flex;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-top: 6px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.item-meta .item-id {
-  flex-shrink: 0;
-}
-
-.item-meta .external-link {
-  flex: 1;
-}
-
-.item-meta .item-status {
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.item-status {
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 500;
-}
-
-.item-status.todo {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.item-status.done {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+  margin-bottom: 4px;
 }
 
 .item-labels {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .label-badge {
   font-size: 10px;
-  padding: 2px 6px;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  padding: 1px 5px;
   border-radius: 3px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-secondary);
 }
 
 .item-description {
   font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin-bottom: 6px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+}
+
+.item-id {
+  font-family: monospace;
 }
 
 .external-link {
-  font-size: 11px;
-  color: var(--accent-color);
+  color: var(--el-color-primary);
   text-decoration: none;
 }
 
@@ -1175,77 +949,108 @@ onMounted(loadProjects)
   text-decoration: underline;
 }
 
-/* Two-step form styles */
-.step-content {
-  min-height: 300px;
-}
-
-.step-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 16px;
+.sync-preview-empty {
   text-align: center;
+  padding: 40px;
+  color: var(--el-text-color-placeholder);
 }
 
-.step-indicator {
-  margin-bottom: 12px;
-}
-
-.step-back {
-  font-size: 13px;
-  color: var(--accent-color);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.step-back:hover {
-  text-decoration: underline;
-}
-
-.source-type-list {
+.empty-state {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 16px;
+  align-items: center;
 }
 
-.source-type-option {
+/* Dialog Styling */
+:deep(.task-source-dialog) {
+  .el-dialog__header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-right: 0;
+  }
+
+  .el-dialog__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .el-dialog__body {
+    padding: 0;
+  }
+
+  .el-dialog__footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+  }
+}
+
+.dialog-content {
+  padding: 16px 20px;
+}
+
+.form-section {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.type-option {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
-  border: 2px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: 8px;
+  padding: 2px 0;
 }
 
-.source-type-option:hover {
-  border-color: var(--accent-color);
-  background: var(--bg-secondary);
-}
-
-.source-type-option.selected {
-  border-color: var(--accent-color);
-  background: rgba(99, 102, 241, 0.05);
-}
-
-.type-info {
-  flex: 1;
+.type-icon {
+  font-size: 16px;
 }
 
 .type-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
+  font-size: 13px;
 }
 
-.type-desc {
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 14px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+:deep(.el-form-item__label) {
   font-size: 12px;
+  font-weight: 500;
   color: var(--text-secondary);
+  padding-bottom: 4px;
+}
+
+:deep(.el-input__inner) {
+  font-size: 13px;
+}
+
+:deep(.el-select) {
+  width: 100%;
 }
 </style>

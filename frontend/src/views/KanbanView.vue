@@ -85,12 +85,18 @@
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noTodoTasks')"
             :show-add-button="true"
+            :show-sync-button="true"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @add-task="openTaskModal()"
             @worktree-update="handleWorktreeUpdate"
+            @sync="handleSyncTaskSources"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
 
           <!-- IN_PROGRESS Column -->
@@ -101,11 +107,15 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noTasks')"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
 
           <!-- DONE Column -->
@@ -116,11 +126,15 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noDoneTasks')"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
 
           <!-- BLOCKED Column -->
@@ -131,11 +145,15 @@
             :selected-task="selectedTask"
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noBlockedTasks')"
+            :expanded-task-id="expandedTaskId"
+            :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
             @delete-task="deleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="handleToggleWorkflow"
+            @workflow-action="handleWorkflowAction"
           />
         </div>
 
@@ -146,16 +164,101 @@
           :selected-task="selectedTask"
           :running-task-ids="runningTasks"
           :status-filter="listStatusFilter"
+          :expandedTaskId="expandedTaskId"
+          :currentNodeId="currentViewingNodeId"
           @select-task="selectTask"
           @edit-task="openTaskModal"
           @delete-task="deleteTask"
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
-          @sync-task="onSyncTask"
           @reorder-tasks="handleReorderTasks"
           @worktree-update="handleWorktreeUpdate"
+          @sync="handleSyncTaskSources"
+          @toggle-workflow="handleToggleWorkflow"
+          @workflow-action="handleWorkflowAction"
         />
       </div>
+
+      <!-- Sync Preview Dialog -->
+      <el-dialog
+        v-model="taskSourceStore.showPreviewDialog"
+        :title="$t('taskSource.previewTitle')"
+        width="650px"
+        class="sync-preview-dialog"
+      >
+        <div v-if="syncPreviewTasks.length === 0 && !syncError" class="sync-preview-empty">
+          {{ $t('common.loading') }}
+        </div>
+        <div v-else-if="syncError" class="sync-preview-error">
+          {{ syncError }}
+        </div>
+        <div v-else>
+          <div class="sync-preview-controls">
+            <el-button size="small" @click="selectAllSyncTasks">{{ $t('taskSource.selectAll') }}</el-button>
+            <el-button size="small" @click="deselectAllSyncTasks">{{ $t('taskSource.deselectAll') }}</el-button>
+            <span class="selected-count">
+              {{ selectedSyncTasks.size }} / {{ syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected') }}
+            </span>
+          </div>
+          <div class="sync-preview-list">
+            <div
+              v-for="task in syncPreviewTasks"
+              :key="task.external_id"
+              class="sync-preview-item"
+              :class="{ selected: selectedSyncTasks.has(task.external_id), imported: task.imported }"
+              @click="!task.imported && toggleSyncTask(task)"
+            >
+              <div class="item-checkbox">
+                <input
+                  type="checkbox"
+                  :checked="selectedSyncTasks.has(task.external_id)"
+                  :disabled="task.imported"
+                  @click.stop="!task.imported && toggleSyncTask(task)"
+                />
+              </div>
+              <div class="item-content">
+                <div class="item-header">
+                  <span class="item-title">{{ task.title }}</span>
+                  <span class="item-status" :class="task.status?.toLowerCase()">{{ task.status }}</span>
+                </div>
+                <span v-if="task.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
+                <div class="item-labels" v-if="task.labels && task.labels.length > 0">
+                  <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
+                </div>
+                <div v-if="task.description" class="item-description">
+                  {{ task.description.substring(0, 150) }}{{ task.description.length > 150 ? '...' : '' }}
+                </div>
+                <div class="item-meta">
+                  <span class="item-id">#{{ task.external_id }}</span>
+                  <span class="item-source">{{ task.sourceName }}</span>
+                  <a
+                    v-if="task.external_url"
+                    :href="task.external_url"
+                    target="_blank"
+                    class="external-link"
+                    @click.stop
+                  >
+                    {{ $t('taskSource.viewOnGitHub') }} →
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div v-if="syncPreviewTasks.length === 0" class="sync-preview-empty">
+              {{ $t('taskSource.noTasksToImport') }}
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="closeSyncPreview">{{ $t('common.cancel') }}</el-button>
+          <el-button
+            type="primary"
+            @click="confirmSyncImport"
+            :disabled="selectedSyncTasks.size === 0"
+          >
+            {{ $t('taskSource.confirmImport') }} ({{ selectedSyncTasks.size }})
+          </el-button>
+        </template>
+      </el-dialog>
 
       <!-- Chat Container -->
       <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
@@ -168,48 +271,50 @@
         </div>
 
         <div v-if="!selectedTask && !isChatCollapsed" class="chat-welcome">
-          <div class="welcome-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
+          <div class="welcome-logo">
+            <span class="logo-devops">DevOps</span>
+            <span class="logo-kanban">Kanban</span>
           </div>
-          <h2>{{ $t('butler.selectTask') }}</h2>
-          <p>{{ $t('butler.selectTaskHint') }}</p>
+          <h2>点击任务查看 Workflow</h2>
         </div>
 
-        <div v-if="selectedTask && !isChatCollapsed" class="chat-content">
-          <div class="butler-header">
-            <div class="butler-avatar">🤖</div>
-            <div class="butler-info">
-              <h3>{{ $t('butler.title') }} - {{ selectedTask.title }}</h3>
-              <div v-if="selectedTaskWorktreeName" class="butler-worktree">
-                <span class="worktree-label">{{ $t('git.worktree', 'Worktree') }}:</span>
-                <span class="worktree-badge" :title="selectedTask.worktree_path">
-                  {{ selectedTaskWorktreeName }}
+        <!-- Chat Panel - Step Mode -->
+        <div v-if="selectedTask && !isChatCollapsed && currentViewingNodeId" class="chat-content step-chat-mode">
+          <div class="step-chat-header">
+            <div class="step-header-info">
+              <span class="step-task-title">{{ selectedTask.title }}</span>
+              <div class="step-node-detail" v-if="currentViewingNode">
+                <span class="step-status-badge" :class="'step-' + currentViewingNode.status?.toLowerCase()">
+                  {{ getStatusText(currentViewingNode.status) }}
                 </span>
-                <button
-                  class="butler-worktree-delete"
-                  @click.stop="handleDeleteWorktree(selectedTask)"
-                  title="删除 Worktree"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                </button>
+                <span class="step-node-name">{{ currentViewingNode.name }}</span>
+                <span class="step-node-role">@{{ currentViewingNode.role }}</span>
+                <span v-if="currentViewingNode.duration" class="step-node-duration">{{ currentViewingNode.duration }}min</span>
               </div>
             </div>
           </div>
-          <TaskButlerChat
-            ref="butlerChatRef"
-            :task="selectedTask"
-            @control-workflow="handleButlerControl"
-            @view-workflow="handleViewWorkflow"
-            @task-started="handleTaskStarted"
-            @view-progress="handleViewProgress"
-            @show-diff="handleShowDiff"
-            @show-commit="handleShowCommit"
-          />
+          <div class="step-chat-body">
+            <ChatBox
+              ref="stepChatBoxRef"
+              :task="selectedTask"
+              :agentId="currentViewingNode?.agentId || selectedAgentId"
+              :initial-session="null"
+              :default-collapsed="false"
+              :workflow-node="currentViewingNode"
+              @session-created="onNodeSessionCreated"
+              @request-agent-select="handleRequestAgentSelect"
+            />
+          </div>
+        </div>
+
+        <!-- Chat Panel - Task Selected, No Step -->
+        <div v-if="selectedTask && !isChatCollapsed && !currentViewingNodeId" class="chat-content task-chat-placeholder">
+          <div class="task-placeholder-content">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <h2>点击 Workflow 节点进行对话</h2>
+          </div>
         </div>
       </div>
     </div>
@@ -340,102 +445,6 @@
       @cancel="showIterationModal = false"
     />
 
-    <!-- Sync Tasks Dialog -->
-    <div v-if="showSyncDialog" class="modal-overlay" @click.self="closeSyncDialog">
-      <div class="modal sync-modal">
-        <div class="modal-header">
-          <h2>{{ $t('taskSource.previewTitle') }}</h2>
-          <button class="modal-close" @click="closeSyncDialog">&times;</button>
-        </div>
-        <div class="modal-body">
-          <!-- Task Source Selector -->
-          <div v-if="availableSources.length > 1" class="source-selector">
-            <label class="form-label">{{ $t('taskSource.selectSource') }}</label>
-            <el-select v-model="selectedSourceId" placeholder="请选择任务源" @change="onSourceChange" style="width: 100%">
-              <el-option
-                v-for="source in availableSources"
-                :key="source.id"
-                :label="source.name"
-                :value="source.id"
-              />
-            </el-select>
-          </div>
-          <!-- Preview Loading -->
-          <div v-if="previewLoading" class="preview-loading">
-            <el-skeleton :rows="5" animated />
-          </div>
-          <!-- Preview List -->
-          <div v-else-if="previewItems.length > 0" class="preview-list">
-            <div class="preview-header">
-              <span class="preview-hint">从 GitHub Issues 导入，选择要创建为任务的 Issue：</span>
-              <div class="preview-actions">
-                <button class="btn btn-link" @click="selectAllIssues">{{ $t('taskSource.selectAll') }}</button>
-                <button class="btn btn-link" @click="deselectAllIssues">{{ $t('taskSource.deselectAll') }}</button>
-              </div>
-            </div>
-            <label
-              v-for="issue in previewItems"
-              :key="issue.id"
-              class="preview-item"
-              :class="{ 'is-selected': selectedIssueIds.includes(issue.id), 'is-imported': issue.imported }"
-            >
-              <input
-                type="checkbox"
-                :value="issue.id"
-                v-model="selectedIssueIds"
-                :disabled="issue.imported"
-              />
-              <span class="preview-item-content">
-                <span class="preview-item-title">
-                  #{{ issue.number }} {{ issue.title }}
-                  <span v-if="issue.imported" class="imported-badge">{{ $t('taskSource.imported') }}</span>
-                  <span v-if="issue.state" class="issue-state" :class="issue.state">{{ issue.state }}</span>
-                </span>
-                <span class="preview-item-labels" v-if="issue.labels && issue.labels.length > 0">
-                  <span
-                    v-for="label in issue.labels"
-                    :key="label.id"
-                    class="label"
-                    :style="{ backgroundColor: '#' + label.color }"
-                  >
-                    {{ label.name }}
-                  </span>
-                </span>
-                <span v-if="issue.description" class="preview-item-desc">
-                  {{ issue.description }}
-                </span>
-                <span class="preview-item-meta">
-                  <span class="preview-item-author" v-if="issue.user">
-                    <img v-if="issue.user.avatar_url" :src="issue.user.avatar_url" alt="" class="avatar" />
-                    {{ issue.user.login }}
-                  </span>
-                </span>
-              </span>
-            </label>
-          </div>
-          <!-- Empty State -->
-          <div v-else class="empty-state">
-            <p>暂无可同步的 Issues</p>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="closeSyncDialog">{{ $t('common.cancel') }}</button>
-            <button
-              class="btn btn-primary"
-              @click="confirmSync"
-              :disabled="selectedIssueIds.length === 0 || syncing"
-            >
-              <svg v-if="syncing" class="icon-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-              </svg>
-              {{ syncing ? $t('taskSource.syncing') : $t('taskSource.confirmImport') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
@@ -563,15 +572,17 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
   OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
-  Aim, CircleCheck, View, Lock, Promotion, Box
+  Aim, CircleCheck, View, Lock, Promotion, Box, Loading
 } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useIterationStore } from '../stores/iterationStore'
+import { useTaskSourceStore } from '../stores/taskSourceStore'
 import { getActiveSessionByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import ChatBox from '../components/ChatBox.vue'
@@ -587,7 +598,6 @@ import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
-import { useTaskSourceStore } from '../stores/taskSourceStore'
 import { analyzeTaskCategory } from '../mock/workflowAssignment'
 import {
   getWorkflowByProject,
@@ -599,6 +609,11 @@ import { reorderTasks } from '../api/task.js'
 import { deleteTaskWorktree } from '../api/taskWorktree.js'
 
 const { t } = useI18n()
+const route = useRoute()
+
+// localStorage key for project and iteration selection persistence
+const LAST_PROJECT_KEY = 'kanban-selected-project-id'
+const LAST_ITERATION_KEY = 'kanban-selected-iteration-id'
 
 // Use Pinia stores
 const projectStore = useProjectStore()
@@ -624,21 +639,16 @@ const showIterationModal = ref(false)
 const editingIteration = ref(null)
 const creatingIteration = ref(false)
 const progressRunId = ref(null)
-const showSyncDialog = ref(false)
-// Sync state
-const availableSources = ref([])
-const selectedSourceId = ref(null)
-const previewItems = ref([])
-const selectedIssueIds = ref([])
-const syncing = ref(false)
-const previewLoading = ref(false)
 const isEditing = ref(false)
 const editingTaskId = ref(null)
 const activeSession = ref(null)
 const chatBoxRef = ref(null)
 const butlerChatRef = ref(null)
 const nodeChatBoxRef = ref(null)
+const stepChatBoxRef = ref(null)
 const isChatCollapsed = ref(false)
+const expandedTaskId = ref(null)
+const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const viewMode = ref(localStorage.getItem('kanban-view-mode') || 'list')
 const showDiffDialog = ref(false)
@@ -654,6 +664,16 @@ const selectedIterationId = ref(null)
 watch(viewMode, (newValue) => {
   localStorage.setItem('kanban-view-mode', newValue)
 })
+
+// Watch iteration changes and persist to localStorage
+watch(selectedIterationId, (newValue) => {
+  if (newValue) {
+    localStorage.setItem(LAST_ITERATION_KEY, String(newValue))
+  } else {
+    localStorage.removeItem(LAST_ITERATION_KEY)
+  }
+})
+
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
@@ -744,6 +764,140 @@ const handleWorktreeUpdate = (task) => {
   console.log('[KanbanView] Worktree updated for task:', task.id)
 }
 
+// Sync preview dialog state - use store's preview state
+const syncPreviewTasks = ref([])
+const selectedSyncTasks = ref(new Set())
+const syncError = ref('')
+
+// Handle sync task sources from TODO column - show preview first
+const handleSyncTaskSources = async () => {
+  if (!selectedProjectId.value) return
+
+  syncPreviewTasks.value = []
+  selectedSyncTasks.value = new Set()
+  syncError.value = ''
+
+  try {
+    await taskSourceStore.fetchTaskSources(selectedProjectId.value)
+    const sources = taskSourceStore.taskSources
+
+    if (sources.length === 0) {
+      ElMessage.warning(t('taskSource.noSources'))
+      return
+    }
+
+    // Preview each source and collect tasks
+    for (const source of sources) {
+      try {
+        await taskSourceStore.previewSync(source.id)
+        if (taskSourceStore.previewItems && taskSourceStore.previewItems.length > 0) {
+          syncPreviewTasks.value.push(...taskSourceStore.previewItems.map(item => ({
+            ...item,
+            sourceId: source.id,
+            sourceName: source.name
+          })))
+        }
+      } catch (err) {
+        console.error(`Failed to preview source ${source.id}:`, err)
+      }
+    }
+
+    if (syncPreviewTasks.value.length === 0) {
+      ElMessage.info(t('taskSource.noTasksToImport'))
+      return
+    }
+
+    // Open store's preview dialog
+    taskSourceStore.showPreviewDialog = true
+
+    // Select all non-imported tasks by default
+    syncPreviewTasks.value.forEach(task => {
+      if (!task.imported) {
+        selectedSyncTasks.value.add(task.external_id)
+      }
+    })
+  } catch (err) {
+    console.error('Failed to sync task sources:', err)
+    syncError.value = err.message
+    ElMessage.error(err.message)
+  }
+}
+
+// Toggle task selection in preview
+const toggleSyncTask = (task) => {
+  if (selectedSyncTasks.value.has(task.external_id)) {
+    selectedSyncTasks.value.delete(task.external_id)
+  } else {
+    selectedSyncTasks.value.add(task.external_id)
+  }
+}
+
+// Select all tasks in preview
+const selectAllSyncTasks = () => {
+  syncPreviewTasks.value.forEach(task => {
+    if (!task.imported) {
+      selectedSyncTasks.value.add(task.external_id)
+    }
+  })
+}
+
+// Deselect all tasks in preview
+const deselectAllSyncTasks = () => {
+  selectedSyncTasks.value.clear()
+}
+
+// Confirm import selected tasks
+const confirmSyncImport = async () => {
+  const tasksToImport = syncPreviewTasks.value.filter(task =>
+    selectedSyncTasks.value.has(task.external_id) && !task.imported
+  )
+
+  if (tasksToImport.length === 0) {
+    ElMessage.warning(t('taskSource.selectAtLeastOne'))
+    return
+  }
+
+  try {
+    // Group tasks by source
+    const tasksBySource = {}
+    for (const task of tasksToImport) {
+      if (!tasksBySource[task.sourceId]) {
+        tasksBySource[task.sourceId] = []
+      }
+      tasksBySource[task.sourceId].push(task)
+    }
+
+    // Import tasks for each source
+    let totalImported = 0
+    for (const [sourceId, items] of Object.entries(tasksBySource)) {
+      const result = await taskSourceStore.importSelectedIssues(
+        parseInt(sourceId),
+        items,
+        selectedProjectId.value
+      )
+      if (result) {
+        totalImported += result.created || 0
+      }
+    }
+
+    await taskStore.fetchTasks(selectedProjectId.value)
+    ElMessage.success(t('taskSource.importSuccess', { count: totalImported }))
+    taskSourceStore.closePreviewDialog()
+    syncPreviewTasks.value = []
+    selectedSyncTasks.value.clear()
+  } catch (err) {
+    console.error('Failed to import tasks:', err)
+    ElMessage.error(t('taskSource.importFailed'))
+  }
+}
+
+// Close preview dialog
+const closeSyncPreview = () => {
+  taskSourceStore.closePreviewDialog()
+  syncPreviewTasks.value = []
+  selectedSyncTasks.value.clear()
+}
+
 // Handle show diff dialog from butler chat
 const handleShowDiff = (data) => {
   diffDialogData.value = data
@@ -785,6 +939,77 @@ const handleDeleteWorktree = async (task) => {
   }
 }
 
+// Handle workflow expand/collapse
+const handleToggleWorkflow = (taskId) => {
+  expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
+}
+
+// Handle workflow action from inline workflow panel
+const handleWorkflowAction = (payload) => {
+  if (typeof payload === 'string') {
+    // Simple action string
+    const action = payload
+    if (action === 'start') {
+      // Handle start - find the task and emit
+    } else if (action === 'pause') {
+      // Handle pause
+    } else if (action === 'diff') {
+      if (selectedTask.value) {
+        handleShowDiff({
+          taskId: selectedTask.value.id,
+          projectId: selectedTask.value.project_id,
+          worktreeBranch: selectedTask.value.worktree_branch
+        })
+      }
+    } else if (action === 'commit') {
+      if (selectedTask.value) {
+        handleShowCommit({
+          taskId: selectedTask.value.id,
+          projectId: selectedTask.value.project_id,
+          worktreeBranch: selectedTask.value.worktree_branch
+        })
+      }
+    } else if (action === 'progress') {
+      if (selectedTask.value?.workflow_run_id) {
+        handleViewProgress({
+          taskId: selectedTask.value.id,
+          workflowRunId: selectedTask.value.workflow_run_id
+        })
+      }
+    } else if (action === 'help') {
+      // Help will be shown in chat
+    }
+  } else if (payload && payload.action === 'node-click') {
+    selectedTask.value = payload.task || null
+    currentViewingNodeId.value = payload.node?.id || null
+    currentViewingNode.value = payload.node || null
+    isChatCollapsed.value = false
+    loadActiveSession()
+  }
+}
+
+// Get current node from workflow for a task
+const getCurrentNode = (task, expandedTaskId) => {
+  if (!task.workflow) return null
+  // Find current in-progress node
+  for (const stage of task.workflow.stages || []) {
+    for (const node of stage.nodes || []) {
+      if (node.status === 'IN_PROGRESS') {
+        return node
+      }
+    }
+  }
+  // If no in-progress node, return first pending node
+  for (const stage of task.workflow.stages || []) {
+    for (const node of stage.nodes || []) {
+      if (node.status === 'PENDING' || node.status === 'TODO') {
+        return node
+      }
+    }
+  }
+  return null
+}
+
 // Computed - tasks and projects
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
@@ -792,7 +1017,7 @@ const projects = computed(() => projectStore.projects)
 // Iterations for current project
 const projectIterations = computed(() => {
   if (!selectedProjectId.value) return []
-  return iterationStore.iterations.filter(i => i.project_id === selectedProjectId.value)
+  return iterationStore.iterations.filter(i => String(i.project_id) === selectedProjectId.value)
 })
 
 // Filtered tasks by iteration
@@ -800,6 +1025,16 @@ const filteredTasks = computed(() => {
   if (!selectedIterationId.value) return tasks.value
   return tasks.value.filter(t => t.iteration_id === selectedIterationId.value)
 })
+
+// Worktree name from selected task
+// Current viewing workflow node - directly from node-click payload
+const currentViewingNode = ref(null)
+
+// Clear node selection and return to task chat mode
+const clearNodeSelection = () => {
+  currentViewingNodeId.value = null
+  currentViewingNode.value = null
+}
 
 // Worktree name from selected task
 const selectedTaskWorktreeName = computed(() => {
@@ -931,25 +1166,51 @@ const onProjectChange = async () => {
   selectedTask.value = null
   selectedIterationId.value = null
   if (selectedProjectId.value) {
+    // Save to localStorage
+    localStorage.setItem(LAST_PROJECT_KEY, selectedProjectId.value)
     await taskStore.fetchTasks(selectedProjectId.value)
     await iterationStore.fetchByProject(selectedProjectId.value)
-    // 默认选中 "26.3.0" 迭代
-    const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-    if (defaultIteration) {
-      selectedIterationId.value = defaultIteration.id
+    // Try to restore saved iteration or default to "26.3.0"
+    const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
+    const targetIteration = storedIterationId
+      ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
+      : null
+    if (targetIteration) {
+      selectedIterationId.value = Number(targetIteration.id)
+    } else {
+      const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+      if (defaultIteration) {
+        selectedIterationId.value = Number(defaultIteration.id)
+        localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+      }
     }
   }
   updateColumnRefs()
 }
 
+// Handle iteration selection change
+const onIterationChange = (iterationId) => {
+  if (iterationId) {
+    localStorage.setItem(LAST_ITERATION_KEY, String(iterationId))
+  } else {
+    localStorage.removeItem(LAST_ITERATION_KEY)
+  }
+}
+
 // Task selection
 const selectTask = (task) => {
-  // Prevent selecting the same task that's already selected
+  // Toggle workflow when clicking the same task
   if (selectedTask.value && selectedTask.value.id === task.id) {
+    expandedTaskId.value = expandedTaskId.value === task.id ? null : task.id
     return
   }
   console.log('[KanbanView] selectTask called with:', task)
   selectedTask.value = task
+  // Clear any step selection when task changes
+  currentViewingNodeId.value = null
+  currentViewingNode.value = null
+  // Auto expand workflow when task is selected
+  expandedTaskId.value = task.id
   loadActiveSession()
 }
 
@@ -991,117 +1252,6 @@ const closeTaskModal = () => {
   showTaskModal.value = false
   isEditing.value = false
   editingTaskId.value = null
-}
-
-// Sync tasks dialog functions
-const openSyncDialog = async () => {
-  // Check if project is selected
-  if (!selectedProjectId.value) {
-    ElMessage.warning('请先选择项目')
-    return
-  }
-
-  // Fetch task sources for current project
-  try {
-    await taskSourceStore.fetchTaskSources(selectedProjectId.value)
-    availableSources.value = taskSourceStore.taskSources
-
-    if (availableSources.value.length === 0) {
-      ElMessage.warning('请先配置任务源')
-      return
-    }
-
-    // If only one source, select it directly
-    if (availableSources.value.length === 1) {
-      selectedSourceId.value = availableSources.value[0].id
-      await loadPreview(selectedSourceId.value)
-    }
-
-    showSyncDialog.value = true
-  } catch (error) {
-    console.error('[KanbanView] Failed to fetch task sources:', error)
-    ElMessage.error('加载任务源失败：' + error.message)
-  }
-}
-
-const onSourceChange = async () => {
-  if (selectedSourceId.value) {
-    await loadPreview(selectedSourceId.value)
-  }
-}
-
-const loadPreview = async (sourceId) => {
-  previewLoading.value = true
-  previewItems.value = []
-  selectedIssueIds.value = []
-  try {
-    const result = await taskSourceStore.previewSync(sourceId)
-    // Map the preview items to include checkbox IDs
-    previewItems.value = (result || []).map(item => ({
-      ...item,
-      id: item.external_id || item.id
-    }))
-  } catch (error) {
-    console.error('[KanbanView] Failed to load preview:', error)
-    ElMessage.error('加载预览失败：' + error.message)
-  } finally {
-    previewLoading.value = false
-  }
-}
-
-const selectAllIssues = () => {
-  // Only select issues that are not already imported
-  selectedIssueIds.value = previewItems.value
-    .filter(item => !item.imported)
-    .map(item => item.id)
-}
-
-const deselectAllIssues = () => {
-  selectedIssueIds.value = []
-}
-
-const confirmSync = async () => {
-  if (selectedIssueIds.value.length === 0) return
-
-  const selectedItems = previewItems.value.filter(item =>
-    selectedIssueIds.value.includes(item.id)
-  )
-
-  syncing.value = true
-  try {
-    const result = await taskSourceStore.importSelectedIssues(
-      selectedSourceId.value,
-      selectedItems,
-      selectedProjectId.value,
-      selectedIterationId.value
-    )
-    console.log('[KanbanView] Import result:', result)
-    // Get source name for display
-    const source = availableSources.value.find(s => s.id === selectedSourceId.value)
-    const sourceName = source?.name || '任务源'
-    ElMessage.success(`从 ${sourceName} 成功导入 ${result?.created || 0} 个任务`)
-    closeSyncDialog()
-    // Refresh tasks list
-    await taskStore.fetchTasks(selectedProjectId.value)
-  } catch (error) {
-    console.error('[KanbanView] Failed to import issues:', error)
-    ElMessage.error('导入失败：' + error.message)
-  } finally {
-    syncing.value = false
-  }
-}
-
-const closeSyncDialog = () => {
-  showSyncDialog.value = false
-  availableSources.value = []
-  selectedSourceId.value = null
-  previewItems.value = []
-  selectedIssueIds.value = []
-  taskSourceStore.closePreviewDialog()
-}
-
-const onSyncTask = () => {
-  openSyncDialog()
 }
 
 // Save task
@@ -1323,14 +1473,36 @@ const loadActiveSession = async () => {
 onMounted(async () => {
   try {
     await projectStore.fetchProjects()
-    if (projectStore.projects.length > 0) {
-      selectedProjectId.value = projectStore.projects[0].id
+
+    // Get projectId from route or localStorage or first project
+    const routeProjectId = route.params.projectId ? String(route.params.projectId) : null
+    const storedProjectId = localStorage.getItem(LAST_PROJECT_KEY)
+
+    let targetProjectId = routeProjectId || storedProjectId
+
+    // Validate targetProjectId exists in projects list (compare as strings since localStorage stores strings)
+    if (!targetProjectId || !projectStore.projects.find(p => String(p.id) === targetProjectId)) {
+      targetProjectId = projectStore.projects[0]?.id ? String(projectStore.projects[0].id) : ''
+    }
+
+    if (targetProjectId) {
+      selectedProjectId.value = targetProjectId
+      localStorage.setItem(LAST_PROJECT_KEY, targetProjectId)
       await taskStore.fetchTasks(selectedProjectId.value)
       await iterationStore.fetchByProject(selectedProjectId.value)
-      // 默认选中 "26.3.0" 迭代
-      const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-      if (defaultIteration) {
-        selectedIterationId.value = defaultIteration.id
+      // Try to restore saved iteration or default to "26.3.0"
+      const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
+      const targetIteration = storedIterationId
+        ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
+        : null
+      if (targetIteration) {
+        selectedIterationId.value = Number(targetIteration.id)
+      } else {
+        const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+        if (defaultIteration) {
+          selectedIterationId.value = Number(defaultIteration.id)
+          localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+        }
       }
     }
   } catch (error) {
@@ -1456,6 +1628,7 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   overflow-x: auto;
+  padding-top: 16px;
 }
 
 .kanban-area :deep(.workflow-timeline) {
@@ -1503,9 +1676,223 @@ onUnmounted(() => {
   gap: 6px;
 }
 
+/* Sync Preview Dialog */
+.sync-preview-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  color: var(--el-text-color-secondary);
+}
+
+.sync-preview-error {
+  padding: 20px;
+  color: var(--el-color-danger);
+  text-align: center;
+}
+
+.sync-preview-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+.selected-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-left: auto;
+}
+
+.sync-preview-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.sync-preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid var(--el-border-color-lightest);
+}
+
+.sync-preview-item:hover {
+  background: var(--el-fill-color-light);
+}
+
+.sync-preview-item.selected {
+  background: var(--el-color-primary-light-9);
+}
+
+.sync-preview-item.imported {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.item-checkbox {
+  padding-top: 2px;
+}
+
+.item-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.item-checkbox input:disabled {
+  cursor: not-allowed;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.item-status {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+}
+
+.item-status.open {
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
+}
+
+.item-status.closed {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.imported-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--el-color-primary-light-8);
+  color: var(--el-color-primary);
+  margin-bottom: 4px;
+}
+
+.item-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.label-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-secondary);
+}
+
+.item-description {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.item-id {
+  font-weight: 500;
+}
+
+.item-source {
+  color: var(--el-color-primary);
+}
+
+.external-link {
+  color: var(--el-color-primary);
+  text-decoration: none;
+}
+
+.external-link:hover {
+  text-decoration: underline;
+}
+
+.task-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.task-status {
+  background: var(--el-fill-color-light);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.task-source {
+  color: var(--el-color-primary);
+}
+
+.sync-preview-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--el-text-color-placeholder);
+}
+
 /* Chat Container */
 .chat-container {
-  width: 400px;
+  width: 600px;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -1574,16 +1961,39 @@ onUnmounted(() => {
   height: 100%;
   padding: 40px 20px;
   text-align: center;
-  color: var(--text-secondary);
+  background: var(--bg-secondary);
 }
 
-.welcome-icon {
-  margin-bottom: 16px;
-  color: var(--accent-color);
+@keyframes welcome-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.08); }
+}
+
+.welcome-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  animation: welcome-pulse 2s ease-in-out infinite;
+}
+
+.logo-devops,
+.logo-kanban {
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.logo-devops {
+  color: #818cf8;
+}
+
+.logo-kanban {
+  color: #a78bfa;
 }
 
 .chat-welcome h2 {
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 600;
   margin-bottom: 8px;
   color: var(--text-primary);
 }
@@ -1591,6 +2001,11 @@ onUnmounted(() => {
 .chat-welcome p {
   font-size: 13px;
   color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.chat-welcome strong {
+  color: var(--accent-color);
 }
 
 .chat-content {
@@ -1662,6 +2077,129 @@ onUnmounted(() => {
 .butler-worktree-delete:hover {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
+}
+
+/* Step Chat Mode - Unified with card style */
+.step-chat-mode {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-secondary);
+}
+
+.step-chat-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-color, #6366f1);
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  flex-shrink: 0;
+}
+
+.step-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-task-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-node-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.step-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.step-status-badge.step-done {
+  background: #10b98120;
+  color: #10b981;
+}
+
+.step-status-badge.step-in_progress {
+  background: #f59e0b20;
+  color: #f59e0b;
+}
+
+.step-status-badge.step-pending {
+  background: #94a3b820;
+  color: #94a3b8;
+}
+
+.step-status-badge.step-failed,
+.step-status-badge.step-rejected {
+  background: #ef444420;
+  color: #ef4444;
+}
+
+.step-node-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+
+.step-node-role {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.step-node-duration {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.step-chat-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Task Chat Placeholder */
+.task-chat-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  background: var(--bg-secondary);
+}
+
+.task-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px;
+}
+
+.task-placeholder-content svg {
+  margin-bottom: 20px;
+  color: var(--accent-color);
+  opacity: 0.5;
+  animation: welcome-pulse 2s ease-in-out infinite;
+}
+
+.task-placeholder-content h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
 }
 
 /* Modal Styles */

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand, resolveCrossSpawn } from '../src/services/claudeStepRunner.js';
+import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand, resolveCrossSpawn } from '../src/services/workflow/executors/claudeStepRunner.js';
 
 test('buildClaudeCliArgs uses -p prompt and skip permissions', () => {
   assert.deepEqual(buildClaudeCliArgs('生成测试文档'), [
@@ -34,22 +34,26 @@ test('buildClaudeSpawnCommand applies override args and env', () => {
   assert.equal(resolved.env.DEBUG, '1');
 });
 
-test('ClaudeStepRunner returns stdout summary result', async () => {
+test('ClaudeStepRunner passes provided prompt to spawn implementation', async () => {
+  let receivedPrompt = null;
   const runner = new ClaudeStepRunner({
-    spawnImpl: async () => ({
-      exitCode: 0,
-      stdout: '已完成需求分析\n修改了 workflow 定义并简化结果传递',
-      stderr: '',
-    }),
+    spawnImpl: async ({ prompt }) => {
+      receivedPrompt = prompt;
+      return {
+        exitCode: 0,
+        stdout: '已完成需求分析\n修改了 workflow 定义并简化结果传递',
+        stderr: '',
+      };
+    },
   });
 
   const result = await runner.runStep({
-    stepId: 'requirement-design',
+    prompt: '当前步骤：代码开发\n\n本步骤要求：\n根据设计摘要完成代码实现。',
     worktreePath: '/tmp/worktree',
-    taskTitle: '测试任务',
-    taskDescription: '测试描述',
+    executorConfig: {},
   });
 
+  assert.equal(receivedPrompt, '当前步骤：代码开发\n\n本步骤要求：\n根据设计摘要完成代码实现。');
   assert.equal(result.exitCode, 0);
   assert.equal(result.parsedResult.summary, '已完成需求分析\n修改了 workflow 定义并简化结果传递');
 });
@@ -64,10 +68,9 @@ test('ClaudeStepRunner throws on non-zero exit code', async () => {
   });
 
   await assert.rejects(() => runner.runStep({
-    stepId: 'requirement-design',
+    prompt: 'prompt body',
     worktreePath: '/tmp/worktree',
-    taskTitle: '测试任务',
-    taskDescription: '测试描述',
+    executorConfig: {},
   }), /Claude step failed/);
 });
 
@@ -84,10 +87,9 @@ test('ClaudeStepRunner includes diagnostics when stdout summary is missing', asy
   });
 
   await assert.rejects(() => runner.runStep({
-    stepId: 'requirement-design',
+    prompt: 'prompt body',
     worktreePath: '/tmp/worktree',
-    taskTitle: '测试任务',
-    taskDescription: '测试描述',
+    executorConfig: {},
   }), (error) => {
     assert.match(error.message, /summary is required/);
     assert.match(error.message, /stderr line 1/);

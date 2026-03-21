@@ -3,7 +3,7 @@
  */
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
-import { WorkflowService } from './WorkflowService.js';
+import { WorkflowService } from './workflow/workflowService.js';
 import { createWorktree, cleanupWorktree, getWorktreePath, isGitRepository, sanitizeName } from '../utils/git.js';
 import path from 'path';
 import fs from 'fs';
@@ -157,6 +157,15 @@ class TaskService {
    */
   async exists(taskId) {
     return await this.taskRepo.findById(taskId) !== null;
+  }
+
+  /**
+   * Delete a task
+   * @param {number} taskId - Task ID
+   * @returns {Promise<boolean>} True if deleted
+   */
+  async delete(taskId) {
+    return await this.taskRepo.delete(taskId);
   }
 
   /**

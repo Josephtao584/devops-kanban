@@ -152,6 +152,30 @@ export const getButlerWelcomeMessage = (taskTitle) => {
   }
 }
 
+// 节点欢迎消息
+export const getNodeWelcomeMessage = (taskTitle, nodeId) => {
+  return {
+    id: 'node-welcome',
+    role: 'assistant',
+    content: `正在查看 **${taskTitle}** 的节点对话 🤖
+
+当前选中了节点 #${nodeId}。
+
+您可以对我说：
+• "查看进度" - 查看当前节点执行进度
+• "继续" - 继续执行工作流
+• "暂停" - 暂停当前执行
+• "帮助" - 查看更多指令`,
+    timestamp: new Date().toISOString()
+  }
+}
+
+// 获取节点对话历史
+export const getNodeMessages = (nodeId) => {
+  // 模拟节点对话历史
+  return []
+}
+
 // 计算工作流进度
 export const getWorkflowProgress = (workflow) => {
   if (!workflow || !workflow.stages) return 0

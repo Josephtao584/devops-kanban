@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorkflowService } from '../src/services/WorkflowService.js';
-import { resolveStepWorktreePath } from '../src/workflows/index.js';
+import { WorkflowService } from '../src/services/workflow/workflowService.js';
 
 test('cancelWorkflow 会终止当前运行中的 claude 进程', async () => {
   const kills = [];
@@ -80,29 +79,6 @@ test('_resolveExecutionPath 在没有 worktree 时回退到 project.local_path',
   assert.equal(resolvedPath, '/repo/project');
 });
 
-test('resolveStepWorktreePath 优先使用上一步携带的 worktreePath', () => {
-  const resolvedPath = resolveStepWorktreePath(
-    {
-      summary: '设计完成',
-      worktreePath: '/repo/worktree/task-1',
-    },
-    { worktreePath: '/repo/context/fallback' }
-  );
-
-  assert.equal(resolvedPath, '/repo/worktree/task-1');
-});
-
-test('resolveStepWorktreePath 在上一步未携带路径时回退到上下文路径', () => {
-  const resolvedPath = resolveStepWorktreePath(
-    {
-      summary: '设计完成',
-    },
-    { worktreePath: '/repo/context/fallback' }
-  );
-
-  assert.equal(resolvedPath, '/repo/context/fallback');
-});
-
 test('startWorkflow 使用解析后的执行路径写入 workflow run', async () => {
   const createdRuns = [];
   const updatedTasks = [];
@@ -157,5 +133,21 @@ test('startWorkflow 使用解析后的执行路径写入 workflow run', async ()
     'code-review',
   ]);
   assert.deepEqual(updatedTasks, [{ taskId: 123, data: { workflow_run_id: 7 } }]);
+});
+
+test('_buildInitialWorkflowState returns shared task context for Mastra state', () => {
+  const service = new WorkflowService({ workflowRunRepo: {}, taskRepo: {}, projectRepo: {} });
+
+  const initialState = service._buildInitialWorkflowState({
+    title: '测试任务',
+    description: '测试描述',
+    execution_path: '/repo/project',
+  });
+
+  assert.deepEqual(initialState, {
+    taskTitle: '测试任务',
+    taskDescription: '测试描述',
+    worktreePath: '/repo/project',
+  });
 });
 

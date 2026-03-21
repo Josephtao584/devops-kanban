@@ -162,7 +162,7 @@ defineExpose({ scrollToBottom })
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-  background: var(--bg-primary, #0f0f0f);
+  background: var(--bg-primary, #ffffff);
 }
 
 .chat-empty {
@@ -171,19 +171,19 @@ defineExpose({ scrollToBottom })
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted, #999999);
 }
 
 .empty-icon {
   margin-bottom: 16px;
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted, #999999);
 }
 
 .empty-text {
   font-size: 16px;
   font-weight: 500;
   margin-bottom: 8px;
-  color: var(--text-secondary, #9ca3af);
+  color: var(--text-secondary, #666666);
 }
 
 .empty-hint {
@@ -211,9 +211,9 @@ defineExpose({ scrollToBottom })
 
 .message-assistant {
   align-self: flex-start;
-  background: var(--message-bg, #1f1f1f);
-  color: var(--text-primary, #f0f0f0);
-  border: 1px solid var(--border-color, #262626);
+  background: var(--message-bg, #f3f4f6);
+  color: var(--text-primary, #333333);
+  border: 1px solid var(--border-color, #e0e0e0);
 }
 
 .message-header {
@@ -229,7 +229,7 @@ defineExpose({ scrollToBottom })
 }
 
 .message-assistant .message-header {
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted, #999999);
 }
 
 .message-role {

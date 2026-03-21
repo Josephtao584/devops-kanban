@@ -1,7 +1,6 @@
 import crossSpawn from 'cross-spawn';
-import { buildStepPrompt } from './claudeStepPromptBuilder.js';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
-import { resolveCommand } from './executors/commandResolver.js';
+import { resolveCommand } from './commandResolver.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
@@ -91,24 +90,12 @@ class ClaudeStepRunner {
   }
 
   async runStep({
-    stepId,
+    prompt,
     worktreePath,
-    taskTitle,
-    taskDescription,
-    previousSummary = '',
     executorConfig = {},
     onSpawn,
   }) {
-    const prompt = buildStepPrompt({
-      stepId,
-      taskTitle,
-      taskDescription,
-      worktreePath,
-      previousSummary,
-    });
-
     const execution = await this.spawnImpl({
-      stepId,
       worktreePath,
       prompt,
       executorConfig,

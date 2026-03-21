@@ -5,6 +5,7 @@
     clearable
     filterable
     :disabled="disabled"
+    value-key="id"
     style="width: 100%"
   >
     <el-option
@@ -61,7 +62,12 @@ const selectedIteration = computed({
   get: () => {
     const val = props.modelValue
     // Convert null/undefined to ALL_ITERATIONS_VALUE for display
-    return val == null ? ALL_ITERATIONS_VALUE : val
+    if (val == null) return ALL_ITERATIONS_VALUE
+    // Ensure numeric type for iteration IDs to match option values
+    if (typeof val === 'string' && /^\d+$/.test(val)) {
+      return Number(val)
+    }
+    return val
   },
   set: (value) => {
     // Convert ALL_ITERATIONS_VALUE back to null for emission
