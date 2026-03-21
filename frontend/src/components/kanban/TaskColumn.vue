@@ -27,10 +27,14 @@
             :selected="selectedTask?.id === element.id"
             :running="isTaskRunning(element.id)"
             :elapsed-time="formatTaskElapsedTime(element.id)"
+            :workflow-expanded="expandedTaskId === element.id"
+            :current-node-id="currentNodeId"
             @click="handleSelectTask"
             @edit="handleEditTask"
             @delete="handleDeleteTask"
             @worktree-update="handleWorktreeUpdate"
+            @toggle-workflow="$emit('toggle-workflow', $event)"
+            @workflow-action="$emit('workflow-action', $event)"
           />
         </template>
       </draggable>
@@ -91,10 +95,18 @@ const props = defineProps({
   showSyncButton: {
     type: Boolean,
     default: false
+  },
+  expandedTaskId: {
+    type: String,
+    default: null
+  },
+  currentNodeId: {
+    type: String,
+    default: null
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'workflow-action'])
 
 const { t } = useI18n()
 const { getStatusClass } = useStatusStyle()
@@ -156,8 +168,8 @@ const taskCount = computed(() => props.tasks.length)
   flex-direction: column;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  min-width: 350px;
-  max-width: 500px;
+  min-width: 800px;
+  max-width: 800px;
   width: 100%;
   flex: 1 1 0;
   max-height: 100%;

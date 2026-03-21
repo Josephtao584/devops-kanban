@@ -354,7 +354,7 @@ const openWorktreeDirectory = () => {
 <style scoped>
 .task-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
   padding: 14px;
