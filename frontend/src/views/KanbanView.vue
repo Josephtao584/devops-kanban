@@ -255,13 +255,11 @@
         </div>
 
         <div v-if="!selectedTask && !isChatCollapsed" class="chat-welcome">
-          <div class="welcome-icon">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
+          <div class="welcome-logo">
+            <span class="logo-devops">DevOps</span>
+            <span class="logo-kanban">Kanban</span>
           </div>
-          <h2>选择任务</h2>
-          <p>从左侧选择一个任务，然后点击<strong>查看 Workflow</strong>展开详情</p>
+          <h2>点击任务查看 Workflow</h2>
         </div>
 
         <!-- Chat Panel - Step Mode -->
@@ -296,10 +294,10 @@
         <!-- Chat Panel - Task Selected, No Step -->
         <div v-if="selectedTask && !isChatCollapsed && !currentViewingNodeId" class="chat-content task-chat-placeholder">
           <div class="task-placeholder-content">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <p>点击任务卡片中的 <strong>查看 Workflow</strong> 按钮展开流程</p>
+            <h2>点击 Workflow 节点进行对话</h2>
           </div>
         </div>
       </div>
@@ -1185,8 +1183,9 @@ const onIterationChange = (iterationId) => {
 
 // Task selection
 const selectTask = (task) => {
-  // Prevent selecting the same task that's already selected
+  // Toggle workflow when clicking the same task
   if (selectedTask.value && selectedTask.value.id === task.id) {
+    expandedTaskId.value = expandedTaskId.value === task.id ? null : task.id
     return
   }
   console.log('[KanbanView] selectTask called with:', task)
@@ -1194,6 +1193,8 @@ const selectTask = (task) => {
   // Clear any step selection when task changes
   currentViewingNodeId.value = null
   currentViewingNode.value = null
+  // Auto expand workflow when task is selected
+  expandedTaskId.value = task.id
   loadActiveSession()
 }
 
@@ -1947,10 +1948,31 @@ onUnmounted(() => {
   background: var(--bg-secondary);
 }
 
-.welcome-icon {
-  margin-bottom: 16px;
-  color: var(--accent-color);
-  opacity: 0.4;
+@keyframes welcome-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.08); }
+}
+
+.welcome-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  animation: welcome-pulse 2s ease-in-out infinite;
+}
+
+.logo-devops,
+.logo-kanban {
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.logo-devops {
+  color: #818cf8;
+}
+
+.logo-kanban {
+  color: #a78bfa;
 }
 
 .chat-welcome h2 {
@@ -2146,26 +2168,22 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  color: var(--text-muted);
   text-align: center;
   padding: 40px;
 }
 
 .task-placeholder-content svg {
+  margin-bottom: 20px;
   color: var(--accent-color);
-  opacity: 0.3;
+  opacity: 0.5;
+  animation: welcome-pulse 2s ease-in-out infinite;
 }
 
-.task-placeholder-content p {
-  font-size: 13px;
-  color: var(--text-secondary);
+.task-placeholder-content h2 {
+  font-size: 14px;
+  font-weight: 600;
   margin: 0;
-  line-height: 1.5;
-}
-
-.task-placeholder-content strong {
-  color: var(--accent-color);
+  color: var(--text-primary);
 }
 
 /* Modal Styles */

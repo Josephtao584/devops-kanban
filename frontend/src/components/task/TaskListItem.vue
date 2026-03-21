@@ -77,21 +77,11 @@
         <div v-if="task.description && !compact" class="task-description">
           {{ task.description }}
         </div>
-        <button
-          v-if="workflowData || task.workflow_run_id"
-          class="workflow-inline-btn"
-          @click.stop="$emit('toggle-workflow', task.id)"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-          查看 Workflow
-        </button>
       </div>
     </div>
 
     <!-- Workflow expanded content (shown when workflow is expanded) -->
-    <div v-if="workflowExpanded && (workflowData || task.workflow_run_id)" class="workflow-expanded-content">
+    <div v-if="workflowExpanded && (workflowData || task.workflow_run_id)" class="workflow-expanded-content" @click.stop>
       <div class="workflow-main">
         <div class="workflow-section workflow-progress-bar">
           <span class="workflow-status" :class="'status-' + workflowStatus">{{ workflowStatusText }}</span>
@@ -508,29 +498,6 @@ const openWorktreeDirectory = () => {
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.workflow-inline-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #6366f1;
-  background: transparent;
-  border: 1px solid #c7d2fe;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.workflow-inline-btn:hover {
-  background: #eef2ff;
-  border-color: #6366f1;
-  color: #4f46e5;
 }
 
 .task-iteration {
