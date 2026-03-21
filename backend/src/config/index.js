@@ -15,4 +15,22 @@ const TASK_SOURCE_DATA_PATH = process.env.TASK_SOURCE_DATA_PATH
   ? path.resolve(process.env.TASK_SOURCE_DATA_PATH)
   : path.join(STORAGE_PATH);
 
-export { BASE_DIR, STORAGE_PATH, SERVER_HOST, SERVER_PORT, CORS_ORIGINS, TASK_SOURCE_CONFIG_PATH, TASK_SOURCE_DATA_PATH };
+// Logging configuration
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+const LOG_DIR = process.env.LOG_DIR || './logs';
+const LOG_FILE_MAX_SIZE = process.env.LOG_FILE_MAX_SIZE || '10m';
+const LOG_FILE_KEEP = parseInt(process.env.LOG_FILE_KEEP, 10) || 5;
+
+export {
+  BASE_DIR,
+  STORAGE_PATH,
+  SERVER_HOST,
+  SERVER_PORT,
+  CORS_ORIGINS,
+  LOG_LEVEL,
+  LOG_DIR,
+  LOG_FILE_MAX_SIZE,
+  LOG_FILE_KEEP,
+  TASK_SOURCE_CONFIG_PATH, 
+  TASK_SOURCE_DATA_PATH, 
+};

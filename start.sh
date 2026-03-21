@@ -127,6 +127,24 @@ done
 # 启动后端
 echo ""
 echo -e "${YELLOW}[2/2] 启动后端服务 (Node.js)...${NC}"
+
+# 确保数据目录存在：
+# 1) data/ 不存在则尝试从 data-sample/ 复制
+# 2) data-sample/ 也不存在则创建空 data/
+DATA_DIR="$PROJECT_ROOT/data"
+DATA_SAMPLE_DIR="$PROJECT_ROOT/data-sample"
+if [ ! -d "$DATA_DIR" ]; then
+    if [ -d "$DATA_SAMPLE_DIR" ]; then
+        echo -e "${YELLOW}初始化后端数据：将 data-sample 复制到 data...${NC}"
+        cp -R "$DATA_SAMPLE_DIR" "$DATA_DIR"
+        echo -e "${GREEN}✓ 已初始化 data 目录${NC}"
+    else
+        echo -e "${YELLOW}未找到 data-sample，已创建空 data 目录...${NC}"
+        mkdir -p "$DATA_DIR"
+        echo -e "${GREEN}✓ 已创建 data 目录${NC}"
+    fi
+fi
+
 cd "$BACKEND_DIR"
 
 # 检查 node_modules
