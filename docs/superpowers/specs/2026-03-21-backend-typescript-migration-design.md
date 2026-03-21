@@ -129,7 +129,7 @@ The migration assumes a Node runtime new enough to support the required ESM feat
 
 Migration decision:
 - target Node.js 22.x as the supported runtime baseline for development and production
-- compiled/runtime path helpers should use `fileURLToPath(import.meta.url)` plus explicit repo-root/backend-root resolution helpers rather than relying on ambiguous source-only behavior
+- compiled/runtime path helpers should use `fileURLToPath(import.meta.url)` plus explicit backend-root resolution helpers rather than relying on ambiguous source-only behavior
 
 ### Bootstrap structure decision
 The migration will split app construction from process startup.
@@ -191,19 +191,27 @@ The migration should adopt explicit Node ESM-compatible TypeScript import behavi
 Compiled runtime code must not accidentally resolve storage/config defaults relative to `dist/` when the intended files live under the repository.
 
 Migration decision:
-- runtime path defaults that point at project data/config files must be based on the backend project root or another explicitly defined runtime root, not on the emitted `dist/src` directory
-- `STORAGE_PATH`, `TASK_SOURCE_CONFIG_PATH`, and related defaults must be updated so their non-env behavior still points at the real backend data/config locations after compilation
-- this decision must be implemented consistently in config utilities before the migration is considered complete
+- runtime path defaults are anchored to the backend project root, not the emitted `dist/src` directory
+- a dedicated path helper in backend config/utilities should compute the backend root consistently for both `tsx` development and compiled `dist` runtime
+- `STORAGE_PATH`, `TASK_SOURCE_CONFIG_PATH`, and related defaults must be updated so their non-env behavior still points at the correct backend-root-relative locations after compilation
+- project-level startup assets such as `start.sh` must continue to work with this backend-root-based path strategy
 
 ### Source discovery decision
 `src/sources/index.js` currently discovers legacy adapters by scanning for `.js` files. That strategy is incompatible with `tsx`-driven `.ts` source execution during development and test.
 
 Migration decision:
-- adapter/source discovery must work in both environments:
-  - development/test from `.ts` source via `tsx`
-  - production from emitted `.js` under `dist`
-- preferred direction is to remove suffix-coupled filesystem discovery in favor of an explicit registry or a runtime-aware discovery rule that is typed and environment-safe
-- this change is in scope for the migration because task-source loading would otherwise break during TS development/test execution
+- replace filesystem suffix-based discovery with an explicit typed source registry
+- the registry remains under the `sources` runtime concept and becomes the single source of truth for available source implementations
+- dynamic filesystem discovery is removed from the backend as part of the migration
+- services, config handling, and tests should all integrate through this typed registry so source loading is identical across development, test, and compiled runtime
+
+### Naming decision
+The canonical term for this subsystem is **sources**.
+
+Migration decision:
+- runtime modules remain under `src/sources/**`
+- new shared types and service-facing terminology should use `source` / `sources` consistently
+- test code that still uses older `adapters` naming should be migrated toward `sources` terminology during the TypeScript conversion unless a file is explicitly testing a legacy compatibility concept
 
 ### Why this runtime model
 `tsx` keeps the dev/test experience simple during migration, while `tsc` provides an explicit production artifact and a reliable strict type gate.
@@ -237,27 +245,18 @@ src/types/
 - `fastify.ts`: Fastify instance/module augmentation, plugin typing helpers, and common request/response typing helpers used by route modules
 
 ## API Contract Decisions
-The backend currently uses a standard `{ success, message, data, error }` response envelope in most API handlers, but there are startup-route exceptions in `src/main.js`.
+The backend currently uses a standard `{ success, message, data, error }` response envelope in most API handlers, but there are startup-route exceptions in `src/main.js` and inconsistencies in route-local helpers.
 
 Migration decision:
-- preserve the current `/health` shape as an explicit typed exception: `{ status: 'ok' }`
-- preserve the current root route `/` shape explicitly as:
-  ```ts
-  {
-    success: true;
-    message: string;
-    version: string;
-    data: {
-      endpoints: Record<string, string>;
-    };
-  }
-  ```
-- keep the standard envelope for existing API routes that already use `successResponse` / `errorResponse`
+- `/health` remains an explicit typed exception: `{ status: 'ok' }`
+- the root route `/` remains an explicit typed exception with its current top-level `version` field
+- normalizing API routes to the shared `{ success, message, data, error }` envelope is intentionally in scope for this migration
+- route-local response helper variants should be removed in favor of typed shared response helpers
 - route contract ownership follows a hybrid rule:
   - shared reusable DTO/entity/response types live in `src/types/**`
   - each route module uses explicit Fastify route generics wired to those shared types
   - ad hoc inline route payload types should be avoided unless they are truly route-local and non-reusable
-- document response-envelope exceptions centrally in `src/types/api.ts` so route typing remains explicit rather than accidental
+- response-envelope exceptions are documented centrally in `src/types/api.ts` so route typing remains explicit rather than accidental
 
 ## Boundary Typing Strategy
 The migration should type the system from the boundaries inward rather than inferring everything ad hoc from implementations.
