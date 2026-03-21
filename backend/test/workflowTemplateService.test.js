@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { WorkflowTemplateRepository } from '../src/repositories/workflowTemplateRepository.js';
-import { WorkflowTemplateService } from '../src/services/workflowTemplateService.js';
+import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
 
 function createTempFilePath(name = 'workflow-template.json') {
   return path.join(os.tmpdir(), `kanban-${Date.now()}-${Math.random().toString(16).slice(2)}-${name}`);

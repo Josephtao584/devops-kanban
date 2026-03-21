@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { adaptStepResult } from '../src/services/stepResultAdapter.js';
+import { adaptStepResult } from '../src/services/workflow/stepResultAdapter.js';
 
 test('stepResultAdapter converts Claude native output into workflow step result', () => {
   const result = adaptStepResult('CLAUDE_CODE', {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assembleWorkflowPrompt } from '../src/services/workflowPromptAssembler.js';
+import { assembleWorkflowPrompt } from '../src/services/workflow/workflowPromptAssembler.js';
 
 test('assembleWorkflowPrompt builds first-step prompt without upstream summaries', () => {
   const prompt = assembleWorkflowPrompt({
@@ -24,10 +24,10 @@ test('assembleWorkflowPrompt builds first-step prompt without upstream summaries
   });
 
   assert.match(prompt, /当前步骤：需求设计/);
-  assert.match(prompt, /原始需求标题：\n实现步骤重试/);
-  assert.match(prompt, /原始需求内容：\n工作流失败步骤支持重试/);
+  assert.match(prompt, /原始需求标题：\\n实现步骤重试/);
+  assert.match(prompt, /原始需求内容：\\n工作流失败步骤支持重试/);
   assert.doesNotMatch(prompt, /上游步骤摘要：/);
-  assert.match(prompt, /本步骤要求：\n先完成需求分析和设计拆解。/);
+  assert.match(prompt, /本步骤要求：\\n先完成需求分析和设计拆解。/);
 });
 
 test('assembleWorkflowPrompt includes sequential upstream summary', () => {
@@ -49,8 +49,8 @@ test('assembleWorkflowPrompt includes sequential upstream summary', () => {
   });
 
   assert.match(prompt, /上游步骤摘要：/);
-  assert.match(prompt, /- requirement-design:\n已完成重试方案设计/);
-  assert.match(prompt, /本步骤要求：\n根据设计摘要完成代码实现。/);
+  assert.match(prompt, /- requirement-design:\\n已完成重试方案设计/);
+  assert.match(prompt, /本步骤要求：\\n根据设计摘要完成代码实现。/);
 });
 
 test('assembleWorkflowPrompt includes all upstream summaries for merged inputs', () => {
@@ -72,8 +72,8 @@ test('assembleWorkflowPrompt includes all upstream summaries for merged inputs',
     upstreamStepIds: ['code-development', 'testing'],
   });
 
-  assert.match(prompt, /- code-development:\n开发完成/);
-  assert.match(prompt, /- testing:\n测试通过/);
+  assert.match(prompt, /- code-development:\\n开发完成/);
+  assert.match(prompt, /- testing:\\n测试通过/);
 });
 
 test('assembleWorkflowPrompt omits upstream summary section when summaries are missing', () => {

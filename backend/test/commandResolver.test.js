@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCommand } from '../src/services/executors/commandResolver.js';
+import { resolveCommand } from '../src/services/workflow/executors/commandResolver.js';
 
 test('resolveCommand uses executor default command when no override is set', () => {
   assert.deepEqual(resolveCommand({

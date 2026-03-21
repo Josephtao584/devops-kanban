@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand, resolveCrossSpawn } from '../src/services/claudeStepRunner.js';
+import { ClaudeStepRunner, CLAUDE_DEFAULT_COMMAND, buildClaudeCliArgs, buildClaudeSpawnCommand, resolveCrossSpawn } from '../src/services/workflow/executors/claudeStepRunner.js';
 
 test('buildClaudeCliArgs uses -p prompt and skip permissions', () => {
   assert.deepEqual(buildClaudeCliArgs('生成测试文档'), [
