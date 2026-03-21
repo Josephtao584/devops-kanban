@@ -45,10 +45,14 @@
               :show-status="true"
               :show-drag-handle="true"
               :status-text="$t(`status.${task.status}`)"
+              :workflowExpanded="expandedTaskId === task.id"
+              :currentNodeId="currentNodeId"
               @click="$emit('select-task', task)"
               @edit="$emit('edit-task', task)"
               @delete="$emit('delete-task', task.id)"
               @worktree-update="$emit('worktree-update', $event)"
+              @toggle-workflow="$emit('toggle-workflow', $event)"
+              @workflow-action="$emit('workflow-action', $event)"
             />
           </template>
         </draggable>
@@ -98,10 +102,14 @@
               :show-status="true"
               :show-drag-handle="true"
               :status-text="$t(`status.${task.status}`)"
+              :workflowExpanded="expandedTaskId === task.id"
+              :currentNodeId="currentNodeId"
               @click="$emit('select-task', task)"
               @edit="$emit('edit-task', task)"
               @delete="$emit('delete-task', task.id)"
               @worktree-update="$emit('worktree-update', $event)"
+              @toggle-workflow="$emit('toggle-workflow', $event)"
+              @workflow-action="$emit('workflow-action', $event)"
             />
           </template>
         </draggable>
@@ -132,6 +140,14 @@ const props = defineProps({
   statusFilter: {
     type: Array,
     default: () => ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
+  },
+  expandedTaskId: {
+    type: [String, Number],
+    default: null
+  },
+  currentNodeId: {
+    type: [String, Number],
+    default: null
   }
 })
 
@@ -143,7 +159,9 @@ const emit = defineEmits([
   'add-task',
   'reorder-tasks',
   'worktree-update',
-  'sync'
+  'sync',
+  'toggle-workflow',
+  'workflow-action'
 ])
 
 const { t } = useI18n()
