@@ -115,8 +115,9 @@ Update `backend/package.json` to reflect the TypeScript runtime model:
 - `dev` becomes `tsx watch src/main.ts`
 - `build` becomes `tsc -p tsconfig.json`
 - `start` becomes `node dist/src/main.js`
-- `test` becomes a cross-platform TypeScript test command
+- `test` becomes `node --import tsx --test test/**/*.test.ts`
 - add `typecheck` as `tsc --noEmit -p tsconfig.json`
+- optional watch-mode test script may be added separately, but is not required by the migration design
 - remove JS-specific `nodemon src/main.js` usage rather than maintaining parallel JS/TS dev paths
 
 If a clean build step is needed, add a dedicated script such as `clean` or `prebuild`, but keep production startup strictly tied to emitted `dist/` output.
@@ -125,7 +126,7 @@ If a clean build step is needed, add a dedicated script such as `clean` or `preb
 - **Development:** `tsx watch src/main.ts`
 - **Build:** `tsc -p tsconfig.json`
 - **Production/start:** `node dist/src/main.js`
-- **Tests:** cross-platform TS test runner invocation
+- **Tests:** `node --import tsx --test test/**/*.test.ts`
 - **Type check:** `tsc --noEmit -p tsconfig.json`
 
 ### Compiler model
@@ -206,10 +207,11 @@ src/types/
 - `fastify.ts`: Fastify instance/module augmentation, plugin typing helpers, and common request/response typing helpers used by route modules
 
 ## API Contract Decisions
-The backend currently uses a standard `{ success, message, data, error }` response envelope in most API handlers, but `/health` currently returns `{ status: 'ok' }` directly.
+The backend currently uses a standard `{ success, message, data, error }` response envelope in most API handlers, but there are startup-route exceptions in `src/main.js`.
 
 Migration decision:
-- preserve the current `/health` shape as an explicit typed exception
+- preserve the current `/health` shape as an explicit typed exception: `{ status: 'ok' }`
+- preserve the current root route `/` shape as an explicit typed exception rather than forcing it into the standard envelope during the migration
 - keep the standard envelope for existing API routes that already use `successResponse` / `errorResponse`
 - document response-envelope exceptions centrally in `src/types/api.ts` so route typing remains explicit rather than accidental
 
@@ -300,8 +302,8 @@ Why:
 
 Key requirements:
 - test files use `.test.ts`
-- tests run directly through a cross-platform TS runner command, avoiding shell-dependent glob expansion assumptions
-- preferred command shape is Node test runner + TS loader, e.g. `node --import tsx --test`, with explicit file arguments or another approach that works consistently on Windows and Unix shells
+- tests run directly through `node --import tsx --test test/**/*.test.ts`
+- no separate watch-mode test script is required for migration completion
 - test imports follow the same NodeNext ESM `.js` specifier rule used by source files
 - repository stubs, service fakes, and workflow executor mocks are typed rather than left structurally implicit
 - keep tests behavior-focused; avoid rewriting test intent unnecessarily
@@ -342,12 +344,24 @@ It moves from stable contracts and data shapes outward, reducing rework and keep
 The migration is complete when all of the following are true:
 - All backend source files are TypeScript
 - All backend test files are TypeScript
-- The backend builds with `tsc`
-- `tsc --noEmit` passes under strict mode
-- The backend starts successfully
-- Core backend tests pass
-- Workflow/repository/route boundaries are explicitly typed
-- The migration does not rely on broad escape hatches that undermine strictness
+- `npm run build` passes
+- `npm run typecheck` passes under strict mode
+- `npm test` passes
+- the compiled server starts successfully from `node dist/src/main.js`
+- root route `/` and `/health` still return their intentionally preserved response shapes
+- workflow/repository/route boundaries are explicitly typed
+- the migration does not rely on broad escape hatches that undermine strictness
+
+## Docs and Operational Entry Point Policy
+The one-shot migration includes backend-adjacent operational assets and instructions that would otherwise break because of the TypeScript entrypoint switch.
+
+In scope:
+- `backend/package.json`
+- project-level startup helpers that launch the backend, including `start.sh`
+- backend-facing instructions and documentation that reference `src/main.js`, `nodemon`, or old backend commands, including relevant sections of `CLAUDE.md`
+
+Not in scope:
+- unrelated documentation cleanup beyond what is needed to keep backend usage instructions accurate after the migration
 
 ## Non-Goals
 - Frontend TypeScript migration
