@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorkflowService } from '../src/services/WorkflowService.js';
+import { WorkflowService } from '../src/services/workflow/workflowService.js';
 
 test('cancelWorkflow 会终止当前运行中的 claude 进程', async () => {
   const kills = [];

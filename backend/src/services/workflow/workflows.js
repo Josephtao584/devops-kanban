@@ -9,9 +9,9 @@ import { z } from 'zod';
 import { Mastra } from '@mastra/core';
 import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
-import { STORAGE_PATH } from '../config/index.js';
-import { executeWorkflowStep } from '../services/workflowStepExecutor.js';
-import { getWorkflowExecutionContext } from '../services/workflowExecutionContext.js';
+import { STORAGE_PATH } from '../../config/index.js';
+import { executeWorkflowStep } from './workflowStepExecutor.js';
+import { getWorkflowExecutionContext } from './workflowExecutionContext.js';
 
 const sharedStateSchema = z.object({
   taskTitle: z.string(),

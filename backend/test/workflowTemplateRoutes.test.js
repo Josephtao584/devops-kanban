@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorkflowTemplateService } from '../src/services/workflowTemplateService.js';
+import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
 import workflowTemplateRoutes from '../src/routes/workflowTemplate.js';
 
 function buildValidTemplate() {

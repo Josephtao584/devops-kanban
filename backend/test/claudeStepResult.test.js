@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStepResult, validateStepResult } from '../src/services/claudeStepResult.js';
+import { parseStepResult, validateStepResult } from '../src/services/workflow/executors/claudeStepResult.js';
 
 test('parseStepResult 从 stdout 提取 summary', async () => {
   const result = await parseStepResult({
