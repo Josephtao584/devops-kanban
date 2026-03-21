@@ -9,11 +9,23 @@ This migration covers the full backend codebase under `backend/`:
 - `src/routes`
 - `src/services`
 - `src/repositories`
-- `src/adapters`
+- `src/sources`
 - `src/utils`
 - `src/config`
 - `src/middleware`
 - backend tests under `backend/test`
+
+### Exact migration inventory
+The migration should convert all active backend runtime and test modules, including:
+- application entrypoint in `src/main`
+- all route modules
+- all service modules, including `src/services/workflow/**`
+- all repositories, including the generic JSON base repository currently at `src/repositories/base.js`
+- all task source runtime modules under `src/sources/**`
+- config, middleware, and utility modules
+- backend tests under `backend/test/**`
+
+`src/sources/` remains a first-class backend layer in the migration and is not renamed or folded into another directory as part of this TypeScript project.
 
 This migration does **not** include frontend TypeScript work or unrelated feature refactors.
 
@@ -74,7 +86,6 @@ Keep the current backend layout mostly intact to reduce migration risk, while ad
 ```txt
 backend/
   src/
-    adapters/
     config/
     middleware/
     repositories/
@@ -82,6 +93,7 @@ backend/
     services/
       workflow/
         executors/
+    sources/
     types/
     utils/
     main.ts
@@ -97,20 +109,52 @@ Add TypeScript tooling for a Node ESM backend:
 - `tsx`
 - `@types/node`
 
+### Required package changes
+Update `backend/package.json` to reflect the TypeScript runtime model:
+- `main` points to `dist/main.js`
+- `dev` becomes `tsx watch src/main.ts`
+- `build` becomes `tsc -p tsconfig.json`
+- `start` becomes `node dist/main.js`
+- `test` becomes `tsx --test test/**/*.test.ts`
+- add `typecheck` as `tsc --noEmit -p tsconfig.json`
+- remove JS-specific `nodemon src/main.js` usage rather than maintaining parallel JS/TS dev paths
+
+If a clean build step is needed, add a dedicated script such as `clean` or `prebuild`, but keep production startup strictly tied to emitted `dist/` output.
+
 ### Runtime model
 - **Development:** `tsx watch src/main.ts`
-- **Build:** `tsc`
+- **Build:** `tsc -p tsconfig.json`
 - **Production/start:** `node dist/main.js`
-- **Tests:** `tsx --test`
+- **Tests:** `tsx --test test/**/*.test.ts`
+- **Type check:** `tsc --noEmit -p tsconfig.json`
 
 ### Compiler model
 Use a TypeScript configuration compatible with the existing ESM project layout.
 
-Recommended settings direction:
+Required `tsconfig.json` decisions:
+- `target: "ES2022"`
+- `module: "NodeNext"`
+- `moduleResolution: "NodeNext"`
+- `rootDir: "."`
+- `outDir: "dist"`
 - `strict: true`
-- `module` / `moduleResolution` aligned to Node ESM (`NodeNext`)
-- emit build output into `dist/`
-- no path aliases in the first migration pass
+- `noImplicitOverride: true`
+- `noUncheckedIndexedAccess: true`
+- `exactOptionalPropertyTypes: true`
+- `useUnknownInCatchVariables: true`
+- `allowJs: false`
+- `resolveJsonModule: false` unless a concrete backend module requires it
+- `skipLibCheck: false` by default so dependency type problems are surfaced intentionally
+- `include` covers `src/**/*.ts` and `test/**/*.ts`
+- `exclude` covers `dist`, `node_modules`, and temporary output
+
+### Import and ESM rules
+The migration should adopt explicit Node ESM-compatible TypeScript import behavior:
+- source files are `.ts`
+- ESM import specifiers inside TypeScript source continue to reference emitted `.js` paths where required by NodeNext
+- no extensionless relative imports
+- `import.meta` usage must be reviewed explicitly during migration; helpers relying on `import.meta.dirname` need a defined TypeScript-safe pattern if the runtime/toolchain does not preserve the current behavior exactly
+- do not introduce path aliases in the first migration pass
 
 ### Why this runtime model
 `tsx` keeps the dev/test experience simple during migration, while `tsc` provides an explicit production artifact and a reliable strict type gate.
@@ -136,12 +180,20 @@ src/types/
 ```
 
 ### Responsibilities
-- `api.ts`: standard response envelope and common API payload wrappers
-- `entities.ts`: persistent JSON-backed entities like tasks, projects, workflow runs, sessions, members, roles, etc.
+- `api.ts`: standard response envelope and common API payload wrappers, plus explicit exceptions for endpoints that intentionally do not use the standard envelope
+- `entities.ts`: persistent JSON-backed entities like tasks, projects, workflow runs, sessions, members, roles, task sources, iterations, and related records
 - `repositories.ts`: repository-level generic contracts and persistence helper types
 - `workflow.ts`: workflow state, step input/output, template, summaries, context, and run-time event shapes
 - `executors.ts`: executor config, registry interfaces, process result shapes, and step result contracts
-- `fastify.ts`: common request/response typing helpers used by route modules
+- `fastify.ts`: Fastify instance/module augmentation, plugin typing helpers, and common request/response typing helpers used by route modules
+
+## API Contract Decisions
+The backend currently uses a standard `{ success, message, data, error }` response envelope in most API handlers, but `/health` currently returns `{ status: 'ok' }` directly.
+
+Migration decision:
+- preserve the current `/health` shape as an explicit typed exception
+- keep the standard envelope for existing API routes that already use `successResponse` / `errorResponse`
+- document response-envelope exceptions centrally in `src/types/api.ts` so route typing remains explicit rather than accidental
 
 ## Boundary Typing Strategy
 The migration should type the system from the boundaries inward rather than inferring everything ad hoc from implementations.
@@ -191,6 +243,14 @@ Design requirements:
 - Type error handling expectations where practical
 - Reuse shared API response helpers instead of recreating local response shapes
 
+Fastify typing approach:
+- add module augmentation for decorated `FastifyInstance` properties such as `fastify.config`
+- define route handler request generic patterns for params/query/body where the route contract is known
+- keep plugin modules typed as Fastify plugins rather than untyped callback modules
+- explicitly type websocket-related plugin usage where it affects the backend surface
+- represent typed application startup either through a typed app factory or a consistently typed `FastifyInstance` bootstrap path
+- type status-bearing errors as explicit app error shapes rather than repeatedly assuming `error.statusCode` exists
+
 Why this matters:
 Without route-level contracts, strict TypeScript quickly degrades into casts at every request boundary.
 
@@ -221,9 +281,21 @@ Why:
 - Typed test doubles help validate that repository/service/workflow contracts are actually coherent
 
 Key requirements:
-- Type repository stubs and service fakes
-- Type workflow executor mocks
-- Keep tests behavior-focused; avoid rewriting test intent unnecessarily
+- test files use `.test.ts`
+- tests run directly through `tsx --test`
+- test imports follow the same NodeNext ESM `.js` specifier rule used by source files
+- repository stubs, service fakes, and workflow executor mocks are typed rather than left structurally implicit
+- keep tests behavior-focused; avoid rewriting test intent unnecessarily
+- `tsc --noEmit` and runtime test execution are both required, since type success alone does not prove runtime loader correctness
+
+## External Dependency Boundary Strategy
+Some dependencies may expose awkward or incomplete types at strict-mode boundaries, especially around Fastify plugins, websocket support, Mastra runtime surfaces, LibSQL store integration, and YAML or source-provider integration.
+
+Migration decision:
+- do not spread ad hoc assertions through business logic
+- isolate dependency-facing typing problems behind local wrapper types or narrow adapter modules where possible
+- allow targeted assertions only at the dependency boundary, followed by immediate narrowing into internal typed contracts
+- keep dependency compromises local so repository, service, workflow, and route internals remain strongly typed
 
 ## Implementation Order Inside the One-Shot Migration
 Although the migration ships as one backend TypeScript conversion, implementation should proceed in this order:
