@@ -111,11 +111,11 @@ Add TypeScript tooling for a Node ESM backend:
 
 ### Required package changes
 Update `backend/package.json` to reflect the TypeScript runtime model:
-- `main` points to `dist/main.js`
+- `main` points to `dist/src/main.js`
 - `dev` becomes `tsx watch src/main.ts`
 - `build` becomes `tsc -p tsconfig.json`
-- `start` becomes `node dist/main.js`
-- `test` becomes `tsx --test test/**/*.test.ts`
+- `start` becomes `node dist/src/main.js`
+- `test` becomes a cross-platform TypeScript test command
 - add `typecheck` as `tsc --noEmit -p tsconfig.json`
 - remove JS-specific `nodemon src/main.js` usage rather than maintaining parallel JS/TS dev paths
 
@@ -124,8 +124,8 @@ If a clean build step is needed, add a dedicated script such as `clean` or `preb
 ### Runtime model
 - **Development:** `tsx watch src/main.ts`
 - **Build:** `tsc -p tsconfig.json`
-- **Production/start:** `node dist/main.js`
-- **Tests:** `tsx --test test/**/*.test.ts`
+- **Production/start:** `node dist/src/main.js`
+- **Tests:** cross-platform TS test runner invocation
 - **Type check:** `tsc --noEmit -p tsconfig.json`
 
 ### Compiler model
@@ -144,7 +144,7 @@ Required `tsconfig.json` decisions:
 - `useUnknownInCatchVariables: true`
 - `allowJs: false`
 - `resolveJsonModule: false` unless a concrete backend module requires it
-- `skipLibCheck: false` by default so dependency type problems are surfaced intentionally
+- `skipLibCheck: true` for the initial one-shot migration so third-party declaration noise does not block conversion work unrelated to the project’s own runtime contracts
 - `include` covers `src/**/*.ts` and `test/**/*.ts`
 - `exclude` covers `dist`, `node_modules`, and temporary output
 
@@ -153,8 +153,26 @@ The migration should adopt explicit Node ESM-compatible TypeScript import behavi
 - source files are `.ts`
 - ESM import specifiers inside TypeScript source continue to reference emitted `.js` paths where required by NodeNext
 - no extensionless relative imports
-- `import.meta` usage must be reviewed explicitly during migration; helpers relying on `import.meta.dirname` need a defined TypeScript-safe pattern if the runtime/toolchain does not preserve the current behavior exactly
+- `import.meta` usage must be reviewed explicitly during migration; helpers relying on source-tree-relative path defaults cannot be carried over blindly into compiled `dist/`
 - do not introduce path aliases in the first migration pass
+
+### Runtime path resolution decision
+Compiled runtime code must not accidentally resolve storage/config defaults relative to `dist/` when the intended files live under the repository.
+
+Migration decision:
+- runtime path defaults that point at project data/config files must be based on the backend project root or another explicitly defined runtime root, not on the emitted `dist/src` directory
+- `STORAGE_PATH`, `TASK_SOURCE_CONFIG_PATH`, and related defaults must be updated so their non-env behavior still points at the real backend data/config locations after compilation
+- this decision must be implemented consistently in config utilities before the migration is considered complete
+
+### Source discovery decision
+`src/sources/index.js` currently discovers legacy adapters by scanning for `.js` files. That strategy is incompatible with `tsx`-driven `.ts` source execution during development and test.
+
+Migration decision:
+- adapter/source discovery must work in both environments:
+  - development/test from `.ts` source via `tsx`
+  - production from emitted `.js` under `dist`
+- preferred direction is to remove suffix-coupled filesystem discovery in favor of an explicit registry or a runtime-aware discovery rule that is typed and environment-safe
+- this change is in scope for the migration because task-source loading would otherwise break during TS development/test execution
 
 ### Why this runtime model
 `tsx` keeps the dev/test experience simple during migration, while `tsc` provides an explicit production artifact and a reliable strict type gate.
@@ -282,7 +300,8 @@ Why:
 
 Key requirements:
 - test files use `.test.ts`
-- tests run directly through `tsx --test`
+- tests run directly through a cross-platform TS runner command, avoiding shell-dependent glob expansion assumptions
+- preferred command shape is Node test runner + TS loader, e.g. `node --import tsx --test`, with explicit file arguments or another approach that works consistently on Windows and Unix shells
 - test imports follow the same NodeNext ESM `.js` specifier rule used by source files
 - repository stubs, service fakes, and workflow executor mocks are typed rather than left structurally implicit
 - keep tests behavior-focused; avoid rewriting test intent unnecessarily
