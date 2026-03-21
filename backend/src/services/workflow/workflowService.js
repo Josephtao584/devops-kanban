@@ -3,10 +3,10 @@
  * Business logic for triggering, querying, and cancelling workflows.
  */
 
-import { WorkflowRunRepository } from '../repositories/workflowRunRepository.js';
-import { TaskRepository } from '../repositories/taskRepository.js';
-import { ProjectRepository } from '../repositories/projectRepository.js';
-import { getDevWorkflow, buildWorkflowSharedState } from '../workflows/index.js';
+import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
+import { TaskRepository } from '../../repositories/taskRepository.js';
+import { ProjectRepository } from '../../repositories/projectRepository.js';
+import { getDevWorkflow, buildWorkflowSharedState } from './workflows.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
 
 const STEP_DEFINITIONS = [

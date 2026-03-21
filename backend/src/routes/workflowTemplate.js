@@ -1,4 +1,4 @@
-import { WorkflowTemplateService } from '../services/workflowTemplateService.js';
+import { WorkflowTemplateService } from '../services/workflow/workflowTemplateService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
 async function workflowTemplateRoutes(fastify, { service = new WorkflowTemplateService() } = {}) {
