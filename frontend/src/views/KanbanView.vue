@@ -148,6 +148,8 @@
           :selected-task="selectedTask"
           :running-task-ids="runningTasks"
           :status-filter="listStatusFilter"
+          :expandedTaskId="expandedTaskId"
+          :currentNodeId="currentViewingNodeId"
           @select-task="selectTask"
           @edit-task="openTaskModal"
           @delete-task="deleteTask"
@@ -156,6 +158,8 @@
           @reorder-tasks="handleReorderTasks"
           @worktree-update="handleWorktreeUpdate"
           @sync="handleSyncTaskSources"
+          @toggle-workflow="handleToggleWorkflow"
+          @workflow-action="handleWorkflowAction"
         />
       </div>
 
@@ -252,47 +256,51 @@
 
         <div v-if="!selectedTask && !isChatCollapsed" class="chat-welcome">
           <div class="welcome-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </div>
-          <h2>{{ $t('butler.selectTask') }}</h2>
-          <p>{{ $t('butler.selectTaskHint') }}</p>
+          <h2>选择任务</h2>
+          <p>从左侧选择一个任务，然后点击<strong>查看 Workflow</strong>展开详情</p>
         </div>
 
-        <div v-if="selectedTask && !isChatCollapsed" class="chat-content">
-          <div class="butler-header">
-            <div class="butler-avatar">🤖</div>
-            <div class="butler-info">
-              <h3>{{ $t('butler.title') }} - {{ selectedTask.title }}</h3>
-              <div v-if="selectedTaskWorktreeName" class="butler-worktree">
-                <span class="worktree-label">{{ $t('git.worktree', 'Worktree') }}:</span>
-                <span class="worktree-badge" :title="selectedTask.worktree_path">
-                  {{ selectedTaskWorktreeName }}
+        <!-- Chat Panel - Step Mode -->
+        <div v-if="selectedTask && !isChatCollapsed && currentViewingNodeId" class="chat-content step-chat-mode">
+          <div class="step-chat-header">
+            <div class="step-header-info">
+              <span class="step-task-title">{{ selectedTask.title }}</span>
+              <div class="step-node-detail" v-if="currentViewingNode">
+                <span class="step-status-badge" :class="'step-' + currentViewingNode.status?.toLowerCase()">
+                  {{ getStatusText(currentViewingNode.status) }}
                 </span>
-                <button
-                  class="butler-worktree-delete"
-                  @click.stop="handleDeleteWorktree(selectedTask)"
-                  title="删除 Worktree"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                </button>
+                <span class="step-node-name">{{ currentViewingNode.name }}</span>
+                <span class="step-node-role">@{{ currentViewingNode.role }}</span>
+                <span v-if="currentViewingNode.duration" class="step-node-duration">{{ currentViewingNode.duration }}min</span>
               </div>
             </div>
           </div>
-          <TaskButlerChat
-            ref="butlerChatRef"
-            :task="selectedTask"
-            @control-workflow="handleButlerControl"
-            @view-workflow="handleViewWorkflow"
-            @task-started="handleTaskStarted"
-            @view-progress="handleViewProgress"
-            @show-diff="handleShowDiff"
-            @show-commit="handleShowCommit"
-          />
+          <div class="step-chat-body">
+            <ChatBox
+              ref="stepChatBoxRef"
+              :task="selectedTask"
+              :agentId="currentViewingNode?.agentId || selectedAgentId"
+              :initial-session="null"
+              :default-collapsed="false"
+              :workflow-node="currentViewingNode"
+              @session-created="onNodeSessionCreated"
+              @request-agent-select="handleRequestAgentSelect"
+            />
+          </div>
+        </div>
+
+        <!-- Chat Panel - Task Selected, No Step -->
+        <div v-if="selectedTask && !isChatCollapsed && !currentViewingNodeId" class="chat-content task-chat-placeholder">
+          <div class="task-placeholder-content">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <p>点击任务卡片中的 <strong>查看 Workflow</strong> 按钮展开流程</p>
+          </div>
         </div>
       </div>
     </div>
@@ -550,6 +558,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
@@ -586,6 +595,11 @@ import { reorderTasks } from '../api/task.js'
 import { deleteTaskWorktree } from '../api/taskWorktree.js'
 
 const { t } = useI18n()
+const route = useRoute()
+
+// localStorage key for project and iteration selection persistence
+const LAST_PROJECT_KEY = 'kanban-selected-project-id'
+const LAST_ITERATION_KEY = 'kanban-selected-iteration-id'
 
 // Use Pinia stores
 const projectStore = useProjectStore()
@@ -617,7 +631,10 @@ const activeSession = ref(null)
 const chatBoxRef = ref(null)
 const butlerChatRef = ref(null)
 const nodeChatBoxRef = ref(null)
+const stepChatBoxRef = ref(null)
 const isChatCollapsed = ref(false)
+const expandedTaskId = ref(null)
+const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const viewMode = ref(localStorage.getItem('kanban-view-mode') || 'list')
 const showDiffDialog = ref(false)
@@ -633,6 +650,16 @@ const selectedIterationId = ref(null)
 watch(viewMode, (newValue) => {
   localStorage.setItem('kanban-view-mode', newValue)
 })
+
+// Watch iteration changes and persist to localStorage
+watch(selectedIterationId, (newValue) => {
+  if (newValue) {
+    localStorage.setItem(LAST_ITERATION_KEY, String(newValue))
+  } else {
+    localStorage.removeItem(LAST_ITERATION_KEY)
+  }
+})
+
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
@@ -898,6 +925,77 @@ const handleDeleteWorktree = async (task) => {
   }
 }
 
+// Handle workflow expand/collapse
+const handleToggleWorkflow = (taskId) => {
+  expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
+}
+
+// Handle workflow action from inline workflow panel
+const handleWorkflowAction = (payload) => {
+  if (typeof payload === 'string') {
+    // Simple action string
+    const action = payload
+    if (action === 'start') {
+      // Handle start - find the task and emit
+    } else if (action === 'pause') {
+      // Handle pause
+    } else if (action === 'diff') {
+      if (selectedTask.value) {
+        handleShowDiff({
+          taskId: selectedTask.value.id,
+          projectId: selectedTask.value.project_id,
+          worktreeBranch: selectedTask.value.worktree_branch
+        })
+      }
+    } else if (action === 'commit') {
+      if (selectedTask.value) {
+        handleShowCommit({
+          taskId: selectedTask.value.id,
+          projectId: selectedTask.value.project_id,
+          worktreeBranch: selectedTask.value.worktree_branch
+        })
+      }
+    } else if (action === 'progress') {
+      if (selectedTask.value?.workflow_run_id) {
+        handleViewProgress({
+          taskId: selectedTask.value.id,
+          workflowRunId: selectedTask.value.workflow_run_id
+        })
+      }
+    } else if (action === 'help') {
+      // Help will be shown in chat
+    }
+  } else if (payload && payload.action === 'node-click') {
+    selectedTask.value = payload.task || null
+    currentViewingNodeId.value = payload.node?.id || null
+    currentViewingNode.value = payload.node || null
+    isChatCollapsed.value = false
+    loadActiveSession()
+  }
+}
+
+// Get current node from workflow for a task
+const getCurrentNode = (task, expandedTaskId) => {
+  if (!task.workflow) return null
+  // Find current in-progress node
+  for (const stage of task.workflow.stages || []) {
+    for (const node of stage.nodes || []) {
+      if (node.status === 'IN_PROGRESS') {
+        return node
+      }
+    }
+  }
+  // If no in-progress node, return first pending node
+  for (const stage of task.workflow.stages || []) {
+    for (const node of stage.nodes || []) {
+      if (node.status === 'PENDING' || node.status === 'TODO') {
+        return node
+      }
+    }
+  }
+  return null
+}
+
 // Computed - tasks and projects
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
@@ -905,7 +1003,7 @@ const projects = computed(() => projectStore.projects)
 // Iterations for current project
 const projectIterations = computed(() => {
   if (!selectedProjectId.value) return []
-  return iterationStore.iterations.filter(i => i.project_id === selectedProjectId.value)
+  return iterationStore.iterations.filter(i => String(i.project_id) === selectedProjectId.value)
 })
 
 // Filtered tasks by iteration
@@ -913,6 +1011,16 @@ const filteredTasks = computed(() => {
   if (!selectedIterationId.value) return tasks.value
   return tasks.value.filter(t => t.iteration_id === selectedIterationId.value)
 })
+
+// Worktree name from selected task
+// Current viewing workflow node - directly from node-click payload
+const currentViewingNode = ref(null)
+
+// Clear node selection and return to task chat mode
+const clearNodeSelection = () => {
+  currentViewingNodeId.value = null
+  currentViewingNode.value = null
+}
 
 // Worktree name from selected task
 const selectedTaskWorktreeName = computed(() => {
@@ -1044,15 +1152,35 @@ const onProjectChange = async () => {
   selectedTask.value = null
   selectedIterationId.value = null
   if (selectedProjectId.value) {
+    // Save to localStorage
+    localStorage.setItem(LAST_PROJECT_KEY, selectedProjectId.value)
     await taskStore.fetchTasks(selectedProjectId.value)
     await iterationStore.fetchByProject(selectedProjectId.value)
-    // 默认选中 "26.3.0" 迭代
-    const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-    if (defaultIteration) {
-      selectedIterationId.value = defaultIteration.id
+    // Try to restore saved iteration or default to "26.3.0"
+    const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
+    const targetIteration = storedIterationId
+      ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
+      : null
+    if (targetIteration) {
+      selectedIterationId.value = Number(targetIteration.id)
+    } else {
+      const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+      if (defaultIteration) {
+        selectedIterationId.value = Number(defaultIteration.id)
+        localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+      }
     }
   }
   updateColumnRefs()
+}
+
+// Handle iteration selection change
+const onIterationChange = (iterationId) => {
+  if (iterationId) {
+    localStorage.setItem(LAST_ITERATION_KEY, String(iterationId))
+  } else {
+    localStorage.removeItem(LAST_ITERATION_KEY)
+  }
 }
 
 // Task selection
@@ -1063,6 +1191,9 @@ const selectTask = (task) => {
   }
   console.log('[KanbanView] selectTask called with:', task)
   selectedTask.value = task
+  // Clear any step selection when task changes
+  currentViewingNodeId.value = null
+  currentViewingNode.value = null
   loadActiveSession()
 }
 
@@ -1325,14 +1456,36 @@ const loadActiveSession = async () => {
 onMounted(async () => {
   try {
     await projectStore.fetchProjects()
-    if (projectStore.projects.length > 0) {
-      selectedProjectId.value = projectStore.projects[0].id
+
+    // Get projectId from route or localStorage or first project
+    const routeProjectId = route.params.projectId ? String(route.params.projectId) : null
+    const storedProjectId = localStorage.getItem(LAST_PROJECT_KEY)
+
+    let targetProjectId = routeProjectId || storedProjectId
+
+    // Validate targetProjectId exists in projects list (compare as strings since localStorage stores strings)
+    if (!targetProjectId || !projectStore.projects.find(p => String(p.id) === targetProjectId)) {
+      targetProjectId = projectStore.projects[0]?.id ? String(projectStore.projects[0].id) : ''
+    }
+
+    if (targetProjectId) {
+      selectedProjectId.value = targetProjectId
+      localStorage.setItem(LAST_PROJECT_KEY, targetProjectId)
       await taskStore.fetchTasks(selectedProjectId.value)
       await iterationStore.fetchByProject(selectedProjectId.value)
-      // 默认选中 "26.3.0" 迭代
-      const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-      if (defaultIteration) {
-        selectedIterationId.value = defaultIteration.id
+      // Try to restore saved iteration or default to "26.3.0"
+      const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
+      const targetIteration = storedIterationId
+        ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
+        : null
+      if (targetIteration) {
+        selectedIterationId.value = Number(targetIteration.id)
+      } else {
+        const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+        if (defaultIteration) {
+          selectedIterationId.value = Number(defaultIteration.id)
+          localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+        }
       }
     }
   } catch (error) {
@@ -1458,6 +1611,7 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   overflow-x: auto;
+  padding-top: 16px;
 }
 
 .kanban-area :deep(.workflow-timeline) {
@@ -1721,7 +1875,7 @@ onUnmounted(() => {
 
 /* Chat Container */
 .chat-container {
-  width: 400px;
+  width: 600px;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -1790,16 +1944,18 @@ onUnmounted(() => {
   height: 100%;
   padding: 40px 20px;
   text-align: center;
-  color: var(--text-secondary);
+  background: var(--bg-secondary);
 }
 
 .welcome-icon {
   margin-bottom: 16px;
   color: var(--accent-color);
+  opacity: 0.4;
 }
 
 .chat-welcome h2 {
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 600;
   margin-bottom: 8px;
   color: var(--text-primary);
 }
@@ -1807,6 +1963,11 @@ onUnmounted(() => {
 .chat-welcome p {
   font-size: 13px;
   color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.chat-welcome strong {
+  color: var(--accent-color);
 }
 
 .chat-content {
@@ -1878,6 +2039,133 @@ onUnmounted(() => {
 .butler-worktree-delete:hover {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
+}
+
+/* Step Chat Mode - Unified with card style */
+.step-chat-mode {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-secondary);
+}
+
+.step-chat-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-color, #6366f1);
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  flex-shrink: 0;
+}
+
+.step-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-task-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-node-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.step-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.step-status-badge.step-done {
+  background: #10b98120;
+  color: #10b981;
+}
+
+.step-status-badge.step-in_progress {
+  background: #f59e0b20;
+  color: #f59e0b;
+}
+
+.step-status-badge.step-pending {
+  background: #94a3b820;
+  color: #94a3b8;
+}
+
+.step-status-badge.step-failed,
+.step-status-badge.step-rejected {
+  background: #ef444420;
+  color: #ef4444;
+}
+
+.step-node-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+
+.step-node-role {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.step-node-duration {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.step-chat-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Task Chat Placeholder */
+.task-chat-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  background: var(--bg-secondary);
+}
+
+.task-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px;
+}
+
+.task-placeholder-content svg {
+  color: var(--accent-color);
+  opacity: 0.3;
+}
+
+.task-placeholder-content p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.task-placeholder-content strong {
+  color: var(--accent-color);
 }
 
 /* Modal Styles */

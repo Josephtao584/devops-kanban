@@ -68,8 +68,8 @@ const tooltipContent = computed(() => {
 .session-header {
   display: flex;
   flex-direction: column;
-  background: var(--panel-bg, #171717);
-  border-bottom: 1px solid var(--border-color, #262626);
+  background: var(--panel-bg, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
 }
 
 .worktree-row {
@@ -77,8 +77,8 @@ const tooltipContent = computed(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--bg-tertiary, #1a1a1a);
-  border-bottom: 1px solid var(--border-color, #262626);
+  background: var(--bg-tertiary, #eeeeee);
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
 }
 
 .worktree-label {
@@ -89,8 +89,8 @@ const tooltipContent = computed(() => {
 
 .worktree-badge {
   font-size: 11px;
-  color: var(--text-secondary, #aaa);
-  background: var(--bg-secondary, #262626);
+  color: var(--text-secondary, #666666);
+  background: var(--bg-secondary, #f5f5f5);
   padding: 2px 8px;
   border-radius: 4px;
   white-space: nowrap;
@@ -117,7 +117,7 @@ const tooltipContent = computed(() => {
 .header-title {
   font-weight: 600;
   font-size: 14px;
-  color: var(--text-primary, #f0f0f0);
+  color: var(--text-primary, #333333);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -812,10 +812,7 @@ defineExpose({
   flex-direction: column;
   height: 100%;
   background-color: var(--bg-secondary);
-  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .chat-box.collapsed {

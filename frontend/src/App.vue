@@ -100,6 +100,10 @@ const toggleSidebar = () => {
   --scrollbar-thumb: #cccccc;
   --scrollbar-thumb-hover: #999999;
   --accent-color: #6366f1;
+  --panel-bg: #ffffff;
+  --message-bg: #f3f4f6;
+  --text-muted: #999999;
+  --input-border: #d1d5db;
 }
 
 * {
