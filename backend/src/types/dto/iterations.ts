@@ -1,5 +1,5 @@
 export interface CreateIterationInput {
-  project_id?: number;
+  project_id: number;
   name?: string;
   goal?: string;
   status?: string;
