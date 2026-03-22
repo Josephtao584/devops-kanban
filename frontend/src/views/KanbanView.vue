@@ -674,6 +674,14 @@ watch(selectedIterationId, (newValue) => {
   }
 })
 
+// Clear currentViewingNodeId when selected task becomes DONE
+watch(() => selectedTask.value?.status, (newStatus) => {
+  if (newStatus === 'DONE' && currentViewingNodeId.value) {
+    currentViewingNodeId.value = null
+    currentViewingNode.value = null
+  }
+})
+
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
