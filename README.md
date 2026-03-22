@@ -274,8 +274,6 @@ devops-kanban/
 │   ├── projects.json        # 项目数据
 │   ├── tasks.json           # 任务数据
 │   ├── requirements.json    # 需求数据
-│   ├── roles.json           # 角色数据
-│   ├── members.json         # 团队成员数据
 │   ├── sessions.json        # 会话数据
 │   ├── executions.json      # 执行记录数据
 │   ├── agents.json          # AI 代理数据
@@ -293,8 +291,6 @@ devops-kanban/
 │   │   │   ├── executions.js
 │   │   │   ├── agents.js
 │   │   │   ├── requirements.js
-│   │   │   ├── roles.js
-│   │   │   ├── members.js
 │   │   │   ├── iterations.js
 │   │   │   ├── git.js
 │   │   │   ├── taskWorktree.js
@@ -354,8 +350,6 @@ LOG_LEVEL=info
 | `/api/projects` | GET, POST, PUT, DELETE | 项目管理 |
 | `/api/tasks` | GET, POST, PUT, DELETE, PATCH | 任务管理 |
 | `/api/requirements` | GET, POST, PUT, DELETE | 需求管理 |
-| `/api/roles` | GET, POST, PUT, DELETE | 角色管理 |
-| `/api/members` | GET, POST, PUT, DELETE | 团队成员管理 |
 | `/api/agents` | GET, POST | AI 代理配置 |
 | `/api/sessions` | POST, GET, DELETE | 会话管理 |
 | `/api/executions` | GET, POST | 执行记录 |

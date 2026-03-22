@@ -18,8 +18,6 @@ test.test('root route preserves success, message, version and endpoint data shap
         taskSources: '/api/task-sources',
         executions: '/api/executions',
         agents: '/api/agents',
-        roles: '/api/roles',
-        members: '/api/members',
         workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',

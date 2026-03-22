@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { AgentRepository } from '../repositories/agentRepository.js';
+import type { CreateAgentBody, UpdateAgentBody } from '../types/dto/agents.js';
+import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-
-type ParamsWithId = { id: string };
 
 const agentRepo = new AgentRepository();
 
@@ -21,7 +21,7 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const agent = await agentRepo.findById(parseNumber(request.params.id));
       if (!agent) {
@@ -36,9 +36,9 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post('/', async (request, reply) => {
+  fastify.post<{ Body: CreateAgentBody }>('/', async (request, reply) => {
     try {
-      const agent = await agentRepo.create(request.body as Record<string, unknown>);
+      const agent = await agentRepo.create(request.body);
       return successResponse(agent, 'Agent created');
     } catch (error) {
       request.log.error(error);
@@ -47,9 +47,9 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams; Body: UpdateAgentBody }>('/:id', async (request, reply) => {
     try {
-      const updated = await agentRepo.update(parseNumber(request.params.id), request.body as Record<string, unknown>);
+      const updated = await agentRepo.update(parseNumber(request.params.id), request.body);
       if (!updated) {
         reply.code(404);
         return errorResponse('Agent not found');
@@ -62,7 +62,7 @@ export const agentRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const deleted = await agentRepo.delete(parseNumber(request.params.id));
       if (!deleted) {

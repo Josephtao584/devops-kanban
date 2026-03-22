@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { BaseEntity } from './base.js';
+import type { ProjectCreateRecord, ProjectUpdateRecord } from '../types/persistence/projects.js';
 import type { ProjectEntity } from '../types/entities.ts';
 import { TaskRepository } from './taskRepository.js';
 
@@ -12,7 +13,7 @@ interface ProjectStats extends StoredProjectEntity {
   done_count: number;
 }
 
-class ProjectRepository extends BaseRepository<StoredProjectEntity, Omit<ProjectEntity, 'id'>, Partial<ProjectEntity>> {
+class ProjectRepository extends BaseRepository<StoredProjectEntity, ProjectCreateRecord, ProjectUpdateRecord> {
   constructor() {
     super('projects.json');
   }

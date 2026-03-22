@@ -9,9 +9,7 @@ import {
   agentRoutes,
   executionRoutes,
   iterationRoutes,
-  memberRoutes,
   projectRoutes,
-  roleRoutes,
   sessionRoutes,
   taskRoutes,
   taskSourceRoutes,
@@ -49,8 +47,6 @@ export async function buildApp() {
         taskSources: '/api/task-sources',
         executions: '/api/executions',
         agents: '/api/agents',
-        roles: '/api/roles',
-        members: '/api/members',
         workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',
@@ -66,8 +62,6 @@ export async function buildApp() {
   fastify.register(taskSourceRoutes, { prefix: '/api/task-sources' });
   fastify.register(executionRoutes, { prefix: '/api/executions' });
   fastify.register(agentRoutes, { prefix: '/api/agents' });
-  fastify.register(roleRoutes, { prefix: '/api/roles' });
-  fastify.register(memberRoutes, { prefix: '/api/members' });
   fastify.register(workflowRoutes, { prefix: '/api/workflows' });
   fastify.register(workflowTemplateRoutes, { prefix: '/api/workflow-template' });
   fastify.register(iterationRoutes, { prefix: '/api/iterations' });

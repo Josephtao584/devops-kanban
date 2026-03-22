@@ -3,11 +3,20 @@ import { TaskRepository } from '../repositories/taskRepository.js';
 import { loadAdapterTypes } from '../config/taskSources.js';
 import { getAdapter, getAdapterMetadata } from '../sources/index.js';
 import type { TaskSourceLike } from '../sources/base.js';
-import type { ImportedTask, SourceRecord } from '../types/sources.ts';
+import type {
+  CreateTaskSourceInput,
+  UpdateTaskSourceInput,
+} from '../types/dto/taskSources.js';
+import type {
+  ImportedTask,
+  SourceRecord,
+  SourceTypeDefinition as SharedSourceTypeDefinition,
+  TaskSourceSyncResultItem,
+} from '../types/sources.ts';
 
 const READ_ONLY_ERROR_MESSAGE = 'Task sources are read-only and managed by configuration';
 
-type SourceTypeDefinition = Record<string, unknown> & { key: string };
+type SourceTypeDefinition = SharedSourceTypeDefinition;
 
 class TaskSourceService {
   repository: TaskSourceRepository;
@@ -19,7 +28,23 @@ class TaskSourceService {
   }
 
   async loadSources(): Promise<SourceRecord[]> {
-    return (await this.repository.findAll()) as unknown as SourceRecord[];
+    const records = await this.repository.findAll();
+    return records.map((record) => {
+      const source: SourceRecord = {
+        id: String(record.id),
+        type: record.type,
+        name: record.name,
+        project_id: record.project_id,
+        config: record.config,
+        enabled: record.enabled,
+      };
+
+      if (record.last_sync_at !== undefined) {
+        source.last_sync_at = record.last_sync_at;
+      }
+
+      return source;
+    });
   }
 
   async getAll() {
@@ -47,11 +72,11 @@ class TaskSourceService {
     return error;
   }
 
-  async create(_sourceData: Record<string, unknown>) {
+  async create(_sourceData: CreateTaskSourceInput) {
     throw this._buildReadOnlyError();
   }
 
-  async update(sourceId: string, sourceData: Record<string, unknown>) {
+  async update(sourceId: string, sourceData: UpdateTaskSourceInput) {
     const existing = await this.getById(sourceId);
     if (!existing) {
       return null;
@@ -78,7 +103,7 @@ class TaskSourceService {
     return await loadAdapterTypes();
   }
 
-  async sync(sourceId: string) {
+  async sync(sourceId: string): Promise<TaskSourceSyncResultItem[]> {
     const source = await this.getById(sourceId);
     if (!source) {
       const error = new Error('Task source not found') as Error & { statusCode?: number };
@@ -90,7 +115,7 @@ class TaskSourceService {
     const fetchedTasks = (await adapter.fetch()) as ImportedTask[];
     const projectId = source.project_id;
 
-    const createdTasks: Array<Record<string, unknown>> = [];
+    const createdTasks: TaskSourceSyncResultItem[] = [];
     for (const taskData of fetchedTasks) {
       const existing = await this.taskRepository.findByExternalId(taskData.external_id);
       if (existing) {
