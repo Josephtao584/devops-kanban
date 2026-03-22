@@ -1,12 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { TaskSourceService } from '../services/taskSourceService.js';
-import type { ImportedTask } from '../types/sources.ts';
+import type {
+  CreateTaskSourceInput,
+  TaskSourceImportBody,
+  UpdateTaskSourceInput,
+} from '../types/dto/taskSources.js';
+import type { IdParams } from '../types/http/params.js';
+import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-
-type ParamsWithId = { id: string };
-type QueryWithProjectId = { project_id?: string };
-type TaskSourceImportBody = { items?: ImportedTask[]; project_id?: number; iteration_id?: number | null };
 
 const taskSourceService = new TaskSourceService();
 
@@ -34,7 +36,7 @@ function handleTaskSourceError(reply: { code(statusCode: number): unknown }, err
 export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
   const getService = () => fastify.taskSourceService || taskSourceService;
 
-  fastify.get<{ Querystring: QueryWithProjectId }>('/', async (request, reply) => {
+  fastify.get<{ Querystring: ProjectIdQuery }>('/', async (request, reply) => {
     try {
       const { project_id } = request.query;
       if (!project_id) {
@@ -59,7 +61,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const source = await getService().getById(request.params.id);
       if (!source) {
@@ -73,9 +75,9 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post('/', async (request, reply) => {
+  fastify.post<{ Body: CreateTaskSourceInput }>('/', async (request, reply) => {
     try {
-      const source = await getService().create(request.body as Record<string, unknown>);
+      const source = await getService().create(request.body);
       return successResponse(source, 'Task source created successfully');
     } catch (error) {
       request.log.error(error);
@@ -83,9 +85,9 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams; Body: UpdateTaskSourceInput }>('/:id', async (request, reply) => {
     try {
-      const source = await getService().update(request.params.id, request.body as Record<string, unknown>);
+      const source = await getService().update(request.params.id, request.body);
       if (!source) {
         reply.code(404);
         return errorResponse('Task source not found');
@@ -97,7 +99,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const deleted = await getService().delete(request.params.id);
       if (!deleted) {
@@ -111,7 +113,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId }>('/:id/sync', async (request, reply) => {
+  fastify.post<{ Params: IdParams }>('/:id/sync', async (request, reply) => {
     try {
       const tasks = await getService().sync(request.params.id);
       return successResponse(tasks, 'Task source synced successfully');
@@ -121,7 +123,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId }>('/:id/sync/preview', async (request, reply) => {
+  fastify.post<{ Params: IdParams }>('/:id/sync/preview', async (request, reply) => {
     try {
       return successResponse(await getService().previewSync(request.params.id));
     } catch (error) {
@@ -130,7 +132,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId; Body: TaskSourceImportBody }>('/:id/sync/import', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body: TaskSourceImportBody }>('/:id/sync/import', async (request, reply) => {
     try {
       const { items, project_id, iteration_id } = request.body;
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -150,7 +152,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id/test', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id/test', async (request, reply) => {
     try {
       const connected = await getService().testConnection(request.params.id);
       return successResponse({ connected });

@@ -1,22 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 
-import { SessionService, type CreateSessionInput } from '../services/sessionService.js';
+import { SessionService } from '../services/sessionService.js';
+import type { ContinueSessionBody, CreateSessionInput } from '../types/dto/sessions.js';
+import type { IdParams, TaskIdParams } from '../types/http/params.js';
+import type { SessionFiltersQuery } from '../types/http/query.js';
+import type { BroadcastPayload, SessionChannel, WebSocketPayload } from '../types/ws/sessions.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
-type ParamsWithId = { id: string };
-type ParamsWithTaskId = { taskId: string };
-type SessionFiltersQuery = { taskId?: string; activeOnly?: string };
-type ContinueSessionBody = { input?: string };
-type WebSocketPayload = {
-  type?: string;
-  destination?: string;
-  session_id?: number;
-  channel?: 'output' | 'status';
-  input?: string;
-  body?: string | { input?: string };
-};
-
-type SessionChannel = 'output' | 'status';
 type SessionSubscriber = {
   readyState: number;
   send(message: string): void;
@@ -44,7 +34,7 @@ function parseNumber(value: string) {
   return Number.parseInt(value, 10);
 }
 
-function broadcastToSession(sessionId: number, channel: SessionChannel, data: Record<string, unknown>) {
+function broadcastToSession(sessionId: number, channel: SessionChannel, data: BroadcastPayload) {
   const subscriptions = sessionSubscriptions.get(sessionId);
   if (!subscriptions) {
     return;
@@ -102,7 +92,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.get<{ Params: ParamsWithTaskId }>('/sessions/task/:taskId/active', async (request) => {
+  fastify.get<{ Params: TaskIdParams }>('/sessions/task/:taskId/active', async (request) => {
     try {
       return successResponse(await service.getActiveByTask(parseNumber(request.params.taskId)));
     } catch (error) {
@@ -111,7 +101,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/sessions/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/sessions/:id', async (request, reply) => {
     try {
       const session = await service.getById(parseNumber(request.params.id));
       if (!session) {
@@ -126,9 +116,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.post('/sessions', async (request, reply) => {
+  fastify.post<{ Body: CreateSessionInput }>('/sessions', async (request, reply) => {
     try {
-      const session = await service.create((request.body as CreateSessionInput) || { task_id: 0 });
+      const session = await service.create(request.body || { task_id: 0 });
       return successResponse(session, 'Session created');
     } catch (error) {
       request.log.error(error);
@@ -138,7 +128,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId }>('/sessions/:id/start', async (request, reply) => {
+  fastify.post<{ Params: IdParams }>('/sessions/:id/start', async (request, reply) => {
     try {
       const session = await service.start(parseNumber(request.params.id), broadcastToSession);
       return successResponse(session, 'Session started');
@@ -149,7 +139,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId }>('/sessions/:id/stop', async (request, reply) => {
+  fastify.post<{ Params: IdParams }>('/sessions/:id/stop', async (request, reply) => {
     try {
       const session = await service.stop(parseNumber(request.params.id), broadcastToSession);
       return successResponse(session, 'Session stopped');
@@ -160,7 +150,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId; Body: ContinueSessionBody }>('/sessions/:id/continue', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body: ContinueSessionBody }>('/sessions/:id/continue', async (request, reply) => {
     try {
       const session = await service.continue(parseNumber(request.params.id), request.body.input || '', broadcastToSession);
       return successResponse(session, 'Session continued');
@@ -171,7 +161,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId; Body: ContinueSessionBody }>('/sessions/:id/input', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body: ContinueSessionBody }>('/sessions/:id/input', async (request, reply) => {
     try {
       await service.sendInput(parseNumber(request.params.id), request.body.input || '');
       return successResponse(null, 'Input sent');
@@ -182,7 +172,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/sessions/:id/output', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/sessions/:id/output', async (request, reply) => {
     try {
       const session = await service.getById(parseNumber(request.params.id));
       if (!session) {
@@ -197,7 +187,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/sessions/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/sessions/:id', async (request, reply) => {
     try {
       await service.delete(parseNumber(request.params.id), broadcastToSession);
       return successResponse(null, 'Session deleted');

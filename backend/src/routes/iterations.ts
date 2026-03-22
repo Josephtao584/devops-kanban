@@ -1,10 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { IterationService } from '../services/iterationService.js';
+import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/iterations.js';
+import type { IdParams } from '../types/http/params.js';
+import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
-type ParamsWithId = { id: string };
-type QueryWithProjectId = { project_id?: string };
 type StatusBody = { status?: string };
 
 const iterationService = new IterationService();
@@ -25,7 +26,7 @@ function parseNumber(value: string) {
 }
 
 export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get<{ Querystring: QueryWithProjectId }>('/', async (request, reply) => {
+  fastify.get<{ Querystring: ProjectIdQuery }>('/', async (request, reply) => {
     try {
       const { project_id } = request.query;
       if (!project_id) {
@@ -39,7 +40,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const iteration = await iterationService.getByIdWithStats(parseNumber(request.params.id));
       if (!iteration) {
@@ -54,7 +55,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id/tasks', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id/tasks', async (request, reply) => {
     try {
       const iterationId = parseNumber(request.params.id);
       if (!(await iterationService.exists(iterationId))) {
@@ -71,7 +72,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/', async (request, reply) => {
     try {
-      const iteration = await iterationService.create(request.body as Record<string, unknown>);
+      const iteration = await iterationService.create(request.body as CreateIterationInput);
       return successResponse(iteration, 'Iteration created successfully');
     } catch (error) {
       request.log.error(error);
@@ -85,9 +86,9 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
-      const updated = await iterationService.update(parseNumber(request.params.id), request.body as Record<string, unknown>);
+      const updated = await iterationService.update(parseNumber(request.params.id), request.body as UpdateIterationInput);
       if (!updated) {
         reply.code(404);
         return errorResponse('Iteration not found');
@@ -100,7 +101,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.patch<{ Params: ParamsWithId; Body: StatusBody }>('/:id/status', async (request, reply) => {
+  fastify.patch<{ Params: IdParams; Body: StatusBody }>('/:id/status', async (request, reply) => {
     try {
       const { status } = request.body;
       if (!status) {
@@ -120,7 +121,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const deleted = await iterationService.delete(parseNumber(request.params.id));
       if (!deleted) {
