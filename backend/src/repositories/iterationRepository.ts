@@ -6,7 +6,6 @@ import { TaskRepository, type TaskStatusCounts } from './taskRepository.js';
 interface IterationEntity extends BaseEntity {
   project_id: number;
   name?: string;
-  [key: string]: unknown;
 }
 
 interface IterationWithStats extends IterationEntity {

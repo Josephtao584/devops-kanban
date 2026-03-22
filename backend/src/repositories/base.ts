@@ -7,10 +7,11 @@ interface BaseEntity {
   created_at: string;
   updated_at: string;
   external_id?: string | null;
-  [key: string]: unknown;
 }
 
-class BaseRepository<T extends BaseEntity, TCreate extends Record<string, unknown> = Record<string, unknown>, TUpdate extends Record<string, unknown> = Partial<TCreate>> {
+type StoredEntity<TCreate extends object> = TCreate & BaseEntity;
+
+class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate extends object = Partial<TCreate>> {
   fileName: string;
   filepath: string;
 
@@ -63,16 +64,16 @@ class BaseRepository<T extends BaseEntity, TCreate extends Record<string, unknow
     const newId = this._getNextId(data);
     const now = new Date().toISOString();
 
-    const entity = ({
+    const entity: StoredEntity<TCreate> = {
       ...entityData,
       id: newId,
       created_at: now,
       updated_at: now,
-    } as unknown) as T;
+    };
 
-    data.push(entity);
+    data.push(entity as unknown as T);
     await this._saveAll(data);
-    return entity;
+    return entity as unknown as T;
   }
 
   async update(entityId: number, entityData: TUpdate): Promise<T | null> {
@@ -83,15 +84,11 @@ class BaseRepository<T extends BaseEntity, TCreate extends Record<string, unknow
       return null;
     }
 
-    const updateData: Record<string, unknown> = {};
-    for (const key of Object.keys(entityData)) {
-      const typedKey = key as keyof TUpdate;
-      const value = entityData[typedKey];
-      if (value !== undefined) {
-        updateData[key] = value;
-      }
-    }
-    updateData.updated_at = new Date().toISOString();
+    const definedEntries = Object.entries(entityData).filter(([, value]) => value !== undefined);
+    const updateData = {
+      ...Object.fromEntries(definedEntries),
+      updated_at: new Date().toISOString(),
+    } as Partial<TUpdate> & Pick<BaseEntity, 'updated_at'>;
 
     data[index] = { ...data[index], ...updateData } as T;
     await this._saveAll(data);
