@@ -605,7 +605,7 @@ import {
   getOrCreateWorkflowForProject,
   addNodeToWorkflow
 } from '../mock/workflowData'
-import { reorderTasks } from '../api/task.js'
+import { reorderTasks, startTask } from '../api/task.js'
 import { deleteTaskWorktree } from '../api/taskWorktree.js'
 
 const { t } = useI18n()
@@ -950,7 +950,24 @@ const handleWorkflowAction = (payload) => {
     // Simple action string
     const action = payload
     if (action === 'start') {
-      // Handle start - find the task and emit
+      if (selectedTask.value) {
+        startTask(selectedTask.value.id)
+          .then((response) => {
+            if (response.success) {
+              ElMessage.success('任务已启动')
+              // Refresh task data
+              if (selectedProjectId.value) {
+                taskStore.fetchTasks(selectedProjectId.value)
+              }
+            } else {
+              ElMessage.error(response.message || '启动失败')
+            }
+          })
+          .catch((error) => {
+            console.error('启动任务失败:', error)
+            ElMessage.error('启动失败')
+          })
+      }
     } else if (action === 'pause') {
       // Handle pause
     } else if (action === 'diff') {

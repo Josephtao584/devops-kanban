@@ -87,6 +87,18 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
+  fastify.get<{ Params: TaskIdParams }>('/sessions/task/:taskId/history', async (request, reply) => {
+    try {
+      const taskId = parseNumber(request.params.taskId);
+      const includeOutput = request.query.includeOutput !== 'false';
+      const sessions = await service.getHistoryByTask(taskId, includeOutput);
+      return successResponse(sessions);
+    } catch (error) {
+      request.log.error(error);
+      return errorResponse('Failed to get session history');
+    }
+  });
+
   fastify.get<{ Params: IdParams }>('/sessions/:id', async (request, reply) => {
     try {
       const session = await service.getById(parseNumber(request.params.id));

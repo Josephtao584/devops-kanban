@@ -61,6 +61,15 @@ class SessionService {
     return await this.sessionRepo.getActiveByTask(taskId);
   }
 
+  async getHistoryByTask(taskId: number, includeOutput = true) {
+    const sessions = await this.sessionRepo.getByTask(taskId);
+    if (!includeOutput) {
+      // Return sessions without output field for lighter payload
+      return sessions.map(({ output: _output, ...session }) => session);
+    }
+    return sessions;
+  }
+
   async create(sessionData: CreateSessionInput) {
     const task = await this.taskService.getById(sessionData.task_id) as TaskLike | null;
     if (!task) {

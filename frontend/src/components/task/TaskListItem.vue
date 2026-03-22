@@ -92,15 +92,24 @@
       </div>
     </div>
 
-    <!-- Workflow expanded content (shown when workflow is expanded) -->
-    <div v-if="workflowExpanded && (workflowData || task.workflow_run_id)" class="workflow-expanded-content" @click.stop>
+    <!-- Workflow expanded content (shown when task is expanded) -->
+    <div v-if="workflowExpanded" class="workflow-expanded-content" @click.stop>
       <div class="workflow-main">
-        <div class="workflow-section workflow-progress-bar">
+        <div v-if="workflowData || task.workflow_run_id" class="workflow-section workflow-progress-bar">
           <span class="workflow-status" :class="'status-' + workflowStatus">{{ workflowStatusText }}</span>
           <div class="progress-bar">
             <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
           </div>
           <span class="progress-text">{{ completed }}/{{ total }}</span>
+          <button
+            class="workflow-refresh-btn"
+            @click.stop="refreshWorkflowRun"
+            title="刷新状态"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'icon-spin': refreshLoading }">
+              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+            </svg>
+          </button>
           <button
             class="workflow-collapse-btn"
             @click.stop="$emit('toggle-workflow', task.id)"
@@ -112,6 +121,17 @@
             </svg>
           </button>
         </div>
+        <button
+          v-else
+          class="workflow-collapse-btn"
+          @click.stop="$emit('toggle-workflow', task.id)"
+          title="收起"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M19 18l-6-6 6-6"></path>
+          </svg>
+        </button>
 
         <div v-if="currentNode" class="workflow-section node-detail">
           <span class="node-detail-name">{{ currentNode.name }}</span>
@@ -198,13 +218,14 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { getWorkflowProgress, getWorkflowByTask } from '../../mock/workflowData'
+import { getWorkflowRun } from '../../api/workflow'
 import InlineWorkflowPanel from '../workflow/InlineWorkflowPanel.vue'
 import PriorityBadge from '../common/PriorityBadge.vue'
 
@@ -275,6 +296,42 @@ const { t } = useI18n()
 const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, handleWorktree: handleWorktreeAction } = useWorktree()
 const { getStatusClass } = useStatusStyle()
 
+// Real workflow run data from API
+const realWorkflowRun = ref(null)
+const refreshLoading = ref(false)
+
+// Fetch real workflow run when task is expanded and has workflow_run_id
+watch(() => [props.workflowExpanded, props.task?.workflow_run_id], async ([expanded, runId]) => {
+  if (expanded && runId) {
+    try {
+      const response = await getWorkflowRun(runId)
+      if (response.success) {
+        realWorkflowRun.value = response.data
+      }
+    } catch (error) {
+      console.error('Failed to fetch workflow run:', error)
+    }
+  } else {
+    realWorkflowRun.value = null
+  }
+}, { immediate: true })
+
+// Refresh workflow run
+const refreshWorkflowRun = async () => {
+  if (!props.task?.workflow_run_id) return
+  refreshLoading.value = true
+  try {
+    const response = await getWorkflowRun(props.task.workflow_run_id)
+    if (response.success) {
+      realWorkflowRun.value = response.data
+    }
+  } catch (error) {
+    console.error('Failed to refresh workflow run:', error)
+  } finally {
+    refreshLoading.value = false
+  }
+}
+
 // Computed
 const worktreeLoading = computed(() => isWorktreeLoading(props.task.id))
 const worktreeClass = computed(() => getWorktreeClass(props.task))
@@ -293,6 +350,25 @@ const statusClass = computed(() => getStatusClass(props.task.status))
 // Workflow data - either from prop or computed from task
 const workflowData = computed(() => {
   if (props.workflow) return props.workflow
+  // Use real workflow run data if available
+  if (realWorkflowRun.value) {
+    // Transform real workflow run steps to stages format (one step = one stage)
+    const steps = realWorkflowRun.value.steps || []
+    return {
+      stages: steps.map((step, index) => ({
+        id: step.step_id,
+        name: step.name,
+        order: index,
+        nodes: [{
+          id: step.step_id,
+          name: step.name,
+          status: step.status,
+          started_at: step.started_at,
+          completed_at: step.completed_at,
+        }]
+      }))
+    }
+  }
   if (props.task?.id) {
     return getWorkflowByTask(props.task.id)
   }
@@ -302,16 +378,38 @@ const workflowData = computed(() => {
 // Current node - from prop or computed from currentNodeId
 const currentNode = computed(() => {
   if (props.currentNode) return props.currentNode
-  if (!props.currentNodeId || !workflowData.value?.stages) return null
-  for (const stage of workflowData.value.stages) {
-    const node = stage.nodes?.find(n => n.id === props.currentNodeId)
-    if (node) return node
+  if (!workflowData.value?.stages) return null
+  // If we have real workflow run data, use current_step
+  if (realWorkflowRun.value?.current_step) {
+    for (const stage of workflowData.value.stages) {
+      const node = stage.nodes?.find(n => n.id === realWorkflowRun.value.current_step)
+      if (node) return node
+    }
+  }
+  // Fallback to currentNodeId prop
+  if (props.currentNodeId) {
+    for (const stage of workflowData.value.stages) {
+      const node = stage.nodes?.find(n => n.id === props.currentNodeId)
+      if (node) return node
+    }
   }
   return null
 })
 
 // Workflow progress computation
 const workflowProgress = computed(() => {
+  // Use real workflow run data from API if available
+  if (realWorkflowRun.value) {
+    const steps = realWorkflowRun.value.steps || []
+    // API returns 'COMPLETED' not 'DONE'
+    const completed = steps.filter(s => s.status === 'COMPLETED' || s.status === 'DONE').length
+    const total = steps.length
+    return {
+      completed,
+      total,
+      percent: total > 0 ? Math.round((completed / total) * 100) : 0
+    }
+  }
   if (!workflowData.value) return { completed: 0, total: 0, percent: 0 }
   return getWorkflowProgress(workflowData.value)
 })
@@ -335,7 +433,19 @@ const getStatusText = (status) => {
 
 // Workflow status computation
 const workflowStatus = computed(() => {
-  if (!workflowData.value) return 'pending'
+  // Use real workflow run data from API if available
+  if (realWorkflowRun.value) {
+    const status = realWorkflowRun.value.status
+    if (status === 'RUNNING' || status === 'PENDING') return 'running'
+    if (status === 'COMPLETED') return 'done'
+    if (status === 'FAILED') return 'failed'
+    if (status === 'CANCELLED') return 'paused'
+  }
+  if (!workflowData.value) {
+    // If task has workflow_run_id but no mock data, show as running
+    if (props.task?.workflow_run_id) return 'running'
+    return 'pending'
+  }
   const { completed, total } = workflowProgress.value
   if (completed === 0) return 'pending' // 待启动
   if (completed === total) return 'done' // 完成
@@ -950,6 +1060,31 @@ const openWorktreeDirectory = () => {
   background: #e0e7ff;
   border-color: #6366f1;
   transform: translateX(-1px);
+}
+
+.workflow-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.workflow-refresh-btn:hover {
+  color: #6366f1;
+  background: #eef2ff;
+}
+
+.workflow-refresh-btn .icon-spin {
+  animation: spin 1s linear infinite;
 }
 
 /* Loading animation */
