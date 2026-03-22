@@ -1,11 +1,15 @@
-class CodexExecutor {
-  runImpl: ((input: unknown) => Promise<{ summary: string }> | { summary: string }) | undefined;
+import type { Executor, ExecutorExecutionInput, ExecutorExecutionResult, ExecutorRawResult } from '../../../types/executors.js';
 
-  constructor({ runImpl }: { runImpl?: (input: unknown) => Promise<{ summary: string }> | { summary: string } } = {}) {
+type ExecutorRunImpl = (input: ExecutorExecutionInput) => Promise<ExecutorRawResult> | ExecutorRawResult;
+
+class CodexExecutor implements Executor {
+  runImpl: ExecutorRunImpl | undefined;
+
+  constructor({ runImpl }: { runImpl?: ExecutorRunImpl } = {}) {
     this.runImpl = runImpl;
   }
 
-  async execute(input: unknown) {
+  async execute(input: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     if (!this.runImpl) {
       throw new Error('Codex executor is not implemented');
     }

@@ -1,6 +1,7 @@
 import { ClaudeStepRunner } from './claudeStepRunner.js';
+import type { Executor, ExecutorExecutionInput, ExecutorExecutionResult } from '../../../types/executors.js';
 
-class ClaudeCodeExecutor {
+class ClaudeCodeExecutor implements Executor {
   runner: ClaudeStepRunner;
 
   constructor({ runner = new ClaudeStepRunner() }: { runner?: ClaudeStepRunner } = {}) {
@@ -10,14 +11,9 @@ class ClaudeCodeExecutor {
   async execute({
     prompt,
     worktreePath,
-    executorConfig = {},
+    executorConfig,
     onSpawn,
-  }: {
-    prompt: string;
-    worktreePath: string;
-    executorConfig?: unknown;
-    onSpawn?: ((proc: unknown) => void) | undefined;
-  }) {
+  }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
@@ -29,7 +25,7 @@ class ClaudeCodeExecutor {
       exitCode: result.exitCode,
       stdout: result.stdout,
       stderr: result.stderr,
-      proc: result.proc,
+      proc: result.proc as ExecutorExecutionResult['proc'],
       rawResult: result.parsedResult,
     };
   }

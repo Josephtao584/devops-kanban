@@ -2,21 +2,18 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import Fastify from 'fastify';
 
+import type { TaskSourceServiceContract } from '../../src/types/fastify.ts';
+import type {
+  ImportedTask,
+  PreviewImportedTask,
+  SourceRecord,
+  SourceTypeDefinition,
+  TaskSourceImportResult,
+} from '../../src/types/sources.ts';
 import { taskSourceRoutes } from '../../src/routes/taskSources.js';
 import { READ_ONLY_ERROR_MESSAGE } from '../../src/services/taskSourceService.js';
 
-type TaskSourceServiceStub = {
-  getByProject: (projectId: number) => Promise<unknown[]>;
-  getById: (sourceId: string) => Promise<unknown>;
-  getAvailableSourceTypes: () => Promise<Record<string, unknown>>;
-  create: (source: Record<string, unknown>) => Promise<unknown>;
-  update: (sourceId: string, source: Record<string, unknown>) => Promise<unknown>;
-  delete: (sourceId: string) => Promise<unknown>;
-  sync: (sourceId: string) => Promise<unknown>;
-  previewSync: (sourceId: string) => Promise<unknown>;
-  importIssues: (sourceId: string, items: unknown[], projectId: number, iterationId?: number | null) => Promise<unknown>;
-  testConnection: (sourceId: string) => Promise<boolean>;
-};
+type TaskSourceServiceStub = TaskSourceServiceContract;
 
 function buildReadOnlyError() {
   const error = new Error(READ_ONLY_ERROR_MESSAGE) as Error & { statusCode?: number };
@@ -30,7 +27,7 @@ function buildApp(serviceOverrides: Partial<TaskSourceServiceStub> = {}) {
     getByProject: async () => [],
     getById: async () => null,
     getAvailableSourceTypes: async () => ({
-      REQUIREMENT: { type: 'REQUIREMENT', name: '需求池' },
+      REQUIREMENT: { key: 'REQUIREMENT', name: '需求池' },
     }),
     create: async () => { throw buildReadOnlyError(); },
     update: async () => { throw buildReadOnlyError(); },
@@ -50,9 +47,9 @@ function buildApp(serviceOverrides: Partial<TaskSourceServiceStub> = {}) {
 test.test('route module registers and returns project sources', async () => {
   const seenProjectIds: number[] = [];
   const { app } = buildApp({
-    getByProject: async (projectId: number) => {
+    getByProject: async (projectId: number): Promise<SourceRecord[]> => {
       seenProjectIds.push(projectId);
-      return [{ id: 'requirement-orders', project_id: projectId, type: 'REQUIREMENT', config: {} }];
+      return [{ id: 'requirement-orders', project_id: projectId, type: 'REQUIREMENT', name: 'Orders', config: {} }];
     },
   });
 
@@ -63,12 +60,12 @@ test.test('route module registers and returns project sources', async () => {
   assert.equal(response.statusCode, 200);
   assert.deepEqual(seenProjectIds, [12]);
   assert.equal(payload.success, true);
-  assert.deepEqual(payload.data, [{ id: 'requirement-orders', project_id: 12, type: 'REQUIREMENT', config: {} }]);
+  assert.deepEqual(payload.data, [{ id: 'requirement-orders', project_id: 12, type: 'REQUIREMENT', name: 'Orders', config: {} }]);
 });
 
 test.test('GET /types/available is not shadowed by /:id', async () => {
   const { app } = buildApp({
-    getAvailableSourceTypes: async () => ({
+    getAvailableSourceTypes: async (): Promise<Record<string, SourceTypeDefinition>> => ({
       REQUIREMENT: { key: 'REQUIREMENT', name: '需求池', description: 'From config' },
       TICKET: { key: 'TICKET', name: '工单系统', description: 'From config' },
     }),

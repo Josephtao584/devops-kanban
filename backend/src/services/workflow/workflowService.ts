@@ -3,6 +3,7 @@ import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { getDevWorkflow, buildWorkflowSharedState } from './workflows.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
+import type { ExecutorProcessHandle } from '../../types/executors.js';
 
 const STEP_DEFINITIONS = [
   { step_id: 'requirement-design', name: '需求设计' },
@@ -11,30 +12,46 @@ const STEP_DEFINITIONS = [
   { step_id: 'code-review', name: '代码审查' },
 ] as const;
 
-interface ActiveRunContext {
-  cancel?: () => void;
-  proc?: { kill?: (signal: string) => void } | null;
-  context?: {
-    cancelled?: boolean;
-    proc?: { kill?: (signal: string) => void } | null;
-    worktreePath?: string;
-  };
+interface WorkflowTaskRecord {
+  id: number;
+  project_id: number;
+  title?: string;
+  description?: string;
+  worktree_path?: string | null;
+  worktree_branch?: string | null;
 }
 
-type WorkflowStreamEvent = {
+interface WorkflowExecutionContext {
+  cancelled?: boolean;
+  proc?: ExecutorProcessHandle | null;
+  worktreePath?: string;
+}
+
+interface ActiveRunContext {
+  cancel?: () => void;
+  proc?: ExecutorProcessHandle | null;
+  context?: WorkflowExecutionContext;
+}
+
+interface WorkflowStreamEvent {
   type: string;
   payload?: {
     stepName?: string;
-    result?: unknown;
+    result?: Record<string, unknown>;
     error?: string;
   };
-};
+}
 
-type WorkflowRunResult = {
+interface WorkflowRunResult {
   status: string;
   result?: Record<string, unknown>;
   error?: string;
-};
+}
+
+interface WorkflowStreamHandle {
+  fullStream: AsyncIterable<WorkflowStreamEvent>;
+  result: Promise<WorkflowRunResult>;
+}
 
 class WorkflowService {
   workflowRunRepo: WorkflowRunRepository;
@@ -50,14 +67,14 @@ class WorkflowService {
   }
 
   async startWorkflow(taskId: number) {
-    const task = await this.taskRepo.findById(taskId);
+    const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
       error.statusCode = 404;
       throw error;
     }
 
-    const executionPath = await this._resolveExecutionPath(task as { worktree_path?: string | null; project_id: number });
+    const executionPath = await this._resolveExecutionPath(task);
     const existing = await this.workflowRunRepo.findByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
       const error = new Error('Task already has an active workflow run') as Error & { statusCode?: number };
@@ -83,19 +100,19 @@ class WorkflowService {
       current_step: null,
       steps,
       worktree_path: executionPath,
-      branch: (task as { worktree_branch?: string | null }).worktree_branch || `task/${taskId}`,
+      branch: task.worktree_branch || `task/${taskId}`,
       context: {},
     });
 
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
-    this._executeWorkflow(run.id, { ...(task as Record<string, unknown>), execution_path: executionPath }).catch((err) => {
+    this._executeWorkflow(run.id, { ...task, execution_path: executionPath }).catch((err) => {
       console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
     });
 
     return run;
   }
 
-  async _resolveExecutionPath(task: { worktree_path?: string | null; project_id: number }) {
+  async _resolveExecutionPath(task: Pick<WorkflowTaskRecord, 'project_id' | 'worktree_path'>) {
     if (task.worktree_path) {
       return task.worktree_path;
     }
@@ -110,7 +127,7 @@ class WorkflowService {
     throw error;
   }
 
-  _buildInitialWorkflowState(task: { title?: string; description?: string; execution_path: string }) {
+  _buildInitialWorkflowState(task: Pick<WorkflowTaskRecord, 'title' | 'description'> & { execution_path: string }) {
     return buildWorkflowSharedState({
       taskTitle: task.title || 'Untitled Task',
       taskDescription: task.description || '',
@@ -118,28 +135,25 @@ class WorkflowService {
     });
   }
 
-  async _executeWorkflow(runId: number, task: Record<string, unknown>) {
-    let cancelled = false;
+  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }) {
     this._activeRuns.set(runId, {
-      cancel: () => {
-        cancelled = true;
-      },
+      cancel: () => {},
     });
 
     try {
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
       const workflow = getDevWorkflow();
       const inputData = {
-        taskId: task.id as number,
-        taskTitle: (task.title as string | undefined) || 'Untitled Task',
-        taskDescription: (task.description as string | undefined) || '',
-        worktreePath: task.execution_path as string,
+        taskId: task.id,
+        taskTitle: task.title || 'Untitled Task',
+        taskDescription: task.description || '',
+        worktreePath: task.execution_path,
       };
-      const initialState = this._buildInitialWorkflowState(task as { title?: string; description?: string; execution_path: string });
+      const initialState = this._buildInitialWorkflowState(task);
 
-      const context = {
+      const context: WorkflowExecutionContext = {
         cancelled: false,
-        proc: null as { kill?: (signal: string) => void } | null,
+        proc: null,
         worktreePath: inputData.worktreePath,
       };
 
@@ -152,10 +166,7 @@ class WorkflowService {
       });
 
       const mastraRun = await workflow.createRun();
-      const stream = await runWithWorkflowExecutionContext(context, async () => mastraRun.stream({ inputData, initialState })) as {
-        fullStream: AsyncIterable<WorkflowStreamEvent>;
-        result: Promise<WorkflowRunResult>;
-      };
+      const stream = await runWithWorkflowExecutionContext(context, async () => mastraRun.stream({ inputData, initialState })) as WorkflowStreamHandle;
 
       for await (const event of stream.fullStream) {
         if (event.type === 'workflow-step-start' && event.payload?.stepName) {
@@ -194,9 +205,9 @@ class WorkflowService {
       if (result.status === 'success') {
         await this.workflowRunRepo.update(runId, {
           status: 'COMPLETED',
-          context: (result.result || {}) as Record<string, unknown>,
+          context: result.result || {},
         });
-        await this.taskRepo.update(task.id as number, { status: 'DONE' });
+        await this.taskRepo.update(task.id, { status: 'DONE' });
       } else {
         await this.workflowRunRepo.update(runId, {
           status: 'FAILED',

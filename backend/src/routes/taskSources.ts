@@ -1,11 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { TaskSourceService } from '../services/taskSourceService.js';
+import type { ImportedTask } from '../types/sources.ts';
 import { successResponse, errorResponse } from '../utils/response.js';
 
 type ParamsWithId = { id: string };
 type QueryWithProjectId = { project_id?: string };
-type TaskSourceImportBody = { items?: unknown[]; project_id?: number; iteration_id?: number | null };
+type TaskSourceImportBody = { items?: ImportedTask[]; project_id?: number; iteration_id?: number | null };
 
 const taskSourceService = new TaskSourceService();
 
