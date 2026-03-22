@@ -4,12 +4,9 @@ import { AgentRepository } from '../repositories/agentRepository.js';
 import type { CreateAgentBody, UpdateAgentBody } from '../types/dto/agents.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { parseNumber } from '../utils/http.js';
 
 const agentRepo = new AgentRepository();
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 export const agentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', async (request) => {

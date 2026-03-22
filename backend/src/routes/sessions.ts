@@ -6,6 +6,7 @@ import type { IdParams, TaskIdParams } from '../types/http/params.js';
 import type { SessionFiltersQuery } from '../types/http/query.js';
 import type { BroadcastPayload, SessionChannel, WebSocketPayload } from '../types/ws/sessions.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 type SessionSubscriber = {
   readyState: number;
@@ -18,21 +19,6 @@ type SessionRouteOptions = { service?: SessionService };
 
 const sessionService = new SessionService();
 const sessionSubscriptions = new Map<number, SessionSubscriptions>();
-
-function getStatusCode(error: unknown, fallback = 500) {
-  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
-    return error.statusCode;
-  }
-  return fallback;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 function broadcastToSession(sessionId: number, channel: SessionChannel, data: BroadcastPayload) {
   const subscriptions = sessionSubscriptions.get(sessionId);

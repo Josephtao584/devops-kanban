@@ -5,27 +5,13 @@ import type { CreateTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 type QueryWithTaskFilters = ProjectIdQuery & { iteration_id?: string };
 type StatusBody = { status?: string };
 type ReorderRequestBody = { updates?: Array<{ id?: number; order?: number }> };
 
 const taskService = new TaskService();
-
-function getStatusCode(error: unknown, fallback = 500) {
-  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
-    return error.statusCode;
-  }
-  return fallback;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 export const taskRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: QueryWithTaskFilters }>('/', async (request) => {

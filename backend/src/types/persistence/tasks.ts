@@ -1,4 +1,4 @@
-export interface TaskCreateRecord extends Record<string, unknown> {
+export interface TaskCreateRecord {
   title: string;
   description?: string | undefined;
   project_id: number;
@@ -18,7 +18,7 @@ export interface TaskCreateRecord extends Record<string, unknown> {
   worktree_status?: string | null | undefined;
 }
 
-export interface TaskUpdateRecord extends Record<string, unknown> {
+export interface TaskUpdateRecord {
   title?: string | undefined;
   description?: string | undefined;
   project_id?: number | undefined;

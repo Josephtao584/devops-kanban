@@ -5,23 +5,9 @@ import { WorkflowService } from '../services/workflow/workflowService.js';
 import type { IdParams } from '../types/http/params.js';
 import type { TaskIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 const workflowService = new WorkflowService();
-
-function getStatusCode(error: unknown, fallback = 500) {
-  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
-    return error.statusCode;
-  }
-  return fallback;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 const workflowRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: StartWorkflowBody }>('/run', async (request, reply) => {

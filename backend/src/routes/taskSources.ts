@@ -9,23 +9,9 @@ import type {
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 const taskSourceService = new TaskSourceService();
-
-function getStatusCode(error: unknown, fallback = 500) {
-  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
-    return error.statusCode;
-  }
-  return fallback;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 function handleTaskSourceError(reply: { code(statusCode: number): unknown }, error: unknown, fallbackMessage: string) {
   const statusCode = getStatusCode(error);

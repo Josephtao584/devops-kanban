@@ -5,25 +5,11 @@ import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/it
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 type StatusBody = { status?: string };
 
 const iterationService = new IterationService();
-
-function getStatusCode(error: unknown, fallback = 500) {
-  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
-    return error.statusCode;
-  }
-  return fallback;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: ProjectIdQuery }>('/', async (request, reply) => {
