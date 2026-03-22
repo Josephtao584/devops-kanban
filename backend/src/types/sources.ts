@@ -10,6 +10,10 @@ export interface SourceDefinition extends Record<string, unknown> {
   transforms?: Record<string, string | Record<string, unknown>>;
 }
 
+export interface SourceTypeDefinition extends Omit<SourceDefinition, 'type'> {
+  key: string;
+}
+
 export interface SourceRegistryEntry {
   type: string;
   kind: 'class' | 'config';
@@ -33,4 +37,14 @@ export interface ImportedTask {
   external_url?: string;
   labels?: string[];
   [key: string]: unknown;
+}
+
+export interface PreviewImportedTask extends ImportedTask {
+  imported: boolean;
+}
+
+export interface TaskSourceImportResult {
+  created: number;
+  skipped: number;
+  total: number;
 }

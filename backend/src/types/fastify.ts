@@ -1,5 +1,13 @@
 import 'fastify';
 
+import type {
+  ImportedTask,
+  PreviewImportedTask,
+  SourceRecord,
+  SourceTypeDefinition,
+  TaskSourceImportResult,
+} from './sources.ts';
+
 export interface FastifyRuntimeConfig {
   SERVER_PORT: number;
   SERVER_HOST: string;
@@ -8,15 +16,15 @@ export interface FastifyRuntimeConfig {
 }
 
 export interface TaskSourceServiceContract {
-  getByProject(projectId: number): Promise<unknown>;
-  getById(sourceId: string): Promise<unknown>;
-  getAvailableSourceTypes(): Promise<unknown>;
-  create(source: Record<string, unknown>): Promise<unknown>;
-  update(sourceId: string, source: Record<string, unknown>): Promise<unknown>;
-  delete(sourceId: string): Promise<unknown>;
-  sync(sourceId: string): Promise<unknown>;
-  previewSync(sourceId: string): Promise<unknown>;
-  importIssues(sourceId: string, items: unknown[], projectId: number, iterationId?: number | null): Promise<unknown>;
+  getByProject(projectId: number): Promise<SourceRecord[]>;
+  getById(sourceId: string): Promise<SourceRecord | null>;
+  getAvailableSourceTypes(): Promise<Record<string, SourceTypeDefinition>>;
+  create(source: Record<string, unknown>): Promise<SourceRecord>;
+  update(sourceId: string, source: Record<string, unknown>): Promise<SourceRecord | null>;
+  delete(sourceId: string): Promise<SourceRecord | null>;
+  sync(sourceId: string): Promise<Record<string, unknown>[]>;
+  previewSync(sourceId: string): Promise<PreviewImportedTask[]>;
+  importIssues(sourceId: string, items: ImportedTask[], projectId: number, iterationId?: number | null): Promise<TaskSourceImportResult>;
   testConnection(sourceId: string): Promise<boolean>;
 }
 

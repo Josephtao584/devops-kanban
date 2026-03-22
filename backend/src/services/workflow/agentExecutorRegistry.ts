@@ -1,11 +1,12 @@
 import { ClaudeCodeExecutor } from './executors/claudeCodeExecutor.js';
 import { CodexExecutor } from './executors/codexExecutor.js';
 import { OpenCodeExecutor } from './executors/opencodeExecutor.js';
+import type { Executor, ExecutorMap, ExecutorType } from '../../types/executors.js';
 
 class AgentExecutorRegistry {
-  executors: Record<string, unknown>;
+  executors: ExecutorMap;
 
-  constructor({ executors }: { executors?: Record<string, unknown> } = {}) {
+  constructor({ executors }: { executors?: ExecutorMap } = {}) {
     this.executors = executors || {
       CLAUDE_CODE: new ClaudeCodeExecutor(),
       CODEX: new CodexExecutor(),
@@ -13,14 +14,12 @@ class AgentExecutorRegistry {
     };
   }
 
-  getExecutor(type: string) {
+  getExecutor(type: ExecutorType): Executor {
     const executor = this.executors[type];
     if (!executor) {
       throw new Error(`Unsupported executor type: ${type}`);
     }
-    return executor as {
-      execute: (input: unknown) => Promise<unknown>;
-    };
+    return executor;
   }
 }
 

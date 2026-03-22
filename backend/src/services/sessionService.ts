@@ -34,6 +34,11 @@ type BroadcastPayload = {
 
 type BroadcastFn = (sessionId: number, channel: 'output' | 'status', payload: BroadcastPayload) => void;
 
+type CreateSessionInput = {
+  task_id: number;
+  initial_prompt?: string | null;
+};
+
 class SessionService {
   sessionRepo: SessionRepository;
   taskService: TaskService;
@@ -69,7 +74,7 @@ class SessionService {
     return await this.sessionRepo.getActiveByTask(taskId);
   }
 
-  async create(sessionData: Record<string, unknown> & { task_id: number; initial_prompt?: string | null }) {
+  async create(sessionData: CreateSessionInput) {
     const task = await this.taskService.getById(sessionData.task_id) as TaskLike | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -316,4 +321,5 @@ class SessionService {
   }
 }
 
+export type { CreateSessionInput };
 export { SessionService };
