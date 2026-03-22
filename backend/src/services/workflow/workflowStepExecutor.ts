@@ -2,6 +2,7 @@ import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { adaptStepResult } from './stepResultAdapter.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
+import type { ExecutorConfig, ExecutorExecutionResult, ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
 const defaultTemplateService = new WorkflowTemplateService();
@@ -9,7 +10,7 @@ const defaultTemplateService = new WorkflowTemplateService();
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
   templateService?: WorkflowTemplateService;
-  context?: { proc?: unknown } | undefined;
+  context?: { proc?: ExecutorProcessHandle | null } | undefined;
   stepId: string;
   worktreePath: string;
   state: {
@@ -45,21 +46,21 @@ export async function executeWorkflowStep({
     upstreamStepIds,
   });
 
-  const executor = registry.getExecutor(step.executor.type);
-  const execution = await executor.execute({
+  const executor = registry.getExecutor(step.executor.type as ExecutorType);
+  const execution: ExecutorExecutionResult = await executor.execute({
     prompt,
     worktreePath,
-    executorConfig: step.executor,
-    onSpawn: (proc: unknown) => {
+    executorConfig: step.executor as ExecutorConfig,
+    onSpawn: (proc) => {
       if (context) {
-        context.proc = proc;
+        context.proc = proc as ExecutorProcessHandle;
       }
     },
-  }) as { proc?: unknown; rawResult?: { summary: string } };
+  });
 
-  if (context && execution?.proc) {
+  if (context) {
     context.proc = execution.proc;
   }
 
-  return adaptStepResult(step.executor.type, execution as { rawResult?: { summary: string } });
+  return adaptStepResult(step.executor.type, execution);
 }

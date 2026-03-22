@@ -1,6 +1,7 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { executeWorkflowStep } from '../src/services/workflow/workflowStepExecutor.js';
+import type { ExecutorExecutionInput, ExecutorMap, ExecutorProcessHandle, ExecutorRawResult } from '../src/types/executors.js';
 
 const sharedState = {
   taskTitle: '测试任务',
@@ -9,8 +10,8 @@ const sharedState = {
 };
 
 test.test('executeWorkflowStep selects executor from global template for the current step', async () => {
-  const proc = { pid: 123 };
-  const context: { proc?: unknown } = {};
+  const proc: ExecutorProcessHandle = { pid: 123 } as ExecutorProcessHandle;
+  const context: { proc?: ExecutorProcessHandle | null } = {};
   const templateService = {
     async getTemplate() {
       return {
@@ -27,14 +28,15 @@ test.test('executeWorkflowStep selects executor from global template for the cur
     },
   };
   const registry = {
-    getExecutor(type: string) {
+    getExecutor(type: keyof ExecutorMap) {
       assert.equal(type, 'CODEX');
       return {
-        async execute({ prompt, worktreePath, onSpawn }: { prompt: string; worktreePath: string; onSpawn?: (proc: unknown) => void }) {
+        async execute({ prompt, worktreePath, onSpawn }: ExecutorExecutionInput) {
           assert.equal(worktreePath, sharedState.worktreePath);
           assert.match(prompt, /当前步骤：需求设计/);
           onSpawn?.(proc);
-          return { rawResult: { summary: 'ok' }, proc };
+          const rawResult: ExecutorRawResult = { summary: 'ok' };
+          return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
         },
       };
     },
