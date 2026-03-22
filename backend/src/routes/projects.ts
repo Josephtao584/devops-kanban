@@ -2,9 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 
 import { ProjectService } from '../services/projectService.js';
 import { TaskService } from '../services/taskService.js';
+import type { CreateProjectInput, UpdateProjectInput } from '../types/dto/projects.js';
+import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-
-type ParamsWithId = { id: string };
 
 const projectService = new ProjectService();
 const taskService = new TaskService();
@@ -24,7 +24,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const projectId = parseNumber(request.params.id);
       const project = await projectService.getWithStats(projectId);
@@ -42,7 +42,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/', async (request) => {
     try {
-      const project = await projectService.create(request.body as Record<string, unknown>);
+      const project = await projectService.create(request.body as CreateProjectInput);
       return successResponse(project, 'Project created successfully');
     } catch (error) {
       request.log.error(error);
@@ -50,10 +50,10 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const projectId = parseNumber(request.params.id);
-      const updated = await projectService.update(projectId, request.body as Record<string, unknown>);
+      const updated = await projectService.update(projectId, request.body as UpdateProjectInput);
       if (!updated) {
         reply.code(404);
         return errorResponse('Project not found');
@@ -66,7 +66,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const projectId = parseNumber(request.params.id);
       const deleted = await projectService.delete(projectId);
@@ -82,7 +82,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id/tasks', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id/tasks', async (request, reply) => {
     try {
       const projectId = parseNumber(request.params.id);
       if (!(await projectService.exists(projectId))) {
@@ -99,7 +99,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id/tasks/grouped', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id/tasks/grouped', async (request, reply) => {
     try {
       const projectId = parseNumber(request.params.id);
       if (!(await projectService.exists(projectId))) {

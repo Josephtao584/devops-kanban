@@ -1,15 +1,20 @@
 import { ExecutionRepository } from '../repositories/executionRepository.js';
 import { SessionRepository } from '../repositories/sessionRepository.js';
+import type { ExecutionEntity } from '../repositories/executionRepository.js';
+import type {
+  CreateExecutionInput as CreateExecutionDto,
+  UpdateExecutionInput as UpdateExecutionDto,
+} from '../types/dto/executions.js';
 
-export type CreateExecutionInput = {
-  session_id: number;
-  task_id?: number;
-  [key: string]: unknown;
-};
+class SessionNotFoundError extends Error {
+  statusCode: number;
 
-export type UpdateExecutionInput = {
-  [key: string]: unknown;
-};
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = 'SessionNotFoundError';
+    this.statusCode = statusCode;
+  }
+}
 
 class ExecutionService {
   executionRepo: ExecutionRepository;
@@ -39,17 +44,20 @@ class ExecutionService {
   async create(executionData: CreateExecutionInput) {
     const session = await this.sessionRepo.findById(executionData.session_id);
     if (!session) {
-      const error = new Error('Session not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new SessionNotFoundError('Session not found', 404);
     }
 
-    executionData.task_id = session.task_id;
-    return await this.executionRepo.create(executionData);
+    const createData: Omit<ExecutionEntity, 'id' | 'created_at' | 'updated_at'> = {
+      ...executionData,
+      task_id: session.task_id,
+    };
+
+    return await this.executionRepo.create(createData);
   }
 
   async update(executionId: number, executionData: UpdateExecutionInput) {
-    return await this.executionRepo.update(executionId, executionData);
+    const updateData: Partial<ExecutionEntity> = { ...executionData };
+    return await this.executionRepo.update(executionId, updateData);
   }
 
   async delete(executionId: number) {
@@ -58,3 +66,5 @@ class ExecutionService {
 }
 
 export { ExecutionService };
+export type CreateExecutionInput = CreateExecutionDto;
+export type UpdateExecutionInput = UpdateExecutionDto;

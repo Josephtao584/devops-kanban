@@ -1,10 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { TaskService } from '../services/taskService.js';
+import type { CreateTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
+import type { IdParams } from '../types/http/params.js';
+import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
-type ParamsWithId = { id: string };
-type QueryWithTaskFilters = { project_id?: string; iteration_id?: string };
+type QueryWithTaskFilters = ProjectIdQuery & { iteration_id?: string };
 type StatusBody = { status?: string };
 type ReorderRequestBody = { updates?: Array<{ id?: number; order?: number }> };
 
@@ -45,7 +47,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const task = await taskService.getById(parseNumber(request.params.id));
       if (!task) {
@@ -62,7 +64,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/', async (request, reply) => {
     try {
-      const task = await taskService.create(request.body as Record<string, unknown>);
+      const task = await taskService.create(request.body as CreateTaskInput);
       return successResponse(task, 'Task created successfully');
     } catch (error) {
       request.log.error(error);
@@ -76,9 +78,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
-      const updated = await taskService.update(parseNumber(request.params.id), request.body as Record<string, unknown>);
+      const updated = await taskService.update(parseNumber(request.params.id), request.body as UpdateTaskInput);
       if (!updated) {
         reply.code(404);
         return errorResponse('Task not found');
@@ -91,7 +93,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.patch<{ Params: ParamsWithId; Body: StatusBody }>('/:id/status', async (request, reply) => {
+  fastify.patch<{ Params: IdParams; Body: StatusBody }>('/:id/status', async (request, reply) => {
     try {
       const { status } = request.body;
       if (!status) {
@@ -112,7 +114,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const deleted = await taskService.delete(parseNumber(request.params.id));
       if (!deleted) {
@@ -127,7 +129,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId }>('/:id/start', async (request, reply) => {
+  fastify.post<{ Params: IdParams }>('/:id/start', async (request, reply) => {
     try {
       const task = await taskService.startTask(parseNumber(request.params.id));
       return successResponse(task, 'Task started successfully');

@@ -2,6 +2,10 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import Fastify from 'fastify';
 
+import type {
+  CreateTaskSourceInput,
+  UpdateTaskSourceInput,
+} from '../../src/types/dto/taskSources.ts';
 import type { TaskSourceServiceContract } from '../../src/types/fastify.ts';
 import type {
   ImportedTask,
@@ -9,6 +13,7 @@ import type {
   SourceRecord,
   SourceTypeDefinition,
   TaskSourceImportResult,
+  TaskSourceSyncResultItem,
 } from '../../src/types/sources.ts';
 import { taskSourceRoutes } from '../../src/routes/taskSources.js';
 import { READ_ONLY_ERROR_MESSAGE } from '../../src/services/taskSourceService.js';
@@ -29,10 +34,10 @@ function buildApp(serviceOverrides: Partial<TaskSourceServiceStub> = {}) {
     getAvailableSourceTypes: async () => ({
       REQUIREMENT: { key: 'REQUIREMENT', name: '需求池' },
     }),
-    create: async () => { throw buildReadOnlyError(); },
-    update: async () => { throw buildReadOnlyError(); },
+    create: async (_source: CreateTaskSourceInput) => { throw buildReadOnlyError(); },
+    update: async (_sourceId: string, _source: UpdateTaskSourceInput) => { throw buildReadOnlyError(); },
     delete: async () => { throw buildReadOnlyError(); },
-    sync: async () => [],
+    sync: async (): Promise<TaskSourceSyncResultItem[]> => [],
     previewSync: async () => [],
     importIssues: async () => ({ created: 0, skipped: 0, total: 0 }),
     testConnection: async () => true,
@@ -86,8 +91,8 @@ test.test('write routes return 405 in read-only mode', async () => {
   await app.ready();
 
   const requests: Array<{ method: 'POST' | 'PUT' | 'DELETE'; url: string; payload?: Record<string, unknown> }> = [
-    { method: 'POST', url: '/', payload: { id: 'new-source' } },
-    { method: 'PUT', url: '/requirement-orders', payload: { name: 'Updated' } },
+    { method: 'POST', url: '/', payload: {} },
+    { method: 'PUT', url: '/requirement-orders', payload: { last_sync_at: '2026-03-20T10:00:00.000Z', name: 'Updated' } },
     { method: 'DELETE', url: '/requirement-orders' },
   ];
 

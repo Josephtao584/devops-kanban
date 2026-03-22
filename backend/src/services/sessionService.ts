@@ -4,6 +4,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { SessionRepository } from '../repositories/sessionRepository.js';
 import { TaskService } from './taskService.js';
 import { createWorktree, cleanupWorktree } from '../utils/git.js';
+import type { CreateSessionInput } from '../types/dto/sessions.js';
+import type { BroadcastFn, BroadcastPayload } from '../types/ws/sessions.js';
 
 interface SessionLike {
   id: number;
@@ -23,21 +25,6 @@ interface TaskLike {
   worktree_status?: string | null;
   worktree_branch?: string | null;
 }
-
-type BroadcastPayload = {
-  type: string;
-  content?: string;
-  stream?: 'stdout' | 'stderr';
-  timestamp?: string;
-  status?: string;
-};
-
-type BroadcastFn = (sessionId: number, channel: 'output' | 'status', payload: BroadcastPayload) => void;
-
-type CreateSessionInput = {
-  task_id: number;
-  initial_prompt?: string | null;
-};
 
 class SessionService {
   sessionRepo: SessionRepository;
@@ -321,5 +308,4 @@ class SessionService {
   }
 }
 
-export type { CreateSessionInput };
 export { SessionService };

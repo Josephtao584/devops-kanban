@@ -2,6 +2,10 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import { READ_ONLY_ERROR_MESSAGE, TaskSourceService } from '../../src/services/taskSourceService.js';
+import type {
+  CreateTaskSourceInput,
+  UpdateTaskSourceInput,
+} from '../../src/types/dto/taskSources.ts';
 
 type SourceItem = {
   id: string;
@@ -93,7 +97,9 @@ test.test('getAvailableSourceTypes returns config-backed task source types', asy
 test.test('create rejects writes in read-only mode', async () => {
   const service = new TestTaskSourceService();
 
-  await assert.rejects(() => service.create({ id: 'new-source' } as never), (error: unknown) => {
+  const createInput: CreateTaskSourceInput = {};
+
+  await assert.rejects(() => service.create(createInput), (error: unknown) => {
     const typedError = error as Error & { statusCode?: number };
     assert.equal(typedError.statusCode, 405);
     assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);
@@ -108,7 +114,22 @@ test.test('update rejects normal edits in read-only mode', async () => {
     ],
   });
 
-  await assert.rejects(() => service.update('requirement-orders', { name: 'Updated' }), (error: unknown) => {
+  await assert.rejects(() => service.update('requirement-orders', { name: 'Updated' } as never), (error: unknown) => {
+    const typedError = error as Error & { statusCode?: number };
+    assert.equal(typedError.statusCode, 405);
+    assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);
+    return true;
+  });
+});
+
+test.test('update rejects unsupported edits in read-only mode', async () => {
+  const service = new TestTaskSourceService({
+    sources: [
+      { id: 'requirement-orders', type: 'REQUIREMENT', name: 'Orders 需求池', project_id: 1, config: {} },
+    ],
+  });
+
+  await assert.rejects(() => service.update('requirement-orders', { last_sync_at: '2026-03-20T10:00:00.000Z', name: 'Updated' } as never), (error: unknown) => {
     const typedError = error as Error & { statusCode?: number };
     assert.equal(typedError.statusCode, 405);
     assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);

@@ -1,11 +1,16 @@
 import 'fastify';
 
 import type {
+  CreateTaskSourceInput,
+  UpdateTaskSourceInput,
+} from './dto/taskSources.js';
+import type {
   ImportedTask,
   PreviewImportedTask,
   SourceRecord,
   SourceTypeDefinition,
   TaskSourceImportResult,
+  TaskSourceSyncResultItem,
 } from './sources.ts';
 
 export interface FastifyRuntimeConfig {
@@ -19,10 +24,10 @@ export interface TaskSourceServiceContract {
   getByProject(projectId: number): Promise<SourceRecord[]>;
   getById(sourceId: string): Promise<SourceRecord | null>;
   getAvailableSourceTypes(): Promise<Record<string, SourceTypeDefinition>>;
-  create(source: Record<string, unknown>): Promise<SourceRecord>;
-  update(sourceId: string, source: Record<string, unknown>): Promise<SourceRecord | null>;
+  create(source: CreateTaskSourceInput): Promise<SourceRecord>;
+  update(sourceId: string, source: UpdateTaskSourceInput): Promise<SourceRecord | null>;
   delete(sourceId: string): Promise<SourceRecord | null>;
-  sync(sourceId: string): Promise<Record<string, unknown>[]>;
+  sync(sourceId: string): Promise<TaskSourceSyncResultItem[]>;
   previewSync(sourceId: string): Promise<PreviewImportedTask[]>;
   importIssues(sourceId: string, items: ImportedTask[], projectId: number, iterationId?: number | null): Promise<TaskSourceImportResult>;
   testConnection(sourceId: string): Promise<boolean>;

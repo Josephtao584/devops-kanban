@@ -57,8 +57,6 @@ npm start
 | 执行记录 | `GET/POST/PUT/DELETE /api/executions` |
 | Agent | `GET/POST/PUT/DELETE /api/agents` |
 | 需求 | `GET/POST/PUT/DELETE /api/requirements` |
-| 角色 | `GET/POST/PUT/DELETE /api/roles` |
-| 成员 | `GET/POST/PUT/DELETE /api/members` |
 
 ### WebSocket
 
@@ -88,8 +86,6 @@ backend/
 │   │   ├── executions.js       # 执行记录路由
 │   │   ├── agents.js           # Agent 路由
 │   │   ├── requirements.js     # 需求路由
-│   │   ├── roles.js            # 角色路由
-│   │   └── members.js          # 成员路由
 │   ├── services/
 │   │   ├── projectService.js   # 项目服务
 │   │   ├── taskService.js      # 任务服务

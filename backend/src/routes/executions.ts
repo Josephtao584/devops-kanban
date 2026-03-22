@@ -1,15 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 
-import {
-  ExecutionService,
-  type CreateExecutionInput,
-  type UpdateExecutionInput,
-} from '../services/executionService.js';
+import { ExecutionService } from '../services/executionService.js';
+import type { CreateExecutionInput, UpdateExecutionInput } from '../types/dto/executions.js';
+import type { IdParams, SessionIdParams, TaskIdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-
-type ParamsWithId = { id: string };
-type ParamsWithTaskId = { taskId: string };
-type ParamsWithSessionId = { sessionId: string };
 
 const executionService = new ExecutionService();
 
@@ -38,7 +32,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const execution = await executionService.getById(parseNumber(request.params.id));
       if (!execution) {
@@ -53,7 +47,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithSessionId }>('/session/:sessionId', async (request) => {
+  fastify.get<{ Params: SessionIdParams }>('/session/:sessionId', async (request) => {
     try {
       return successResponse(await executionService.getBySession(parseNumber(request.params.sessionId)));
     } catch (error) {
@@ -62,7 +56,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithTaskId }>('/task/:taskId', async (request) => {
+  fastify.get<{ Params: TaskIdParams }>('/task/:taskId', async (request) => {
     try {
       return successResponse(await executionService.getByTask(parseNumber(request.params.taskId)));
     } catch (error) {
@@ -71,9 +65,9 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post('/', async (request, reply) => {
+  fastify.post<{ Body: CreateExecutionInput }>('/', async (request, reply) => {
     try {
-      const execution = await executionService.create((request.body as CreateExecutionInput) || { session_id: 0 });
+      const execution = await executionService.create(request.body || { session_id: 0 });
       return successResponse(execution, 'Execution created');
     } catch (error) {
       request.log.error(error);
@@ -87,9 +81,9 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams; Body: UpdateExecutionInput }>('/:id', async (request, reply) => {
     try {
-      const updated = await executionService.update(parseNumber(request.params.id), request.body as UpdateExecutionInput);
+      const updated = await executionService.update(parseNumber(request.params.id), request.body);
       if (!updated) {
         reply.code(404);
         return errorResponse('Execution not found');
@@ -102,7 +96,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const deleted = await executionService.delete(parseNumber(request.params.id));
       if (!deleted) {
