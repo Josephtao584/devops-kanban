@@ -4,8 +4,9 @@ import * as assert from 'node:assert/strict';
 import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
 import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.js';
 import { workflowTemplateRoutes } from '../src/routes/workflowTemplate.js';
+import type { UpdateWorkflowTemplateInput } from '../src/types/dto/workflowTemplates.ts';
 
-function buildValidTemplate(): WorkflowTemplate {
+function buildValidTemplate(): UpdateWorkflowTemplateInput {
   return {
     template_id: 'dev-workflow-v1',
     name: '默认研发工作流',
@@ -119,8 +120,10 @@ test.test('PUT /api/workflow-template updates step executor bindings', async () 
   assert.equal(response.statusCode, 200);
   assert.equal(body.data.steps[1]!.executor.type, 'CODEX');
   assert.equal(body.data.steps[1]!.instructionPrompt, '根据设计摘要完成代码实现并记录主要改动。');
-  assert.ok(savedTemplate);
-  const persistedTemplate = savedTemplate as WorkflowTemplate;
+  if (savedTemplate === null) {
+    throw new Error('Expected template to be saved');
+  }
+  const persistedTemplate: WorkflowTemplate = savedTemplate;
   assert.equal(persistedTemplate.steps[1]!.executor.type, 'CODEX');
   assert.equal(persistedTemplate.steps[1]!.instructionPrompt, '根据设计摘要完成代码实现并记录主要改动。');
 });

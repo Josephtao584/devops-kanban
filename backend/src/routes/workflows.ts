@@ -1,11 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 
+import type { StartWorkflowBody } from '../types/dto/workflows.js';
 import { WorkflowService } from '../services/workflow/workflowService.js';
+import type { IdParams } from '../types/http/params.js';
+import type { TaskIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-
-type ParamsWithId = { id: string };
-type QueryWithTaskId = { task_id?: string };
-type WorkflowRunBody = { task_id?: string | number };
 
 const workflowService = new WorkflowService();
 
@@ -25,7 +24,7 @@ function parseNumber(value: string) {
 }
 
 const workflowRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.post<{ Body: WorkflowRunBody }>('/run', async (request, reply) => {
+  fastify.post<{ Body: StartWorkflowBody }>('/run', async (request, reply) => {
     try {
       const { task_id } = request.body || {};
       if (!task_id) {
@@ -42,7 +41,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/runs/:id', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/runs/:id', async (request, reply) => {
     try {
       const run = await workflowService.getWorkflowRun(parseNumber(request.params.id));
       if (!run) {
@@ -57,7 +56,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Querystring: QueryWithTaskId }>('/runs', async (request, reply) => {
+  fastify.get<{ Querystring: TaskIdQuery }>('/runs', async (request, reply) => {
     try {
       const taskId = parseNumber(request.query.task_id ?? '0');
       if (!taskId) {
@@ -72,7 +71,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: ParamsWithId }>('/runs/:id/steps', async (request, reply) => {
+  fastify.get<{ Params: IdParams }>('/runs/:id/steps', async (request, reply) => {
     try {
       const run = await workflowService.getWorkflowRun(parseNumber(request.params.id));
       if (!run) {
@@ -87,7 +86,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: ParamsWithId }>('/runs/:id/cancel', async (request, reply) => {
+  fastify.post<{ Params: IdParams }>('/runs/:id/cancel', async (request, reply) => {
     try {
       const run = await workflowService.cancelWorkflow(parseNumber(request.params.id));
       return successResponse(run, 'Workflow cancelled');

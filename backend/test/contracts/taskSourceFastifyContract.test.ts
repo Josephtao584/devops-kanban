@@ -1,6 +1,10 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 
+import type {
+  CreateTaskSourceInput,
+  UpdateTaskSourceInput,
+} from '../../src/types/dto/taskSources.ts';
 import type { TaskSourceServiceContract } from '../../src/types/fastify.ts';
 import type {
   ImportedTask,
@@ -8,6 +12,7 @@ import type {
   SourceRecord,
   SourceTypeDefinition,
   TaskSourceImportResult,
+  TaskSourceSyncResultItem,
 } from '../../src/types/sources.ts';
 
 test.test('task source Fastify contract accepts explicit source-facing return types', async () => {
@@ -53,17 +58,17 @@ test.test('task source Fastify contract accepts explicit source-facing return ty
     async getAvailableSourceTypes(): Promise<Record<string, SourceTypeDefinition>> {
       return sourceTypes;
     },
-    async create(source: Record<string, unknown>): Promise<SourceRecord> {
-      return { ...projectSource, ...source } as SourceRecord;
+    async create(_source: CreateTaskSourceInput): Promise<SourceRecord> {
+      return projectSource;
     },
-    async update(sourceId: string, source: Record<string, unknown>): Promise<SourceRecord | null> {
-      return sourceId === String(projectSource.id) ? ({ ...projectSource, ...source } as SourceRecord) : null;
+    async update(sourceId: string, source: UpdateTaskSourceInput): Promise<SourceRecord | null> {
+      return sourceId === String(projectSource.id) ? { ...projectSource, ...source } : null;
     },
     async delete(sourceId: string): Promise<SourceRecord | null> {
       return sourceId === String(projectSource.id) ? projectSource : null;
     },
-    async sync(): Promise<Record<string, unknown>[]> {
-      return [{ id: 1, title: 'Synced task' }];
+    async sync(): Promise<TaskSourceSyncResultItem[]> {
+      return [{ id: 1, project_id: 1, title: 'Synced task' }];
     },
     async previewSync(): Promise<PreviewImportedTask[]> {
       return [previewTask];
@@ -76,9 +81,11 @@ test.test('task source Fastify contract accepts explicit source-facing return ty
     },
   };
 
-  assert.deepEqual(await contract.getByProject(7), [{ ...projectSource, project_id: 7 }]);
-  assert.equal(await contract.getById('missing'), null);
-  assert.deepEqual(await contract.getAvailableSourceTypes(), sourceTypes);
+  assert.deepEqual(await contract.create({}), projectSource);
+  assert.deepEqual(await contract.update('requirement-orders', { last_sync_at: '2026-03-20T10:00:00.000Z' }), {
+    ...projectSource,
+    last_sync_at: '2026-03-20T10:00:00.000Z',
+  });
   assert.deepEqual(await contract.previewSync('requirement-orders'), [previewTask]);
   assert.deepEqual(await contract.importIssues('requirement-orders', [importedTask], 1), importResult);
   assert.equal(await contract.testConnection('requirement-orders'), true);

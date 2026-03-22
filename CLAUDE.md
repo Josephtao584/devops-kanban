@@ -66,7 +66,7 @@ Key directories: `views/`, `components/`, `api/` (Axios clients), `stores/` (Pin
 ### Data Storage
 
 JSON files in `data/` (project root, accessed via `../data` from backend):
-- `projects.json`, `requirements.json`, `tasks.json`, `roles.json`, `members.json`
+- `projects.json`, `requirements.json`, `tasks.json`
 - `agents.json`, `sessions.json`, `executions.json`, `task_sources.json`
 
 ### Task Status Workflow
@@ -87,8 +87,6 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 | Task Sources | `GET/POST/PUT/DELETE /api/task-sources` |
 | Executions | `GET/POST/PUT/DELETE /api/executions` |
 | Agents | `GET/POST/PUT/DELETE /api/agents` |
-| Roles | `GET/POST/PUT/DELETE /api/roles` |
-| Members | `GET/POST/PUT/DELETE /api/members` |
 | Health | `GET /health`, `GET /` |
 
 ## Configuration

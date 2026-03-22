@@ -1,6 +1,9 @@
 import { IterationRepository } from '../repositories/iterationRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
 
+import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/iterations.js';
+import type { IterationCreateRecord, IterationUpdateRecord } from '../types/persistence/iterations.js';
+
 class IterationService {
   iterationRepo: IterationRepository;
   projectRepo: ProjectRepository;
@@ -26,7 +29,7 @@ class IterationService {
     return await this.iterationRepo.findTasks(iterationId);
   }
 
-  async create(iterationData: Record<string, unknown> & { name?: string; project_id?: number; status?: string }) {
+  async create(iterationData: CreateIterationInput) {
     if (!iterationData.name || !iterationData.name.trim()) {
       const error = new Error('迭代名称不能为空') as Error & { statusCode?: number };
       error.statusCode = 400;
@@ -50,11 +53,30 @@ class IterationService {
       iterationData.status = 'PLANNED';
     }
 
-    return await this.iterationRepo.create(iterationData);
+    const createData: IterationCreateRecord = {
+      project_id: iterationData.project_id,
+    };
+    if (iterationData.name !== undefined) {
+      createData.name = iterationData.name;
+    }
+    if (iterationData.status !== undefined) {
+      createData.status = iterationData.status;
+    }
+    return await this.iterationRepo.create(createData);
   }
 
-  async update(iterationId: number, iterationData: Record<string, unknown>) {
-    return await this.iterationRepo.update(iterationId, iterationData);
+  async update(iterationId: number, iterationData: UpdateIterationInput) {
+    const updateData: IterationUpdateRecord = {};
+    if (iterationData.project_id !== undefined) {
+      updateData.project_id = iterationData.project_id;
+    }
+    if (iterationData.name !== undefined) {
+      updateData.name = iterationData.name;
+    }
+    if (iterationData.status !== undefined) {
+      updateData.status = iterationData.status;
+    }
+    return await this.iterationRepo.update(iterationId, updateData);
   }
 
   async updateStatus(iterationId: number, status: string) {

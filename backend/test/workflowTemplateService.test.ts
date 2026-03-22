@@ -6,12 +6,13 @@ import * as path from 'node:path';
 
 import { WorkflowTemplateRepository } from '../src/repositories/workflowTemplateRepository.js';
 import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
+import type { UpdateWorkflowTemplateInput } from '../src/types/dto/workflowTemplates.ts';
 
 function createTempFilePath(name = 'workflow-template.json') {
   return path.join(os.tmpdir(), `kanban-${Date.now()}-${Math.random().toString(16).slice(2)}-${name}`);
 }
 
-function buildValidTemplate() {
+function buildValidTemplate(): UpdateWorkflowTemplateInput {
   return {
     template_id: 'dev-workflow-v1',
     name: '默认研发工作流',

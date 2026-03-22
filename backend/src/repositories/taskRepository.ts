@@ -1,6 +1,7 @@
 import { BaseRepository } from './base.js';
 import type { BaseEntity } from './base.js';
 import type { TaskEntity } from '../types/entities.ts';
+import type { TaskCreateRecord, TaskUpdateRecord } from '../types/persistence/tasks.js';
 
 interface StoredTaskEntity extends TaskEntity, BaseEntity {}
 
@@ -13,7 +14,7 @@ interface TaskStatusCounts {
   CANCELLED: number;
 }
 
-class TaskRepository extends BaseRepository<StoredTaskEntity, Omit<TaskEntity, 'id'>, Partial<TaskEntity>> {
+class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, TaskUpdateRecord> {
   constructor() {
     super('tasks.json');
   }
