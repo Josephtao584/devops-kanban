@@ -40,36 +40,36 @@ describe('TaskCard', () => {
     expect(wrapper.text()).not.toContain('...')
   })
 
-  it('displays correct priority class for CRITICAL', () => {
+  it('displays correct priority label for CRITICAL', () => {
     const task = createTask({ priority: 'CRITICAL' })
     const wrapper = mount(TaskCard, {
       props: { task }
     })
-    expect(wrapper.find('.task-card').classes()).toContain('priority-critical')
+    expect(wrapper.find('.el-tag').text()).toContain('Crit')
   })
 
-  it('displays correct priority class for HIGH', () => {
+  it('displays correct priority label for HIGH', () => {
     const task = createTask({ priority: 'HIGH' })
     const wrapper = mount(TaskCard, {
       props: { task }
     })
-    expect(wrapper.find('.task-card').classes()).toContain('priority-high')
+    expect(wrapper.find('.el-tag').text()).toContain('High')
   })
 
-  it('displays correct priority class for MEDIUM', () => {
+  it('displays correct priority label for MEDIUM', () => {
     const task = createTask({ priority: 'MEDIUM' })
     const wrapper = mount(TaskCard, {
       props: { task }
     })
-    expect(wrapper.find('.task-card').classes()).toContain('priority-medium')
+    expect(wrapper.find('.el-tag').text()).toContain('Med')
   })
 
-  it('displays correct priority class for LOW', () => {
+  it('displays correct priority label for LOW', () => {
     const task = createTask({ priority: 'LOW' })
     const wrapper = mount(TaskCard, {
       props: { task }
     })
-    expect(wrapper.find('.task-card').classes()).toContain('priority-low')
+    expect(wrapper.find('.el-tag').text()).toContain('Low')
   })
 
   it('displays external ID when present', () => {
@@ -123,11 +123,11 @@ describe('TaskCard', () => {
     expect(wrapper.find('.sync-info').exists()).toBe(true)
   })
 
-  it('defaults to MEDIUM priority when priority is undefined', () => {
+  it('defaults to MEDIUM priority label when priority is undefined', () => {
     const task = createTask({ priority: undefined })
     const wrapper = mount(TaskCard, {
       props: { task }
     })
-    expect(wrapper.find('.task-card').classes()).toContain('priority-medium')
+    expect(wrapper.find('.el-tag').text()).toContain('Med')
   })
 })
