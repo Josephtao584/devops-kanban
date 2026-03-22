@@ -6,6 +6,12 @@ import i18n from '../src/locales'
 import { useProjectStore } from '../src/stores/projectStore'
 import { useTaskSourceStore } from '../src/stores/taskSourceStore'
 
+vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    params: {}
+  })
+}))
+
 const mockProjects = [
   { id: 'project-1', name: 'Demo Project', gitUrl: 'https://github.com/org/repo.git' }
 ]
@@ -45,7 +51,7 @@ describe('TaskSourceConfig', () => {
     taskSourceStore.taskSources = []
   })
 
-  it('renders backend-configured sources in read-only mode', async () => {
+  it('renders backend-configured sources from the store', async () => {
     const taskSourceStore = useTaskSourceStore()
     taskSourceStore.taskSources = [
       {
@@ -59,12 +65,11 @@ describe('TaskSourceConfig', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('任务源由后端 config.yaml 提供')
     expect(wrapper.text()).toContain('Orders 需求池')
-    expect(wrapper.text()).toContain('标识: requirement-orders')
-    expect(wrapper.text()).toContain('需求池')
-    expect(wrapper.text()).not.toContain('测试连接')
-    expect(wrapper.text()).not.toContain('立即同步')
+    expect(wrapper.text()).toContain('ID: requirement-orders')
+    expect(wrapper.text()).toContain('REQUIREMENT')
+    expect(wrapper.text()).toContain('同步')
+    expect(wrapper.text()).toContain('测试连接')
     expect(useTaskSourceStore().loadAvailableTypes).toHaveBeenCalledTimes(1)
   })
 
