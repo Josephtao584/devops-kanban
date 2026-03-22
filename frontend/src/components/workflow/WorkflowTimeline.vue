@@ -141,7 +141,7 @@
                 <template v-for="node in stage.nodes" :key="node.id">
                   <WorkflowNode
                     :node="node"
-                    :is-current="node.id === workflow?.currentNodeId"
+                    :is-current="node.id === workflow?.currentNodeId && node.status === 'IN_PROGRESS'"
                     :is-selected="node.id === selectedNodeId"
                     @select="$emit('select-node', $event)"
                     @pause="$emit('pause-task', $event)"

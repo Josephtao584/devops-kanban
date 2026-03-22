@@ -316,6 +316,13 @@ watch(() => [props.workflowExpanded, props.task?.workflow_run_id], async ([expan
   }
 }, { immediate: true })
 
+// Clear realWorkflowRun when task becomes DONE
+watch(() => props.task?.status, (newStatus) => {
+  if (newStatus === 'DONE') {
+    realWorkflowRun.value = null
+  }
+})
+
 // Refresh workflow run
 const refreshWorkflowRun = async () => {
   if (!props.task?.workflow_run_id) return
@@ -377,6 +384,9 @@ const workflowData = computed(() => {
 
 // Current node - from prop or computed from currentNodeId
 const currentNode = computed(() => {
+  // If task is DONE, don't show current node
+  if (props.task?.status === 'DONE') return null
+
   if (props.currentNode) return props.currentNode
   if (!workflowData.value?.stages) return null
   // If we have real workflow run data, use current_step

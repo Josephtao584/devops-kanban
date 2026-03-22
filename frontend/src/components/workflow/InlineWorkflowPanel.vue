@@ -14,7 +14,7 @@
                 class="node-inline"
                 :class="[
                   `status-${node.status?.toLowerCase()}`,
-                  { 'is-current': node.id === currentNodeId, 'is-selected': node.id === currentNodeId }
+                  { 'is-current': node.id === currentNodeId && node.status === 'IN_PROGRESS', 'is-selected': node.id === currentNodeId }
                 ]"
                 @click.stop="$emit('node-click', node)"
               >
@@ -130,15 +130,21 @@ const sortedStages = computed(() => {
 }
 
 .node-inline.is-current {
-  background: #eef2ff;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+  animation: pulse-current 2s ease-in-out infinite;
 }
 
 .node-inline.is-selected {
   background: #eef2ff;
   border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
+@keyframes pulse-current {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.5); }
 }
 
 .node-inline.status-done {

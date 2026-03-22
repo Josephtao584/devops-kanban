@@ -161,6 +161,18 @@ const statusColor = computed(() => {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
+.workflow-node.is-current {
+  border-color: #f59e0b !important;
+  background: #fef3c7 !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3);
+  animation: pulse-node 2s ease-in-out infinite;
+}
+
+@keyframes pulse-node {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.5); }
+}
+
 /* Rejected/Failed node styles */
 .workflow-node.is-rejected {
   border-color: #dc2626;
