@@ -4,23 +4,9 @@ import { ExecutionService } from '../services/executionService.js';
 import type { CreateExecutionInput, UpdateExecutionInput } from '../types/dto/executions.js';
 import type { IdParams, SessionIdParams, TaskIdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 const executionService = new ExecutionService();
-
-function getStatusCode(error: unknown, fallback = 500) {
-  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
-    return error.statusCode;
-  }
-  return fallback;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 export const executionRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', async (request) => {

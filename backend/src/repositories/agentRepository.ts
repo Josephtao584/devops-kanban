@@ -11,8 +11,8 @@ interface AgentEntity extends BaseEntity {
   skills: string[];
 }
 
-type AgentCreateRecord = CreateAgentBody & Record<string, unknown>;
-type AgentUpdateRecord = UpdateAgentBody & Record<string, unknown>;
+type AgentCreateRecord = CreateAgentBody;
+type AgentUpdateRecord = UpdateAgentBody;
 
 class AgentRepository extends BaseRepository<AgentEntity, AgentCreateRecord, AgentUpdateRecord> {
   constructor() {
