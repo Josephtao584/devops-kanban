@@ -1,0 +1,161 @@
+import type { FastifyPluginAsync } from 'fastify';
+
+import { TaskSourceService } from '../services/taskSourceService.js';
+import { successResponse, errorResponse } from '../utils/response.js';
+
+type ParamsWithId = { id: string };
+type QueryWithProjectId = { project_id?: string };
+type TaskSourceImportBody = { items?: unknown[]; project_id?: number; iteration_id?: number | null };
+
+const taskSourceService = new TaskSourceService();
+
+function getStatusCode(error: unknown, fallback = 500) {
+  if (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') {
+    return error.statusCode;
+  }
+  return fallback;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function parseNumber(value: string) {
+  return Number.parseInt(value, 10);
+}
+
+function handleTaskSourceError(reply: { code(statusCode: number): unknown }, error: unknown, fallbackMessage: string) {
+  const statusCode = getStatusCode(error);
+  reply.code(statusCode);
+  return errorResponse(statusCode === 500 ? fallbackMessage : getErrorMessage(error, fallbackMessage));
+}
+
+export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
+  const getService = () => fastify.taskSourceService || taskSourceService;
+
+  fastify.get<{ Querystring: QueryWithProjectId }>('/', async (request, reply) => {
+    try {
+      const { project_id } = request.query;
+      if (!project_id) {
+        reply.code(400);
+        return errorResponse('project_id query parameter is required');
+      }
+
+      const sources = await getService().getByProject(parseNumber(project_id));
+      return successResponse(sources);
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to get task sources');
+    }
+  });
+
+  fastify.get('/types/available', async (request, reply) => {
+    try {
+      return successResponse(await getService().getAvailableSourceTypes());
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to get available source types');
+    }
+  });
+
+  fastify.get<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+    try {
+      const source = await getService().getById(request.params.id);
+      if (!source) {
+        reply.code(404);
+        return errorResponse('Task source not found');
+      }
+      return successResponse(source);
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to get task source');
+    }
+  });
+
+  fastify.post('/', async (request, reply) => {
+    try {
+      const source = await getService().create(request.body as Record<string, unknown>);
+      return successResponse(source, 'Task source created successfully');
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to create task source');
+    }
+  });
+
+  fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+    try {
+      const source = await getService().update(request.params.id, request.body as Record<string, unknown>);
+      if (!source) {
+        reply.code(404);
+        return errorResponse('Task source not found');
+      }
+      return successResponse(source, 'Task source updated successfully');
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to update task source');
+    }
+  });
+
+  fastify.delete<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
+    try {
+      const deleted = await getService().delete(request.params.id);
+      if (!deleted) {
+        reply.code(404);
+        return errorResponse('Task source not found');
+      }
+      return successResponse(null, 'Task source deleted successfully');
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to delete task source');
+    }
+  });
+
+  fastify.post<{ Params: ParamsWithId }>('/:id/sync', async (request, reply) => {
+    try {
+      const tasks = await getService().sync(request.params.id);
+      return successResponse(tasks, 'Task source synced successfully');
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to sync task source');
+    }
+  });
+
+  fastify.post<{ Params: ParamsWithId }>('/:id/sync/preview', async (request, reply) => {
+    try {
+      return successResponse(await getService().previewSync(request.params.id));
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, `Failed to preview sync: ${getErrorMessage(error, 'Unknown error')}`);
+    }
+  });
+
+  fastify.post<{ Params: ParamsWithId; Body: TaskSourceImportBody }>('/:id/sync/import', async (request, reply) => {
+    try {
+      const { items, project_id, iteration_id } = request.body;
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        reply.code(400);
+        return errorResponse('items array is required');
+      }
+      if (!project_id) {
+        reply.code(400);
+        return errorResponse('project_id is required');
+      }
+
+      const result = await getService().importIssues(request.params.id, items, project_id, iteration_id);
+      return successResponse(result, 'Import completed');
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, `Failed to import: ${getErrorMessage(error, 'Unknown error')}`);
+    }
+  });
+
+  fastify.get<{ Params: ParamsWithId }>('/:id/test', async (request, reply) => {
+    try {
+      const connected = await getService().testConnection(request.params.id);
+      return successResponse({ connected });
+    } catch (error) {
+      request.log.error(error);
+      return handleTaskSourceError(reply, error, 'Failed to test task source connection');
+    }
+  });
+};
