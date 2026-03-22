@@ -1,6 +1,16 @@
 import { ExecutionRepository } from '../repositories/executionRepository.js';
 import { SessionRepository } from '../repositories/sessionRepository.js';
 
+export type CreateExecutionInput = {
+  session_id: number;
+  task_id?: number;
+  [key: string]: unknown;
+};
+
+export type UpdateExecutionInput = {
+  [key: string]: unknown;
+};
+
 class ExecutionService {
   executionRepo: ExecutionRepository;
   sessionRepo: SessionRepository;
@@ -26,7 +36,7 @@ class ExecutionService {
     return await this.executionRepo.getByTask(taskId);
   }
 
-  async create(executionData: Record<string, unknown> & { session_id: number; task_id?: number }) {
+  async create(executionData: CreateExecutionInput) {
     const session = await this.sessionRepo.findById(executionData.session_id);
     if (!session) {
       const error = new Error('Session not found') as Error & { statusCode?: number };
@@ -38,7 +48,7 @@ class ExecutionService {
     return await this.executionRepo.create(executionData);
   }
 
-  async update(executionId: number, executionData: Record<string, unknown>) {
+  async update(executionId: number, executionData: UpdateExecutionInput) {
     return await this.executionRepo.update(executionId, executionData);
   }
 

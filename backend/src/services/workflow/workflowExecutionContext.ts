@@ -1,10 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { ExecutorProcessHandle } from '../../types/executors.js';
 
-type WorkflowExecutionContextStore = {
+export interface WorkflowExecutionContextStore {
   cancelled?: boolean;
-  proc?: unknown;
+  proc?: ExecutorProcessHandle | null;
   worktreePath?: string;
-};
+}
 
 const workflowExecutionContext = new AsyncLocalStorage<WorkflowExecutionContextStore>();
 

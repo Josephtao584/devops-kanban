@@ -1,6 +1,7 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
+import type { ExecutorProcessHandle } from '../src/types/executors.js';
 
 test.test('cancelWorkflow terminates the active process', async () => {
   const kills: string[] = [];
@@ -20,17 +21,19 @@ test.test('cancelWorkflow terminates the active process', async () => {
     taskRepo: {} as never,
   });
 
+  const proc: ExecutorProcessHandle = {
+    kill(signal: string) {
+      kills.push(signal);
+    },
+  };
+
   service._activeRuns.set(1, {
     cancel: () => {
       cancelled = true;
     },
     proc: null,
     context: {
-      proc: {
-        kill(signal: string) {
-          kills.push(signal);
-        },
-      },
+      proc,
     },
   });
 

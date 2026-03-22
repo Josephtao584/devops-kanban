@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 
-import { SessionService } from '../services/sessionService.js';
+import { SessionService, type CreateSessionInput } from '../services/sessionService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
 type ParamsWithId = { id: string };
@@ -128,7 +128,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
 
   fastify.post('/sessions', async (request, reply) => {
     try {
-      const session = await service.create((request.body as Record<string, unknown> & { task_id: number; initial_prompt?: string | null }) || { task_id: 0 });
+      const session = await service.create((request.body as CreateSessionInput) || { task_id: 0 });
       return successResponse(session, 'Session created');
     } catch (error) {
       request.log.error(error);

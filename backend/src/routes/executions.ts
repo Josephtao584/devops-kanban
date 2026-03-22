@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 
-import { ExecutionService } from '../services/executionService.js';
+import {
+  ExecutionService,
+  type CreateExecutionInput,
+  type UpdateExecutionInput,
+} from '../services/executionService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 
 type ParamsWithId = { id: string };
@@ -69,7 +73,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/', async (request, reply) => {
     try {
-      const execution = await executionService.create((request.body as Record<string, unknown> & { session_id: number; task_id?: number }) || { session_id: 0 });
+      const execution = await executionService.create((request.body as CreateExecutionInput) || { session_id: 0 });
       return successResponse(execution, 'Execution created');
     } catch (error) {
       request.log.error(error);
@@ -85,7 +89,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.put<{ Params: ParamsWithId }>('/:id', async (request, reply) => {
     try {
-      const updated = await executionService.update(parseNumber(request.params.id), request.body as Record<string, unknown>);
+      const updated = await executionService.update(parseNumber(request.params.id), request.body as UpdateExecutionInput);
       if (!updated) {
         reply.code(404);
         return errorResponse('Execution not found');
