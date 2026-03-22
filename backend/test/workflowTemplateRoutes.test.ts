@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
 import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.js';
-import { workflowTemplateRoutes } from '../src/routes/index.js';
+import { workflowTemplateRoutes } from '../src/routes/workflowTemplate.js';
 
 function buildValidTemplate(): WorkflowTemplate {
   return {

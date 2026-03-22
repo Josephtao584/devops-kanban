@@ -345,7 +345,7 @@ git commit -m "refactor: reduce route index to barrel exports"
 Run:
 
 ```bash
-cd backend && node --import tsx --test test/routes/taskSources.test.ts test/workflowTemplateRoutes.test.ts test/contracts/bootstrap.test.ts
+cd backend && node --import tsx --test test/routes/taskSourcesRoutes.test.ts test/workflowTemplateRoutes.test.ts test/contracts/bootstrap.test.ts
 ```
 
 Expected:
@@ -387,6 +387,6 @@ Expected:
 - [ ] **Step 5: Commit the verified route split**
 
 ```bash
-git add backend/src/routes backend/src/app.ts backend/test/routes/taskSources.test.ts backend/test/workflowTemplateRoutes.test.ts
+git add backend/src/routes backend/src/app.ts backend/test/routes/taskSourcesRoutes.test.ts backend/test/workflowTemplateRoutes.test.ts
 git commit -m "refactor: split backend route modules"
 ```
