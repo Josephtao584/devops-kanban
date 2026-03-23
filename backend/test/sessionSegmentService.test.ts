@@ -26,7 +26,7 @@ async function createSession(sessionRepo: SessionRepository, taskId: number) {
   });
 }
 
-test.test('SessionSegmentService allocates 1-based segment indexes per session and bootstraps the runtime JSON file', async () => {
+test.test('SessionSegmentService uses the latest stored segment index per session and bootstraps the runtime JSON file', async () => {
   const storagePath = await createTempStorageRoot();
   const sessionRepo = new SessionRepository({ storagePath });
   const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
@@ -81,6 +81,14 @@ test.test('SessionSegmentService allocates 1-based segment indexes per session a
   assert.equal(firstSegment.segment_index, 1);
   assert.equal(secondSegment.segment_index, 2);
   assert.equal(otherSessionSegment.segment_index, 1);
+
+  const latestFirstSessionSegment = await sessionSegmentRepo.findLatestBySessionId(firstSession.id);
+  const latestSecondSessionSegment = await sessionSegmentRepo.findLatestBySessionId(secondSession.id);
+
+  assert.equal(latestFirstSessionSegment?.id, secondSegment.id);
+  assert.equal(latestFirstSessionSegment?.segment_index, 2);
+  assert.equal(latestSecondSessionSegment?.id, otherSessionSegment.id);
+  assert.equal(latestSecondSessionSegment?.segment_index, 1);
 
   const persisted = JSON.parse(
     await fs.readFile(path.join(storagePath, 'session_segments.json'), 'utf-8'),
