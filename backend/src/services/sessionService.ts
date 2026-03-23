@@ -206,6 +206,14 @@ class SessionService {
   _readProcessOutput(sessionId: number, segmentId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
     let pendingEventWrite = Promise.resolve();
     let finalizeSessionPromise: Promise<void> | null = null;
+    let resolveSessionCompletion: (() => void) | null = null;
+    let rejectSessionCompletion: ((error: unknown) => void) | null = null;
+    const sessionCompletionPromise = new Promise<void>((resolve, reject) => {
+      resolveSessionCompletion = resolve;
+      rejectSessionCompletion = reject;
+    });
+
+    this.sessionCompletionPromises.set(sessionId, sessionCompletionPromise);
 
     const finalizeSession = async (status: 'COMPLETED' | 'ERROR' | 'STOPPED', completedAt = new Date().toISOString()) => {
       if (finalizeSessionPromise) {
@@ -228,10 +236,21 @@ class SessionService {
 
         this.runningProcesses.delete(sessionId);
         this.stopRequestedSessions.delete(sessionId);
-        this.sessionCompletionPromises.delete(sessionId);
       })();
 
-      this.sessionCompletionPromises.set(sessionId, finalizeSessionPromise);
+      void finalizeSessionPromise
+        .then(() => {
+          resolveSessionCompletion?.();
+        })
+        .catch((error) => {
+          rejectSessionCompletion?.(error);
+        })
+        .finally(() => {
+          if (this.sessionCompletionPromises.get(sessionId) === sessionCompletionPromise) {
+            this.sessionCompletionPromises.delete(sessionId);
+          }
+        });
+
       return await finalizeSessionPromise;
     };
 

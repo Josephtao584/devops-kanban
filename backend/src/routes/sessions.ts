@@ -67,12 +67,12 @@ function resolveSessionLifecycleResponse(
   session: SessionStartResult | SessionContinueResult,
   successMessage: string,
 ) {
-  if (session?.status === 'RUNNING' || session?.status === 'IDLE') {
-    return successResponse(session, successMessage);
+  if (!session) {
+    reply.code(409);
+    return errorResponse('Session worktree is unavailable');
   }
 
-  reply.code(409);
-  return errorResponse('Session worktree is unavailable');
+  return successResponse(session, successMessage);
 }
 
 const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, { service = sessionService } = {}) => {
