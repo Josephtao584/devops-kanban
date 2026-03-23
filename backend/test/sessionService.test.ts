@@ -246,6 +246,101 @@ test.test('SessionService continue creates a child segment and attaches resumed 
   }
 });
 
+
+
+test.test('SessionService stop keeps stopped status when process close arrives later', async () => {
+  const storagePath = await createTempStorageRoot();
+  const worktreePath = await createWorktreeDir();
+
+  class StoppableFakeChildProcess extends FakeChildProcess {
+    kill() {
+      setImmediate(() => this.finish(0));
+      return true;
+    }
+  }
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
+    const sessionEventRepo = new SessionEventRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 905,
+      status: 'RUNNING',
+      worktree_path: worktreePath,
+      branch: 'task/project/905',
+      initial_prompt: 'Stop safely',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: '2026-03-23T00:00:00.000Z',
+      completed_at: null,
+    });
+
+    const segment = await sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'RUNNING',
+      executor_type: 'CLAUDE_CODE',
+      agent_id: null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: 'START',
+      parent_segment_id: null,
+      started_at: '2026-03-23T00:00:00.000Z',
+      completed_at: null,
+      metadata: {},
+    });
+
+    let releaseAppend!: () => void;
+    const appendBlocked = new Promise<void>((resolve) => {
+      releaseAppend = resolve;
+    });
+    const originalAppend = sessionEventRepo.append.bind(sessionEventRepo);
+    let blockFirstAppend = true;
+    sessionEventRepo.append = (async (...args: Parameters<SessionEventRepository['append']>) => {
+      if (blockFirstAppend) {
+        blockFirstAppend = false;
+        await appendBlocked;
+      }
+      return await originalAppend(...args);
+    }) as SessionEventRepository['append'];
+
+    const proc = new StoppableFakeChildProcess();
+    const service = new SessionService();
+    service.sessionRepo = sessionRepo;
+    service.sessionSegmentRepo = sessionSegmentRepo;
+    service.sessionEventRepo = sessionEventRepo;
+    service.runningProcesses.set(session.id, proc as unknown as ChildProcess);
+
+    service._readProcessOutput(session.id, segment.id, proc as unknown as ChildProcess);
+    proc.emitStdout('delayed output\n');
+
+    const stopPromise = service.stop(session.id);
+
+    await waitFor(async () => {
+      const persistedSession = await sessionRepo.findById(session.id);
+      assert.equal(persistedSession?.status, 'STOPPED');
+
+      const persistedSegment = await sessionSegmentRepo.findById(segment.id);
+      assert.equal(persistedSegment?.status, 'STOPPED');
+    });
+
+    releaseAppend();
+    await stopPromise;
+
+    await waitFor(async () => {
+      const persistedSession = await sessionRepo.findById(session.id);
+      assert.equal(persistedSession?.status, 'STOPPED');
+
+      const persistedSegment = await sessionSegmentRepo.findById(segment.id);
+      assert.equal(persistedSegment?.status, 'STOPPED');
+    });
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+    await fs.rm(worktreePath, { recursive: true, force: true });
+  }
+});
+
 test.test('SessionService listEvents returns the planned envelope with pagination metadata', async () => {
   const storagePath = await createTempStorageRoot();
 

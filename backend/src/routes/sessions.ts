@@ -177,10 +177,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
         afterSeq: request.query.after_seq ? parseNumber(request.query.after_seq) : undefined,
         limit: request.query.limit ? parseNumber(request.query.limit) : undefined,
       });
-      return {
-        success: true as const,
-        data: events,
-      };
+      return successResponse(events);
     } catch (error) {
       request.log.error(error);
       reply.code(getStatusCode(error));
