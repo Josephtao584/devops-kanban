@@ -45,9 +45,45 @@ async function createSegment(sessionSegmentService: SessionSegmentService, sessi
   });
 }
 
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 class GuardedSessionEventRepository extends SessionEventRepository {
   getLastSeq(): Promise<number> {
     throw new Error('getLastSeq should not be used by service append');
+  }
+}
+
+class BlockingSaveSessionEventRepository extends SessionEventRepository {
+  saveCallCount = 0;
+  firstSaveStarted = createDeferred();
+  releaseFirstSaveBarrier = createDeferred();
+
+  async _saveAll(data: any[]) {
+    this.saveCallCount += 1;
+    if (this.saveCallCount === 1) {
+      this.firstSaveStarted.resolve();
+      await this.releaseFirstSaveBarrier.promise;
+    }
+    await super._saveAll(data);
+  }
+
+  releaseFirstSave() {
+    this.releaseFirstSaveBarrier.resolve();
+  }
+}
+
+class TrackingUpdateSessionEventRepository extends SessionEventRepository {
+  loadAllCalls = 0;
+
+  async _loadAll() {
+    this.loadAllCalls += 1;
+    return await super._loadAll();
   }
 }
 
@@ -92,6 +128,72 @@ test.test('SessionEventService delegates monotonic seq allocation to the reposit
     await fs.readFile(path.join(storagePath, 'session_events.json'), 'utf-8'),
   ) as Array<{ seq: number }>;
   assert.deepEqual(persisted.map((item) => item.seq), [1, 2]);
+
+  await fs.rm(storagePath, { recursive: true, force: true });
+});
+
+test.test('SessionEventRepository queues update behind append for the same file', async () => {
+  const storagePath = await createTempStorageRoot();
+  const seedRepo = new SessionEventRepository({ storagePath });
+  const seedEvent = await seedRepo.append({
+    session_id: 601,
+    segment_id: 1,
+    kind: 'message',
+    role: 'assistant',
+    content: 'seed',
+    payload: { source: 'seed' },
+  });
+
+  const appendRepo = new BlockingSaveSessionEventRepository({ storagePath });
+  const updateRepo = new TrackingUpdateSessionEventRepository({ storagePath });
+
+  const appendPromise = appendRepo.append({
+    session_id: 601,
+    segment_id: 1,
+    kind: 'stream_chunk',
+    role: 'assistant',
+    content: 'queued append',
+    payload: { source: 'queued-append' },
+  });
+
+  await appendRepo.firstSaveStarted.promise;
+
+  const updatePromise = updateRepo.update(seedEvent.id, {
+    kind: 'status',
+    content: 'updated',
+    payload: { source: 'queued-update' },
+  });
+
+  await Promise.resolve();
+
+  assert.equal(updateRepo.loadAllCalls, 0);
+
+  appendRepo.releaseFirstSave();
+
+  const [appendedEvent, updatedEvent] = await Promise.all([appendPromise, updatePromise]);
+
+  assert.equal(appendedEvent.seq, 2);
+  assert.equal(updatedEvent?.kind, 'status');
+  assert.equal(updatedEvent?.content, 'updated');
+
+  const persisted = JSON.parse(
+    await fs.readFile(path.join(storagePath, 'session_events.json'), 'utf-8'),
+  ) as Array<{
+    id: number;
+    seq: number;
+    kind: string;
+    content: string;
+  }>;
+
+  assert.deepEqual(
+    persisted.map((item) => item.seq).sort((left, right) => left - right),
+    [1, 2],
+  );
+  const persistedSeedEvent = persisted.find((item) => item.id === seedEvent.id);
+  assert.ok(persistedSeedEvent);
+  assert.equal(persistedSeedEvent.seq, 1);
+  assert.equal(persistedSeedEvent.kind, 'status');
+  assert.equal(persistedSeedEvent.content, 'updated');
 
   await fs.rm(storagePath, { recursive: true, force: true });
 });

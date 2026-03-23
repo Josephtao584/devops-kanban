@@ -26,9 +26,45 @@ async function createSession(sessionRepo: SessionRepository, taskId: number) {
   });
 }
 
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 class GuardedSessionSegmentRepository extends SessionSegmentRepository {
   findLatestBySessionId(): Promise<never> {
     throw new Error('findLatestBySessionId should not be used by service create');
+  }
+}
+
+class BlockingSaveSessionSegmentRepository extends SessionSegmentRepository {
+  saveCallCount = 0;
+  firstSaveStarted = createDeferred();
+  releaseFirstSaveBarrier = createDeferred();
+
+  async _saveAll(data: any[]) {
+    this.saveCallCount += 1;
+    if (this.saveCallCount === 1) {
+      this.firstSaveStarted.resolve();
+      await this.releaseFirstSaveBarrier.promise;
+    }
+    await super._saveAll(data);
+  }
+
+  releaseFirstSave() {
+    this.releaseFirstSaveBarrier.resolve();
+  }
+}
+
+class TrackingUpdateSessionSegmentRepository extends SessionSegmentRepository {
+  loadAllCalls = 0;
+
+  async _loadAll() {
+    this.loadAllCalls += 1;
+    return await super._loadAll();
   }
 }
 
@@ -108,6 +144,85 @@ test.test('SessionSegmentService delegates monotonic segment index allocation to
       .map((item) => item.segment_index),
     [1, 2],
   );
+
+  await fs.rm(storagePath, { recursive: true, force: true });
+});
+
+test.test('SessionSegmentRepository queues update behind create for the same file', async () => {
+  const storagePath = await createTempStorageRoot();
+  const seedRepo = new SessionSegmentRepository({ storagePath });
+  const seedSegment = await seedRepo.create({
+    session_id: 501,
+    status: 'RUNNING',
+    executor_type: 'CLAUDE_CODE',
+    agent_id: null,
+    provider_session_id: null,
+    resume_token: null,
+    checkpoint_ref: null,
+    trigger_type: 'START',
+    parent_segment_id: null,
+    started_at: '2026-03-23T00:00:00.000Z',
+    completed_at: null,
+    metadata: { source: 'seed' },
+  });
+
+  const createRepo = new BlockingSaveSessionSegmentRepository({ storagePath });
+  const updateRepo = new TrackingUpdateSessionSegmentRepository({ storagePath });
+
+  const createPromise = createRepo.create({
+    session_id: 501,
+    status: 'RUNNING',
+    executor_type: 'CLAUDE_CODE',
+    agent_id: null,
+    provider_session_id: null,
+    resume_token: null,
+    checkpoint_ref: 'checkpoint-2',
+    trigger_type: 'CONTINUE',
+    parent_segment_id: seedSegment.id,
+    started_at: '2026-03-23T00:05:00.000Z',
+    completed_at: null,
+    metadata: { source: 'queued-create' },
+  });
+
+  await createRepo.firstSaveStarted.promise;
+
+  const updatePromise = updateRepo.update(seedSegment.id, {
+    status: 'COMPLETED',
+    completed_at: '2026-03-23T00:06:00.000Z',
+    metadata: { source: 'queued-update' },
+  });
+
+  await Promise.resolve();
+
+  assert.equal(updateRepo.loadAllCalls, 0);
+
+  createRepo.releaseFirstSave();
+
+  const [createdSegment, updatedSegment] = await Promise.all([createPromise, updatePromise]);
+
+  assert.equal(createdSegment.segment_index, 2);
+  assert.equal(updatedSegment?.status, 'COMPLETED');
+  assert.equal(updatedSegment?.completed_at, '2026-03-23T00:06:00.000Z');
+
+  const persisted = JSON.parse(
+    await fs.readFile(path.join(storagePath, 'session_segments.json'), 'utf-8'),
+  ) as Array<{
+    id: number;
+    status: string;
+    segment_index: number;
+    completed_at: string | null;
+  }>;
+
+  assert.equal(persisted.length, 2);
+  assert.deepEqual(
+    persisted.map((item) => item.segment_index).sort((left, right) => left - right),
+    [1, 2],
+  );
+  const persistedSeedSegment = persisted.find((item) => item.id === seedSegment.id);
+  assert.ok(persistedSeedSegment);
+  assert.equal(persistedSeedSegment.status, 'COMPLETED');
+  assert.equal(persistedSeedSegment.segment_index, 1);
+  assert.equal(persistedSeedSegment.completed_at, '2026-03-23T00:06:00.000Z');
 
   await fs.rm(storagePath, { recursive: true, force: true });
 });

@@ -62,7 +62,11 @@ class SessionSegmentRepository extends BaseRepository<
   }
 
   async update(segmentId: number, update: UpdateSessionSegmentRecord): Promise<StoredSessionSegmentEntity | null> {
-    return await super.update(segmentId, update);
+    return await this.queueMutation(async () => await super.update(segmentId, update));
+  }
+
+  async delete(segmentId: number): Promise<boolean> {
+    return await this.queueMutation(async () => await super.delete(segmentId));
   }
 }
 

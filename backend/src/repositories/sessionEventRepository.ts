@@ -70,6 +70,14 @@ class SessionEventRepository extends BaseRepository<
     return filtered.slice(0, limit);
   }
 
+  async update(eventId: number, update: UpdateSessionEventRecord): Promise<StoredSessionEventEntity | null> {
+    return await this.queueMutation(async () => await super.update(eventId, update));
+  }
+
+  async delete(eventId: number): Promise<boolean> {
+    return await this.queueMutation(async () => await super.delete(eventId));
+  }
+
   async getLastSeq(sessionId: number): Promise<number> {
     const events = await this.listBySessionId(sessionId);
     if (events.length === 0) {
