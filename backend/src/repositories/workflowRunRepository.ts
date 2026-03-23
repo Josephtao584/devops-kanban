@@ -13,9 +13,23 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
     super('workflow_runs.json');
   }
 
-  async findByTaskId(taskId: number): Promise<StoredWorkflowRunEntity | null> {
+  async findLatestByTaskId(taskId: number): Promise<StoredWorkflowRunEntity | null> {
     const data = await this._loadAll();
-    return data.find((item) => item.task_id === taskId) || null;
+    const taskRuns = data.filter((item) => item.task_id === taskId);
+
+    taskRuns.sort((a, b) => {
+      const createdAtDiff = Date.parse(b.created_at) - Date.parse(a.created_at);
+      if (!Number.isNaN(createdAtDiff) && createdAtDiff !== 0) {
+        return createdAtDiff;
+      }
+      return b.id - a.id;
+    });
+
+    return taskRuns[0] || null;
+  }
+
+  async findByTaskId(taskId: number): Promise<StoredWorkflowRunEntity | null> {
+    return await this.findLatestByTaskId(taskId);
   }
 
   async findAllByTaskId(taskId: number): Promise<StoredWorkflowRunEntity[]> {
