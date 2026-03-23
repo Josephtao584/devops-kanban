@@ -12,49 +12,29 @@ test.test('workflow template DTO accepts the existing full-template update paylo
         id: 'requirement-design',
         name: '需求设计',
         instructionPrompt: '先完成需求分析，整理实现思路、关键约束和交付方案。',
-        executor: {
-          type: 'CLAUDE_CODE',
-          commandOverride: null,
-          args: [],
-          env: {},
-        },
+        agentId: 1,
       },
       {
         id: 'code-development',
         name: '代码开发',
         instructionPrompt: '根据上游步骤摘要完成代码实现，保持改动聚焦，并总结主要修改结果。',
-        executor: {
-          type: 'CODEX',
-          commandOverride: 'codex run',
-          args: ['--json'],
-          env: { MODE: 'strict' },
-        },
+        agentId: 2,
       },
       {
         id: 'testing',
         name: '测试',
         instructionPrompt: '根据上游步骤摘要执行必要验证，说明测试结果、发现的问题和结论。',
-        executor: {
-          type: 'OPENCODE',
-          commandOverride: null,
-          args: ['test'],
-          env: { CI: 'true' },
-        },
+        agentId: null,
       },
       {
         id: 'code-review',
         name: '代码审查',
         instructionPrompt: '根据上游步骤摘要完成代码审查，说明主要风险、问题和审查结论。',
-        executor: {
-          type: 'CLAUDE_CODE',
-          commandOverride: null,
-          args: [],
-          env: {},
-        },
+        agentId: 4,
       },
     ],
   };
 
-  assert.equal(payload.steps[1]!.executor.type, 'CODEX');
-  assert.equal(payload.steps[2]!.executor.env.CI, 'true');
+  assert.equal(payload.steps[1]!.agentId, 2);
+  assert.equal(payload.steps[2]!.agentId, null);
 });

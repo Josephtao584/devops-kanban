@@ -18,14 +18,14 @@
       <template v-else-if="loadError">
         <div class="state-block error">{{ loadError }}</div>
         <div class="actions-row">
-          <el-button @click="loadTemplate">{{ $t('workflowTemplate.retry') }}</el-button>
+          <el-button @click="loadPage">{{ $t('workflowTemplate.retry') }}</el-button>
         </div>
       </template>
 
       <template v-else-if="template">
         <div class="template-meta">
           <div class="meta-row">
-            <span class="meta-label">Template ID</span>
+            <span class="meta-label">{{ $t('workflowTemplate.templateId') }}</span>
             <span class="meta-value">{{ template.template_id }}</span>
           </div>
           <div class="meta-row">
@@ -37,16 +37,28 @@
         <el-table :data="template.steps" border stripe>
           <el-table-column prop="name" :label="$t('workflowTemplate.stepName')" min-width="160" />
           <el-table-column prop="id" :label="$t('workflowTemplate.stepId')" min-width="180" />
-          <el-table-column :label="$t('workflowTemplate.executor')" min-width="220">
+          <el-table-column :label="$t('workflowTemplate.executor')" min-width="280">
             <template #default="scope">
-              <el-select v-model="scope.row.executor.type" style="width: 100%">
-                <el-option
-                  v-for="option in executorOptions"
-                  :key="option.value"
-                  :label="option.label"
-                  :value="option.value"
-                />
-              </el-select>
+              <div class="agent-binding-cell">
+                <el-select v-model="scope.row.agentId" clearable style="width: 100%">
+                  <el-option
+                    v-for="agent in agents"
+                    :key="agent.id"
+                    :label="formatAgentOption(agent)"
+                    :value="agent.id"
+                    :disabled="agent.enabled === false"
+                  />
+                </el-select>
+
+                <div v-if="agentsLoaded" class="binding-state-row">
+                  <el-tag v-if="isMissingAgent(scope.row)" type="danger">
+                    {{ $t('workflowTemplate.missingAgent', { id: scope.row.agentId }) }}
+                  </el-tag>
+                  <el-tag v-else-if="isDisabledAgent(scope.row)" type="warning">
+                    {{ formatBoundAgentState(scope.row) }}
+                  </el-tag>
+                </div>
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="$t('workflowTemplate.instructionPrompt')" min-width="420">
@@ -73,6 +85,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { getWorkflowTemplate, updateWorkflowTemplate } from '../api/workflowTemplate'
+import { getAgents } from '../api/agent'
 
 const { t } = useI18n()
 
@@ -80,24 +93,126 @@ const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
 const template = ref(null)
+const agents = ref([])
+const agentsLoaded = ref(false)
 
-const executorOptions = [
-  { value: 'CLAUDE_CODE', label: 'Claude Code' },
-  { value: 'CODEX', label: 'Codex' },
-  { value: 'OPENCODE', label: 'OpenCode' }
-]
+const getApiData = (response, fallbackMessageKey) => {
+  if (!response?.success) {
+    throw new Error(response?.message || t(fallbackMessageKey))
+  }
+
+  return response?.data
+}
+
+const getErrorMessage = (error, fallbackMessageKey) => {
+  return error?.response?.data?.message || error?.message || t(fallbackMessageKey)
+}
+
+const normalizeStep = (step = {}) => ({
+  id: step.id ?? '',
+  name: step.name ?? '',
+  instructionPrompt: step.instructionPrompt ?? '',
+  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
+})
+
+const normalizeTemplate = (rawTemplate) => {
+  if (!rawTemplate) return null
+
+  return {
+    ...rawTemplate,
+    steps: Array.isArray(rawTemplate.steps) ? rawTemplate.steps.map(normalizeStep) : []
+  }
+}
+
+const formatExecutorType = (agent) => {
+  const executorType = agent?.executorType || agent?.type
+  if (!executorType) return ''
+
+  return executorType
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+const getAgentDisplayName = (agent) => {
+  return agent?.name || t('workflowTemplate.agentFallbackName', { id: agent?.id ?? '' })
+}
+
+const formatAgentOption = (agent) => {
+  const parts = [getAgentDisplayName(agent)]
+  const executorType = formatExecutorType(agent)
+
+  if (executorType) {
+    parts.push(`(${executorType})`)
+  }
+
+  if (agent?.enabled === false) {
+    parts.push(`(${t('workflowTemplate.disabled')})`)
+  }
+
+  return parts.join(' ')
+}
+
+const getAgentById = (agentId) => agents.value.find((agent) => agent.id === agentId) || null
+
+const isMissingAgent = (step) => {
+  if (typeof step?.agentId !== 'number') return false
+  return !getAgentById(step.agentId)
+}
+
+const isDisabledAgent = (step) => {
+  if (typeof step?.agentId !== 'number') return false
+  return getAgentById(step.agentId)?.enabled === false
+}
+
+const formatBoundAgentState = (step) => {
+  const agent = getAgentById(step?.agentId)
+  if (!agent) return ''
+  return `${getAgentDisplayName(agent)} (${t('workflowTemplate.disabled')})`
+}
+
+const buildSavePayload = (currentTemplate) => ({
+  template_id: currentTemplate.template_id,
+  name: currentTemplate.name,
+  steps: (currentTemplate.steps || []).map((step) => ({
+    id: step.id,
+    name: step.name,
+    instructionPrompt: step.instructionPrompt ?? '',
+    agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
+  }))
+})
 
 const loadTemplate = async () => {
   loading.value = true
   loadError.value = ''
+
   try {
     const response = await getWorkflowTemplate()
-    template.value = response.data
+    template.value = normalizeTemplate(getApiData(response, 'workflowTemplate.loadFailed'))
   } catch (error) {
-    loadError.value = error.response?.data?.message || t('workflowTemplate.loadFailed')
+    loadError.value = getErrorMessage(error, 'workflowTemplate.loadFailed')
   } finally {
     loading.value = false
   }
+}
+
+const loadAgents = async () => {
+  agentsLoaded.value = false
+
+  try {
+    const response = await getAgents()
+    const loadedAgents = getApiData(response, 'workflowTemplate.loadAgentsFailed')
+    agents.value = Array.isArray(loadedAgents) ? loadedAgents : []
+  } catch (error) {
+    agents.value = []
+    ElMessage.error(getErrorMessage(error, 'workflowTemplate.loadAgentsFailed'))
+  } finally {
+    agentsLoaded.value = true
+  }
+}
+
+const loadPage = async () => {
+  await Promise.all([loadTemplate(), loadAgents()])
 }
 
 const saveTemplate = async () => {
@@ -105,18 +220,19 @@ const saveTemplate = async () => {
 
   saving.value = true
   try {
-    const response = await updateWorkflowTemplate(template.value)
-    template.value = response.data
+    const payload = buildSavePayload(template.value)
+    const response = await updateWorkflowTemplate(payload)
+    template.value = normalizeTemplate(getApiData(response, 'workflowTemplate.saveFailed'))
     ElMessage.success(t('workflowTemplate.saveSuccess'))
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || t('workflowTemplate.saveFailed'))
+    ElMessage.error(getErrorMessage(error, 'workflowTemplate.saveFailed'))
   } finally {
     saving.value = false
   }
 }
 
 onMounted(() => {
-  loadTemplate()
+  loadPage()
 })
 </script>
 
@@ -168,6 +284,16 @@ onMounted(() => {
 .meta-value {
   color: #222;
   font-weight: 500;
+}
+
+.agent-binding-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.binding-state-row {
+  min-height: 24px;
 }
 
 .prompt-editor {
