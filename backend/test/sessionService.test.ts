@@ -245,3 +245,111 @@ test.test('SessionService continue creates a child segment and attaches resumed 
     await fs.rm(worktreePath, { recursive: true, force: true });
   }
 });
+
+test.test('SessionService listEvents returns the planned envelope with pagination metadata', async () => {
+  const storagePath = await createTempStorageRoot();
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionEventRepo = new SessionEventRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 903,
+      status: 'STOPPED',
+      worktree_path: null,
+      branch: 'task/project/903',
+      initial_prompt: 'List events',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    await sessionEventRepo.append({
+      session_id: session.id,
+      segment_id: 1,
+      kind: 'stream_chunk',
+      role: 'assistant',
+      content: 'alpha',
+      payload: { stream: 'stdout' },
+    });
+    await sessionEventRepo.append({
+      session_id: session.id,
+      segment_id: 1,
+      kind: 'stream_chunk',
+      role: 'assistant',
+      content: 'beta',
+      payload: { stream: 'stdout' },
+    });
+    await sessionEventRepo.append({
+      session_id: session.id,
+      segment_id: 1,
+      kind: 'stream_chunk',
+      role: 'assistant',
+      content: 'gamma',
+      payload: { stream: 'stdout' },
+    });
+
+    const service = new SessionService();
+    service.sessionRepo = sessionRepo;
+    service.sessionEventRepo = sessionEventRepo;
+
+    const page = await service.listEvents(session.id, { afterSeq: 1, limit: 1 });
+
+    assert.deepEqual(page, {
+      events: [
+        {
+          id: 2,
+          session_id: session.id,
+          segment_id: 1,
+          seq: 2,
+          kind: 'stream_chunk',
+          role: 'assistant',
+          content: 'beta',
+          payload: { stream: 'stdout' },
+          created_at: page.events[0]?.created_at,
+          updated_at: page.events[0]?.updated_at,
+        },
+      ],
+      last_seq: 3,
+      has_more: true,
+    });
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
+});
+
+test.test('SessionService listEvents returns empty events with zero metadata for a session with no events', async () => {
+  const storagePath = await createTempStorageRoot();
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionEventRepo = new SessionEventRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 904,
+      status: 'STOPPED',
+      worktree_path: null,
+      branch: 'task/project/904',
+      initial_prompt: 'No events yet',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    const service = new SessionService();
+    service.sessionRepo = sessionRepo;
+    service.sessionEventRepo = sessionEventRepo;
+
+    const page = await service.listEvents(session.id);
+
+    assert.deepEqual(page, {
+      events: [],
+      last_seq: 0,
+      has_more: false,
+    });
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
+});
