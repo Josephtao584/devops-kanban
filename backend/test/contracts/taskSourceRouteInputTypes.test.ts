@@ -8,7 +8,13 @@ import type {
 } from '../../src/types/dto/taskSources.ts';
 
 test.test('task source DTOs accept the currently supported route inputs', () => {
-  const createInput: CreateTaskSourceInput = {};
+  const createInput: CreateTaskSourceInput = {
+    name: 'Test Source',
+    type: 'GITHUB',
+    project_id: 1,
+    config: { repo: 'https://github.com/example/repo' },
+    enabled: true,
+  };
 
   const updateInput: UpdateTaskSourceInput = {
     last_sync_at: '2026-03-20T10:00:00.000Z',
@@ -28,7 +34,8 @@ test.test('task source DTOs accept the currently supported route inputs', () => 
     iteration_id: 4,
   };
 
-  assert.deepEqual(createInput, {});
+  assert.equal(createInput.name, 'Test Source');
+  assert.equal(createInput.type, 'GITHUB');
   assert.equal(updateInput.last_sync_at, '2026-03-20T10:00:00.000Z');
   assert.equal(importBody.items?.[0]?.external_id, 'ISSUE-1');
   assert.equal(importBody.project_id, 12);

@@ -1,7 +1,7 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { READ_ONLY_ERROR_MESSAGE, TaskSourceService } from '../../src/services/taskSourceService.js';
+import { TaskSourceService } from '../../src/services/taskSourceService.js';
 import type {
   CreateTaskSourceInput,
   UpdateTaskSourceInput,
@@ -94,65 +94,58 @@ test.test('getAvailableSourceTypes returns config-backed task source types', asy
   });
 });
 
-test.test('create rejects writes in read-only mode', async () => {
-  const service = new TestTaskSourceService();
+test.test('create now allows writes via repository', async () => {
+  // The service now delegates to the repository which persists to disk
+  // This test verifies the service doesn't throw 405 anymore
+  const service = new TaskSourceService();
 
-  const createInput: CreateTaskSourceInput = {};
+  const createInput: CreateTaskSourceInput = {
+    name: 'Test Source',
+    type: 'REQUIREMENT',
+    project_id: 1,
+    config: { token: 'test-token' },
+    enabled: true,
+  };
 
-  await assert.rejects(() => service.create(createInput), (error: unknown) => {
-    const typedError = error as Error & { statusCode?: number };
-    assert.equal(typedError.statusCode, 405);
-    assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);
-    return true;
-  });
+  // Should not throw - create now works
+  const result = await service.create(createInput);
+  assert.ok(result.id, 'Created source should have an id');
+  assert.equal(result.name, 'Test Source');
+  assert.equal(result.type, 'REQUIREMENT');
+  assert.equal(result.project_id, 1);
 });
 
-test.test('update rejects normal edits in read-only mode', async () => {
-  const service = new TestTaskSourceService({
-    sources: [
-      { id: 'requirement-orders', type: 'REQUIREMENT', name: 'Orders 需求池', project_id: 1, config: {} },
-    ],
-  });
+test.test('update rejects edits when source not found', async () => {
+  const service = new TaskSourceService();
 
-  await assert.rejects(() => service.update('requirement-orders', { name: 'Updated' } as never), (error: unknown) => {
-    const typedError = error as Error & { statusCode?: number };
-    assert.equal(typedError.statusCode, 405);
-    assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);
-    return true;
-  });
-});
-
-test.test('update rejects unsupported edits in read-only mode', async () => {
-  const service = new TestTaskSourceService({
-    sources: [
-      { id: 'requirement-orders', type: 'REQUIREMENT', name: 'Orders 需求池', project_id: 1, config: {} },
-    ],
-  });
-
-  await assert.rejects(() => service.update('requirement-orders', { last_sync_at: '2026-03-20T10:00:00.000Z', name: 'Updated' } as never), (error: unknown) => {
-    const typedError = error as Error & { statusCode?: number };
-    assert.equal(typedError.statusCode, 405);
-    assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);
-    return true;
-  });
+  const result = await service.update('99999', { name: 'Updated' } as never);
+  assert.equal(result, null);
 });
 
 test.test('update allows transient last_sync_at refresh without persisting', async () => {
-  const source = { id: 'requirement-orders', type: 'REQUIREMENT', name: 'Orders 需求池', project_id: 1, config: {} };
-  const service = new TestTaskSourceService({ sources: [source] });
+  // First create a source
+  const service = new TaskSourceService();
+  const createInput: CreateTaskSourceInput = {
+    name: 'Test Source for Update',
+    type: 'REQUIREMENT',
+    project_id: 1,
+    config: {},
+    enabled: true,
+  };
 
-  const result = await service.update('requirement-orders', { last_sync_at: '2026-03-20T10:00:00.000Z' });
+  const created = await service.create(createInput);
+  const createdId = String(created.id);
 
-  assert.deepEqual(result, source);
+  const result = await service.update(createdId, { last_sync_at: '2026-03-20T10:00:00.000Z' });
+
+  // last_sync_at only update should return existing without persisting
+  assert.ok(result);
+  assert.equal(result.id, createdId);
 });
 
-test.test('delete rejects writes in read-only mode', async () => {
-  const service = new TestTaskSourceService();
+test.test('delete returns false when source not found', async () => {
+  const service = new TaskSourceService();
 
-  await assert.rejects(() => service.delete('requirement-orders'), (error: unknown) => {
-    const typedError = error as Error & { statusCode?: number };
-    assert.equal(typedError.statusCode, 405);
-    assert.equal(typedError.message, READ_ONLY_ERROR_MESSAGE);
-    return true;
-  });
+  const result = await service.delete('99999');
+  assert.equal(result, false);
 });

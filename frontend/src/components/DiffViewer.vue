@@ -281,6 +281,7 @@ const loadDiff = async () => {
 </script>
 
 <style scoped>
+/* ==================== Dialog Header ==================== */
 .dialog-header {
   display: flex;
   justify-content: space-between;
@@ -294,24 +295,40 @@ const loadDiff = async () => {
   gap: 8px;
 }
 
+.branch-info .el-tag {
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+/* ==================== Loading ==================== */
 .loading-container {
   padding: 20px;
 }
 
+/* ==================== Diff Container ==================== */
 .diff-container {
-  background: var(--el-bg-color-page);
-  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border-radius: 10px;
   overflow: hidden;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .diff-stats {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   padding: 12px 16px;
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-light);
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border-bottom: 1px solid var(--border-color);
 }
 
+.diff-stats .el-tag {
+  border-radius: 6px;
+  font-weight: 500;
+  padding: 4px 10px;
+}
+
+/* ==================== Diff Panels ==================== */
 .diff-panels {
   display: flex;
   height: 60vh;
@@ -319,25 +336,41 @@ const loadDiff = async () => {
 
 .file-list-panel {
   width: 35%;
-  min-width: 250px;
-  border-right: 1px solid var(--el-border-color-light);
-  background: var(--el-bg-color);
+  min-width: 280px;
+  border-right: 1px solid var(--border-color);
+  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
 }
 
 .file-list-panel :deep(.el-menu) {
   border-right: none;
+  background: transparent;
 }
 
 .file-menu-item {
   height: auto !important;
-  padding: 10px 16px !important;
+  padding: 12px 16px !important;
   line-height: 1.4;
+  border-radius: 8px !important;
+  margin: 4px 8px !important;
+  border: 1px solid transparent !important;
+  transition: all 0.2s ease !important;
+}
+
+.file-menu-item:hover {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.file-menu-item.is-active {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.15) !important;
 }
 
 .file-item-content {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
   overflow: hidden;
 }
@@ -345,10 +378,11 @@ const loadDiff = async () => {
 .file-name {
   font-size: 13px;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 .file-stats {
@@ -356,69 +390,91 @@ const loadDiff = async () => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .stat-additions {
-  color: #67c23a;
-  font-weight: 500;
+  color: var(--el-color-success);
+  font-weight: 600;
+  background: var(--el-color-success-light-9);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .stat-deletions {
-  color: #f56c6c;
-  font-weight: 500;
+  color: var(--el-color-danger);
+  font-weight: 600;
+  background: var(--el-color-danger-light-9);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .status-tag {
   font-size: 10px !important;
-  padding: 0 4px !important;
+  padding: 0 6px !important;
   height: 18px !important;
   line-height: 18px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
 }
 
+/* ==================== Diff Content Panel ==================== */
 .diff-content-panel {
   flex: 1;
   min-width: 0;
+  background: var(--bg-primary);
 }
 
 .diff-view {
   padding: 0;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .diff-line {
   display: flex;
-  padding: 1px 8px;
+  padding: 2px 20px;
   white-space: pre;
+  transition: background 0.15s ease;
+  border-left: 3px solid transparent;
+}
+
+.diff-line:hover {
+  filter: brightness(0.97);
 }
 
 .diff-line.addition {
-  background-color: rgba(103, 194, 58, 0.15);
+  background-color: rgba(34, 197, 94, 0.12);
+  border-left: 3px solid #22c55e;
 }
 
 .diff-line.deletion {
-  background-color: rgba(245, 108, 108, 0.15);
+  background-color: rgba(239, 68, 68, 0.12);
+  border-left: 3px solid #ef4444;
 }
 
 .diff-line.hunk {
-  background-color: rgba(64, 158, 255, 0.15);
-  color: #409eff;
-  font-weight: 500;
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  font-weight: 600;
+  border-left: 3px solid #6366f1;
 }
 
 .diff-line.header {
-  color: #909399;
+  color: var(--text-muted);
   font-style: italic;
+  border-left: 3px solid transparent;
 }
 
 .line-number {
-  width: 40px;
+  width: 45px;
   text-align: right;
   padding-right: 12px;
-  color: #909399;
+  color: var(--text-muted);
   user-select: none;
   flex-shrink: 0;
+  font-size: 11px;
 }
 
 .line-prefix {
@@ -429,11 +485,15 @@ const loadDiff = async () => {
 }
 
 .diff-line.addition .line-prefix {
-  color: #67c23a;
+  color: #16a34a;
 }
 
 .diff-line.deletion .line-prefix {
-  color: #f56c6c;
+  color: #dc2626;
+}
+
+.diff-line.hunk .line-prefix {
+  color: #6366f1;
 }
 
 .line-content {
@@ -442,14 +502,69 @@ const loadDiff = async () => {
 }
 
 .no-diff {
-  padding: 40px;
+  padding: 60px 40px;
   text-align: center;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
+/* ==================== Dialog Footer ==================== */
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.dialog-footer .el-button {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 10px 18px;
+  transition: all 0.2s ease;
+}
+
+/* ==================== Dialog Global Overrides ==================== */
+:deep(.el-dialog__header) {
+  margin: 0;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+}
+
+:deep(.el-dialog__title) {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+:deep(.el-dialog__body) {
+  padding: 24px;
+  background: var(--bg-primary);
+}
+
+:deep(.el-dialog) {
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-color);
+}
+
+:deep(.el-dialog__headerbtn) {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-dialog__headerbtn:hover) {
+  background: var(--bg-secondary);
+}
+
+:deep(.el-dialog__footer) {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 </style>

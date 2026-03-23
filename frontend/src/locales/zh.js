@@ -149,6 +149,9 @@ export default {
     types: {
       GITHUB: 'GitHub',
       GITLAB: 'GitLab',
+      REQUIREMENT: '需求',
+      JIRA: 'Jira',
+      LINEAR: 'Linear',
       CUSTOM: '自定义'
     },
     github: {
@@ -212,11 +215,11 @@ export default {
   },
   workflowTemplate: {
     title: '工作流模板',
-    description: '配置全局固定工作流中每个步骤使用的执行器和提示词。',
+    description: '配置全局固定工作流中每个步骤使用的角色和提示词。',
     name: '模板名称',
     stepName: '步骤名称',
     stepId: '步骤 ID',
-    executor: '执行器',
+    executor: '角色',
     instructionPrompt: '步骤提示词',
     instructionPromptHint: '输入当前步骤的专属执行提示词',
     retry: '重试',

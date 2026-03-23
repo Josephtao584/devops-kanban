@@ -44,16 +44,19 @@ export function useWorktree() {
       worktreeLoading.value.add(task.id)
 
       if (task.worktree_status === 'created') {
-        // Confirm before delete
-        await ElMessageBox.confirm(
-          `确定要删除 Worktree "${task.worktree_branch}" 吗？`,
-          '确认删除',
+        // Confirm deletion by typing branch name
+        const confirmBranch = await ElMessageBox.prompt(
+          `请输入 branch 名称 "${task.worktree_branch}" 确认删除`,
+          '二次确认',
           {
             confirmButtonText: '删除',
             cancelButtonText: '取消',
             type: 'warning',
+            inputPattern: new RegExp(`^${task.worktree_branch}$`),
+            inputErrorMessage: `branch 名称不匹配，应为 "${task.worktree_branch}"`,
           }
         )
+        if (confirmBranch.action !== 'confirm') return
 
         // Delete worktree
         const response = await taskWorktreeApi.deleteTaskWorktree(task.id)
