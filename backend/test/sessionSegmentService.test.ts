@@ -35,7 +35,7 @@ function createDeferred() {
 }
 
 class GuardedSessionSegmentRepository extends SessionSegmentRepository {
-  findLatestBySessionId(): Promise<never> {
+  override findLatestBySessionId(): Promise<never> {
     throw new Error('findLatestBySessionId should not be used by service create');
   }
 }
@@ -45,7 +45,7 @@ class BlockingSaveSessionSegmentRepository extends SessionSegmentRepository {
   firstSaveStarted = createDeferred();
   releaseFirstSaveBarrier = createDeferred();
 
-  async _saveAll(data: any[]) {
+  override async _saveAll(data: any[]) {
     this.saveCallCount += 1;
     if (this.saveCallCount === 1) {
       this.firstSaveStarted.resolve();
@@ -62,7 +62,7 @@ class BlockingSaveSessionSegmentRepository extends SessionSegmentRepository {
 class TrackingUpdateSessionSegmentRepository extends SessionSegmentRepository {
   loadAllCalls = 0;
 
-  async _loadAll() {
+  override async _loadAll() {
     this.loadAllCalls += 1;
     return await super._loadAll();
   }

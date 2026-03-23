@@ -54,7 +54,7 @@ function createDeferred() {
 }
 
 class GuardedSessionEventRepository extends SessionEventRepository {
-  getLastSeq(): Promise<number> {
+  override getLastSeq(): Promise<number> {
     throw new Error('getLastSeq should not be used by service append');
   }
 }
@@ -64,7 +64,7 @@ class BlockingSaveSessionEventRepository extends SessionEventRepository {
   firstSaveStarted = createDeferred();
   releaseFirstSaveBarrier = createDeferred();
 
-  async _saveAll(data: any[]) {
+  override async _saveAll(data: any[]) {
     this.saveCallCount += 1;
     if (this.saveCallCount === 1) {
       this.firstSaveStarted.resolve();
@@ -81,7 +81,7 @@ class BlockingSaveSessionEventRepository extends SessionEventRepository {
 class TrackingUpdateSessionEventRepository extends SessionEventRepository {
   loadAllCalls = 0;
 
-  async _loadAll() {
+  override async _loadAll() {
     this.loadAllCalls += 1;
     return await super._loadAll();
   }

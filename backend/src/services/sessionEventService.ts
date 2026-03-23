@@ -13,6 +13,11 @@ function createNotFoundError(message: string) {
 
 type AppendSessionEventInput = Omit<SessionEventEntity, 'id' | 'seq'>;
 
+type ListSessionEventsOptions = {
+  afterSeq?: number;
+  limit?: number;
+};
+
 class SessionEventService {
   sessionRepo: SessionRepository;
   sessionSegmentRepo: SessionSegmentRepository;
@@ -49,13 +54,21 @@ class SessionEventService {
     return await this.sessionEventRepo.append(eventData);
   }
 
-  async listEvents(sessionId: number, { afterSeq, limit }: { afterSeq?: number; limit?: number } = {}) {
+  async listEvents(sessionId: number, options: ListSessionEventsOptions = {}) {
     const session = await this.sessionRepo.findById(sessionId);
     if (!session) {
       throw createNotFoundError('Session not found');
     }
 
-    return await this.sessionEventRepo.listBySessionId(sessionId, { afterSeq, limit });
+    const repositoryOptions: ListSessionEventsOptions = {};
+    if (options.afterSeq !== undefined) {
+      repositoryOptions.afterSeq = options.afterSeq;
+    }
+    if (options.limit !== undefined) {
+      repositoryOptions.limit = options.limit;
+    }
+
+    return await this.sessionEventRepo.listBySessionId(sessionId, repositoryOptions);
   }
 }
 

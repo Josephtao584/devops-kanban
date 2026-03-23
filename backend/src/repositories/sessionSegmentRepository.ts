@@ -2,7 +2,8 @@ import { BaseRepository } from './base.js';
 import type { BaseEntity } from './base.js';
 import type { SessionSegmentEntity } from '../types/entities.ts';
 
-interface StoredSessionSegmentEntity extends SessionSegmentEntity, BaseEntity {}
+type StoredSessionSegmentEntity = Omit<SessionSegmentEntity, 'created_at' | 'updated_at'> &
+  Pick<BaseEntity, 'created_at' | 'updated_at'>;
 
 type CreateSessionSegmentRecord = Omit<SessionSegmentEntity, 'id' | 'segment_index'>;
 type UpdateSessionSegmentRecord = Partial<Omit<SessionSegmentEntity, 'id' | 'session_id' | 'segment_index'>>;
@@ -15,7 +16,7 @@ class SessionSegmentRepository extends BaseRepository<
   UpdateSessionSegmentRecord
 > {
   constructor({ storagePath }: { storagePath?: string } = {}) {
-    super('session_segments.json', { storagePath });
+    super('session_segments.json', storagePath ? { storagePath } : {});
   }
 
   private async queueMutation<T>(operation: () => Promise<T>): Promise<T> {
@@ -34,10 +35,11 @@ class SessionSegmentRepository extends BaseRepository<
 
   async findLatestBySessionId(sessionId: number): Promise<StoredSessionSegmentEntity | null> {
     const segments = await this.findBySessionId(sessionId);
-    return segments.length > 0 ? segments[segments.length - 1] : null;
+    const latestSegment = segments[segments.length - 1];
+    return latestSegment ?? null;
   }
 
-  async create(segment: CreateSessionSegmentRecord): Promise<StoredSessionSegmentEntity> {
+  override async create(segment: CreateSessionSegmentRecord): Promise<StoredSessionSegmentEntity> {
     return await this.queueMutation(async () => {
       const data = await this._loadAll();
       const newId = this._getNextId(data);
@@ -61,11 +63,11 @@ class SessionSegmentRepository extends BaseRepository<
     });
   }
 
-  async update(segmentId: number, update: UpdateSessionSegmentRecord): Promise<StoredSessionSegmentEntity | null> {
+  override async update(segmentId: number, update: UpdateSessionSegmentRecord): Promise<StoredSessionSegmentEntity | null> {
     return await this.queueMutation(async () => await super.update(segmentId, update));
   }
 
-  async delete(segmentId: number): Promise<boolean> {
+  override async delete(segmentId: number): Promise<boolean> {
     return await this.queueMutation(async () => await super.delete(segmentId));
   }
 }

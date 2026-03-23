@@ -2,7 +2,8 @@ import { BaseRepository } from './base.js';
 import type { BaseEntity } from './base.js';
 import type { SessionEventEntity } from '../types/entities.ts';
 
-interface StoredSessionEventEntity extends SessionEventEntity, BaseEntity {}
+type StoredSessionEventEntity = Omit<SessionEventEntity, 'created_at' | 'updated_at'> &
+  Pick<BaseEntity, 'created_at' | 'updated_at'>;
 
 type CreateSessionEventRecord = Omit<SessionEventEntity, 'id' | 'seq'>;
 type UpdateSessionEventRecord = Partial<Omit<SessionEventEntity, 'id' | 'session_id' | 'segment_id' | 'seq'>>;
@@ -15,7 +16,7 @@ class SessionEventRepository extends BaseRepository<
   UpdateSessionEventRecord
 > {
   constructor({ storagePath }: { storagePath?: string } = {}) {
-    super('session_events.json', { storagePath });
+    super('session_events.json', storagePath ? { storagePath } : {});
   }
 
   private async queueMutation<T>(operation: () => Promise<T>): Promise<T> {
@@ -25,7 +26,7 @@ class SessionEventRepository extends BaseRepository<
     return await next;
   }
 
-  async create(event: CreateSessionEventRecord): Promise<StoredSessionEventEntity> {
+  override async create(event: CreateSessionEventRecord): Promise<StoredSessionEventEntity> {
     return await this.append(event);
   }
 
@@ -55,35 +56,33 @@ class SessionEventRepository extends BaseRepository<
 
   async listBySessionId(
     sessionId: number,
-    { afterSeq, limit }: { afterSeq?: number; limit?: number } = {},
+    options: { afterSeq?: number; limit?: number } = {},
   ): Promise<StoredSessionEventEntity[]> {
     const data = await this._loadAll();
     const filtered = data
       .filter((item) => item.session_id === sessionId)
       .sort((left, right) => left.seq - right.seq || left.id - right.id)
-      .filter((event) => afterSeq === undefined || event.seq > afterSeq);
+      .filter((event) => options.afterSeq === undefined || event.seq > options.afterSeq);
 
-    if (limit === undefined) {
+    if (options.limit === undefined) {
       return filtered;
     }
 
-    return filtered.slice(0, limit);
+    return filtered.slice(0, options.limit);
   }
 
-  async update(eventId: number, update: UpdateSessionEventRecord): Promise<StoredSessionEventEntity | null> {
+  override async update(eventId: number, update: UpdateSessionEventRecord): Promise<StoredSessionEventEntity | null> {
     return await this.queueMutation(async () => await super.update(eventId, update));
   }
 
-  async delete(eventId: number): Promise<boolean> {
+  override async delete(eventId: number): Promise<boolean> {
     return await this.queueMutation(async () => await super.delete(eventId));
   }
 
   async getLastSeq(sessionId: number): Promise<number> {
     const events = await this.listBySessionId(sessionId);
-    if (events.length === 0) {
-      return 0;
-    }
-    return events[events.length - 1].seq;
+    const lastEvent = events[events.length - 1];
+    return lastEvent?.seq ?? 0;
   }
 }
 
