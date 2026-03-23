@@ -9,7 +9,6 @@ import type {
   SessionSegmentEntity,
   WorkflowStepEntity,
 } from '../../src/types/entities.ts';
-import type { BroadcastPayload, SessionChannel, WebSocketPayload } from '../../src/types/ws/sessions.ts';
 
 test.test('session shared boundary types accept canonical event-based assignments', () => {
   const createInput: CreateSessionInput = { task_id: 1, initial_prompt: 'continue' };
@@ -21,6 +20,10 @@ test.test('session shared boundary types accept canonical event-based assignment
     worktree_path: '/repo/.worktrees/task-10',
     branch: 'task/10',
     initial_prompt: 'continue',
+    agent_id: 7,
+    executor_type: 'claude_code',
+    started_at: '2026-03-23T00:00:00.000Z',
+    completed_at: null,
     created_at: '2026-03-23T00:00:00.000Z',
     updated_at: '2026-03-23T00:00:00.000Z',
   };
@@ -64,7 +67,7 @@ test.test('session shared boundary types accept canonical event-based assignment
     kind: 'stream_chunk',
     role: 'assistant',
     content: 'hello',
-    payload: { stream: 'stdout' },
+    payload: { segment_id: 2 },
     created_at: '2026-03-23T00:00:00.000Z',
   };
   const step: WorkflowStepEntity = {
@@ -78,13 +81,13 @@ test.test('session shared boundary types accept canonical event-based assignment
     session_id: 1,
     summary: null,
   };
-  const payload: WebSocketPayload = { type: 'subscribe', session_id: 1, channel: 'output' };
-  const event: BroadcastPayload = { type: 'chunk', content: 'hello', stream: 'stdout' };
-  const channel: SessionChannel = 'status';
 
   assert.equal(createInput.task_id, 1);
   assert.equal(continueBody.input, 'fix tests');
   assert.equal(sessionListItem.task_id, 10);
+  assert.equal(session.agent_id, 7);
+  assert.equal(session.executor_type, 'claude_code');
+  assert.equal(session.completed_at, null);
   assert.equal('output' in session, false);
   assert.equal(segment.segment_index, 1);
   assert.equal(segment.trigger_type, 'START');
@@ -96,10 +99,8 @@ test.test('session shared boundary types accept canonical event-based assignment
   assert.equal(listQuery.after_seq, '1');
   assert.equal('after' in listQuery, false);
   assert.equal(listItem.segment_id, 2);
+  assert.deepEqual(listItem.payload, { segment_id: 2 });
   assert.equal(listItem.created_at, '2026-03-23T00:00:00.000Z');
   assert.equal(step.session_id, 1);
   assert.equal(step.summary, null);
-  assert.equal(payload.channel, 'output');
-  assert.equal(event.stream, 'stdout');
-  assert.equal(channel, 'status');
 });
