@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
@@ -18,6 +18,183 @@ function parseNumber(value: string | undefined) {
 }
 
 type ProjectIdQuery = { projectId?: string };
+
+type WorktreeDiffStatus = 'modified' | 'added' | 'deleted' | 'untracked';
+
+type WorktreeDiffFile = {
+  path: string;
+  additions: number;
+  deletions: number;
+  status: WorktreeDiffStatus;
+};
+
+type ParsedPorcelainFile = {
+  path: string;
+  status: WorktreeDiffStatus;
+  diffPaths: string[];
+};
+
+export function parsePorcelainStatus(output: string): ParsedPorcelainFile[] {
+  const files = new Map<string, ParsedPorcelainFile>();
+  const entries = output.split('\0').filter(Boolean);
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (!entry || entry.length < 4) {
+      continue;
+    }
+
+    const x = entry[0];
+    const y = entry[1];
+    const filePath = entry.slice(3);
+    if (!x || !y || !filePath) {
+      continue;
+    }
+
+    if (x === '?' && y === '?') {
+      files.set(filePath, {
+        path: filePath,
+        status: 'untracked',
+        diffPaths: [filePath],
+      });
+      continue;
+    }
+
+    const isRenameOrCopy = x === 'R' || y === 'R' || x === 'C' || y === 'C';
+    const originalPath = isRenameOrCopy && index + 1 < entries.length ? entries[index + 1] : null;
+    if (originalPath) {
+      index += 1;
+    }
+
+    let status: WorktreeDiffStatus = 'modified';
+    if (x === 'C' || y === 'C' || (x === 'A' && y !== 'D')) {
+      status = 'added';
+    } else if (x === 'D' || y === 'D') {
+      status = 'deleted';
+    }
+
+    files.set(filePath, {
+      path: filePath,
+      status,
+      diffPaths: originalPath ? [originalPath, filePath] : [filePath],
+    });
+  }
+
+  return Array.from(files.values());
+}
+
+function countDiffLines(diff: string) {
+  let additions = 0;
+  let deletions = 0;
+  let insideHunk = false;
+
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('@@')) {
+      insideHunk = true;
+      continue;
+    }
+
+    if (!insideHunk) {
+      continue;
+    }
+
+    if (line.startsWith('+')) {
+      additions += 1;
+      continue;
+    }
+
+    if (line.startsWith('-')) {
+      deletions += 1;
+    }
+  }
+
+  return { additions, deletions };
+}
+
+function isBinaryContent(content: Buffer) {
+  return content.includes(0);
+}
+
+function buildUntrackedDiff(filePath: string, content: Buffer) {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+
+  if (isBinaryContent(content)) {
+    return [
+      `diff --git a/${normalizedPath} b/${normalizedPath}`,
+      'new file mode 100644',
+      'index 0000000..0000000',
+      `Binary files /dev/null and b/${normalizedPath} differ`,
+    ].join('\n');
+  }
+
+  const text = content.toString('utf-8');
+  const hasTrailingNewline = text.endsWith('\n');
+  const lines = text.length === 0 ? [] : text.split('\n');
+  if (hasTrailingNewline) {
+    lines.pop();
+  }
+
+  const hunkLength = lines.length;
+  const body = lines.map((line) => `+${line}`);
+
+  return [
+    `diff --git a/${normalizedPath} b/${normalizedPath}`,
+    'new file mode 100644',
+    'index 0000000..1111111',
+    '--- /dev/null',
+    `+++ b/${normalizedPath}`,
+    `@@ -0,0 +1,${hunkLength} @@`,
+    ...body,
+  ].join('\n');
+}
+
+export function buildWorktreeDiff(taskWorktreePath: string): { files: WorktreeDiffFile[]; diffs: Record<string, string> } {
+  execFileSync('git', ['rev-parse', '--git-dir'], {
+    cwd: taskWorktreePath,
+    encoding: 'utf-8',
+    stdio: 'ignore',
+  });
+
+  const statusOutput = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
+    cwd: taskWorktreePath,
+    encoding: 'utf-8',
+  });
+
+  const parsedFiles = parsePorcelainStatus(statusOutput);
+  const files: WorktreeDiffFile[] = [];
+  const diffs: Record<string, string> = {};
+
+  for (const file of parsedFiles) {
+    let diffText = '';
+
+    try {
+      if (file.status === 'untracked') {
+        const fullPath = path.join(taskWorktreePath, file.path);
+        const content = fs.readFileSync(fullPath);
+        diffText = buildUntrackedDiff(file.path, content);
+      } else {
+        diffText = execFileSync('git', ['diff', 'HEAD', '--', ...file.diffPaths], {
+          cwd: taskWorktreePath,
+          encoding: 'utf-8',
+        });
+      }
+    } catch {
+      diffText = '';
+    }
+
+    const { additions, deletions } = countDiffLines(diffText);
+
+    files.push({
+      path: file.path,
+      additions,
+      deletions,
+      status: file.status,
+    });
+    diffs[file.path] = diffText;
+  }
+
+  return { files, diffs };
+}
 
 export const gitRoutes: FastifyPluginAsync = async (fastify) => {
   // Helper to get repo path for a project
@@ -192,6 +369,9 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         const match = line.match(/^(\?\?|\s\w|\w\s|[MARC])\s+(.+)$/);
         if (match) {
           const [, statusCode, filePath] = match;
+          if (!statusCode || !filePath) {
+            continue;
+          }
           let status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' = 'modified';
 
           if (statusCode === '??') {
@@ -305,6 +485,9 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         const match = line.match(/^\*?\s*(\S+)\s+([a-f0-9]+)\s*(.*)/);
         if (match) {
           const [, name, hash, description] = match;
+          if (!name) {
+            continue;
+          }
           branches.push({
             fullName: name,
             name,
@@ -323,6 +506,9 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
           const match = line.match(/^\s*(\S+)\s+([a-f0-9]+)\s*(.*)/);
           if (match) {
             const [, fullName, hash, description] = match;
+            if (!fullName) {
+              continue;
+            }
             branches.push({
               fullName,
               name: fullName.replace(/^origin\//, ''),
@@ -349,7 +535,6 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { taskId: string }; Querystring: ProjectIdQuery & { source?: string; target?: string } }>('/worktrees/:taskId/diff', async (request, reply) => {
     try {
       const taskId = parseNumber(request.params.taskId);
-      const { source, target } = request.query;
 
       const task = await taskRepo.findById(taskId);
       if (!task) {
@@ -362,62 +547,8 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task has no worktree');
       }
 
-      const { repoPath } = await getProjectRepoPath(task.project_id);
-
-      // Build git diff command
-      let sourceRef = source || 'master';
-      let targetRef = target || task.worktree_branch || 'HEAD';
-
-      // Run git diff from parent repo where both branches exist
-      const diffOutput = execSync(`git diff "${sourceRef}" "${targetRef}" --stat`, {
-        cwd: repoPath,
-        encoding: 'utf-8',
-      });
-
-      // Get file changes
-      const files: Array<{
-        path: string;
-        additions: number;
-        deletions: number;
-        status: 'added' | 'modified' | 'deleted';
-      }> = [];
-
-      for (const line of diffOutput.trim().split('\n')) {
-        const statMatch = line.match(/^\s*(.+?)\s*\|\s*(\d+)\s*(\+*)(\-*)$/);
-        if (statMatch) {
-          const [, filePath, changes, additions, deletions] = statMatch;
-          const addCount = additions.length;
-          const delCount = deletions.length;
-
-          // Determine status
-          let status: 'added' | 'modified' | 'deleted' = 'modified';
-          if (addCount > 0 && delCount === 0) status = 'added';
-          if (delCount > 0 && addCount === 0) status = 'deleted';
-
-          files.push({
-            path: filePath.trim(),
-            additions: addCount,
-            deletions: delCount,
-            status,
-          });
-        }
-      }
-
-      // Get actual diff content
-      const diffContent: Record<string, string> = {};
-      for (const file of files) {
-        try {
-          const fileDiff = execSync(`git diff "${sourceRef}" "${targetRef}" -- "${file.path}"`, {
-            cwd: repoPath,
-            encoding: 'utf-8',
-          });
-          diffContent[file.path] = fileDiff;
-        } catch {
-          diffContent[file.path] = '';
-        }
-      }
-
-      return successResponse({ files, diffs: diffContent });
+      const result = buildWorktreeDiff(task.worktree_path);
+      return successResponse(result);
     } catch (error) {
       request.log.error(error);
       reply.code(getStatusCode(error));

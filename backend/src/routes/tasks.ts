@@ -1,8 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { execSync } from 'node:child_process';
 
+import { buildWorktreeDiff } from './git.js';
 import { TaskService } from '../services/taskService.js';
-import { ProjectRepository } from '../repositories/projectRepository.js';
 import type { CreateTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
@@ -191,7 +190,6 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: IdParams; Querystring: ProjectIdQuery & { source?: string; target?: string } }>('/:id/worktree/diff', async (request, reply) => {
     try {
       const taskId = parseNumber(request.params.id);
-      const { source, target } = request.query;
 
       const task = await taskService.getById(taskId);
       if (!task) {
@@ -204,68 +202,8 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task has no worktree');
       }
 
-      // Get the project to find the repo path
-      const projectRepo = new ProjectRepository();
-      const project = await projectRepo.findById(task.project_id);
-      if (!project) {
-        reply.code(404);
-        return errorResponse('Project not found');
-      }
-
-      // Use parent repo path, not worktree path
-      const repoPath = project.local_path || `/tmp/claude-repos/${project.id}`;
-
-      let sourceRef = source || 'master';
-      let targetRef = target || task.worktree_branch || 'HEAD';
-
-      // Get diff stats - run from parent repo where both branches exist
-      const diffStat = execSync(`git diff "${sourceRef}" "${targetRef}" --stat`, {
-        cwd: repoPath,
-        encoding: 'utf-8',
-      });
-
-      const files: Array<{
-        path: string;
-        additions: number;
-        deletions: number;
-        status: 'added' | 'modified' | 'deleted';
-      }> = [];
-
-      for (const line of diffStat.trim().split('\n')) {
-        const statMatch = line.match(/^\s*(.+?)\s*\|\s*(\d+)\s*(\+*)(\-*)$/);
-        if (statMatch) {
-          const [, filePath, , additions, deletions] = statMatch;
-          const addCount = additions.length;
-          const delCount = deletions.length;
-
-          let status: 'added' | 'modified' | 'deleted' = 'modified';
-          if (addCount > 0 && delCount === 0) status = 'added';
-          if (delCount > 0 && addCount === 0) status = 'deleted';
-
-          files.push({
-            path: filePath.trim(),
-            additions: addCount,
-            deletions: delCount,
-            status,
-          });
-        }
-      }
-
-      // Get actual diff content per file
-      const diffs: Record<string, string> = {};
-      for (const file of files) {
-        try {
-          const fileDiff = execSync(`git diff "${sourceRef}" "${targetRef}" -- "${file.path}"`, {
-            cwd: repoPath,
-            encoding: 'utf-8',
-          });
-          diffs[file.path] = fileDiff;
-        } catch {
-          diffs[file.path] = '';
-        }
-      }
-
-      return successResponse({ files, diffs });
+      const result = buildWorktreeDiff(task.worktree_path);
+      return successResponse(result);
     } catch (error) {
       request.log.error(error);
       reply.code(getStatusCode(error));
