@@ -39,6 +39,7 @@ class SessionService {
   taskService: TaskService;
   runningProcesses: Map<number, ChildProcess>;
   stopRequestedSessions: Set<number>;
+  sessionCompletionPromises: Map<number, Promise<void>>;
 
   constructor() {
     this.sessionRepo = new SessionRepository();
@@ -47,6 +48,7 @@ class SessionService {
     this.taskService = new TaskService();
     this.runningProcesses = new Map();
     this.stopRequestedSessions = new Set();
+    this.sessionCompletionPromises = new Map();
   }
 
   async getAll(filters: { taskId?: number; activeOnly?: boolean } = {}) {
@@ -206,23 +208,34 @@ class SessionService {
 
   _readProcessOutput(sessionId: number, segmentId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
     let pendingEventWrite = Promise.resolve();
+    let finalizeSessionPromise: Promise<void> | null = null;
 
     const finalizeSession = async (status: 'COMPLETED' | 'ERROR' | 'STOPPED', completedAt = new Date().toISOString()) => {
-      const finalStatus = this.stopRequestedSessions.has(sessionId) ? 'STOPPED' : status;
+      if (finalizeSessionPromise) {
+        return await finalizeSessionPromise;
+      }
 
-      await this.sessionRepo.update(sessionId, {
-        status: finalStatus,
-        completed_at: completedAt,
-      });
-      await this._markSegmentComplete(segmentId, finalStatus, completedAt);
+      finalizeSessionPromise = (async () => {
+        const finalStatus = this.stopRequestedSessions.has(sessionId) ? 'STOPPED' : status;
 
-      broadcastFn?.(sessionId, 'status', {
-        type: 'status',
-        status: finalStatus,
-      });
+        await this.sessionRepo.update(sessionId, {
+          status: finalStatus,
+          completed_at: completedAt,
+        });
+        await this._markSegmentComplete(segmentId, finalStatus, completedAt);
 
-      this.runningProcesses.delete(sessionId);
-      this.stopRequestedSessions.delete(sessionId);
+        broadcastFn?.(sessionId, 'status', {
+          type: 'status',
+          status: finalStatus,
+        });
+
+        this.runningProcesses.delete(sessionId);
+        this.stopRequestedSessions.delete(sessionId);
+        this.sessionCompletionPromises.delete(sessionId);
+      })();
+
+      this.sessionCompletionPromises.set(sessionId, finalizeSessionPromise);
+      return await finalizeSessionPromise;
     };
 
     const appendStreamEvent = (content: string, stream: 'stdout' | 'stderr', role: 'assistant' | 'system') => {
@@ -329,22 +342,11 @@ class SessionService {
           resolve();
         });
       });
-      this.runningProcesses.delete(sessionId);
     }
 
-    const stoppedAt = new Date().toISOString();
-    const updated = await this.sessionRepo.update(sessionId, { status: 'STOPPED', completed_at: stoppedAt });
-    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
-    if (latestSegment) {
-      await this._markSegmentComplete(latestSegment.id, 'STOPPED', stoppedAt);
-    }
+    await this.sessionCompletionPromises.get(sessionId);
 
-    broadcastFn?.(sessionId, 'status', {
-      type: 'status',
-      status: 'STOPPED',
-    });
-
-    return updated;
+    return await this.sessionRepo.findById(sessionId);
   }
 
   async continue(sessionId: number, input: string, broadcastFn?: BroadcastFn) {

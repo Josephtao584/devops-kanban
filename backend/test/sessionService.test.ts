@@ -215,6 +215,9 @@ test.test('SessionService continue creates a child segment and attaches resumed 
     proc.finish(0);
 
     await waitFor(async () => {
+      const persistedSession = await sessionRepo.findById(session.id);
+      assert.equal(persistedSession?.status, 'COMPLETED');
+
       const segments = await sessionSegmentRepo.findBySessionId(session.id);
       assert.equal(segments.length, 2);
 
@@ -248,7 +251,7 @@ test.test('SessionService continue creates a child segment and attaches resumed 
 
 
 
-test.test('SessionService stop keeps stopped status when process close arrives later', async () => {
+test.test('SessionService stop finalizes stopped state only once when process close arrives later', async () => {
   const storagePath = await createTempStorageRoot();
   const worktreePath = await createWorktreeDir();
 
@@ -305,6 +308,25 @@ test.test('SessionService stop keeps stopped status when process close arrives l
       return await originalAppend(...args);
     }) as SessionEventRepository['append'];
 
+    let stoppedSessionUpdates = 0;
+    const originalSessionUpdate = sessionRepo.update.bind(sessionRepo);
+    sessionRepo.update = (async (...args: Parameters<SessionRepository['update']>) => {
+      if (args[1]?.status === 'STOPPED') {
+        stoppedSessionUpdates += 1;
+      }
+      return await originalSessionUpdate(...args);
+    }) as SessionRepository['update'];
+
+    let stoppedSegmentUpdates = 0;
+    const originalSegmentUpdate = sessionSegmentRepo.update.bind(sessionSegmentRepo);
+    sessionSegmentRepo.update = (async (...args: Parameters<SessionSegmentRepository['update']>) => {
+      if (args[1]?.status === 'STOPPED') {
+        stoppedSegmentUpdates += 1;
+      }
+      return await originalSegmentUpdate(...args);
+    }) as SessionSegmentRepository['update'];
+
+    const broadcasts: Array<{ room: string; payload: { type: string; status?: string } }> = [];
     const proc = new StoppableFakeChildProcess();
     const service = new SessionService();
     service.sessionRepo = sessionRepo;
@@ -312,18 +334,32 @@ test.test('SessionService stop keeps stopped status when process close arrives l
     service.sessionEventRepo = sessionEventRepo;
     service.runningProcesses.set(session.id, proc as unknown as ChildProcess);
 
-    service._readProcessOutput(session.id, segment.id, proc as unknown as ChildProcess);
+    service._readProcessOutput(
+      session.id,
+      segment.id,
+      proc as unknown as ChildProcess,
+      (_sessionId, room, payload) => {
+        broadcasts.push({ room, payload: payload as { type: string; status?: string } });
+      },
+    );
     proc.emitStdout('delayed output\n');
 
-    const stopPromise = service.stop(session.id);
+    const stopPromise = service.stop(session.id, (_sessionId, room, payload) => {
+      broadcasts.push({ room, payload: payload as { type: string; status?: string } });
+    });
 
     await waitFor(async () => {
-      const persistedSession = await sessionRepo.findById(session.id);
-      assert.equal(persistedSession?.status, 'STOPPED');
-
-      const persistedSegment = await sessionSegmentRepo.findById(segment.id);
-      assert.equal(persistedSegment?.status, 'STOPPED');
+      assert.equal(blockFirstAppend, false);
     });
+
+    const beforeReleaseSession = await sessionRepo.findById(session.id);
+    assert.equal(beforeReleaseSession?.status, 'RUNNING');
+    assert.equal(stoppedSessionUpdates, 0);
+    assert.equal(stoppedSegmentUpdates, 0);
+    assert.equal(
+      broadcasts.filter((entry) => entry.room === 'status' && entry.payload.status === 'STOPPED').length,
+      0,
+    );
 
     releaseAppend();
     await stopPromise;
@@ -335,6 +371,13 @@ test.test('SessionService stop keeps stopped status when process close arrives l
       const persistedSegment = await sessionSegmentRepo.findById(segment.id);
       assert.equal(persistedSegment?.status, 'STOPPED');
     });
+
+    assert.equal(stoppedSessionUpdates, 1);
+    assert.equal(stoppedSegmentUpdates, 1);
+    assert.equal(
+      broadcasts.filter((entry) => entry.room === 'status' && entry.payload.status === 'STOPPED').length,
+      1,
+    );
   } finally {
     await fs.rm(storagePath, { recursive: true, force: true });
     await fs.rm(worktreePath, { recursive: true, force: true });
