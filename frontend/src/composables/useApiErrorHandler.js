@@ -21,6 +21,10 @@ export function useApiErrorHandler(options = {}) {
 
   const toast = useToast()
 
+  function createResponseError(response, fallbackMessage = defaultMessage) {
+    return new Error(response?.message || response?.error || fallbackMessage)
+  }
+
   /**
    * Handle API error
    * @param {Error} error - The error object
@@ -31,17 +35,14 @@ export function useApiErrorHandler(options = {}) {
     const message = error?.message || error?.toString() || defaultMessage
     const displayMessage = customMessage || message
 
-    // Show error message
     if (showMessage) {
       toast.error(displayMessage)
     }
 
-    // Call custom error callback if provided
     if (onError) {
       onError(error, displayMessage)
     }
 
-    // Log error for debugging
     console.error('[API Error]', error)
 
     return displayMessage
@@ -55,11 +56,10 @@ export function useApiErrorHandler(options = {}) {
    * @param {Function} onError - Optional error callback (overrides default)
    * @returns {Boolean} True if response is successful
    */
-  function handleResponse(response, { successMessage = null, onSuccess = null, onError = null } = {}) {
+  function handleResponse(response, { successMessage = null, onSuccess = null, onError: customOnError = null } = {}) {
     if (!response) {
       const error = new Error('无响应')
-      const errorMsg = onError ? onError(error) : handleError(error)
-      console.error('Empty response:', errorMsg)
+      customOnError ? customOnError(error) : handleError(error)
       return false
     }
 
@@ -71,10 +71,34 @@ export function useApiErrorHandler(options = {}) {
         onSuccess(response.data)
       }
       return true
-    } else {
-      const errorMsg = onError ? onError(new Error(response.message || response.error)) : handleError(new Error(response.message || response.error))
-      return false
     }
+
+    const responseError = createResponseError(response)
+    customOnError ? customOnError(responseError) : handleError(responseError)
+    return false
+  }
+
+  /**
+   * Return response.data or throw normalized error
+   * @param {Object} response - API response object
+   * @param {String} fallbackMessage - Fallback message when response is invalid
+   * @returns {*} response.data
+   */
+  function unwrapResponse(response, fallbackMessage = defaultMessage) {
+    if (response?.success) {
+      return response.data
+    }
+
+    const error = createResponseError(response, fallbackMessage)
+    if (showMessage) {
+      handleError(error)
+    } else {
+      if (onError) {
+        onError(error, error.message)
+      }
+      console.error('[API Error]', error)
+    }
+    throw error
   }
 
   /**
@@ -93,10 +117,11 @@ export function useApiErrorHandler(options = {}) {
   }
 
   return {
+    createResponseError,
     handleError,
     handleResponse,
+    unwrapResponse,
     withErrorHandling,
-    // Re-export toast methods for convenience
     success: toast.success,
     warning: toast.warning,
     info: toast.info,
@@ -112,11 +137,6 @@ export function useApiErrorHandler(options = {}) {
 export function useApiError() {
   const toast = useToast()
 
-  /**
-   * API error handler that shows appropriate messages
-   * @param {Error} error - The error object
-   * @param {String} defaultMessage - Default message if error message is unclear
-   */
   function apiError(error, defaultMessage = '操作失败') {
     return toast.apiError(error, defaultMessage)
   }
