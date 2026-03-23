@@ -149,7 +149,7 @@ class WorkflowService {
     }
 
     const executionPath = await this._resolveExecutionPath(task);
-    const existing = await this.workflowRunRepo.findByTaskId(taskId);
+    const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
       const error = new Error('Task already has an active workflow run') as Error & { statusCode?: number };
       error.statusCode = 409;

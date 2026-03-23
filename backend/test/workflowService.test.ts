@@ -172,10 +172,12 @@ function createStartWorkflowHarness({
   template = buildTemplate(),
   agentRecords = buildValidAgents(),
   existingRun = null,
+  latestRun = existingRun,
 }: {
   template?: WorkflowTemplateRecord;
   agentRecords?: Map<number, AgentRecord>;
   existingRun?: { status: string } | null;
+  latestRun?: { status: string } | null;
 } = {}) {
   const createCalls: Array<Record<string, unknown>> = [];
   const taskUpdates: Array<Record<string, unknown>> = [];
@@ -186,6 +188,10 @@ function createStartWorkflowHarness({
     async findByTaskId(taskId: number) {
       assert.equal(taskId, 1);
       return existingRun;
+    },
+    async findLatestByTaskId(taskId: number) {
+      assert.equal(taskId, 1);
+      return latestRun;
     },
     async create(payload: Record<string, unknown>) {
       createCalls.push(payload);
@@ -557,6 +563,24 @@ test.test('startWorkflow rejects a template with workflow steps in the wrong ord
 });
 
 
+
+test.test('startWorkflow rejects when a newer active run exists behind an older completed run', async () => {
+  const harness = createStartWorkflowHarness({
+    existingRun: { status: 'COMPLETED' },
+    latestRun: { status: 'RUNNING' },
+  });
+
+  await assert.rejects(
+    () => harness.service.startWorkflow(1),
+    (error: unknown) => {
+      assert.match((error as Error).message, /Task already has an active workflow run/);
+      assert.equal((error as Error & { statusCode?: number }).statusCode, 409);
+      return true;
+    },
+  );
+
+  assertNoRunCreated(harness);
+});
 test.test('startWorkflow initializes step snapshots with session-aware summary fields', async () => {
   const harness = createStartWorkflowHarness();
 
