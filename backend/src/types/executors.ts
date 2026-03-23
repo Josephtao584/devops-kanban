@@ -17,11 +17,30 @@ export interface ExecutorRawResult {
   summary: string;
 }
 
+export type WorkflowExecutionEventKind = 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+
+export type WorkflowExecutionEventRole = 'assistant' | 'system' | 'tool' | 'user';
+
+export interface WorkflowExecutionEvent {
+  kind: WorkflowExecutionEventKind;
+  role: WorkflowExecutionEventRole;
+  content: string;
+  payload: Record<string, unknown>;
+}
+
+export interface ExecutorProviderState {
+  providerSessionId?: string | null;
+  resumeToken?: string | null;
+  checkpointRef?: string | null;
+}
+
 export interface ExecutorExecutionInput {
   prompt: string;
   worktreePath: string;
   executorConfig?: ExecutorConfig | undefined;
   onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
+  onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
+  onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
 }
 
 export interface ExecutorExecutionResult {

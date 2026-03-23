@@ -1,7 +1,7 @@
 import crossSpawn from 'cross-spawn';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
-import type { ExecutorConfig, ExecutorProcessHandle } from '../../../types/executors.js';
+import type { ExecutorConfig, ExecutorProcessHandle, ExecutorProviderState, WorkflowExecutionEvent } from '../../../types/executors.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
@@ -132,11 +132,15 @@ class ClaudeStepRunner {
     worktreePath,
     executorConfig = {},
     onSpawn,
+    onEvent: _onEvent,
+    onProviderState: _onProviderState,
   }: {
     prompt: string;
     worktreePath: string;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
     onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
+    onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
+    onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,

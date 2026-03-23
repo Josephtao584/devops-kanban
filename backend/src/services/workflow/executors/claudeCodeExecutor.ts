@@ -13,12 +13,16 @@ class ClaudeCodeExecutor implements Executor {
     worktreePath,
     executorConfig,
     onSpawn,
+    onEvent,
+    onProviderState,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
       executorConfig,
       ...(onSpawn ? { onSpawn } : {}),
+      ...(onEvent ? { onEvent } : {}),
+      ...(onProviderState ? { onProviderState } : {}),
     });
 
     return {

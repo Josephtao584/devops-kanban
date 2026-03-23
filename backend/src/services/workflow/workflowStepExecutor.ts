@@ -1,10 +1,18 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import type { AgentEntity } from '../../repositories/agentRepository.js';
+import type {
+  ExecutorConfig,
+  ExecutorExecutionResult,
+  ExecutorProcessHandle,
+  ExecutorProviderState,
+  ExecutorType,
+  WorkflowExecutionEvent,
+} from '../../types/executors.js';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
+import { ExecutionEventSink } from './executionEventSink.js';
 import { adaptStepResult } from './stepResultAdapter.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
-import type { ExecutorConfig, ExecutorExecutionResult, ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
 const defaultTemplateService = new WorkflowTemplateService();
@@ -15,6 +23,8 @@ interface ExecuteWorkflowStepInput {
   templateService?: WorkflowTemplateService;
   agentRepo?: Pick<AgentRepository, 'findById'>;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
+  onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
+  onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
   stepId: string;
   worktreePath: string;
   state: {
@@ -65,6 +75,8 @@ export async function executeWorkflowStep({
   templateService = defaultTemplateService,
   agentRepo = defaultAgentRepo,
   context,
+  onEvent,
+  onProviderState,
   stepId,
   worktreePath,
   state,
@@ -98,6 +110,7 @@ export async function executeWorkflowStep({
     inputData,
     upstreamStepIds,
   });
+  const sink = new ExecutionEventSink({ onEvent, onProviderState });
 
   const executor = registry.getExecutor(executorConfig.type);
   const execution: ExecutorExecutionResult = await executor.execute({
@@ -108,6 +121,12 @@ export async function executeWorkflowStep({
       if (context) {
         context.proc = proc;
       }
+    },
+    onEvent: (event) => {
+      sink.emit(event);
+    },
+    onProviderState: (providerState) => {
+      sink.providerState(providerState);
     },
   });
 

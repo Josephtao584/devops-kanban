@@ -1,7 +1,15 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
+import { ExecutionEventSink } from '../src/services/workflow/executionEventSink.js';
 import { executeWorkflowStep } from '../src/services/workflow/workflowStepExecutor.js';
-import type { ExecutorExecutionInput, ExecutorMap, ExecutorProcessHandle, ExecutorRawResult } from '../src/types/executors.js';
+import type {
+  ExecutorExecutionInput,
+  ExecutorMap,
+  ExecutorProcessHandle,
+  ExecutorProviderState,
+  ExecutorRawResult,
+  WorkflowExecutionEvent,
+} from '../src/types/executors.js';
 
 const sharedState = {
   taskTitle: '测试任务',
@@ -58,13 +66,58 @@ function createAgent(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test.test('executeWorkflowStep resolves executor from the bound step agent', async () => {
+test.test('ExecutionEventSink emits canonical workflow events and provider state updates', () => {
+  const events: WorkflowExecutionEvent[] = [];
+  const providerStates: ExecutorProviderState[] = [];
+  const sink = new ExecutionEventSink({
+    onEvent(event) {
+      events.push(event);
+    },
+    onProviderState(providerState) {
+      providerStates.push(providerState);
+    },
+  });
+
+  sink.status('step started', { stepId: 'requirement-design' });
+  sink.message('drafted design', { summary: 'ok' });
+  sink.toolCall('npm test', { toolName: 'shell' });
+  sink.toolResult('tests passed', { exitCode: 0 });
+  sink.streamChunk('partial output', { stream: 'stdout' });
+  sink.artifact('design.md', { path: '/tmp/design.md' });
+  sink.error('step failed', { code: 'E_STEP' });
+  sink.providerState({
+    providerSessionId: 'provider-session-1',
+    resumeToken: 'resume-token-1',
+    checkpointRef: 'checkpoint-1',
+  });
+
+  assert.deepEqual(events, [
+    { kind: 'status', role: 'system', content: 'step started', payload: { stepId: 'requirement-design' } },
+    { kind: 'message', role: 'assistant', content: 'drafted design', payload: { summary: 'ok' } },
+    { kind: 'tool_call', role: 'assistant', content: 'npm test', payload: { toolName: 'shell' } },
+    { kind: 'tool_result', role: 'tool', content: 'tests passed', payload: { exitCode: 0 } },
+    { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } },
+    { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { path: '/tmp/design.md' } },
+    { kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP' } },
+  ]);
+  assert.deepEqual(providerStates, [
+    {
+      providerSessionId: 'provider-session-1',
+      resumeToken: 'resume-token-1',
+      checkpointRef: 'checkpoint-1',
+    },
+  ]);
+});
+
+test.test('executeWorkflowStep forwards sink-driven canonical events and provider state updates', async () => {
   const proc: ExecutorProcessHandle = {
     kill() {
       return true;
     },
   };
   const context: { proc?: ExecutorProcessHandle | null } = {};
+  const events: WorkflowExecutionEvent[] = [];
+  const providerStates: ExecutorProviderState[] = [];
   const templateService = createTemplateService();
   const agentRepo = {
     async findById(id: number) {
@@ -76,7 +129,18 @@ test.test('executeWorkflowStep resolves executor from the bound step agent', asy
     getExecutor(type: keyof ExecutorMap) {
       assert.equal(type, 'CODEX');
       return {
-        async execute({ prompt, worktreePath, executorConfig, onSpawn }: ExecutorExecutionInput) {
+        async execute(input: ExecutorExecutionInput) {
+          const {
+            prompt,
+            worktreePath,
+            executorConfig,
+            onSpawn,
+          } = input;
+          const { onEvent, onProviderState } = input as ExecutorExecutionInput & {
+            onEvent?: (event: WorkflowExecutionEvent) => void;
+            onProviderState?: (providerState: ExecutorProviderState) => void;
+          };
+
           assert.equal(worktreePath, sharedState.worktreePath);
           assert.match(prompt, /当前步骤：需求设计/);
           assert.deepEqual(executorConfig, {
@@ -87,6 +151,13 @@ test.test('executeWorkflowStep resolves executor from the bound step agent', asy
             skills: ['design'],
           });
           onSpawn?.(proc);
+          onEvent?.({ kind: 'status', role: 'system', content: 'step started', payload: { stepId: 'requirement-design' } });
+          onEvent?.({ kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } });
+          onProviderState?.({
+            providerSessionId: 'provider-session-1',
+            resumeToken: 'resume-token-1',
+            checkpointRef: 'checkpoint-1',
+          });
           const rawResult: ExecutorRawResult = { summary: 'ok' };
           return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
         },
@@ -99,10 +170,27 @@ test.test('executeWorkflowStep resolves executor from the bound step agent', asy
     agentRepo: agentRepo as never,
     registry: registry as never,
     context,
+    onEvent(event) {
+      events.push(event);
+    },
+    onProviderState(providerState) {
+      providerStates.push(providerState);
+    },
     ...createInputOverrides(),
   });
 
   assert.equal(context.proc, proc);
+  assert.deepEqual(events, [
+    { kind: 'status', role: 'system', content: 'step started', payload: { stepId: 'requirement-design' } },
+    { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } },
+  ]);
+  assert.deepEqual(providerStates, [
+    {
+      providerSessionId: 'provider-session-1',
+      resumeToken: 'resume-token-1',
+      checkpointRef: 'checkpoint-1',
+    },
+  ]);
   assert.deepEqual(result, { summary: 'ok' });
 });
 
@@ -250,3 +338,4 @@ test.test('executeWorkflowStep fails when the persisted agent skills config is i
     /invalid skills configuration/
   );
 });
+
