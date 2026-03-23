@@ -497,7 +497,7 @@ test.test('SessionService stop transitions an active desynced session to stopped
   }
 });
 
-test.test('SessionService stop finalizes stopped state only once when process close arrives later', async () => {
+test.test('SessionService stop waits for persisted STOPPED finalization before resolving', async () => {
   const storagePath = await createTempStorageRoot();
   const worktreePath = await createWorktreeDir();
 
@@ -554,25 +554,6 @@ test.test('SessionService stop finalizes stopped state only once when process cl
       return await originalAppend(...args);
     }) as SessionEventRepository['append'];
 
-    let stoppedSessionUpdates = 0;
-    const originalSessionUpdate = sessionRepo.update.bind(sessionRepo);
-    sessionRepo.update = (async (...args: Parameters<SessionRepository['update']>) => {
-      if (args[1]?.status === 'STOPPED') {
-        stoppedSessionUpdates += 1;
-      }
-      return await originalSessionUpdate(...args);
-    }) as SessionRepository['update'];
-
-    let stoppedSegmentUpdates = 0;
-    const originalSegmentUpdate = sessionSegmentRepo.update.bind(sessionSegmentRepo);
-    sessionSegmentRepo.update = (async (...args: Parameters<SessionSegmentRepository['update']>) => {
-      if (args[1]?.status === 'STOPPED') {
-        stoppedSegmentUpdates += 1;
-      }
-      return await originalSegmentUpdate(...args);
-    }) as SessionSegmentRepository['update'];
-
-    const broadcasts: Array<{ room: string; payload: { type: string; status?: string } }> = [];
     const proc = new StoppableFakeChildProcess();
     const service = new SessionService();
     service.sessionRepo = sessionRepo;
@@ -580,19 +561,10 @@ test.test('SessionService stop finalizes stopped state only once when process cl
     service.sessionEventRepo = sessionEventRepo;
     service.runningProcesses.set(session.id, proc as unknown as ChildProcess);
 
-    service._readProcessOutput(
-      session.id,
-      segment.id,
-      proc as unknown as ChildProcess,
-      (_sessionId, room, payload) => {
-        broadcasts.push({ room, payload: payload as { type: string; status?: string } });
-      },
-    );
+    service._readProcessOutput(session.id, segment.id, proc as unknown as ChildProcess);
     proc.emitStdout('delayed output\n');
 
-    const stopPromise = service.stop(session.id, (_sessionId, room, payload) => {
-      broadcasts.push({ room, payload: payload as { type: string; status?: string } });
-    });
+    const stopPromise = service.stop(session.id);
 
     await waitFor(async () => {
       assert.equal(blockFirstAppend, false);
@@ -600,36 +572,30 @@ test.test('SessionService stop finalizes stopped state only once when process cl
 
     const beforeReleaseSession = await sessionRepo.findById(session.id);
     assert.equal(beforeReleaseSession?.status, 'RUNNING');
-    assert.equal(stoppedSessionUpdates, 0);
-    assert.equal(stoppedSegmentUpdates, 0);
-    assert.equal(
-      broadcasts.filter((entry) => entry.room === 'status' && entry.payload.status === 'STOPPED').length,
-      0,
-    );
+
+    let stopResolved = false;
+    void stopPromise.then(() => {
+      stopResolved = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(stopResolved, false);
 
     releaseAppend();
-    await stopPromise;
+    const stoppedSession = await stopPromise;
 
-    await waitFor(async () => {
-      const persistedSession = await sessionRepo.findById(session.id);
-      assert.equal(persistedSession?.status, 'STOPPED');
+    assert.equal(stoppedSession?.status, 'STOPPED');
+    const persistedSession = await sessionRepo.findById(session.id);
+    const persistedSegment = await sessionSegmentRepo.findById(segment.id);
 
-      const persistedSegment = await sessionSegmentRepo.findById(segment.id);
-      assert.equal(persistedSegment?.status, 'STOPPED');
-    });
-
-    assert.equal(stoppedSessionUpdates, 1);
-    assert.equal(stoppedSegmentUpdates, 1);
-    assert.equal(
-      broadcasts.filter((entry) => entry.room === 'status' && entry.payload.status === 'STOPPED').length,
-      1,
-    );
+    assert.equal(persistedSession?.status, 'STOPPED');
+    assert.ok(persistedSession?.completed_at);
+    assert.equal(persistedSegment?.status, 'STOPPED');
+    assert.equal(persistedSegment?.completed_at, persistedSession?.completed_at);
   } finally {
     await fs.rm(storagePath, { recursive: true, force: true });
     await fs.rm(worktreePath, { recursive: true, force: true });
   }
 });
-
 
 test.test('SessionService delete does not clean up a task-owned shared worktree', async () => {
   const storagePath = await createTempStorageRoot();

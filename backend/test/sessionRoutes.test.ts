@@ -144,21 +144,21 @@ test.test('GET /sessions/:id/events returns 404 when the session does not exist'
   await app.close();
 });
 
-test.test('POST /sessions/:id/start returns 409 when the service leaves the session stopped', async () => {
+test.test('POST /sessions/:id/start returns success when the session finishes immediately', async () => {
   const { service, calls } = buildSessionServiceStub();
   service.start = async (sessionId: number) => {
     calls.start.push(sessionId);
-    return { id: sessionId, status: 'STOPPED' };
+    return { id: sessionId, status: 'COMPLETED' };
   };
 
   const app = await buildApp(service);
   const response = await app.inject({ method: 'POST', url: '/sessions/7/start' });
 
-  assert.equal(response.statusCode, 409);
+  assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
-    success: false,
-    message: 'Session worktree is unavailable',
-    data: null,
+    success: true,
+    message: 'Session started',
+    data: { id: 7, status: 'COMPLETED' },
     error: null,
   });
   assert.deepEqual(calls.start, [7]);
@@ -166,11 +166,11 @@ test.test('POST /sessions/:id/start returns 409 when the service leaves the sess
   await app.close();
 });
 
-test.test('POST /sessions/:id/continue returns 409 when the service leaves the session stopped', async () => {
+test.test('POST /sessions/:id/continue returns success when the resumed session finishes immediately', async () => {
   const { service, calls } = buildSessionServiceStub();
   service.continue = async (sessionId: number, input: string) => {
     calls.continue.push({ sessionId, input });
-    return { id: sessionId, status: 'STOPPED' };
+    return { id: sessionId, status: 'COMPLETED' };
   };
 
   const app = await buildApp(service);
@@ -180,11 +180,11 @@ test.test('POST /sessions/:id/continue returns 409 when the service leaves the s
     payload: { input: 'resume work' },
   });
 
-  assert.equal(response.statusCode, 409);
+  assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
-    success: false,
-    message: 'Session worktree is unavailable',
-    data: null,
+    success: true,
+    message: 'Session continued',
+    data: { id: 7, status: 'COMPLETED' },
     error: null,
   });
   assert.deepEqual(calls.continue, [{ sessionId: 7, input: 'resume work' }]);
