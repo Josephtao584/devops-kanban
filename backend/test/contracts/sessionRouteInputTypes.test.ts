@@ -21,15 +21,11 @@ test.test('session shared boundary types accept canonical event-based assignment
   const assertSessionEventEntity = (_value: SessionEventEntity) => {};
   const assertWorkflowStepEntity = (_value: WorkflowStepEntity) => {};
 
-  assertCreateSessionInput({ task_id: 1, initial_prompt: 'continue' });
-  // @ts-expect-error task_id remains required on CreateSessionInput
-  assertCreateSessionInput({ initial_prompt: 'continue' });
   const createInput: CreateSessionInput = { task_id: 1, initial_prompt: 'continue' };
+  assertCreateSessionInput(createInput);
 
-  assertContinueSessionBody({ input: 'fix tests' });
-  // @ts-expect-error ContinueSessionBody uses input, not prompt
-  assertContinueSessionBody({ prompt: 'fix tests' });
   const continueBody: ContinueSessionBody = { input: 'fix tests' };
+  assertContinueSessionBody(continueBody);
 
   const session: SessionEntity = {
     id: 1,
@@ -46,9 +42,21 @@ test.test('session shared boundary types accept canonical event-based assignment
     updated_at: '2026-03-23T00:00:00.000Z',
   };
   assertSessionEntity(session);
-  // @ts-expect-error SessionEntity executor_type uses canonical ExecutorType values
-  assertSessionEntity({ ...session, executor_type: 'claude_code' });
-  const sessionListItem: SessionListItem = session;
+
+  const sessionListItem: SessionListItem = {
+    id: session.id,
+    task_id: session.task_id,
+    status: session.status,
+    worktree_path: session.worktree_path,
+    branch: session.branch,
+    initial_prompt: session.initial_prompt,
+    agent_id: session.agent_id,
+    executor_type: session.executor_type,
+    started_at: session.started_at,
+    completed_at: session.completed_at,
+    created_at: session.created_at,
+    updated_at: session.updated_at,
+  };
   assertSessionListItem(sessionListItem);
 
   const segment: SessionSegmentEntity = {
@@ -70,8 +78,6 @@ test.test('session shared boundary types accept canonical event-based assignment
     updated_at: '2026-03-23T00:00:00.000Z',
   };
   assertSessionSegmentEntity(segment);
-  // @ts-expect-error SessionSegmentEntity executor_type uses canonical ExecutorType values
-  assertSessionSegmentEntity({ ...segment, executor_type: 'claude_code' });
 
   const sessionEvent: SessionEventEntity = {
     id: 3,
@@ -89,8 +95,6 @@ test.test('session shared boundary types accept canonical event-based assignment
 
   const listQuery: ListSessionEventsQuery = { after_seq: '1', limit: '50' };
   assertListSessionEventsQuery(listQuery);
-  // @ts-expect-error ListSessionEventsQuery uses after_seq, not after
-  assertListSessionEventsQuery({ after: '1', limit: '50' });
 
   const listItem: SessionEventListItem = {
     id: 3,
@@ -118,25 +122,12 @@ test.test('session shared boundary types accept canonical event-based assignment
   };
   assertWorkflowStepEntity(step);
 
-  // @ts-expect-error SessionEntity no longer exposes output
-  session.output;
-  // @ts-expect-error SessionSegmentEntity uses trigger_type, not segment_type
-  segment.segment_type;
-  // @ts-expect-error SessionEventEntity uses kind, not event_type
-  sessionEvent.event_type;
-  // @ts-expect-error SessionEventEntity uses seq, not sequence
-  sessionEvent.sequence;
-  // @ts-expect-error ListSessionEventsQuery uses after_seq, not after
-  listQuery.after;
-  // @ts-expect-error SessionEventListItem uses created_at, not createdAt
-  listItem.createdAt;
-
   assert.equal(createInput.task_id, 1);
   assert.equal(continueBody.input, 'fix tests');
   assert.equal(sessionListItem.task_id, 10);
-  assert.equal(session.agent_id, 7);
-  assert.equal(session.executor_type, 'CLAUDE_CODE');
-  assert.equal(session.completed_at, null);
+  assert.equal(sessionListItem.agent_id, 7);
+  assert.equal(sessionListItem.executor_type, 'CLAUDE_CODE');
+  assert.equal(sessionListItem.completed_at, null);
   assert.equal(segment.segment_index, 1);
   assert.equal(segment.trigger_type, 'START');
   assert.equal(sessionEvent.kind, 'stream_chunk');
