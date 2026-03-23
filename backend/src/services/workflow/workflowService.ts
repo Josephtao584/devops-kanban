@@ -413,6 +413,33 @@ class WorkflowService {
     }
   }
 
+  async _finalizeRunningStepAfterUnexpectedError(runId: number, errorMessage: string) {
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    if (!run) {
+      return;
+    }
+
+    const step = (run.current_step
+      ? run.steps.find((candidate) => candidate.step_id === run.current_step && candidate.status === 'RUNNING')
+      : null) || run.steps.find((candidate) => candidate.status === 'RUNNING');
+
+    if (!step) {
+      return;
+    }
+
+    await this._handleWorkflowStepFailure(runId, step.step_id, errorMessage || 'Workflow failed');
+  }
+
+  async _createWorkflowStream(
+    context: WorkflowExecutionContext,
+    inputData: Record<string, unknown>,
+    initialState: Record<string, unknown>,
+  ) {
+    const workflow = getDevWorkflow();
+    const mastraRun = await workflow.createRun();
+    return await runWithWorkflowExecutionContext(context, async () => mastraRun.stream({ inputData, initialState })) as WorkflowStreamHandle;
+  }
+
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }) {
     this._activeRuns.set(runId, {
       cancel: () => {},
@@ -420,7 +447,6 @@ class WorkflowService {
 
     try {
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
-      const workflow = getDevWorkflow();
       const inputData = {
         taskId: task.id,
         taskTitle: task.title || 'Untitled Task',
@@ -443,8 +469,7 @@ class WorkflowService {
         context,
       });
 
-      const mastraRun = await workflow.createRun();
-      const stream = await runWithWorkflowExecutionContext(context, async () => mastraRun.stream({ inputData, initialState })) as WorkflowStreamHandle;
+      const stream = await this._createWorkflowStream(context, inputData, initialState);
 
       for await (const event of stream.fullStream) {
         if (event.type === 'workflow-step-start' && event.payload?.stepName) {
@@ -479,6 +504,7 @@ class WorkflowService {
         });
       }
     } catch (err) {
+      await this._finalizeRunningStepAfterUnexpectedError(runId, (err as Error).message).catch(() => {});
       await this.workflowRunRepo.update(runId, {
         status: 'FAILED',
         context: { error: (err as Error).message },

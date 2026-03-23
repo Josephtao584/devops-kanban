@@ -396,6 +396,48 @@ function createStepSessionHarness() {
   };
 }
 
+function createExecuteWorkflowHarness() {
+  const stepSessionHarness = createStepSessionHarness();
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<{ taskId: number; updateData: Record<string, unknown> }> = [];
+
+  const workflowRunRepo = {
+    ...((stepSessionHarness.service as WorkflowService).workflowRunRepo as object),
+    async update(runId: number, updateData: Record<string, unknown>) {
+      assert.equal(runId, 7);
+      runUpdates.push(updateData);
+      Object.assign(stepSessionHarness.run, updateData);
+      return stepSessionHarness.run;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    workflowTemplateService: ((stepSessionHarness.service as WorkflowService).workflowTemplateService) as never,
+    agentRepo: ((stepSessionHarness.service as WorkflowService).agentRepo) as never,
+    sessionRepo: ((stepSessionHarness.service as WorkflowService).sessionRepo) as never,
+    sessionSegmentRepo: ((stepSessionHarness.service as WorkflowService).sessionSegmentRepo) as never,
+    taskRepo: taskRepo as never,
+  });
+
+  return {
+    service,
+    run: stepSessionHarness.run,
+    task: stepSessionHarness.task,
+    sessions: stepSessionHarness.sessions,
+    segments: stepSessionHarness.segments,
+    runUpdates,
+    taskUpdates,
+  };
+}
+
 test.test('startWorkflow creates a run when every bound step agent is valid and enabled', async () => {
   const harness = createStartWorkflowHarness();
 
@@ -644,6 +686,49 @@ test.test('workflow step completion and failure persist only summary and error s
   assert.equal(failureHarness.segmentUpdates[0]?.updateData.status, 'FAILED');
 });
 
+
+
+test.test('executeWorkflow finalizes the active step session when the stream throws after step start', async () => {
+  const harness = createExecuteWorkflowHarness();
+  const streamFailure = new Error('Stream exploded after start');
+
+  (harness.service as WorkflowService & {
+    _createWorkflowStream: () => Promise<{
+      fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
+      result: Promise<{ status: string }>;
+    }>;
+  })._createWorkflowStream = async () => ({
+    fullStream: (async function* () {
+      yield {
+        type: 'workflow-step-start',
+        payload: { stepName: 'requirement-design' },
+      };
+      throw streamFailure;
+    })(),
+    result: Promise.resolve({ status: 'success' }),
+  });
+
+  await (harness.service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
+  })._executeWorkflow(7, harness.task);
+
+  assert.equal(harness.run.status, 'FAILED');
+  assert.deepEqual(harness.run.context, { error: 'Stream exploded after start' });
+  assert.equal(harness.run.current_step, 'requirement-design');
+  assert.equal(harness.run.steps[0]?.status, 'FAILED');
+  assert.equal(harness.run.steps[0]?.error, 'Stream exploded after start');
+  assert.equal(harness.run.steps[0]?.session_id, 101);
+  assert.equal(harness.sessions.get(101)?.status, 'FAILED');
+  assert.equal(harness.segments[0]?.status, 'FAILED');
+  assert.equal(harness.taskUpdates.length, 0);
+  assert.deepEqual(harness.runUpdates, [
+    { status: 'RUNNING' },
+    { current_step: 'requirement-design' },
+    { status: 'FAILED', context: { error: 'Stream exploded after start' } },
+  ]);
+});
+
+
 test.test('cancelWorkflow terminates the active process', async () => {
   const kills: string[] = [];
   let cancelled = false;
@@ -685,3 +770,4 @@ test.test('cancelWorkflow terminates the active process', async () => {
   assert.deepEqual(kills, ['SIGTERM']);
   assert.equal(result?.status, 'CANCELLED');
 });
+

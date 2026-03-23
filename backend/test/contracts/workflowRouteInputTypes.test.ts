@@ -30,3 +30,20 @@ test.test('workflow and related route body types accept expected assignments', (
   assert.equal(workflowStep.session_id, 4);
   assert.equal(workflowStep.summary, 'Summarized result');
 });
+
+test.test('workflow step entity requires session snapshot fields for null defaults', () => {
+  const workflowStep: WorkflowStepEntity = {
+    step_id: 'code-development',
+    name: '代码开发',
+    status: 'PENDING',
+    started_at: null,
+    completed_at: null,
+    retry_count: 0,
+    session_id: null,
+    summary: null,
+    error: null,
+  };
+
+  assert.equal(workflowStep.session_id, null);
+  assert.equal(workflowStep.summary, null);
+});

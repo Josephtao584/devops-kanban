@@ -80,8 +80,8 @@ export interface WorkflowStepEntity {
   completed_at: string | null;
   retry_count: number;
   error: string | null;
-  session_id?: number | null;
-  summary?: string | null;
+  session_id: number | null;
+  summary: string | null;
 }
 
 export interface WorkflowRunEntity {
