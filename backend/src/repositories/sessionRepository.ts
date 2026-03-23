@@ -5,8 +5,8 @@ import type { SessionEntity } from '../types/entities.ts';
 interface StoredSessionEntity extends SessionEntity, BaseEntity {}
 
 class SessionRepository extends BaseRepository<StoredSessionEntity, Omit<SessionEntity, 'id'>, Partial<SessionEntity>> {
-  constructor() {
-    super('sessions.json');
+  constructor({ storagePath }: { storagePath?: string } = {}) {
+    super('sessions.json', { storagePath });
   }
 
   async getByTask(taskId: number): Promise<StoredSessionEntity[]> {
@@ -22,13 +22,6 @@ class SessionRepository extends BaseRepository<StoredSessionEntity, Omit<Session
       }
     }
     return null;
-  }
-
-  override async create(sessionData: Omit<SessionEntity, 'id'>): Promise<StoredSessionEntity> {
-    return await super.create({
-      ...sessionData,
-      output: '',
-    });
   }
 }
 

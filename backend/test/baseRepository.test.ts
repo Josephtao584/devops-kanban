@@ -7,6 +7,14 @@ import * as path from 'node:path';
 import { BaseRepository } from '../src/repositories/base.js';
 import type { BaseEntity } from '../src/repositories/base.js';
 
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 function createTempStorageRoot() {
   return fs.mkdtemp(path.join(os.tmpdir(), 'kanban-repo-'));
 }
@@ -54,4 +62,34 @@ test.test('BaseRepository preserves first write when file initialization races w
   assert.equal(found?.name, 'demo');
 
   await fs.rm(storagePath, { recursive: true, force: true });
+});
+
+test.test('BaseRepository waits for async initialization before create writes data', async () => {
+  const storagePath = await createTempStorageRoot();
+  const deferred = createDeferred();
+
+  class SlowInitDemoRepository extends BaseRepository<DemoEntity, { name: string }, { name?: string }> {
+    constructor() {
+      super('demo.json', { storagePath });
+    }
+
+    override async _ensureFileExists() {
+      await deferred.promise;
+      await super._ensureFileExists();
+    }
+  }
+
+  try {
+    const repo = new SlowInitDemoRepository();
+    const createPromise = repo.create({ name: 'demo' });
+    await Promise.resolve();
+    deferred.resolve();
+
+    const created = await createPromise;
+    const found = await repo.findById(created.id);
+
+    assert.equal(found?.name, 'demo');
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
 });
