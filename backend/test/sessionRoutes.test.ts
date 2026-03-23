@@ -140,13 +140,50 @@ test.test('GET /sessions/:id/events returns 404 when the session does not exist'
   await app.close();
 });
 
-test.test('GET /sessions/:id/output is not registered in the v1 routes', async () => {
-  const { service } = buildSessionServiceStub();
+test.test('POST /sessions/:id/input returns success when the service accepts input', async () => {
+  const { service, calls } = buildSessionServiceStub();
   const app = await buildApp(service);
 
-  const response = await app.inject({ method: 'GET', url: '/sessions/7/output' });
+  const response = await app.inject({
+    method: 'POST',
+    url: '/sessions/7/input',
+    payload: { input: 'ship it' },
+  });
 
-  assert.equal(response.statusCode, 404);
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    success: true,
+    message: 'Input sent',
+    data: null,
+    error: null,
+  });
+  assert.deepEqual(calls.sendInput, [{ sessionId: 7, input: 'ship it' }]);
+
+  await app.close();
+});
+
+test.test('POST /sessions/:id/input returns 409 when the service cannot write to stdin', async () => {
+  const { service, calls } = buildSessionServiceStub();
+  service.sendInput = async (sessionId: number, input: string) => {
+    calls.sendInput.push({ sessionId, input });
+    return false;
+  };
+
+  const app = await buildApp(service);
+  const response = await app.inject({
+    method: 'POST',
+    url: '/sessions/7/input',
+    payload: { input: 'ship it' },
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), {
+    success: false,
+    message: 'Session input stream is unavailable',
+    data: null,
+    error: null,
+  });
+  assert.deepEqual(calls.sendInput, [{ sessionId: 7, input: 'ship it' }]);
 
   await app.close();
 });

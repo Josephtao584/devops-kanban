@@ -162,7 +162,11 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
 
   fastify.post<{ Params: IdParams; Body: ContinueSessionBody }>('/sessions/:id/input', async (request, reply) => {
     try {
-      await service.sendInput(parseNumber(request.params.id), request.body.input || '');
+      const inputSent = await service.sendInput(parseNumber(request.params.id), request.body.input || '');
+      if (!inputSent) {
+        reply.code(409);
+        return errorResponse('Session input stream is unavailable');
+      }
       return successResponse(null, 'Input sent');
     } catch (error) {
       request.log.error(error);

@@ -107,7 +107,7 @@ test.test('SessionService start persists stream history as session events and le
 
     await service.start(session.id);
 
-    proc.emitStdout('alpha\nbeta\n');
+    proc.emitStdout('alpha\n\nbeta\n  indented line\n');
     proc.emitStderr('warn from stderr');
     proc.finish(0);
 
@@ -131,13 +131,7 @@ test.test('SessionService start persists stream history as session events and le
         [
           {
             kind: 'stream_chunk',
-            content: 'alpha',
-            stream: 'stdout',
-            segment_id: segments[0]!.id,
-          },
-          {
-            kind: 'stream_chunk',
-            content: 'beta',
+            content: 'alpha\n\nbeta\n  indented line\n',
             stream: 'stdout',
             segment_id: segments[0]!.id,
           },
@@ -236,7 +230,7 @@ test.test('SessionService continue creates a child segment and attaches resumed 
         [
           {
             kind: 'stream_chunk',
-            content: 'resumed output',
+            content: 'resumed output\n',
             stream: 'stdout',
             segment_id: resumedSegment.id,
           },
@@ -372,7 +366,65 @@ test.test('SessionService continue keeps the session stopped when Claude Code do
   }
 });
 
+test.test('SessionService stop transitions an active desynced session to stopped when no running process exists', async () => {
+  const storagePath = await createTempStorageRoot();
 
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 908,
+      status: 'RUNNING',
+      worktree_path: null,
+      branch: 'task/project/908',
+      initial_prompt: 'Stop after restart desync',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: '2026-03-23T00:00:00.000Z',
+      completed_at: null,
+    });
+
+    const segment = await sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'RUNNING',
+      executor_type: 'CLAUDE_CODE',
+      agent_id: null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: 'START',
+      parent_segment_id: null,
+      started_at: '2026-03-23T00:00:00.000Z',
+      completed_at: null,
+      metadata: {},
+    });
+
+    const broadcasts: Array<{ room: string; payload: { type: string; status?: string } }> = [];
+    const service = new SessionService();
+    service.sessionRepo = sessionRepo;
+    service.sessionSegmentRepo = sessionSegmentRepo;
+
+    const stoppedSession = await service.stop(session.id, (_sessionId, room, payload) => {
+      broadcasts.push({ room, payload: payload as { type: string; status?: string } });
+    });
+
+    assert.equal(stoppedSession?.status, 'STOPPED');
+    assert.equal(service.runningProcesses.size, 0);
+    assert.equal(service.stopRequestedSessions.has(session.id), false);
+
+    const persistedSession = await sessionRepo.findById(session.id);
+    const persistedSegment = await sessionSegmentRepo.findById(segment.id);
+
+    assert.equal(persistedSession?.status, 'STOPPED');
+    assert.ok(persistedSession?.completed_at);
+    assert.equal(persistedSegment?.status, 'STOPPED');
+    assert.equal(persistedSegment?.completed_at, persistedSession?.completed_at);
+    assert.deepEqual(broadcasts, [{ room: 'status', payload: { type: 'status', status: 'STOPPED' } }]);
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
+});
 
 test.test('SessionService stop finalizes stopped state only once when process close arrives later', async () => {
   const storagePath = await createTempStorageRoot();

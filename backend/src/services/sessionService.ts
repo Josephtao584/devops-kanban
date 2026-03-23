@@ -239,8 +239,7 @@ class SessionService {
     };
 
     const appendStreamEvent = (content: string, stream: 'stdout' | 'stderr', role: 'assistant' | 'system') => {
-      const trimmed = content.trim();
-      if (!trimmed) {
+      if (content.length === 0) {
         return;
       }
 
@@ -253,31 +252,25 @@ class SessionService {
             segment_id: segmentId,
             kind: 'stream_chunk',
             role,
-            content: trimmed,
+            content,
             payload: { stream, timestamp },
           });
         });
 
       broadcastFn?.(sessionId, 'output', {
         type: 'chunk',
-        content: trimmed,
+        content,
         stream,
         timestamp,
       });
     };
 
     proc.stdout?.on('data', (data: Buffer | string) => {
-      const lines = data.toString().split('\n');
-      for (const line of lines) {
-        appendStreamEvent(line, 'stdout', 'assistant');
-      }
+      appendStreamEvent(data.toString(), 'stdout', 'assistant');
     });
 
     proc.stderr?.on('data', (data: Buffer | string) => {
-      const lines = data.toString().split('\n');
-      for (const line of lines) {
-        appendStreamEvent(line, 'stderr', 'system');
-      }
+      appendStreamEvent(data.toString(), 'stderr', 'system');
     });
 
     proc.on('close', async (code) => {
@@ -330,24 +323,45 @@ class SessionService {
     this.stopRequestedSessions.add(sessionId);
 
     const proc = this.runningProcesses.get(sessionId);
-    if (proc) {
-      proc.kill('SIGTERM');
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          proc.kill('SIGKILL');
-          resolve();
-        }, 5000);
-        proc.on('close', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
+    if (!proc) {
+      const completedAt = new Date().toISOString();
+      await this.sessionRepo.update(sessionId, {
+        status: 'STOPPED',
+        completed_at: completedAt,
       });
+
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+      if (latestSegment?.status === 'RUNNING') {
+        await this._markSegmentComplete(latestSegment.id, 'STOPPED', completedAt);
+      }
+
+      broadcastFn?.(sessionId, 'status', {
+        type: 'status',
+        status: 'STOPPED',
+      });
+
+      this.stopRequestedSessions.delete(sessionId);
+      this.sessionCompletionPromises.delete(sessionId);
+      return await this.sessionRepo.findById(sessionId);
     }
+
+    proc.kill('SIGTERM');
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        proc.kill('SIGKILL');
+        resolve();
+      }, 5000);
+      proc.on('close', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
 
     await this.sessionCompletionPromises.get(sessionId);
 
     return await this.sessionRepo.findById(sessionId);
   }
+
 
   async continue(sessionId: number, input: string, broadcastFn?: BroadcastFn) {
     const session = await this.sessionRepo.findById(sessionId) as SessionLike | null;
