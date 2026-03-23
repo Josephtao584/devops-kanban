@@ -429,6 +429,11 @@ class WorkflowService {
     await this._handleWorkflowStepFailure(runId, step.step_id, errorMessage || 'Workflow failed');
   }
 
+  private async _isWorkflowRunCancelled(runId: number) {
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    return run?.status === 'CANCELLED';
+  }
+
   async _createWorkflowStream(
     context: WorkflowExecutionContext,
     inputData: Record<string, unknown>,
@@ -497,6 +502,9 @@ class WorkflowService {
         });
         await this.taskRepo.update(task.id, { status: 'DONE' });
       } else {
+        if (await this._isWorkflowRunCancelled(runId)) {
+          return;
+        }
         await this._finalizeRunningStepAfterUnexpectedError(runId, result.error || 'Workflow failed');
         await this.workflowRunRepo.update(runId, {
           status: 'FAILED',
@@ -504,6 +512,9 @@ class WorkflowService {
         });
       }
     } catch (err) {
+      if (await this._isWorkflowRunCancelled(runId).catch(() => false)) {
+        return;
+      }
       await this._finalizeRunningStepAfterUnexpectedError(runId, (err as Error).message).catch(() => {});
       await this.workflowRunRepo.update(runId, {
         status: 'FAILED',

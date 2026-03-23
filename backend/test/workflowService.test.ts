@@ -729,13 +729,19 @@ test.test('executeWorkflow finalizes the active step session when the stream thr
 });
 
 
-test.test('executeWorkflow finalizes the active step session when the stream result fails without a step error event', async () => {
+test.test('executeWorkflow preserves CANCELLED when the killed stream throws after user cancellation', async () => {
   const harness = createExecuteWorkflowHarness();
+  const streamFailure = new Error('Stream exploded after cancel');
+  let releaseStreamThrow: (() => void) | null = null;
+  let resolveStepStarted: (() => void) | null = null;
+  const stepStarted = new Promise<void>((resolve) => {
+    resolveStepStarted = resolve;
+  });
 
   (harness.service as WorkflowService & {
     _createWorkflowStream: () => Promise<{
       fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
-      result: Promise<{ status: string; error?: string }>;
+      result: Promise<{ status: string }>;
     }>;
   })._createWorkflowStream = async () => ({
     fullStream: (async function* () {
@@ -743,27 +749,37 @@ test.test('executeWorkflow finalizes the active step session when the stream res
         type: 'workflow-step-start',
         payload: { stepName: 'requirement-design' },
       };
+      resolveStepStarted?.();
+      await new Promise<void>((resolve) => {
+        releaseStreamThrow = resolve;
+      });
+      throw streamFailure;
     })(),
-    result: Promise.resolve({ status: 'failed', error: 'Workflow returned failure' }),
+    result: Promise.resolve({ status: 'success' }),
   });
 
-  await (harness.service as WorkflowService & {
+  const executionPromise = (harness.service as WorkflowService & {
     _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
   })._executeWorkflow(7, harness.task);
 
-  assert.equal(harness.run.status, 'FAILED');
-  assert.deepEqual(harness.run.context, { error: 'Workflow returned failure' });
+  await stepStarted;
+  await harness.service.cancelWorkflow(7);
+  releaseStreamThrow?.();
+  await executionPromise;
+
+  assert.equal(harness.run.status, 'CANCELLED');
+  assert.deepEqual(harness.run.context, {});
   assert.equal(harness.run.current_step, 'requirement-design');
-  assert.equal(harness.run.steps[0]?.status, 'FAILED');
-  assert.equal(harness.run.steps[0]?.error, 'Workflow returned failure');
+  assert.equal(harness.run.steps[0]?.status, 'CANCELLED');
+  assert.equal(harness.run.steps[0]?.error, 'Workflow cancelled');
   assert.equal(harness.run.steps[0]?.session_id, 101);
-  assert.equal(harness.sessions.get(101)?.status, 'FAILED');
-  assert.equal(harness.segments[0]?.status, 'FAILED');
+  assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
+  assert.equal(harness.segments[0]?.status, 'CANCELLED');
   assert.equal(harness.taskUpdates.length, 0);
   assert.deepEqual(harness.runUpdates, [
     { status: 'RUNNING' },
     { current_step: 'requirement-design' },
-    { status: 'FAILED', context: { error: 'Workflow returned failure' } },
+    { status: 'CANCELLED' },
   ]);
 });
 
