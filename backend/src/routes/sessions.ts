@@ -15,6 +15,8 @@ type SessionSubscriber = {
   on(event: 'message', handler: (message: Buffer | string) => void | Promise<void>): void;
   on(event: 'close', handler: () => void): void;
 };
+type SessionStartResult = Awaited<ReturnType<SessionService['start']>>;
+type SessionContinueResult = Awaited<ReturnType<SessionService['continue']>>;
 type SessionSubscriptions = Record<SessionChannel, SessionSubscriber[]>;
 type SessionRouteOptions = { service?: SessionService };
 
@@ -58,6 +60,19 @@ function getSessionSubscriptions(sessionId: number) {
     sessionSubscriptions.set(sessionId, subscriptions);
   }
   return subscriptions;
+}
+
+function resolveSessionLifecycleResponse(
+  reply: { code(statusCode: number): void },
+  session: SessionStartResult | SessionContinueResult,
+  successMessage: string,
+) {
+  if (session?.status === 'RUNNING' || session?.status === 'IDLE') {
+    return successResponse(session, successMessage);
+  }
+
+  reply.code(409);
+  return errorResponse('Session worktree is unavailable');
 }
 
 const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, { service = sessionService } = {}) => {
@@ -130,7 +145,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
   fastify.post<{ Params: IdParams }>('/sessions/:id/start', async (request, reply) => {
     try {
       const session = await service.start(parseNumber(request.params.id), broadcastToSession);
-      return successResponse(session, 'Session started');
+      return resolveSessionLifecycleResponse(reply, session, 'Session started');
     } catch (error) {
       request.log.error(error);
       reply.code(getStatusCode(error));
@@ -152,7 +167,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
   fastify.post<{ Params: IdParams; Body: ContinueSessionBody }>('/sessions/:id/continue', async (request, reply) => {
     try {
       const session = await service.continue(parseNumber(request.params.id), request.body.input || '', broadcastToSession);
-      return successResponse(session, 'Session continued');
+      return resolveSessionLifecycleResponse(reply, session, 'Session continued');
     } catch (error) {
       request.log.error(error);
       reply.code(getStatusCode(error));
@@ -226,13 +241,15 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
             const sessionId = parseNumber(parts[3] ?? '');
             const inputText = typeof body === 'string' ? ((JSON.parse(body) as { input?: string }).input) : body?.input;
             if (inputText) {
-              await service.sendInput(sessionId, inputText);
-              broadcastToSession(sessionId, 'output', {
-                type: 'chunk',
-                content: inputText,
-                stream: 'stdin',
-                timestamp: new Date().toISOString(),
-              });
+              const inputSent = await service.sendInput(sessionId, inputText);
+              if (inputSent) {
+                broadcastToSession(sessionId, 'output', {
+                  type: 'chunk',
+                  content: inputText,
+                  stream: 'stdin',
+                  timestamp: new Date().toISOString(),
+                });
+              }
             }
           }
         }

@@ -164,15 +164,12 @@ class SessionService {
       throw error;
     }
 
-    if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
-      return session;
-    }
-
+    const worktreePath = this._requireLaunchableWorktree(session);
     const prompt = session.initial_prompt || task.description || '';
     const segment = await this._createSegment(session, 'START', null);
     try {
       const proc = this._spawnClaudeCode(
-        session.worktree_path,
+        worktreePath,
         ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'],
         sessionId,
         'start',
@@ -377,15 +374,12 @@ class SessionService {
       throw error;
     }
 
-    if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
-      return session;
-    }
-
+    const worktreePath = this._requireLaunchableWorktree(session);
     const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
     const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
     try {
       const proc = this._spawnClaudeCode(
-        session.worktree_path,
+        worktreePath,
         ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input],
         sessionId,
         'resume',
@@ -436,8 +430,8 @@ class SessionService {
       await this.stop(sessionId, broadcastFn);
     }
 
-    if (session.worktree_path) {
-      cleanupWorktree(session.worktree_path);
+    if (await this._canCleanupWorktree(session)) {
+      this._cleanupWorktree(session.worktree_path!);
     }
 
     return await this.sessionRepo.delete(sessionId);
@@ -445,6 +439,34 @@ class SessionService {
 
   async exists(sessionId: number) {
     return (await this.sessionRepo.findById(sessionId)) !== null;
+  }
+
+  private _requireLaunchableWorktree(session: SessionLike) {
+    if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
+      const error = new Error('Session worktree is unavailable') as Error & { statusCode?: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return session.worktree_path;
+  }
+
+  private async _canCleanupWorktree(session: SessionLike) {
+    if (!session.worktree_path) {
+      return false;
+    }
+
+    const task = await this.taskService.getById(session.task_id) as TaskLike | null;
+    if (task?.worktree_path === session.worktree_path) {
+      return false;
+    }
+
+    const sessions = await this.sessionRepo.findAll();
+    return !sessions.some((candidate) => candidate.id !== session.id && candidate.worktree_path === session.worktree_path);
+  }
+
+  _cleanupWorktree(worktreePath: string) {
+    return cleanupWorktree(worktreePath);
   }
 
   private async _createSegment(

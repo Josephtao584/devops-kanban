@@ -27,6 +27,8 @@ function buildSessionServiceStub() {
   const calls = {
     listEvents: [] as Array<{ sessionId: number; options: { afterSeq?: number; limit?: number } }>,
     sendInput: [] as Array<{ sessionId: number; input: string }>,
+    start: [] as number[],
+    continue: [] as Array<{ sessionId: number; input: string }>,
   };
 
   const events: SessionEventListItem[] = [
@@ -60,14 +62,16 @@ function buildSessionServiceStub() {
       async create() {
         return null;
       },
-      async start() {
-        return null;
+      async start(sessionId: number) {
+        calls.start.push(sessionId);
+        return { id: sessionId, status: 'RUNNING' };
       },
       async stop() {
         return null;
       },
-      async continue() {
-        return null;
+      async continue(sessionId: number, input: string) {
+        calls.continue.push({ sessionId, input });
+        return { id: sessionId, status: 'RUNNING' };
       },
       async sendInput(sessionId: number, input: string) {
         calls.sendInput.push({ sessionId, input });
@@ -136,6 +140,54 @@ test.test('GET /sessions/:id/events returns 404 when the session does not exist'
   assert.equal(response.statusCode, 404);
   assert.equal(payload.success, false);
   assert.equal(payload.message, 'Session not found');
+
+  await app.close();
+});
+
+test.test('POST /sessions/:id/start returns 409 when the service leaves the session stopped', async () => {
+  const { service, calls } = buildSessionServiceStub();
+  service.start = async (sessionId: number) => {
+    calls.start.push(sessionId);
+    return { id: sessionId, status: 'STOPPED' };
+  };
+
+  const app = await buildApp(service);
+  const response = await app.inject({ method: 'POST', url: '/sessions/7/start' });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), {
+    success: false,
+    message: 'Session worktree is unavailable',
+    data: null,
+    error: null,
+  });
+  assert.deepEqual(calls.start, [7]);
+
+  await app.close();
+});
+
+test.test('POST /sessions/:id/continue returns 409 when the service leaves the session stopped', async () => {
+  const { service, calls } = buildSessionServiceStub();
+  service.continue = async (sessionId: number, input: string) => {
+    calls.continue.push({ sessionId, input });
+    return { id: sessionId, status: 'STOPPED' };
+  };
+
+  const app = await buildApp(service);
+  const response = await app.inject({
+    method: 'POST',
+    url: '/sessions/7/continue',
+    payload: { input: 'resume work' },
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), {
+    success: false,
+    message: 'Session worktree is unavailable',
+    data: null,
+    error: null,
+  });
+  assert.deepEqual(calls.continue, [{ sessionId: 7, input: 'resume work' }]);
 
   await app.close();
 });
@@ -214,5 +266,59 @@ test.test('WebSocket /ws routes STOMP app input destinations to the parsed sessi
   });
 
   socket.close();
+  await app.close();
+});
+
+test.test('WebSocket /ws does not broadcast stdin chunks when sendInput returns false', async () => {
+  const { service, calls } = buildSessionServiceStub();
+  service.sendInput = async (sessionId: number, input: string) => {
+    calls.sendInput.push({ sessionId, input });
+    return false;
+  };
+
+  const app = Fastify();
+  await app.register(fastifyWebSocket);
+  app.register(sessionRoutes, { service: service as never });
+  await app.listen({ port: 0, host: '127.0.0.1' });
+
+  const address = app.server.address();
+  assert.ok(address && typeof address === 'object');
+
+  const subscriber = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
+  await new Promise<void>((resolve, reject) => {
+    subscriber.once('open', () => resolve());
+    subscriber.once('error', reject);
+  });
+
+  const receivedMessages: string[] = [];
+  subscriber.on('message', (message) => {
+    receivedMessages.push(message.toString());
+  });
+
+  subscriber.send(JSON.stringify({
+    destination: '/topic/session/42/output',
+  }));
+
+  await waitFor(() => {
+    assert.ok(receivedMessages.some((message) => message.includes('SUBSCRIBED')));
+  });
+
+  subscriber.send(JSON.stringify({
+    destination: '/app/session/42/input',
+    body: JSON.stringify({ input: 'hello from ws' }),
+  }));
+
+  await waitFor(() => {
+    assert.deepEqual(calls.sendInput, [{ sessionId: 42, input: 'hello from ws' }]);
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.equal(
+    receivedMessages.some((message) => message.includes('"stream":"stdin"')),
+    false,
+  );
+
+  subscriber.close();
   await app.close();
 });

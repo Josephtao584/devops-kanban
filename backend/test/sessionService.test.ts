@@ -243,7 +243,7 @@ test.test('SessionService continue creates a child segment and attaches resumed 
   }
 });
 
-test.test('SessionService start returns safely when the worktree path does not exist', async () => {
+test.test('SessionService start rejects when the worktree path does not exist', async () => {
   const storagePath = await createTempStorageRoot();
   const missingWorktreePath = path.join(storagePath, 'missing-worktree');
 
@@ -286,11 +286,14 @@ test.test('SessionService start returns safely when the worktree path does not e
       throw new Error('spawn should not be called');
     };
 
-    const result = await service.start(session.id);
+    await assert.rejects(
+      () => service.start(session.id),
+      (error: unknown) => error instanceof Error && error.message === 'Session worktree is unavailable' && 'statusCode' in error && error.statusCode === 409,
+    );
+
     const persistedSession = await sessionRepo.findById(session.id);
     const segments = await sessionSegmentRepo.findBySessionId(session.id);
 
-    assert.equal(result?.status, 'STOPPED');
     assert.equal(persistedSession?.status, 'STOPPED');
     assert.equal(persistedSession?.started_at, null);
     assert.equal(persistedSession?.completed_at, null);
@@ -365,6 +368,74 @@ test.test('SessionService continue keeps the session stopped when Claude Code do
     await fs.rm(worktreePath, { recursive: true, force: true });
   }
 });
+
+
+test.test('SessionService continue rejects when the worktree path does not exist', async () => {
+  const storagePath = await createTempStorageRoot();
+  const missingWorktreePath = path.join(storagePath, 'missing-worktree');
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 909,
+      status: 'STOPPED',
+      worktree_path: missingWorktreePath,
+      branch: 'task/project/909',
+      initial_prompt: 'Resume only when worktree exists',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    await sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'COMPLETED',
+      executor_type: 'CLAUDE_CODE',
+      agent_id: null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: 'START',
+      parent_segment_id: null,
+      started_at: '2026-03-23T00:00:00.000Z',
+      completed_at: '2026-03-23T00:01:00.000Z',
+      metadata: {},
+    });
+
+    let spawnCalled = false;
+    const service = new SessionService() as SessionService & {
+      sessionSegmentRepo: SessionSegmentRepository;
+      _spawnClaudeCode: (...args: unknown[]) => ChildProcess;
+    };
+
+    service.sessionRepo = sessionRepo;
+    service.sessionSegmentRepo = sessionSegmentRepo;
+    service._spawnClaudeCode = () => {
+      spawnCalled = true;
+      throw new Error('spawn should not be called');
+    };
+
+    await assert.rejects(
+      () => service.continue(session.id, 'Retry the resume'),
+      (error: unknown) => error instanceof Error && error.message === 'Session worktree is unavailable' && 'statusCode' in error && error.statusCode === 409,
+    );
+
+    const persistedSession = await sessionRepo.findById(session.id);
+    const segments = await sessionSegmentRepo.findBySessionId(session.id);
+
+    assert.equal(persistedSession?.status, 'STOPPED');
+    assert.equal(persistedSession?.completed_at, null);
+    assert.equal(spawnCalled, false);
+    assert.equal(segments.length, 1);
+    assert.equal(service.runningProcesses.size, 0);
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
+});
+
 
 test.test('SessionService stop transitions an active desynced session to stopped when no running process exists', async () => {
   const storagePath = await createTempStorageRoot();
@@ -559,7 +630,74 @@ test.test('SessionService stop finalizes stopped state only once when process cl
   }
 });
 
-test.test('SessionService listEvents returns the planned envelope with pagination metadata', async () => {
+
+test.test('SessionService delete does not clean up a task-owned shared worktree', async () => {
+  const storagePath = await createTempStorageRoot();
+  const worktreePath = await createWorktreeDir();
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+
+    const firstSession = await sessionRepo.create({
+      task_id: 910,
+      status: 'STOPPED',
+      worktree_path: worktreePath,
+      branch: 'task/project/910',
+      initial_prompt: 'Shared worktree session one',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    await sessionRepo.create({
+      task_id: 910,
+      status: 'STOPPED',
+      worktree_path: worktreePath,
+      branch: 'task/project/910',
+      initial_prompt: 'Shared worktree session two',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    let cleanupCalls = 0;
+    const service = new SessionService() as SessionService & {
+      taskService: { getById(taskId: number): Promise<{ id: number; title: string; worktree_path: string; worktree_status: string }> };
+      _cleanupWorktree(worktreePath: string): boolean;
+    };
+
+    service.sessionRepo = sessionRepo;
+    service.taskService = {
+      async getById(taskId: number) {
+        return {
+          id: taskId,
+          title: 'Task 910',
+          worktree_path: worktreePath,
+          worktree_status: 'created',
+        };
+      },
+    };
+    service._cleanupWorktree = () => {
+      cleanupCalls += 1;
+      return true;
+    };
+
+    const deleted = await service.delete(firstSession.id);
+    const remainingSessions = await sessionRepo.findAll();
+
+    assert.equal(deleted, true);
+    assert.equal(cleanupCalls, 0);
+    assert.equal(remainingSessions.length, 1);
+    assert.equal(remainingSessions[0]?.worktree_path, worktreePath);
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+    await fs.rm(worktreePath, { recursive: true, force: true });
+  }
+});
+
+test.test('SessionService listEvents returns paginated events with has_more metadata', async () => {
   const storagePath = await createTempStorageRoot();
 
   try {
