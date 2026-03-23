@@ -1,12 +1,9 @@
 import { buildApp } from './app.js';
-import { initWorkflows } from './services/workflow/workflows.js';
 
 const app = await buildApp();
 
 const start = async () => {
   try {
-    await initWorkflows();
-
     await app.listen({
       port: app.config.SERVER_PORT,
       host: app.config.SERVER_HOST,

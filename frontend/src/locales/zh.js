@@ -230,7 +230,10 @@ export default {
     saveFailed: '保存工作流模板失败',
     missingAgent: '缺失成员 (#{id})',
     disabled: '已禁用',
-    agentFallbackName: '成员 #{id}'
+    agentFallbackName: '成员 #{id}',
+    selectDialogTitle: '选择工作流模板',
+    emptyState: '暂无可用的工作流模板',
+    stepCount: '{count} 个步骤'
   },
   agent: {
     title: '我的团队',

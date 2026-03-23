@@ -2,17 +2,16 @@ import { AgentRepository } from '../../repositories/agentRepository.js';
 import type { AgentEntity } from '../../repositories/agentRepository.js';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { adaptStepResult } from './stepResultAdapter.js';
-import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
+import type { WorkflowTemplate } from './workflowTemplateService.js';
 import type { ExecutorConfig, ExecutorExecutionResult, ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
-const defaultTemplateService = new WorkflowTemplateService();
 const defaultAgentRepo = new AgentRepository();
 
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
-  templateService?: WorkflowTemplateService;
+  templateSnapshot?: WorkflowTemplate;
   agentRepo?: Pick<AgentRepository, 'findById'>;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
   stepId: string;
@@ -62,7 +61,7 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
 
 export async function executeWorkflowStep({
   registry = defaultRegistry,
-  templateService = defaultTemplateService,
+  templateSnapshot,
   agentRepo = defaultAgentRepo,
   context,
   stepId,
@@ -71,8 +70,11 @@ export async function executeWorkflowStep({
   inputData,
   upstreamStepIds = [],
 }: ExecuteWorkflowStepInput) {
-  const template = await templateService.getTemplate();
-  const step = template.steps.find((item: { id: string }) => item.id === stepId);
+  if (!templateSnapshot) {
+    throw new Error('Workflow template snapshot is required for step execution');
+  }
+
+  const step = templateSnapshot.steps.find((item: { id: string }) => item.id === stepId);
 
   if (!step) {
     throw new Error(`Workflow template step not found: ${stepId}`);

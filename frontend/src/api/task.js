@@ -24,7 +24,7 @@ export const updateTask = (id, data) => api.put(`/tasks/${id}`, convertTaskData(
 export const updateTaskStatus = (id, status) => api.patch(`/tasks/${id}/status`, { status })
 export const updateTaskAutoTransition = (id, autoTransitionEnabled) => api.put(`/tasks/${id}`, { autoTransitionEnabled })
 export const deleteTask = (id) => api.delete(`/tasks/${id}`)
-export const startTask = (id) => api.post(`/tasks/${id}/start`)
+export const startTask = (id, data) => api.post(`/tasks/${id}/start`, data)
 
 /**
  * Reorder tasks - batch update order field

@@ -43,7 +43,7 @@ function assembleWorkflowPrompt({
     `本步骤要求：\n${step.instructionPrompt}`,
     '执行完成后，只输出最后结果总结。',
     '总结中说明本步骤做了什么、是否修改了文件、以及主要结果。',
-  ].filter(Boolean).join('\n\n').replaceAll('\n', '\\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 export { assembleWorkflowPrompt, extractUpstreamSummaries };

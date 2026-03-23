@@ -1,31 +1,79 @@
 import { WorkflowTemplateRepository } from '../../repositories/workflowTemplateRepository.js';
 
-const FIXED_STEPS = [
+const BUILT_IN_TEMPLATES = [
   {
-    id: 'requirement-design',
-    name: '需求设计',
-    instructionPrompt: '先完成需求分析，整理实现思路、关键约束和交付方案。',
+    template_id: 'dev-workflow-v1',
+    name: '默认研发工作流',
+    steps: [
+      {
+        id: 'requirement-design',
+        name: '需求设计',
+        instructionPrompt: '先完成需求分析，整理实现思路、关键约束和交付方案。',
+        agentId: null,
+      },
+      {
+        id: 'code-development',
+        name: '代码开发',
+        instructionPrompt: '根据上游步骤摘要完成代码实现，保持改动聚焦，并总结主要修改结果。',
+        agentId: null,
+      },
+      {
+        id: 'testing',
+        name: '测试',
+        instructionPrompt: '根据上游步骤摘要执行必要验证，说明测试结果、发现的问题和结论。',
+        agentId: null,
+      },
+      {
+        id: 'code-review',
+        name: '代码审查',
+        instructionPrompt: '根据上游步骤摘要完成代码审查，说明主要风险、问题和审查结论。',
+        agentId: null,
+      },
+    ],
   },
   {
-    id: 'code-development',
-    name: '代码开发',
-    instructionPrompt: '根据上游步骤摘要完成代码实现，保持改动聚焦，并总结主要修改结果。',
+    template_id: 'quick-fix-v1',
+    name: '快速修复工作流',
+    steps: [
+      {
+        id: 'triage',
+        name: '问题定位',
+        instructionPrompt: '先确认问题范围、触发条件和修复策略。',
+        agentId: null,
+      },
+      {
+        id: 'fix',
+        name: '实施修复',
+        instructionPrompt: '根据定位结果完成最小改动修复。',
+        agentId: null,
+      },
+      {
+        id: 'verify',
+        name: '回归验证',
+        instructionPrompt: '验证修复结果并确认没有引入明显回归。',
+        agentId: null,
+      },
+    ],
   },
   {
-    id: 'testing',
-    name: '测试',
-    instructionPrompt: '根据上游步骤摘要执行必要验证，说明测试结果、发现的问题和结论。',
-  },
-  {
-    id: 'code-review',
-    name: '代码审查',
-    instructionPrompt: '根据上游步骤摘要完成代码审查，说明主要风险、问题和审查结论。',
+    template_id: 'review-only-v1',
+    name: '审查工作流',
+    steps: [
+      {
+        id: 'review',
+        name: '代码审查',
+        instructionPrompt: '审查现有改动并记录风险。',
+        agentId: null,
+      },
+      {
+        id: 'report',
+        name: '输出结论',
+        instructionPrompt: '汇总结论并给出建议。',
+        agentId: null,
+      },
+    ],
   },
 ] as const;
-
-const FIXED_STEP_BY_ID = new Map(FIXED_STEPS.map((step) => [step.id, step] as const));
-
-type FixedStepId = typeof FIXED_STEPS[number]['id'];
 
 type WorkflowTemplateStep = {
   id: string;
@@ -34,104 +82,106 @@ type WorkflowTemplateStep = {
   agentId: number | null;
 };
 
-function isFixedStepId(value: string): value is FixedStepId {
-  return FIXED_STEP_BY_ID.has(value as FixedStepId);
-}
-
 type WorkflowTemplate = {
   template_id: string;
   name: string;
   steps: WorkflowTemplateStep[];
 };
 
-function buildDefaultTemplate(): WorkflowTemplate {
-  return {
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
-    steps: FIXED_STEPS.map((step) => ({
-      id: step.id,
-      name: step.name,
-      instructionPrompt: step.instructionPrompt,
-      agentId: null,
-    })),
-  };
-}
-
 function createValidationError(message: string) {
   return Object.assign(new Error(message), { statusCode: 400 });
 }
 
-function isWorkflowTemplateStepRecord(value: unknown): value is Partial<WorkflowTemplateStep> & { id?: unknown; name?: unknown } {
+function cloneTemplate(template: WorkflowTemplate): WorkflowTemplate {
+  return {
+    template_id: template.template_id,
+    name: template.name,
+    steps: template.steps.map((step) => ({ ...step })),
+  };
+}
+
+function buildBuiltInTemplates(): WorkflowTemplate[] {
+  return BUILT_IN_TEMPLATES.map((template) => cloneTemplate(template));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function normalizeStep(
-  step: Partial<WorkflowTemplateStep> | undefined,
-  fixedStep: typeof FIXED_STEPS[number],
-): WorkflowTemplateStep {
+function normalizeStep(step: unknown): WorkflowTemplateStep {
+  if (!isRecord(step)) {
+    throw createValidationError('Invalid workflow template steps');
+  }
+
+  const { id, name, instructionPrompt, agentId } = step;
+
+  if (typeof id !== 'string' || !id.trim()) {
+    throw createValidationError('step id must be a non-empty string');
+  }
+
+  if (typeof name !== 'string' || !name.trim()) {
+    throw createValidationError('step name must be a non-empty string');
+  }
+
+  if (typeof instructionPrompt !== 'string' || !instructionPrompt.trim()) {
+    throw createValidationError('instructionPrompt must be a non-empty string');
+  }
+
+  if (agentId !== null && (typeof agentId !== 'number' || !Number.isFinite(agentId))) {
+    throw createValidationError('agentId must be a number or null');
+  }
+
   return {
-    id: fixedStep.id,
-    name: fixedStep.name,
-    instructionPrompt: typeof step?.instructionPrompt === 'string' && step.instructionPrompt.trim()
-      ? step.instructionPrompt
-      : fixedStep.instructionPrompt,
-    agentId: typeof step?.agentId === 'number' && Number.isFinite(step.agentId)
-      ? step.agentId
-      : null,
+    id: id.trim(),
+    name: name.trim(),
+    instructionPrompt: instructionPrompt.trim(),
+    agentId,
   };
 }
 
-function normalizeTemplate(template: WorkflowTemplate | null): WorkflowTemplate | null {
-  if (!template) {
-    return null;
+function normalizeTemplate(template: unknown): WorkflowTemplate {
+  if (!isRecord(template)) {
+    throw createValidationError('Invalid workflow template');
   }
 
-  if (template.template_id !== 'dev-workflow-v1') {
+  const { template_id, name, steps } = template;
+
+  if (typeof template_id !== 'string' || !template_id.trim()) {
     throw createValidationError('Invalid workflow template id');
   }
 
-  if (!Array.isArray(template.steps)) {
-    throw createValidationError('Invalid workflow template steps');
+  if (typeof name !== 'string' || !name.trim()) {
+    throw createValidationError('Workflow template name must be a non-empty string');
   }
 
-  if (!template.steps.every((step) => isWorkflowTemplateStepRecord(step))) {
-    throw createValidationError('Invalid workflow template steps');
+  if (!Array.isArray(steps) || steps.length < 2) {
+    throw createValidationError('Workflow template must include at least two steps');
   }
 
-  const actualStepIds = template.steps.map((step) => step.id);
-  const expectedStepIds = FIXED_STEPS.map((step) => step.id);
-  if (
-    actualStepIds.length !== expectedStepIds.length
-    || new Set(actualStepIds).size !== expectedStepIds.length
-    || expectedStepIds.some((stepId) => !actualStepIds.includes(stepId))
-  ) {
-    throw createValidationError('Invalid workflow template step ids');
+  const normalizedSteps = steps.map((step) => normalizeStep(step));
+  if (new Set(normalizedSteps.map((step) => step.id)).size !== normalizedSteps.length) {
+    throw createValidationError('Workflow template step ids must be unique');
   }
-
-  for (const step of template.steps) {
-    if (!isFixedStepId(step.id)) {
-      throw createValidationError('Invalid workflow template step names');
-    }
-
-    const fixedStep = FIXED_STEP_BY_ID.get(step.id);
-    if (!fixedStep || step.name !== fixedStep.name) {
-      throw createValidationError('Invalid workflow template step names');
-    }
-  }
-
-  const stepsById = new Map<FixedStepId, WorkflowTemplateStep>(
-    template.steps.map((step) => {
-      if (!isFixedStepId(step.id)) {
-        throw createValidationError('Invalid workflow template step ids');
-      }
-      return [step.id, step] as const;
-    }),
-  );
 
   return {
-    ...template,
-    steps: FIXED_STEPS.map((fixedStep) => normalizeStep(stepsById.get(fixedStep.id), fixedStep)),
+    template_id: template_id.trim(),
+    name: name.trim(),
+    steps: normalizedSteps,
   };
+}
+
+function mergeTemplates(storedTemplates: WorkflowTemplate[]): WorkflowTemplate[] {
+  const merged = new Map<string, WorkflowTemplate>();
+
+  for (const template of buildBuiltInTemplates()) {
+    merged.set(template.template_id, template);
+  }
+
+  for (const template of storedTemplates) {
+    merged.set(template.template_id, cloneTemplate(template));
+  }
+
+  return Array.from(merged.values());
 }
 
 class WorkflowTemplateService {
@@ -141,60 +191,57 @@ class WorkflowTemplateService {
     this.workflowTemplateRepo = workflowTemplateRepo || new WorkflowTemplateRepository();
   }
 
-  async getTemplate(): Promise<WorkflowTemplate> {
-    const existing = await this.workflowTemplateRepo.get();
-    if (existing) {
-      const normalized = normalizeTemplate(existing as WorkflowTemplate);
-      if (JSON.stringify(normalized) !== JSON.stringify(existing)) {
-        await this.workflowTemplateRepo.save(normalized as WorkflowTemplate);
+  async getTemplates(): Promise<WorkflowTemplate[]> {
+    const storedTemplates = (await this.workflowTemplateRepo.readAll()).map((template) => normalizeTemplate(template));
+
+    if (storedTemplates.length > 0) {
+      const mergedTemplates = mergeTemplates(storedTemplates);
+      if (JSON.stringify(mergedTemplates) !== JSON.stringify(storedTemplates)) {
+        await this.workflowTemplateRepo.saveAll(mergedTemplates);
       }
-      return normalized as WorkflowTemplate;
+      return mergedTemplates;
     }
 
-    const template = buildDefaultTemplate();
-    await this.workflowTemplateRepo.save(template);
-    return template;
+    const legacyTemplate = await this.workflowTemplateRepo.readLegacy();
+    const mergedTemplates = mergeTemplates(legacyTemplate ? [normalizeTemplate(legacyTemplate)] : []);
+    await this.workflowTemplateRepo.saveAll(mergedTemplates);
+    return mergedTemplates;
+  }
+
+  async getTemplate(): Promise<WorkflowTemplate> {
+    const templates = await this.getTemplates();
+    const template = templates.find((entry) => entry.template_id === 'dev-workflow-v1');
+    if (!template) {
+      throw createValidationError('Workflow template not found: dev-workflow-v1');
+    }
+    return cloneTemplate(template);
+  }
+
+  async getTemplateById(templateId: string): Promise<WorkflowTemplate | null> {
+    const templates = await this.getTemplates();
+    const template = templates.find((entry) => entry.template_id === templateId);
+    return template ? cloneTemplate(template) : null;
   }
 
   async updateTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate> {
-    this._validateTemplate(template);
-    await this.workflowTemplateRepo.save(template);
-    return template;
+    const normalizedTemplate = normalizeTemplate(template);
+    const templates = await this.getTemplates();
+    const nextTemplates = templates.map((entry) => (
+      entry.template_id === normalizedTemplate.template_id ? normalizedTemplate : entry
+    ));
+
+    if (!nextTemplates.some((entry) => entry.template_id === normalizedTemplate.template_id)) {
+      nextTemplates.push(normalizedTemplate);
+    }
+
+    await this.workflowTemplateRepo.saveAll(nextTemplates);
+    return cloneTemplate(normalizedTemplate);
   }
 
   _validateTemplate(template: WorkflowTemplate) {
-    if (!template || template.template_id !== 'dev-workflow-v1') {
-      throw createValidationError('Invalid workflow template id');
-    }
-
-    const actualStepIds = Array.isArray(template.steps) && template.steps.every((step) => isWorkflowTemplateStepRecord(step))
-      ? template.steps.map((step) => step.id)
-      : [];
-    const expectedStepIds = FIXED_STEPS.map((step) => step.id);
-    if (JSON.stringify(actualStepIds) !== JSON.stringify(expectedStepIds)) {
-      throw createValidationError('Invalid workflow template step ids');
-    }
-
-    for (const step of template.steps) {
-      if (!isFixedStepId(step.id)) {
-        throw createValidationError('Invalid workflow template step names');
-      }
-
-      const fixedStep = FIXED_STEP_BY_ID.get(step.id);
-      if (!fixedStep || step.name !== fixedStep.name) {
-        throw createValidationError('Invalid workflow template step names');
-      }
-
-      if (typeof step.instructionPrompt !== 'string' || !step.instructionPrompt.trim()) {
-        throw createValidationError('instructionPrompt must be a non-empty string');
-      }
-
-      if (step.agentId !== null && (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId))) {
-        throw createValidationError('agentId must be a number or null');
-      }
-    }
+    normalizeTemplate(template);
   }
 }
 
-export { WorkflowTemplateService, FIXED_STEPS, buildDefaultTemplate, normalizeTemplate };
+export { WorkflowTemplateService, BUILT_IN_TEMPLATES, buildBuiltInTemplates, normalizeTemplate };
 export type { WorkflowTemplate, WorkflowTemplateStep };

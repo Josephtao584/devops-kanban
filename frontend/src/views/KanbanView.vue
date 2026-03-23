@@ -445,6 +445,10 @@
       @cancel="showIterationModal = false"
     />
 
+    <WorkflowTemplateSelectDialog
+      v-model="showWorkflowTemplateDialog"
+      @confirm="handleWorkflowTemplateConfirm"
+    />
 
     <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
@@ -591,6 +595,7 @@ import DiffSelectDialog from '../components/DiffSelectDialog.vue'
 import CommitDialog from '../components/CommitDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
+import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
 import IterationSelect from '../components/iteration/IterationSelect.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
@@ -656,6 +661,7 @@ const diffDialogData = ref({})
 
 const showCommitDialog = ref(false)
 const commitDialogData = ref({})
+const showWorkflowTemplateDialog = ref(false)
 
 // Iteration filter
 const selectedIterationId = ref(null)
@@ -953,6 +959,33 @@ const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
 }
 
+const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
+  if (!selectedTask.value) return
+
+  try {
+    const response = await startTask(selectedTask.value.id, {
+      workflow_template_id: workflowTemplateId
+    })
+
+    if (response.success) {
+      ElMessage.success('任务已启动')
+      if (selectedProjectId.value) {
+        await taskStore.fetchTasks(selectedProjectId.value)
+      }
+      showWorkflowTemplateDialog.value = false
+    } else {
+      ElMessage.error(response.message || '启动失败')
+    }
+  } catch (error) {
+    console.error('启动任务失败:', error)
+    ElMessage.error('启动失败')
+  }
+}
+
+const handleWorkflowTemplateConfirm = async (workflowTemplateId) => {
+  await startSelectedTaskWithTemplate(workflowTemplateId)
+}
+
 // Handle workflow action from inline workflow panel
 const handleWorkflowAction = (payload) => {
   if (typeof payload === 'string') {
@@ -960,22 +993,7 @@ const handleWorkflowAction = (payload) => {
     const action = payload
     if (action === 'start') {
       if (selectedTask.value) {
-        startTask(selectedTask.value.id)
-          .then((response) => {
-            if (response.success) {
-              ElMessage.success('任务已启动')
-              // Refresh task data
-              if (selectedProjectId.value) {
-                taskStore.fetchTasks(selectedProjectId.value)
-              }
-            } else {
-              ElMessage.error(response.message || '启动失败')
-            }
-          })
-          .catch((error) => {
-            console.error('启动任务失败:', error)
-            ElMessage.error('启动失败')
-          })
+        showWorkflowTemplateDialog.value = true
       }
     } else if (action === 'pause') {
       // Handle pause

@@ -1,0 +1,321 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { defineComponent, h, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
+
+import i18n from '../src/locales'
+import KanbanView from '../src/views/KanbanView.vue'
+import { useProjectStore } from '../src/stores/projectStore'
+import { useTaskStore } from '../src/stores/taskStore'
+import { useIterationStore } from '../src/stores/iterationStore'
+import { useTaskSourceStore } from '../src/stores/taskSourceStore'
+import { startTask } from '../src/api/task.js'
+
+vi.mock('../src/api/task.js', async () => {
+  const actual = await vi.importActual('../src/api/task.js')
+  return {
+    ...actual,
+    startTask: vi.fn()
+  }
+})
+
+vi.mock('../src/api/session.js', () => ({
+  getActiveSessionByTask: vi.fn().mockResolvedValue({ success: true, data: null })
+}))
+
+vi.mock('../src/api/taskWorktree.js', () => ({
+  deleteTaskWorktree: vi.fn()
+}))
+
+vi.mock('../src/api/workflowTemplate.js', () => ({
+  getWorkflowTemplates: vi.fn().mockResolvedValue({
+    success: true,
+    data: [
+      {
+        template_id: 'quick-fix-v1',
+        name: '快速修复工作流',
+        steps: []
+      }
+    ]
+  })
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    params: {
+      projectId: '1'
+    }
+  })
+}))
+
+vi.mock('../src/composables/kanban/useTaskTimer', () => ({
+  useTaskTimer: () => ({
+    runningTasks: new Set(),
+    isTaskRunning: () => false,
+    startTaskTimer: vi.fn(),
+    stopTaskTimer: vi.fn(),
+    formatTaskElapsedTime: () => '',
+    cleanup: vi.fn()
+  })
+}))
+
+vi.mock('../src/composables/kanban/useWorkflowManager', () => ({
+  useWorkflowManager: () => ({
+    selectedNode: { value: null },
+    showNodeDialog: { value: false },
+    workflowVersion: { value: 0 },
+    onNodeSelect: vi.fn(),
+    onNodeViewDetails: vi.fn(),
+    handleButlerControl: vi.fn(),
+    handleViewWorkflow: vi.fn(),
+    onNodeSessionCreated: vi.fn(),
+    onStartWorkflow: vi.fn()
+  })
+}))
+
+vi.mock('../src/mock/workflowAssignment', () => ({
+  analyzeTaskCategory: vi.fn(() => 'FEATURE')
+}))
+
+vi.mock('../src/mock/workflowData', () => ({
+  getWorkflowByProject: vi.fn(() => null),
+  getWorkflowByTask: vi.fn(() => null),
+  getOrCreateWorkflowForProject: vi.fn(() => null),
+  addNodeToWorkflow: vi.fn()
+}))
+
+vi.mock('vuedraggable', () => ({
+  default: defineComponent({
+    name: 'DraggableStub',
+    props: {
+      list: { type: Array, default: () => [] },
+      modelValue: { type: Array, default: () => [] }
+    },
+    setup(props, { slots }) {
+      const items = props.list?.length ? props.list : props.modelValue
+      return () => h('div', { class: 'draggable-stub' }, items.map((element, index) =>
+        slots.item ? slots.item({ element, index }) : null
+      ))
+    }
+  })
+}))
+
+const WorkflowTemplateSelectDialogStub = defineComponent({
+  name: 'WorkflowTemplateSelectDialog',
+  props: {
+    modelValue: { type: Boolean, default: false }
+  },
+  emits: ['update:modelValue', 'confirm'],
+  setup(props, { emit }) {
+    return () => props.modelValue
+      ? h('div', { class: 'workflow-template-select-dialog-stub' }, [
+          h('button', {
+            class: 'confirm-template-selection',
+            onClick: () => emit('confirm', 'quick-fix-v1')
+          }, 'confirm quick-fix')
+        ])
+      : null
+  }
+})
+
+const KanbanListViewStub = defineComponent({
+  name: 'KanbanListView',
+  props: {
+    tasks: { type: Array, default: () => [] }
+  },
+  emits: ['select-task', 'workflow-action'],
+  setup(props, { emit }) {
+    return () => h('div', { class: 'kanban-list-view-stub' }, props.tasks.map((task) =>
+      h('div', { key: task.id, class: 'kanban-task-row' }, [
+        h('button', {
+          class: `select-task-${task.id}`,
+          onClick: () => emit('select-task', task)
+        }, `select ${task.title}`),
+        h('button', {
+          class: `start-task-${task.id}`,
+          onClick: () => emit('workflow-action', 'start')
+        }, `start ${task.title}`)
+      ])
+    ))
+  }
+})
+
+const passthroughStub = (name) => defineComponent({
+  name,
+  setup(_, { slots }) {
+    return () => h('div', { class: `${name}-stub` }, slots.default?.())
+  }
+})
+
+const IterationSelectStub = defineComponent({
+  name: 'IterationSelect',
+  props: {
+    modelValue: { type: [String, Number, null], default: null }
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () => h('select', {
+      class: 'iteration-select-stub',
+      value: props.modelValue ?? '',
+      onChange: (event) => emit('update:modelValue', event.target.value || null)
+    })
+  }
+})
+
+const ElDialogStub = defineComponent({
+  name: 'ElDialog',
+  props: {
+    modelValue: { type: Boolean, default: false }
+  },
+  setup(props, { slots }) {
+    return () => props.modelValue ? h('div', { class: 'el-dialog-stub' }, slots.default?.()) : null
+  }
+})
+
+const ElButtonStub = defineComponent({
+  name: 'ElButton',
+  emits: ['click'],
+  setup(_, { slots, emit }) {
+    return () => h('button', { onClick: () => emit('click') }, slots.default?.())
+  }
+})
+
+const ElRadioGroupStub = defineComponent({
+  name: 'ElRadioGroup',
+  props: {
+    modelValue: { type: String, default: '' }
+  },
+  emits: ['update:modelValue'],
+  setup(_, { slots }) {
+    return () => h('div', { class: 'el-radio-group-stub' }, slots.default?.())
+  }
+})
+
+const ElRadioButtonStub = defineComponent({
+  name: 'ElRadioButton',
+  setup(_, { slots }) {
+    return () => h('button', { class: 'el-radio-button-stub' }, slots.default?.())
+  }
+})
+
+const flushPromises = async () => {
+  await Promise.resolve()
+  await Promise.resolve()
+  await nextTick()
+}
+
+const mockProjects = [
+  { id: 1, name: 'Alpha' }
+]
+
+const mockTasks = [
+  {
+    id: 7,
+    title: '修复启动流程',
+    status: 'TODO',
+    project_id: 1,
+    priority: 'HIGH'
+  }
+]
+
+function mountView() {
+  return mount(KanbanView, {
+    global: {
+      plugins: [i18n],
+      stubs: {
+        KanbanListView: KanbanListViewStub,
+        KanbanColumn: passthroughStub('KanbanColumn'),
+        AgentSelector: passthroughStub('AgentSelector'),
+        WorkflowTimelineDialog: passthroughStub('WorkflowTimelineDialog'),
+        WorkflowProgressDialog: passthroughStub('WorkflowProgressDialog'),
+        DiffSelectDialog: passthroughStub('DiffSelectDialog'),
+        CommitDialog: passthroughStub('CommitDialog'),
+        IterationForm: passthroughStub('IterationForm'),
+        TaskButlerChat: passthroughStub('TaskButlerChat'),
+        ChatBox: passthroughStub('ChatBox'),
+        WorkflowTemplateSelectDialog: WorkflowTemplateSelectDialogStub,
+        IterationSelect: IterationSelectStub,
+        draggable: true,
+        'el-dialog': ElDialogStub,
+        'el-button': ElButtonStub,
+        'el-radio-group': ElRadioGroupStub,
+        'el-radio-button': ElRadioButtonStub,
+        'el-checkbox-group': true,
+        'el-checkbox-button': true,
+        'el-icon': true
+      }
+    }
+  })
+}
+
+describe('KanbanView workflow start entrypoint', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const projectStore = useProjectStore()
+    const taskStore = useTaskStore()
+    const iterationStore = useIterationStore()
+    const taskSourceStore = useTaskSourceStore()
+
+    projectStore.fetchProjects = vi.fn().mockImplementation(async () => {
+      projectStore.projects = mockProjects
+      return { success: true, data: mockProjects }
+    })
+    projectStore.projects = mockProjects
+
+    taskStore.fetchTasks = vi.fn().mockImplementation(async () => {
+      taskStore.tasks = mockTasks
+      return { success: true, data: mockTasks }
+    })
+    taskStore.tasks = mockTasks
+
+    iterationStore.fetchByProject = vi.fn().mockResolvedValue({ success: true, data: [] })
+    iterationStore.iterations = []
+
+    taskSourceStore.showPreviewDialog = false
+    taskSourceStore.closePreviewDialog = vi.fn()
+
+    vi.spyOn(ElMessage, 'success').mockImplementation(() => {})
+    vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
+  })
+
+  it('opens template selection before starting the task', async () => {
+    startTask.mockResolvedValue({ success: true })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+
+    expect(startTask).not.toHaveBeenCalled()
+    expect(wrapper.find('.workflow-template-select-dialog-stub').exists()).toBe(true)
+  })
+
+  it('starts the selected task with workflow_template_id after confirmation', async () => {
+    startTask.mockResolvedValue({ success: true })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const taskStore = useTaskStore()
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-template-selection').trigger('click')
+    await flushPromises()
+
+    expect(startTask).toHaveBeenCalledWith(7, {
+      workflow_template_id: 'quick-fix-v1'
+    })
+    expect(ElMessage.success).toHaveBeenCalledWith('任务已启动')
+    expect(taskStore.fetchTasks).toHaveBeenCalledTimes(2)
+  })
+})
