@@ -1,6 +1,7 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { ExecutionEventSink } from '../src/services/workflow/executionEventSink.js';
+import { ClaudeCodeExecutor } from '../src/services/workflow/executors/claudeCodeExecutor.js';
 import { executeWorkflowStep } from '../src/services/workflow/workflowStepExecutor.js';
 import type {
   ExecutorExecutionInput,
@@ -144,6 +145,78 @@ test.test('ExecutionEventSink exposes canonical append helpers and awaits async 
     'start:provider',
     'end:provider',
   ]);
+});
+
+test.test('ExecutionEventSink normalizes raw executor events through append', async () => {
+  const events: WorkflowExecutionEvent[] = [];
+  const sink = new ExecutionEventSink({
+    async onEvent(event) {
+      events.push(event);
+    },
+  });
+
+  await sink.append({ kind: 'tool_call', role: 'user', content: 'shell', payload: { arguments: { cwd: '/tmp/worktree' } } });
+  await sink.append({ kind: 'tool_result', role: 'assistant', content: 'shell', payload: { result: { exitCode: 0 } } });
+  await sink.append({ kind: 'status', role: 'assistant', content: 'ignored status', payload: { from: 'QUEUED', to: 'RUNNING' } });
+  await sink.append({ kind: 'artifact', role: 'system', content: 'design.md', payload: { artifact_type: 'file' } });
+  await sink.append({ kind: 'stream_chunk', role: 'user', content: 'stderr output', payload: { stream: 'stderr' } });
+  await sink.append({ kind: 'message', role: 'user', content: 'raw note', payload: undefined as never });
+
+  assert.deepEqual(events, [
+    { kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'shell', arguments: { cwd: '/tmp/worktree' } } },
+    { kind: 'tool_result', role: 'tool', content: 'shell', payload: { tool_name: 'shell', result: { exitCode: 0 } } },
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+    { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file' } },
+    { kind: 'stream_chunk', role: 'system', content: 'stderr output', payload: { stream: 'stderr' } },
+    { kind: 'message', role: 'user', content: 'raw note', payload: {} },
+  ]);
+});
+
+test.test('ClaudeCodeExecutor emits the parsed summary through execution events', async () => {
+  const proc: ExecutorProcessHandle = {
+    kill() {
+      return true;
+    },
+  };
+  const events: WorkflowExecutionEvent[] = [];
+  const providerStates: ExecutorProviderState[] = [];
+  const executor = new ClaudeCodeExecutor({
+    runner: {
+      async runStep() {
+        return {
+          exitCode: 0,
+          stdout: '  final summary  \n',
+          stderr: '',
+          parsedResult: { summary: 'final summary' },
+          proc,
+        };
+      },
+    } as never,
+  });
+
+  const result = await executor.execute({
+    prompt: 'prompt body',
+    worktreePath: sharedState.worktreePath,
+    executorConfig: { type: 'CLAUDE_CODE' },
+    async onEvent(event) {
+      events.push(event);
+    },
+    async onProviderState(providerState) {
+      providerStates.push(providerState);
+    },
+  });
+
+  assert.deepEqual(events, [
+    { kind: 'message', role: 'assistant', content: 'final summary', payload: {} },
+  ]);
+  assert.deepEqual(providerStates, []);
+  assert.deepEqual(result, {
+    exitCode: 0,
+    stdout: '  final summary  \n',
+    stderr: '',
+    proc,
+    rawResult: { summary: 'final summary' },
+  });
 });
 
 test.test('executeWorkflowStep forwards events through the canonical sink helper surface', async () => {

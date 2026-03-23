@@ -70,41 +70,6 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
   };
 }
 
-async function appendCanonicalExecutionEvent(sink: ExecutionEventSink, event: WorkflowExecutionEvent) {
-  const payload = event.payload ?? {};
-
-  switch (event.kind) {
-    case 'message':
-      await sink.appendMessage(event.content, event.role);
-      return;
-    case 'tool_call':
-      await sink.appendToolCall(typeof payload.tool_name === 'string' ? payload.tool_name : event.content, payload.arguments);
-      return;
-    case 'tool_result':
-      await sink.appendToolResult(typeof payload.tool_name === 'string' ? payload.tool_name : event.content, payload.result);
-      return;
-    case 'status':
-      if (typeof payload.from === 'string' && typeof payload.to === 'string') {
-        await sink.appendStatus(payload.from, payload.to);
-        return;
-      }
-      break;
-    case 'error':
-      await sink.appendError(event.content, payload);
-      return;
-    case 'artifact':
-      await sink.appendArtifact(event.content, payload);
-      return;
-    case 'stream_chunk':
-      await sink.appendStreamChunk(event.content, payload.stream === 'stderr' ? 'stderr' : 'stdout');
-      return;
-    default:
-      break;
-  }
-
-  await sink.append(event);
-}
-
 export async function executeWorkflowStep({
   registry = defaultRegistry,
   templateService = defaultTemplateService,
@@ -158,7 +123,7 @@ export async function executeWorkflowStep({
       }
     },
     onEvent: async (event) => {
-      await appendCanonicalExecutionEvent(sink, event);
+      await sink.append(event);
     },
     onProviderState: async (providerState) => {
       await sink.appendProviderState(providerState);

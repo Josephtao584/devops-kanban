@@ -1,4 +1,5 @@
 import { ClaudeStepRunner } from './claudeStepRunner.js';
+import { ExecutionEventSink } from '../executionEventSink.js';
 import type { Executor, ExecutorExecutionInput, ExecutorExecutionResult } from '../../../types/executors.js';
 
 class ClaudeCodeExecutor implements Executor {
@@ -16,14 +17,15 @@ class ClaudeCodeExecutor implements Executor {
     onEvent,
     onProviderState,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
+    const sink = new ExecutionEventSink({ onEvent, onProviderState });
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
       executorConfig,
       ...(onSpawn ? { onSpawn } : {}),
-      ...(onEvent ? { onEvent } : {}),
-      ...(onProviderState ? { onProviderState } : {}),
     });
+
+    await sink.appendMessage(result.parsedResult.summary);
 
     return {
       exitCode: result.exitCode,
