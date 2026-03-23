@@ -655,14 +655,6 @@ onMounted(() => {
   border-left: 3px solid transparent;
 }
 
-.dialog-body-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
 /* ==================== Commit Section ==================== */
 .commit-section {
   display: flex;
@@ -741,15 +733,6 @@ onMounted(() => {
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
-}
-
-.dialog-body-wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  padding: 0 8px 8px 8px;
 }
 
 :deep(.el-dialog) {
