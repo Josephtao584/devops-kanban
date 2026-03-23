@@ -26,6 +26,8 @@ export interface TaskEntity {
 export interface SessionEntity {
   id: number;
   task_id: number;
+  workflow_run_id?: number | null;
+  workflow_step_id?: string | null;
   status?: string;
   worktree_path?: string | null;
   branch?: string | null;
@@ -69,7 +71,6 @@ export interface SessionEventEntity {
   created_at?: string;
   updated_at?: string;
 }
-
 
 export interface WorkflowStepEntity {
   step_id: string;

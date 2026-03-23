@@ -2,9 +2,12 @@ import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
+import { SessionRepository } from '../../repositories/sessionRepository.js';
+import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
 import { getDevWorkflow, buildWorkflowSharedState } from './workflows.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
+import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity } from '../../types/entities.ts';
 import type { ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const STEP_DEFINITIONS = [
@@ -114,20 +117,26 @@ class WorkflowService {
   projectRepo: ProjectRepository;
   workflowTemplateService: WorkflowTemplateService;
   agentRepo: Pick<AgentRepository, 'findById'>;
+  sessionRepo: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
+  sessionSegmentRepo: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
   _activeRuns: Map<number, ActiveRunContext>;
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, sessionRepo, sessionSegmentRepo }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     workflowTemplateService?: WorkflowTemplateService;
     agentRepo?: Pick<AgentRepository, 'findById'>;
+    sessionRepo?: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
+    sessionSegmentRepo?: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
+    this.sessionRepo = sessionRepo || new SessionRepository();
+    this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
     this._activeRuns = new Map();
   }
 
@@ -150,14 +159,15 @@ class WorkflowService {
     const template = await this._loadTemplate();
     await this._validateTemplateAgents(template);
 
-    const steps = STEP_DEFINITIONS.map((def) => ({
+    const steps: WorkflowStepEntity[] = STEP_DEFINITIONS.map((def) => ({
       step_id: def.step_id,
       name: def.name,
       status: 'PENDING',
       started_at: null,
       completed_at: null,
       retry_count: 0,
-      output: null,
+      session_id: null,
+      summary: null,
       error: null,
     }));
 
@@ -243,6 +253,166 @@ class WorkflowService {
     });
   }
 
+  private async _getRunStep(runId: number, stepId: string) {
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    if (!run) {
+      throw new Error(`Workflow run not found: ${runId}`);
+    }
+
+    const step = run.steps.find((candidate) => candidate.step_id === stepId) || null;
+    if (!step) {
+      throw new Error(`Workflow step not found: ${stepId}`);
+    }
+
+    return { run, step };
+  }
+
+  private async _getTemplateStepBinding(stepId: string) {
+    const template = await this._loadTemplate();
+    const stepBinding = template.steps.find((candidate) => candidate.id === stepId) || null;
+    if (!stepBinding) {
+      throw new Error(`Workflow template step not found: ${stepId}`);
+    }
+    return stepBinding;
+  }
+
+  private async _createLogicalStepSession(
+    runId: number,
+    stepId: string,
+    task: WorkflowTaskRecord & { execution_path: string },
+  ) {
+    const stepBinding = await this._getTemplateStepBinding(stepId);
+    if (typeof stepBinding.agentId !== 'number') {
+      throw new Error(`Workflow template step ${stepId} has no bound agent`);
+    }
+
+    const agent = await this.agentRepo.findById(stepBinding.agentId) as WorkflowAgentRecord | null;
+    if (!agent || !isSupportedExecutorType(agent.executorType)) {
+      throw new Error(`Workflow step ${stepId} has no valid bound agent`);
+    }
+
+    return await this.sessionRepo.create({
+      task_id: task.id,
+      workflow_run_id: runId,
+      workflow_step_id: stepId,
+      status: 'RUNNING',
+      worktree_path: task.execution_path,
+      branch: task.worktree_branch || `task/${task.id}`,
+      initial_prompt: stepBinding.instructionPrompt,
+      agent_id: stepBinding.agentId,
+      executor_type: agent.executorType,
+      started_at: new Date().toISOString(),
+      completed_at: null,
+    } as Omit<SessionEntity, 'id'>);
+  }
+
+  private async _createStepAttemptSegment(session: SessionEntity, triggerType: SessionSegmentEntity['trigger_type'], parentSegmentId: number | null) {
+    return await this.sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'RUNNING',
+      executor_type: (session.executor_type || 'CLAUDE_CODE') as SessionSegmentEntity['executor_type'],
+      agent_id: session.agent_id ?? null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: triggerType,
+      parent_segment_id: parentSegmentId,
+      started_at: new Date().toISOString(),
+      completed_at: null,
+      metadata: {},
+    });
+  }
+
+  async _handleWorkflowStepStart(runId: number, stepId: string, task: WorkflowTaskRecord & { execution_path: string }) {
+    const startedAt = new Date().toISOString();
+    const { step } = await this._getRunStep(runId, stepId);
+
+    let session = step.session_id ? await this.sessionRepo.findById(step.session_id) as SessionEntity | null : null;
+    const latestSegment = session ? await this.sessionSegmentRepo.findLatestBySessionId(session.id) : null;
+
+    if (!session) {
+      session = await this._createLogicalStepSession(runId, stepId, task);
+    } else {
+      await this.sessionRepo.update(session.id, {
+        status: 'RUNNING',
+        completed_at: null,
+      });
+      session = await this.sessionRepo.findById(session.id) as SessionEntity | null;
+      if (!session) {
+        throw new Error(`Workflow step session not found after update: ${stepId}`);
+      }
+    }
+
+    await this._createStepAttemptSegment(
+      session,
+      latestSegment ? 'RETRY' : 'START',
+      latestSegment?.id ?? null,
+    );
+
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'RUNNING',
+      started_at: startedAt,
+      completed_at: null,
+      retry_count: latestSegment ? step.retry_count + 1 : step.retry_count,
+      session_id: session.id,
+      summary: null,
+      error: null,
+    });
+    await this.workflowRunRepo.update(runId, { current_step: stepId });
+  }
+
+  async _handleWorkflowStepCompletion(runId: number, stepId: string, result: Record<string, unknown>) {
+    const completedAt = new Date().toISOString();
+    const { step } = await this._getRunStep(runId, stepId);
+    const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
+
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'COMPLETED',
+      completed_at: completedAt,
+      summary: summary || null,
+      error: null,
+    });
+
+    if (step.session_id) {
+      await this.sessionRepo.update(step.session_id, {
+        status: 'COMPLETED',
+        completed_at: completedAt,
+      });
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
+      if (latestSegment?.status === 'RUNNING') {
+        await this.sessionSegmentRepo.update(latestSegment.id, {
+          status: 'COMPLETED',
+          completed_at: completedAt,
+        });
+      }
+    }
+  }
+
+  async _handleWorkflowStepFailure(runId: number, stepId: string, errorMessage: string) {
+    const completedAt = new Date().toISOString();
+    const { step } = await this._getRunStep(runId, stepId);
+
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'FAILED',
+      completed_at: completedAt,
+      error: errorMessage || 'Step failed',
+    });
+
+    if (step.session_id) {
+      await this.sessionRepo.update(step.session_id, {
+        status: 'ERROR',
+        completed_at: completedAt,
+      });
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
+      if (latestSegment?.status === 'RUNNING') {
+        await this.sessionSegmentRepo.update(latestSegment.id, {
+          status: 'ERROR',
+          completed_at: completedAt,
+        });
+      }
+    }
+  }
+
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }) {
     this._activeRuns.set(runId, {
       cancel: () => {},
@@ -278,12 +448,7 @@ class WorkflowService {
 
       for await (const event of stream.fullStream) {
         if (event.type === 'workflow-step-start' && event.payload?.stepName) {
-          const stepId = event.payload.stepName;
-          await this.workflowRunRepo.updateStep(runId, stepId, {
-            status: 'RUNNING',
-            started_at: new Date().toISOString(),
-          });
-          await this.workflowRunRepo.update(runId, { current_step: stepId });
+          await this._handleWorkflowStepStart(runId, event.payload.stepName, task);
         }
 
         if (event.type === 'workflow-step-result' && event.payload?.stepName) {
@@ -292,20 +457,11 @@ class WorkflowService {
           if (activeRun && activeRun.context?.proc) {
             activeRun.proc = activeRun.context.proc;
           }
-          await this.workflowRunRepo.updateStep(runId, stepId, {
-            status: 'COMPLETED',
-            completed_at: new Date().toISOString(),
-            output: event.payload.result || null,
-          });
+          await this._handleWorkflowStepCompletion(runId, stepId, event.payload.result || {});
         }
 
         if (event.type === 'workflow-step-error' && event.payload?.stepName) {
-          const stepId = event.payload.stepName;
-          await this.workflowRunRepo.updateStep(runId, stepId, {
-            status: 'FAILED',
-            completed_at: new Date().toISOString(),
-            error: event.payload.error || 'Step failed',
-          });
+          await this._handleWorkflowStepFailure(runId, event.payload.stepName, event.payload.error || 'Step failed');
         }
       }
 

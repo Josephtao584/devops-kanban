@@ -255,6 +255,147 @@ function createStartWorkflowHarness({
   };
 }
 
+function createStepSessionHarness() {
+  const agentRecords = buildValidAgents();
+  const run = {
+    id: 7,
+    task_id: 1,
+    workflow_id: 'dev-workflow-v1',
+    status: 'RUNNING',
+    current_step: null,
+    steps: [
+      {
+        step_id: 'requirement-design',
+        name: '需求设计',
+        status: 'PENDING',
+        started_at: null,
+        completed_at: null,
+        retry_count: 0,
+        session_id: null,
+        summary: null,
+        error: null,
+      },
+    ],
+    worktree_path: '/tmp/workspace',
+    branch: 'task/1',
+    context: {},
+  };
+  const sessionCreates: Array<Record<string, unknown>> = [];
+  const sessionUpdates: Array<{ sessionId: number; updateData: Record<string, unknown> }> = [];
+  const sessions = new Map<number, Record<string, unknown>>();
+  const segmentCreates: Array<Record<string, unknown>> = [];
+  const segmentUpdates: Array<{ segmentId: number; updateData: Record<string, unknown> }> = [];
+  const segments: Array<Record<string, unknown> & { id: number; session_id: number }> = [];
+  const task = {
+    id: 1,
+    project_id: 100,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    worktree_branch: 'task/1',
+    execution_path: '/tmp/workspace',
+  };
+  let nextSessionId = 101;
+  let nextSegmentId = 201;
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      assert.equal(runId, 7);
+      return run;
+    },
+    async updateStep(runId: number, stepId: string, updateData: Record<string, unknown>) {
+      assert.equal(runId, 7);
+      const step = run.steps.find((candidate) => candidate.step_id === stepId);
+      assert.ok(step);
+      Object.assign(step, updateData);
+      return run;
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      assert.equal(runId, 7);
+      Object.assign(run, updateData);
+      return run;
+    },
+  };
+
+  const sessionRepo = {
+    async create(payload: Record<string, unknown>) {
+      sessionCreates.push(payload);
+      const session = {
+        id: nextSessionId,
+        ...payload,
+      };
+      sessions.set(nextSessionId, session);
+      nextSessionId += 1;
+      return session;
+    },
+    async findById(sessionId: number) {
+      return sessions.get(sessionId) ?? null;
+    },
+    async update(sessionId: number, updateData: Record<string, unknown>) {
+      sessionUpdates.push({ sessionId, updateData });
+      const session = sessions.get(sessionId);
+      assert.ok(session);
+      Object.assign(session, updateData);
+      return session;
+    },
+  };
+
+  const sessionSegmentRepo = {
+    async create(payload: Record<string, unknown>) {
+      segmentCreates.push(payload);
+      const segment = {
+        id: nextSegmentId,
+        ...payload,
+      } as Record<string, unknown> & { id: number; session_id: number };
+      segments.push(segment);
+      nextSegmentId += 1;
+      return segment;
+    },
+    async findLatestBySessionId(sessionId: number) {
+      const matching = segments.filter((segment) => segment.session_id === sessionId);
+      return matching[matching.length - 1] ?? null;
+    },
+    async update(segmentId: number, updateData: Record<string, unknown>) {
+      segmentUpdates.push({ segmentId, updateData });
+      const segment = segments.find((candidate) => candidate.id === segmentId);
+      assert.ok(segment);
+      Object.assign(segment, updateData);
+      return segment;
+    },
+  };
+
+  const workflowTemplateService = {
+    async getTemplate() {
+      return buildTemplate();
+    },
+  };
+
+  const agentRepo = {
+    async findById(id: number) {
+      return agentRecords.get(id) ?? null;
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    workflowTemplateService: workflowTemplateService as never,
+    agentRepo: agentRepo as never,
+    sessionRepo: sessionRepo as never,
+    sessionSegmentRepo: sessionSegmentRepo as never,
+  });
+
+  return {
+    service,
+    run,
+    task,
+    sessions,
+    sessionCreates,
+    sessionUpdates,
+    segments,
+    segmentCreates,
+    segmentUpdates,
+  };
+}
+
 test.test('startWorkflow creates a run when every bound step agent is valid and enabled', async () => {
   const harness = createStartWorkflowHarness();
 
@@ -371,6 +512,132 @@ test.test('startWorkflow rejects a template with an extra workflow step id', asy
 
 test.test('startWorkflow rejects a template with workflow steps in the wrong order', async () => {
   await assertStructuralDriftFailure(reorderSteps());
+});
+
+
+test.test('startWorkflow initializes step snapshots with session-aware summary fields', async () => {
+  const harness = createStartWorkflowHarness();
+
+  await harness.service.startWorkflow(1);
+
+  const createdRun = harness.createCalls[0];
+  assert.ok(createdRun);
+  assert.deepEqual(createdRun.steps, [
+    {
+      step_id: 'requirement-design',
+      name: '需求设计',
+      status: 'PENDING',
+      started_at: null,
+      completed_at: null,
+      retry_count: 0,
+      session_id: null,
+      summary: null,
+      error: null,
+    },
+    {
+      step_id: 'code-development',
+      name: '代码开发',
+      status: 'PENDING',
+      started_at: null,
+      completed_at: null,
+      retry_count: 0,
+      session_id: null,
+      summary: null,
+      error: null,
+    },
+    {
+      step_id: 'testing',
+      name: '测试',
+      status: 'PENDING',
+      started_at: null,
+      completed_at: null,
+      retry_count: 0,
+      session_id: null,
+      summary: null,
+      error: null,
+    },
+    {
+      step_id: 'code-review',
+      name: '代码审查',
+      status: 'PENDING',
+      started_at: null,
+      completed_at: null,
+      retry_count: 0,
+      session_id: null,
+      summary: null,
+      error: null,
+    },
+  ]);
+});
+
+test.test('workflow step start reuses the logical session and creates retry segments', async () => {
+  const harness = createStepSessionHarness();
+
+  const firstStart = await (harness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+
+  assert.equal(firstStart, undefined);
+  assert.equal(harness.sessionCreates.length, 1);
+  assert.equal(harness.segmentCreates.length, 1);
+  assert.equal(harness.run.steps[0]?.session_id, 101);
+  assert.equal(harness.segmentCreates[0]?.trigger_type, 'START');
+  assert.equal(harness.segmentCreates[0]?.parent_segment_id, null);
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepCompletion(7, 'requirement-design', { summary: 'Initial summary', extra: 'ignored' });
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+
+  assert.equal(harness.sessionCreates.length, 1);
+  assert.equal(harness.segmentCreates.length, 2);
+  assert.equal(harness.run.steps[0]?.session_id, 101);
+  assert.equal(harness.segmentCreates[1]?.session_id, 101);
+  assert.equal(harness.segmentCreates[1]?.trigger_type, 'RETRY');
+  assert.equal(harness.segmentCreates[1]?.parent_segment_id, 201);
+});
+
+
+
+test.test('workflow step completion and failure persist only summary and error snapshot fields', async () => {
+  const completionHarness = createStepSessionHarness();
+
+  await (completionHarness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', completionHarness.task);
+
+  await (completionHarness.service as WorkflowService & {
+    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepCompletion(7, 'requirement-design', {
+    summary: 'Step completed',
+    rawOutput: { ignored: true },
+  });
+
+  assert.equal(completionHarness.run.steps[0]?.status, 'COMPLETED');
+  assert.equal(completionHarness.run.steps[0]?.summary, 'Step completed');
+  assert.equal(completionHarness.run.steps[0]?.error, null);
+  assert.equal('output' in (completionHarness.run.steps[0] ?? {}), false);
+  assert.equal(completionHarness.segmentUpdates[0]?.segmentId, 201);
+  assert.equal(completionHarness.segmentUpdates[0]?.updateData.status, 'COMPLETED');
+
+  const failureHarness = createStepSessionHarness();
+
+  await (failureHarness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', failureHarness.task);
+
+  await (failureHarness.service as WorkflowService & {
+    _handleWorkflowStepFailure: (runId: number, stepId: string, errorMessage: string) => Promise<void>;
+  })._handleWorkflowStepFailure(7, 'requirement-design', 'Step failed hard');
+
+  assert.equal(failureHarness.run.steps[0]?.status, 'FAILED');
+  assert.equal(failureHarness.run.steps[0]?.summary, null);
+  assert.equal(failureHarness.run.steps[0]?.error, 'Step failed hard');
+  assert.equal(failureHarness.segmentUpdates[0]?.segmentId, 201);
+  assert.equal(failureHarness.segmentUpdates[0]?.updateData.status, 'ERROR');
 });
 
 test.test('cancelWorkflow terminates the active process', async () => {
