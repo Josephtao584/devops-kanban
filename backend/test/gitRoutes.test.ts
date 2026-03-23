@@ -38,14 +38,13 @@ type RouteFile = {
   status: 'modified' | 'added' | 'deleted' | 'untracked';
 };
 
-type RoutePayload = {
-  success: boolean;
-  message: string;
-  data: {
-    files: RouteFile[];
-    diffs: Record<string, string>;
-  } | null;
-  error: unknown;
+type DiffPayload = {
+  files: RouteFile[];
+  diffs: Record<string, string>;
+};
+
+type PushPayload = {
+  output: string;
 };
 
 type GitFixture = {
@@ -53,7 +52,45 @@ type GitFixture = {
   repoPath: string;
   worktreePath: string;
   branchName: string;
+  remotePath: string;
 };
+
+type PushRoutePayload = {
+  success: boolean;
+  message: string;
+  data: PushPayload | null;
+  error: unknown;
+};
+
+type DiffRoutePayload = {
+  success: boolean;
+  message: string;
+  data: DiffPayload | null;
+  error: unknown;
+};
+
+type SeedTaskOverrides = {
+  id?: number;
+  title?: string;
+  worktreePath: string | null;
+  worktreeBranch?: string | null;
+  projectPath?: string | null;
+};
+
+type PushRequestBody = {
+  remote?: string;
+  setUpstream?: boolean;
+};
+
+function getDiffData(payload: DiffRoutePayload): DiffPayload {
+  assert.ok(payload.data);
+  return payload.data;
+}
+
+function getPushData(payload: PushRoutePayload): PushPayload {
+  assert.ok(payload.data);
+  return payload.data;
+}
 
 let serialTestQueue = Promise.resolve();
 
@@ -96,6 +133,7 @@ function createGitFixture(initialFiles: Record<string, string | Buffer> = { 'tra
   const rootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'git-routes-fixture-'));
   const repoPath = path.join(rootPath, 'repo');
   const worktreePath = path.join(rootPath, 'worktree');
+  const remotePath = path.join(rootPath, 'remote.git');
   const branchName = `task/test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   fixtureRoots.push(rootPath);
@@ -112,12 +150,15 @@ function createGitFixture(initialFiles: Record<string, string | Buffer> = { 'tra
 
   git(repoPath, ['add', '.']);
   git(repoPath, ['commit', '-m', 'initial']);
+  git(rootPath, ['init', '--bare', remotePath]);
+  git(repoPath, ['remote', 'add', 'origin', remotePath]);
+  git(repoPath, ['push', '-u', 'origin', 'master']);
   git(repoPath, ['worktree', 'add', '-b', branchName, worktreePath]);
 
-  return { rootPath, repoPath, worktreePath, branchName };
+  return { rootPath, repoPath, worktreePath, branchName, remotePath };
 }
 
-function seedRepositories(task: { worktreePath: string | null; worktreeBranch?: string | null; projectPath?: string | null }) {
+function seedRepositories(task: SeedTaskOverrides) {
   const now = new Date().toISOString();
   const projects = [
     {
@@ -132,9 +173,9 @@ function seedRepositories(task: { worktreePath: string | null; worktreeBranch?: 
 
   const tasks = [
     {
-      id: 1,
-      title: 'Test Task',
-      description: 'Task for git diff route tests',
+      id: task.id ?? 1,
+      title: task.title ?? 'Test Task',
+      description: 'Task for git route tests',
       project_id: 1,
       status: 'TODO',
       priority: 'MEDIUM',
@@ -149,6 +190,27 @@ function seedRepositories(task: { worktreePath: string | null; worktreeBranch?: 
   fs.writeFileSync(path.join(storagePath, 'tasks.json'), JSON.stringify(tasks, null, 2));
 }
 
+async function postPush(taskId = 1, body: PushRequestBody = {}) {
+  const response = await app.inject({
+    method: 'POST',
+    url: `/api/git/worktrees/${taskId}/push?projectId=1`,
+    payload: body,
+  });
+
+  return {
+    response,
+    payload: response.json() as PushRoutePayload,
+  };
+}
+
+function getRemoteHead(remotePath: string, branchName: string) {
+  return git(remotePath, ['rev-parse', branchName]).trim();
+}
+
+function getBranchUpstream(worktreePath: string) {
+  return git(worktreePath, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']).trim();
+}
+
 async function getDiff(query = 'projectId=1') {
   const response = await app.inject({
     method: 'GET',
@@ -157,33 +219,115 @@ async function getDiff(query = 'projectId=1') {
 
   return {
     response,
-    payload: response.json() as RoutePayload,
+    payload: response.json() as DiffRoutePayload,
   };
 }
 
-function getOnlyFile(payload: RoutePayload): RouteFile {
-  assert.ok(payload.data);
-  assert.equal(payload.data.files.length, 1);
-  const [file] = payload.data.files;
+function getOnlyFile(payload: DiffRoutePayload): RouteFile {
+  const data = getDiffData(payload);
+  assert.equal(data.files.length, 1);
+  const [file] = data.files;
   assert.ok(file);
   return file;
 }
 
-function getFile(payload: RoutePayload, filePath: string): RouteFile {
-  assert.ok(payload.data);
-  const file = payload.data.files.find((entry) => entry.path === filePath);
+function getFile(payload: DiffRoutePayload, filePath: string): RouteFile {
+  const data = getDiffData(payload);
+  const file = data.files.find((entry) => entry.path === filePath);
   assert.ok(file, `Expected ${filePath} to be present in diff payload`);
   return file;
 }
 
-function getDiffText(payload: RoutePayload, filePath: string): string {
-  assert.ok(payload.data);
-  const diff = payload.data.diffs[filePath];
+function getDiffText(payload: DiffRoutePayload, filePath: string): string {
+  const data = getDiffData(payload);
+  const diff = data.diffs[filePath];
   if (typeof diff !== 'string') {
     throw new Error(`Expected diff text for ${filePath}`);
   }
   return diff;
 }
+
+function commitAll(worktreePath: string, message = 'worktree change') {
+  git(worktreePath, ['add', '.']);
+  git(worktreePath, ['commit', '-m', message]);
+}
+
+serialTest('POST /api/git/worktrees/:taskId/push returns 404 when the task does not exist', async () => {
+  const fixture = createGitFixture();
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await postPush(999);
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(payload.success, false);
+  assert.match(payload.message, /Task not found/);
+});
+
+serialTest('POST /api/git/worktrees/:taskId/push returns 400 when the task has no worktree', async () => {
+  const fixture = createGitFixture();
+  seedRepositories({ worktreePath: null, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await postPush();
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(payload.success, false);
+  assert.match(payload.message, /Task has no worktree/);
+});
+
+serialTest('POST /api/git/worktrees/:taskId/push returns 400 when the task worktree path does not exist', async () => {
+  const fixture = createGitFixture();
+  const missingPath = path.join(fixture.rootPath, 'missing-worktree');
+  seedRepositories({ worktreePath: missingPath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await postPush();
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(payload.success, false);
+  assert.match(payload.message, /Task worktree path does not exist/);
+});
+
+serialTest('POST /api/git/worktrees/:taskId/push returns 400 when the remote name is invalid', async () => {
+  const fixture = createGitFixture();
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await postPush(1, { remote: '--force' });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(payload.success, false);
+  assert.match(payload.message, /Invalid remote/);
+});
+
+serialTest('POST /api/git/worktrees/:taskId/push pushes to origin by default when the branch already tracks origin', async () => {
+  const fixture = createGitFixture();
+  writeFile(fixture.worktreePath, 'tracked.txt', 'base\ntracked\n');
+  commitAll(fixture.worktreePath, 'create tracked branch');
+  git(fixture.worktreePath, ['push', '--set-upstream', 'origin', fixture.branchName]);
+  writeFile(fixture.worktreePath, 'tracked.txt', 'base\ntracked\ndefault push\n');
+  commitAll(fixture.worktreePath, 'push default remote');
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const localHead = git(fixture.worktreePath, ['rev-parse', 'HEAD']).trim();
+  const { response, payload } = await postPush();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.success, true);
+  assert.match(getPushData(payload).output, /task\/test-|To /);
+  assert.equal(getRemoteHead(fixture.remotePath, fixture.branchName), localHead);
+});
+
+serialTest('POST /api/git/worktrees/:taskId/push sets upstream to the task branch when requested', async () => {
+  const fixture = createGitFixture();
+  writeFile(fixture.worktreePath, 'tracked.txt', 'base\nupstream\n');
+  commitAll(fixture.worktreePath, 'push with upstream');
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await postPush(1, { setUpstream: true });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.success, true);
+  assert.equal(getBranchUpstream(fixture.worktreePath), `origin/${fixture.branchName}`);
+  assert.match(getPushData(payload).output, /set up to track|upstream|new branch|To /i);
+});
 
 serialTest('GET /api/git/worktrees/:taskId/diff returns tracked uncommitted diff against HEAD', async () => {
   const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
@@ -450,7 +594,7 @@ serialTest('GET /api/git/worktrees/:taskId/diff expands untracked directories in
   assert.equal(file.deletions, 0);
   assert.match(getDiffText(payload, 'broken.txt/child.txt'), /^diff --git a\/broken.txt\/child.txt b\/broken.txt\/child.txt$/m);
   assert.match(getDiffText(payload, 'broken.txt/child.txt'), /^\+child$/m);
-  assert.equal(payload.data!.files.some((entry) => entry.path === 'broken.txt/'), false);
+  assert.equal(getDiffData(payload).files.some((entry) => entry.path === 'broken.txt/'), false);
 });
 
 serialTest('GET /api/git/worktrees/:taskId/diff ignores source and target query parameters', async () => {

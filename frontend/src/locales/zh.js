@@ -408,7 +408,6 @@ export default {
     remotes: '远程仓库',
     createBranch: '创建分支',
     deleteBranch: '删除分支',
-    mergeBranch: '合并分支',
     addRemote: '添加远程仓库',
     removeRemote: '删除远程仓库',
     push: '推送',
