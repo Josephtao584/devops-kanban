@@ -87,18 +87,14 @@ test.test('GET /sessions/:id/events returns the planned event envelope and maps 
     url: `/sessions/7/events?after_seq=${query.after_seq}&limit=${query.limit}`,
   });
 
-  const payload = response.json() as {
-    success: boolean;
-    data: { events: SessionEventListItem[]; last_seq: number; has_more: boolean };
-    error: null;
-  };
-
   assert.equal(response.statusCode, 200);
-  assert.equal(payload.success, true);
-  assert.deepEqual(payload.data, {
-    events,
-    last_seq: 4,
-    has_more: false,
+  assert.deepEqual(response.json(), {
+    success: true,
+    data: {
+      events,
+      last_seq: 4,
+      has_more: false,
+    },
   });
   assert.deepEqual(calls.listEvents, [{ sessionId: 7, options: { afterSeq: 3, limit: 25 } }]);
 
