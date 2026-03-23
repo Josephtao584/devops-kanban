@@ -319,18 +319,51 @@ serialTest('GET /api/tasks/:id/worktree/diff keeps the { files, diffs } payload 
   assert.equal(Array.isArray(payload.data.diffs), false);
 });
 
-serialTest('GET /api/tasks/:id/worktree/diff ignores source and target query parameters', async () => {
-  const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
-  writeFile(fixture.worktreePath, 'tracked.txt', 'base\nupdated\n');
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+serialTest('GET /api/tasks/:id/worktree/diff compares source and target branches in the repo that owns the worktree branch', async () => {
+  const projectFixture = createGitFixture({ 'tracked.txt': 'project base\n' });
+  const worktreeFixture = createGitFixture({ 'tracked.txt': 'worktree base\n' });
 
-  const { response, payload } = await getDiff(`project_id=1&source=master&target=${encodeURIComponent(fixture.branchName)}`);
+  writeFile(worktreeFixture.worktreePath, 'tracked.txt', 'worktree base\nbranch update\n');
+  git(worktreeFixture.worktreePath, ['add', 'tracked.txt']);
+  git(worktreeFixture.worktreePath, ['commit', '-m', 'branch update']);
+
+  seedRepositories({
+    worktreePath: worktreeFixture.worktreePath,
+    worktreeBranch: worktreeFixture.branchName,
+    projectPath: projectFixture.repoPath,
+  });
+
+  const { response, payload } = await getDiff(`project_id=1&source=master&target=${encodeURIComponent(worktreeFixture.branchName)}`);
   const file = getOnlyFile(payload);
 
   assert.equal(response.statusCode, 200);
   assert.equal(file.path, 'tracked.txt');
   assert.equal(file.status, 'modified');
-  assert.match(getDiffText(payload, 'tracked.txt'), /^\+updated$/m);
+  assert.match(getDiffText(payload, 'tracked.txt'), /^\+branch update$/m);
+});
+
+serialTest('GET /api/tasks/:id/worktree/diff decodes quoted branch diff paths before returning them', async () => {
+  const fixture = createGitFixture();
+  const chinesePath = 'docs/需求设计_新建HelloWorld_py.md';
+
+  writeFile(fixture.worktreePath, chinesePath, '# 需求设计\n');
+  git(fixture.worktreePath, ['add', chinesePath]);
+  git(fixture.worktreePath, ['commit', '-m', 'add chinese path']);
+
+  seedRepositories({
+    worktreePath: fixture.worktreePath,
+    worktreeBranch: fixture.branchName,
+    projectPath: fixture.repoPath,
+  });
+
+  const { response, payload } = await getDiff(`project_id=1&source=master&target=${encodeURIComponent(fixture.branchName)}`);
+  const file = getFile(payload, chinesePath);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(file.status, 'added');
+  assert.match(getDiffText(payload, chinesePath), /^diff --git a\/docs\/需求设计_新建HelloWorld_py.md b\/docs\/需求设计_新建HelloWorld_py.md$/m);
+  assert.equal(payload.data?.files.some((entry) => /\\\d{3}/.test(entry.path)), false);
+  assert.equal(Object.keys(payload.data?.diffs ?? {}).some((key) => /\\\d{3}/.test(key)), false);
 });
 
 serialTest('GET /api/tasks/:id/worktree/diff returns empty files and diffs for a clean worktree', async () => {

@@ -119,9 +119,11 @@
             @click.stop="refreshWorkflowRun"
             title="刷新状态"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'icon-spin': refreshLoading }">
-              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-            </svg>
+            <span class="workflow-refresh-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              </svg>
+            </span>
           </button>
         </div>
 
@@ -172,21 +174,15 @@
             </svg>
             差异
           </button>
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'progress')">
+          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'merge')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="20" x2="12" y2="10"></line>
-              <line x1="18" y1="20" x2="18" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="16"></line>
+              <circle cx="12" cy="18" r="3"></circle>
+              <circle cx="6" cy="6" r="3"></circle>
+              <circle cx="18" cy="6" r="3"></circle>
+              <path d="M6 9v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V9"></path>
+              <line x1="12" cy="15" x2="12" y2="15"></line>
             </svg>
-            进度
-          </button>
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'help')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            帮助
+            合入
           </button>
         </div>
 
@@ -1082,17 +1078,32 @@ const openWorktreeDirectory = () => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease;
   flex-shrink: 0;
+  transform: none !important;
+}
+
+.workflow-refresh-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transform: none !important;
+}
+
+.workflow-refresh-icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  animation: none !important;
+  transform: none !important;
 }
 
 .workflow-refresh-btn:hover {
   color: #6366f1;
   background: #eef2ff;
-}
-
-.workflow-refresh-btn .icon-spin {
-  animation: spin 1s linear infinite;
+  transform: none !important;
 }
 
 /* Loading animation */

@@ -50,8 +50,6 @@
     :source-ref="sourceBranch"
     :target-ref="targetBranch"
     @close="showDiff = false"
-    @reject="$emit('close')"
-    @accept="$emit('close')"
   />
 </template>
 

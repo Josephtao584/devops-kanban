@@ -49,11 +49,11 @@
           </div>
 
           <div class="source-actions">
-            <el-button size="small" @click="previewAndSync(source)" :loading="taskSourceStore.syncing">
-              {{ $t('taskSource.sync') }}
+            <el-button size="small" @click="previewAndSync(source)" :disabled="taskSourceStore.syncing">
+              {{ taskSourceStore.syncing ? $t('taskSource.syncing', '同步中...') : $t('taskSource.sync') }}
             </el-button>
-            <el-button size="small" @click="testSource(source)" :loading="taskSourceStore.testing">
-              {{ $t('taskSource.test') }}
+            <el-button size="small" @click="testSource(source)" :disabled="taskSourceStore.testing">
+              {{ taskSourceStore.testing ? $t('taskSource.testing', '测试中...') : $t('taskSource.test') }}
             </el-button>
             <el-button size="small" @click="editSource(source)">
               {{ $t('taskSource.edit') }}
@@ -158,8 +158,8 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" @click="submitForm" :loading="submitting">
-            {{ $t('common.confirm') }}
+          <el-button type="primary" @click="submitForm" :disabled="submitting">
+            {{ submitting ? $t('common.submitting', '提交中...') : $t('common.confirm') }}
           </el-button>
         </div>
       </template>

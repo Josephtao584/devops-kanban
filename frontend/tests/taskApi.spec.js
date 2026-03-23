@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import api from '../src/api/index.js'
+import * as gitApi from '../src/api/git.js'
 import { createTask, updateTask } from '../src/api/task.js'
+
+describe('git api exports', () => {
+  it('keeps push and removes mergeBranch from the public api', () => {
+    expect(typeof gitApi.push).toBe('function')
+    expect('mergeBranch' in gitApi).toBe(false)
+  })
+})
 
 describe('task api payload normalization', () => {
   it('sends numeric project_id and iteration_id from string inputs', async () => {

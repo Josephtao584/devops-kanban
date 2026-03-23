@@ -100,14 +100,6 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="$emit('close')">Close</el-button>
-        <el-button type="warning" @click="$emit('reject')">
-          <el-icon><Close /></el-icon>
-          Reject Changes
-        </el-button>
-        <el-button type="success" @click="$emit('accept')">
-          <el-icon><Check /></el-icon>
-          Accept Changes
-        </el-button>
       </div>
     </template>
   </el-dialog>
@@ -115,7 +107,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Right, Plus, Minus, Check, Close } from '@element-plus/icons-vue'
+import { Right, Plus, Minus } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -137,7 +129,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'accept', 'reject'])
+const emit = defineEmits(['close'])
 
 const loading = ref(true)
 const diffData = ref(null)
@@ -263,7 +255,7 @@ const loadDiff = async () => {
   try {
     const response = await axios.get(`/api/tasks/${props.taskId}/worktree/diff`, {
       params: {
-        projectId: props.projectId,
+        project_id: props.projectId,
         source: props.sourceRef,
         target: props.targetRef
       }

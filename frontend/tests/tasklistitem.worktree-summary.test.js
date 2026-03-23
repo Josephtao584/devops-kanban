@@ -21,7 +21,13 @@ const createTask = (overrides = {}) => ({
   ...overrides
 })
 
+import zh from '../src/locales/zh.js'
+
 describe('TaskListItem worktree summary', () => {
+  it('defines a zh translation for git.path', () => {
+    expect(zh.git.path).toBe('路径')
+  })
+
   it('renders branch and path in separate rows after quick actions', () => {
     const wrapper = mount(TaskListItem, {
       props: {

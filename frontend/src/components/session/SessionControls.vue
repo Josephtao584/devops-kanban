@@ -5,10 +5,10 @@
       v-if="showCreate"
       type="warning"
       size="small"
-      :loading="loading"
+      :disabled="loading"
       @click="$emit('create')"
     >
-      <el-icon><VideoPlay /></el-icon> {{ createText }}
+      <el-icon><VideoPlay /></el-icon> {{ loading ? `${createText}...` : createText }}
     </el-button>
 
     <!-- Start button (has agent, session not started) -->
@@ -16,10 +16,10 @@
       v-if="showStart"
       type="primary"
       size="small"
-      :loading="loading"
+      :disabled="loading"
       @click="$emit('start')"
     >
-      <el-icon><VideoPlay /></el-icon> {{ startText }}
+      <el-icon><VideoPlay /></el-icon> {{ loading ? `${startText}...` : startText }}
     </el-button>
 
     <!-- Stop button (session running) -->
@@ -27,10 +27,10 @@
       v-if="showStop"
       type="danger"
       size="small"
-      :loading="loading"
+      :disabled="loading"
       @click="$emit('stop')"
     >
-      <el-icon><VideoPause /></el-icon> {{ stopText }}
+      <el-icon><VideoPause /></el-icon> {{ loading ? `${stopText}...` : stopText }}
     </el-button>
 
     <!-- Delete button (has session) -->
