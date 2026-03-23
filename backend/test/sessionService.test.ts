@@ -249,6 +249,129 @@ test.test('SessionService continue creates a child segment and attaches resumed 
   }
 });
 
+test.test('SessionService start returns safely when the worktree path does not exist', async () => {
+  const storagePath = await createTempStorageRoot();
+  const missingWorktreePath = path.join(storagePath, 'missing-worktree');
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 906,
+      status: 'STOPPED',
+      worktree_path: missingWorktreePath,
+      branch: 'task/project/906',
+      initial_prompt: 'Start only when worktree exists',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    let spawnCalled = false;
+    const service = new SessionService() as SessionService & {
+      sessionSegmentRepo: SessionSegmentRepository;
+      taskService: { getById(taskId: number): Promise<{ id: number; title: string; description: string }> };
+      _spawnClaudeCode: (...args: unknown[]) => ChildProcess;
+    };
+
+    service.sessionRepo = sessionRepo;
+    service.sessionSegmentRepo = sessionSegmentRepo;
+    service.taskService = {
+      async getById(taskId: number) {
+        return {
+          id: taskId,
+          title: 'Task 906',
+          description: 'Start only when worktree exists',
+        };
+      },
+    };
+    service._spawnClaudeCode = () => {
+      spawnCalled = true;
+      throw new Error('spawn should not be called');
+    };
+
+    const result = await service.start(session.id);
+    const persistedSession = await sessionRepo.findById(session.id);
+    const segments = await sessionSegmentRepo.findBySessionId(session.id);
+
+    assert.equal(result?.status, 'STOPPED');
+    assert.equal(persistedSession?.status, 'STOPPED');
+    assert.equal(persistedSession?.started_at, null);
+    assert.equal(persistedSession?.completed_at, null);
+    assert.equal(spawnCalled, false);
+    assert.equal(segments.length, 0);
+    assert.equal(service.runningProcesses.size, 0);
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
+});
+
+test.test('SessionService continue keeps the session stopped when Claude Code does not launch', async () => {
+  const storagePath = await createTempStorageRoot();
+  const worktreePath = await createWorktreeDir();
+
+  try {
+    const sessionRepo = new SessionRepository({ storagePath });
+    const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
+
+    const session = await sessionRepo.create({
+      task_id: 907,
+      status: 'STOPPED',
+      worktree_path: worktreePath,
+      branch: 'task/project/907',
+      initial_prompt: 'Resume only when Claude launches',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE',
+      started_at: null,
+      completed_at: null,
+    });
+
+    const firstSegment = await sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'COMPLETED',
+      executor_type: 'CLAUDE_CODE',
+      agent_id: null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: 'START',
+      parent_segment_id: null,
+      started_at: '2026-03-23T00:00:00.000Z',
+      completed_at: '2026-03-23T00:01:00.000Z',
+      metadata: {},
+    });
+
+    const service = new SessionService() as SessionService & {
+      sessionSegmentRepo: SessionSegmentRepository;
+      _spawnClaudeCode: (...args: unknown[]) => ChildProcess;
+    };
+
+    service.sessionRepo = sessionRepo;
+    service.sessionSegmentRepo = sessionSegmentRepo;
+    service._spawnClaudeCode = () => {
+      throw new Error('spawn failed');
+    };
+
+    await assert.rejects(() => service.continue(session.id, 'Retry the resume'), /spawn failed/);
+
+    const persistedSession = await sessionRepo.findById(session.id);
+    const segments = await sessionSegmentRepo.findBySessionId(session.id);
+
+    assert.equal(persistedSession?.status, 'STOPPED');
+    assert.equal(persistedSession?.completed_at, null);
+    assert.equal(segments.length, 2);
+    assert.equal(segments[1]?.trigger_type, 'CONTINUE');
+    assert.equal(segments[1]?.parent_segment_id, firstSegment.id);
+    assert.equal(segments[1]?.status, 'ERROR');
+    assert.equal(service.runningProcesses.size, 0);
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+    await fs.rm(worktreePath, { recursive: true, force: true });
+  }
+});
+
 
 
 test.test('SessionService stop finalizes stopped state only once when process close arrives later', async () => {

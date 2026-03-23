@@ -164,29 +164,30 @@ class SessionService {
       throw error;
     }
 
-    const startedAt = new Date().toISOString();
-    await this.sessionRepo.update(sessionId, {
-      status: 'RUNNING',
-      started_at: session.started_at || startedAt,
-      completed_at: null,
-    });
+    if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
+      return session;
+    }
 
-    if (session.worktree_path && fs.existsSync(session.worktree_path)) {
-      const segment = await this._createSegment(session, 'START', null);
-      try {
-        const prompt = session.initial_prompt || task.description || '';
-        const proc = this._spawnClaudeCode(
-          session.worktree_path,
-          ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'],
-          sessionId,
-          'start',
-        );
-        this.runningProcesses.set(sessionId, proc);
-        this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
-      } catch (error) {
-        await this._markSegmentComplete(segment.id, 'ERROR');
-        throw error;
-      }
+    const prompt = session.initial_prompt || task.description || '';
+    const segment = await this._createSegment(session, 'START', null);
+    try {
+      const proc = this._spawnClaudeCode(
+        session.worktree_path,
+        ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'],
+        sessionId,
+        'start',
+      );
+      const startedAt = new Date().toISOString();
+      await this.sessionRepo.update(sessionId, {
+        status: 'RUNNING',
+        started_at: session.started_at || startedAt,
+        completed_at: null,
+      });
+      this.runningProcesses.set(sessionId, proc);
+      this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+    } catch (error) {
+      await this._markSegmentComplete(segment.id, 'ERROR');
+      throw error;
     }
 
     return await this.sessionRepo.findById(sessionId);
@@ -200,7 +201,6 @@ class SessionService {
         shell: true,
       });
     } catch (error) {
-      void this.sessionRepo.update(sessionId, { status: 'ERROR', completed_at: new Date().toISOString() });
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to ${action} Claude Code: ${message}`);
     }
@@ -363,24 +363,25 @@ class SessionService {
       throw error;
     }
 
-    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
-    await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
+    if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
+      return session;
+    }
 
-    if (session.worktree_path && fs.existsSync(session.worktree_path)) {
-      const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
-      try {
-        const proc = this._spawnClaudeCode(
-          session.worktree_path,
-          ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input],
-          sessionId,
-          'resume',
-        );
-        this.runningProcesses.set(sessionId, proc);
-        this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
-      } catch (error) {
-        await this._markSegmentComplete(segment.id, 'ERROR');
-        throw error;
-      }
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+    const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
+    try {
+      const proc = this._spawnClaudeCode(
+        session.worktree_path,
+        ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input],
+        sessionId,
+        'resume',
+      );
+      await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
+      this.runningProcesses.set(sessionId, proc);
+      this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+    } catch (error) {
+      await this._markSegmentComplete(segment.id, 'ERROR');
+      throw error;
     }
 
     return await this.sessionRepo.findById(sessionId);

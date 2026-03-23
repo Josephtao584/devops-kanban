@@ -218,8 +218,8 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
 
         if (destination?.startsWith('/app/session/')) {
           const parts = destination.split('/');
-          if (parts.length >= 4) {
-            const sessionId = parseNumber(parts[2] ?? '');
+          if (parts.length >= 5) {
+            const sessionId = parseNumber(parts[3] ?? '');
             const inputText = typeof body === 'string' ? ((JSON.parse(body) as { input?: string }).input) : body?.input;
             if (inputText) {
               await service.sendInput(sessionId, inputText);

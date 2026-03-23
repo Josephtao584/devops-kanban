@@ -1,13 +1,32 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import Fastify from 'fastify';
+import fastifyWebSocket from '@fastify/websocket';
+import WebSocket from 'ws';
 
 import { sessionRoutes } from '../src/routes/sessions.js';
 import type { ListSessionEventsQuery, SessionEventListItem } from '../src/types/dto/sessionEvents.ts';
 
+async function waitFor(assertion: () => Promise<void> | void, timeoutMs = 1500) {
+  const startedAt = Date.now();
+
+  while (true) {
+    try {
+      await assertion();
+      return;
+    } catch (error) {
+      if (Date.now() - startedAt >= timeoutMs) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+}
+
 function buildSessionServiceStub() {
   const calls = {
     listEvents: [] as Array<{ sessionId: number; options: { afterSeq?: number; limit?: number } }>,
+    sendInput: [] as Array<{ sessionId: number; input: string }>,
   };
 
   const events: SessionEventListItem[] = [
@@ -50,7 +69,8 @@ function buildSessionServiceStub() {
       async continue() {
         return null;
       },
-      async sendInput() {
+      async sendInput(sessionId: number, input: string) {
+        calls.sendInput.push({ sessionId, input });
         return true;
       },
       async delete() {
@@ -128,5 +148,34 @@ test.test('GET /sessions/:id/output is not registered in the v1 routes', async (
 
   assert.equal(response.statusCode, 404);
 
+  await app.close();
+});
+
+test.test('WebSocket /ws routes STOMP app input destinations to the parsed session id', async () => {
+  const { service, calls } = buildSessionServiceStub();
+  const app = Fastify();
+  await app.register(fastifyWebSocket);
+  app.register(sessionRoutes, { service: service as never });
+  await app.listen({ port: 0, host: '127.0.0.1' });
+
+  const address = app.server.address();
+  assert.ok(address && typeof address === 'object');
+
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
+  });
+
+  socket.send(JSON.stringify({
+    destination: '/app/session/42/input',
+    body: JSON.stringify({ input: 'hello from ws' }),
+  }));
+
+  await waitFor(() => {
+    assert.deepEqual(calls.sendInput, [{ sessionId: 42, input: 'hello from ws' }]);
+  });
+
+  socket.close();
   await app.close();
 });
