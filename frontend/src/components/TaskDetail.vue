@@ -176,19 +176,45 @@
     width="80%"
     top="5vh"
   >
-    <div class="diff-stats" v-if="diffContent">
-      <el-tag type="success">
-        <el-icon><Plus /></el-icon>
-        {{ (diffContent.match(/^\+/gm) || []).length }} additions
-      </el-tag>
-      <el-tag type="danger">
-        <el-icon><Minus /></el-icon>
-        {{ (diffContent.match(/^-/gm) || []).length }} deletions
-      </el-tag>
-    </div>
-    <el-scrollbar height="60vh">
-      <pre class="diff-content">{{ diffContent }}</pre>
-    </el-scrollbar>
+    <template v-if="diffData?.files?.length">
+      <div class="diff-stats">
+        <el-tag type="success">
+          <el-icon><Plus /></el-icon>
+          {{ totalDiffAdditions }} additions
+        </el-tag>
+        <el-tag type="danger">
+          <el-icon><Minus /></el-icon>
+          {{ totalDiffDeletions }} deletions
+        </el-tag>
+        <el-tag type="info">
+          {{ diffData.files.length }} files changed
+        </el-tag>
+      </div>
+
+      <div class="diff-dialog-content">
+        <div class="diff-file-list">
+          <div
+            v-for="file in diffData.files"
+            :key="file.path"
+            :class="['diff-file-item', { active: selectedDiffFile === file.path }]"
+            @click="selectedDiffFile = file.path"
+          >
+            <div class="diff-file-path">{{ file.path }}</div>
+            <div class="diff-file-meta">
+              <span>{{ file.status }}</span>
+              <span v-if="file.additions || file.deletions">+{{ file.additions }} -{{ file.deletions }}</span>
+            </div>
+          </div>
+        </div>
+
+        <el-scrollbar height="60vh" class="diff-preview-scroll">
+          <pre class="diff-content">{{ selectedDiffContent }}</pre>
+        </el-scrollbar>
+      </div>
+    </template>
+
+    <el-empty v-else :description="$t('git.noChanges')" :image-size="60" />
+
     <template #footer>
       <el-button @click="diffDialogVisible = false">{{ $t('common.close') }}</el-button>
     </template>
@@ -219,13 +245,17 @@ import TaskForm from './task/TaskForm.vue'
 import TaskHistory from './task/TaskHistory.vue'
 import CommitDialog from './CommitDialog.vue'
 import { useToast } from '../composables/ui/useToast'
-import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 
 const { t } = useI18n()
 const toast = useToast()
-const apiError = useApiErrorHandler({ showMessage: false })
 
-const getApiData = (response, fallbackMessageKey) => apiError.unwrapResponse(response, t(fallbackMessageKey))
+const getApiData = (response, fallbackMessageKey) => {
+  if (!response?.success) {
+    throw new Error(response?.message || t(fallbackMessageKey))
+  }
+
+  return response?.data
+}
 
 const formatExecutorTypeLabel = (agent) => {
   const executorType = agent?.executorType || agent?.type
@@ -265,7 +295,8 @@ const gitLoading = ref(false)
 const gitStatus = ref(null)
 const hasWorktree = ref(false)
 const diffDialogVisible = ref(false)
-const diffContent = ref('')
+const diffData = ref(null)
+const selectedDiffFile = ref('')
 const commitDialogVisible = ref(false)
 
 const hasActiveSession = computed(() => {
@@ -274,6 +305,21 @@ const hasActiveSession = computed(() => {
     return ['CREATED', 'RUNNING', 'IDLE'].includes(status)
   }
   return false
+})
+
+const totalDiffAdditions = computed(() => {
+  if (!diffData.value?.files) return 0
+  return diffData.value.files.reduce((sum, file) => sum + (file.additions || 0), 0)
+})
+
+const totalDiffDeletions = computed(() => {
+  if (!diffData.value?.files) return 0
+  return diffData.value.files.reduce((sum, file) => sum + (file.deletions || 0), 0)
+})
+
+const selectedDiffContent = computed(() => {
+  if (!diffData.value?.diffs || !selectedDiffFile.value) return ''
+  return diffData.value.diffs[selectedDiffFile.value] || ''
 })
 
 watch(() => props.task, (newTask, oldTask) => {
@@ -318,8 +364,12 @@ const loadGitStatus = async () => {
   gitLoading.value = true
   try {
     const response = await getStatus(props.projectId, props.task.id)
-    gitStatus.value = getApiData(response, 'git.statusFailed')
-    hasWorktree.value = true
+    if (response.success && response.data) {
+      gitStatus.value = response.data
+      hasWorktree.value = true
+    } else {
+      hasWorktree.value = false
+    }
   } catch (e) {
     console.log('No worktree for this task:', e)
     hasWorktree.value = false
@@ -332,9 +382,13 @@ const showDiffDialog = async () => {
   if (!props.task?.id) return
   try {
     const response = await getDiff(props.projectId, props.task.id)
-    const diffData = getApiData(response, 'git.diffFailed')
-    diffContent.value = diffData?.content || ''
-    diffDialogVisible.value = true
+    if (response.success && response.data) {
+      diffData.value = response.data
+      selectedDiffFile.value = response.data.files?.[0]?.path || ''
+      diffDialogVisible.value = true
+    } else {
+      toast.error(response.message || t('git.diffFailed'))
+    }
   } catch (e) {
     toast.apiError(e, t('git.diffFailed'))
   }
@@ -360,10 +414,11 @@ const loadSessionHistory = async () => {
   historyLoading.value = true
   try {
     const response = await getSessionHistory(props.task.id)
-    const history = getApiData(response, 'common.error') || []
-    sessionHistory.value = history
-      .filter(s => !localSession.value || s.id !== localSession.value.id)
-      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+    if (response.success && response.data) {
+      sessionHistory.value = response.data
+        .filter(s => !localSession.value || s.id !== localSession.value.id)
+        .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+    }
   } catch (e) {
     console.error('Failed to load session history:', e)
   } finally {
@@ -384,14 +439,22 @@ const handleSave = async (formData) => {
   }
 
   try {
-    const response = isNew.value
-      ? await createTask(data)
-      : await updateTask(props.task.id, data)
-
-    getApiData(response, 'common.saveFailed')
-    toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
-    emit('saved')
-    emit('close')
+    let response
+    if (isNew.value) {
+      response = await createTask(data)
+    } else {
+      response = await updateTask(props.task.id, data)
+    }
+    // Check response.success to handle cases where backend returns { success: false }
+    if (response && response.success) {
+      toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
+      emit('saved')
+      emit('close')
+    } else {
+      // Backend returned success: false
+      console.error('Save task failed:', response?.message)
+      toast.error(response?.message || t('messages.saveFailed', { name: t('task.title') }))
+    }
   } catch (e) {
     console.error('Failed to save task:', e)
     toast.apiError(e, t('messages.saveFailed', { name: t('task.title') }))
@@ -411,10 +474,13 @@ const handleDelete = async () => {
 
   try {
     const response = await deleteTask(props.task.id)
-    getApiData(response, 'common.deleteFailed')
-    toast.success(t('messages.deleted', { name: t('task.title') }))
-    emit('deleted')
-    emit('close')
+    if (response && response.success) {
+      toast.success(t('messages.deleted', { name: t('task.title') }))
+      emit('deleted')
+      emit('close')
+    } else {
+      toast.error(response?.message || t('messages.deleteFailed', { name: t('task.title') }))
+    }
   } catch (e) {
     console.error('Failed to delete task:', e)
     toast.apiError(e, t('messages.deleteFailed', { name: t('task.title') }))
@@ -430,8 +496,12 @@ const createNewSession = async () => {
   try {
     console.log('Creating session for task:', props.task.id, 'agent:', selectedAgentId.value)
     const response = await createSession(props.task.id, selectedAgentId.value)
-    localSession.value = getApiData(response, 'common.createFailed')
-    toast.success(t('messages.created', { name: t('session.title') }))
+    if (response.success && response.data) {
+      localSession.value = response.data
+      toast.success(t('messages.created', { name: t('session.title') }))
+    } else {
+      toast.error(response.message || t('messages.createFailed', { name: t('session.title') }))
+    }
   } catch (e) {
     console.error('Failed to create session:', e)
     toast.apiError(e, t('messages.createFailed', { name: t('session.title') }))
@@ -457,9 +527,12 @@ const deleteCurrentSession = async () => {
 
   try {
     const response = await deleteSession(localSession.value.id)
-    getApiData(response, 'common.deleteFailed')
-    localSession.value = null
-    toast.success(t('messages.deleted', { name: t('session.title') }))
+    if (response && response.success) {
+      localSession.value = null
+      toast.success(t('messages.deleted', { name: t('session.title') }))
+    } else {
+      toast.error(response?.message || t('messages.deleteFailed', { name: t('session.title') }))
+    }
   } catch (e) {
     console.error('Failed to delete session:', e)
     toast.apiError(e, t('messages.deleteFailed', { name: t('session.title') }))
@@ -610,6 +683,54 @@ const onSelectHistory = (session) => {
   margin-bottom: 12px;
 }
 
+.diff-dialog-content {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.diff-file-list {
+  width: 240px;
+  flex-shrink: 0;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+}
+
+.diff-file-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+}
+
+.diff-file-item:last-child {
+  border-bottom: none;
+}
+
+.diff-file-item.active {
+  background: var(--el-color-primary-light-9);
+}
+
+.diff-file-path {
+  font-size: 12px;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.diff-file-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.diff-preview-scroll {
+  flex: 1;
+}
+
 .diff-content {
   margin: 0;
   padding: 16px;
@@ -621,5 +742,15 @@ const onSelectHistory = (session) => {
   background: #1e1e1e;
   color: #d4d4d4;
   border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .diff-dialog-content {
+    flex-direction: column;
+  }
+
+  .diff-file-list {
+    width: 100%;
+  }
 }
 </style>
