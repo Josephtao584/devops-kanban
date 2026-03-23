@@ -87,7 +87,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
-  fastify.get<{ Params: TaskIdParams }>('/sessions/task/:taskId/history', async (request, reply) => {
+  fastify.get<{ Params: TaskIdParams; Querystring: { includeOutput?: string } }>('/sessions/task/:taskId/history', async (request, reply) => {
     try {
       const taskId = parseNumber(request.params.taskId);
       const includeOutput = request.query.includeOutput !== 'false';

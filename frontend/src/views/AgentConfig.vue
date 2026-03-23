@@ -3,7 +3,7 @@
     <!-- 顶部操作栏 -->
     <div class="header">
       <h1>{{ $t('agent.title') }}</h1>
-      <button class="btn btn-primary" @click="openAddForm">
+      <button class="btn btn-primary" data-testid="open-create-agent" @click="openAddForm">
         + {{ $t('agent.createAgent') }}
       </button>
     </div>
@@ -79,7 +79,19 @@
           <div class="info-section">
             <div class="info-item">
               <span class="info-label">{{ $t('agent.agentType') }}</span>
-              <span class="info-value">{{ $t(`agent.types.${selectedAgent.type}`) }}</span>
+              <span class="info-value">{{ formatExecutorType(selectedAgent.executorType) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">{{ $t('agent.commandOverride') }}</span>
+              <span class="info-value description-text">{{ selectedAgent.commandOverride || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">{{ $t('agent.args') }}</span>
+              <span class="info-value description-text">{{ formatArgs(selectedAgent.args) }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">{{ $t('agent.env') }}</span>
+              <span class="info-value description-text">{{ formatEnv(selectedAgent.env) }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">{{ $t('agent.role') }}</span>
@@ -182,21 +194,71 @@
         </div>
 
         <div class="modal-body">
-          <form @submit.prevent="saveAgent">
+          <form data-testid="agent-form" @submit.prevent="saveAgent">
             <div class="form-group">
               <label>{{ $t('agent.agentName') }}</label>
-              <input v-model="form.name" type="text" required />
+              <input v-model="form.name" data-testid="agent-name-input" type="text" required />
             </div>
 
             <div class="form-group">
               <label>{{ $t('agent.agentType') }}</label>
-              <select v-model="form.type" required>
-                <option value="CLAUDE">{{ $t('agent.types.CLAUDE') }}</option>
+              <select v-model="form.executorType" data-testid="agent-executor-type-select" required>
+                <option value="CLAUDE_CODE">{{ $t('agent.types.CLAUDE_CODE') }}</option>
                 <option value="CODEX">{{ $t('agent.types.CODEX') }}</option>
-                <option value="CURSOR">{{ $t('agent.types.CURSOR') }}</option>
-                <option value="GEMINI">{{ $t('agent.types.GEMINI') }}</option>
-                <option value="CUSTOM">{{ $t('agent.types.CUSTOM') }}</option>
+                <option value="OPENCODE">{{ $t('agent.types.OPENCODE') }}</option>
               </select>
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('agent.commandOverride') }}</label>
+              <input
+                v-model="form.commandOverride"
+                data-testid="agent-command-override-input"
+                type="text"
+                :placeholder="$t('agent.commandOverridePlaceholder')"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('agent.args') }}</label>
+              <input
+                v-model="argsInput"
+                data-testid="agent-args-input"
+                type="text"
+                :placeholder="$t('agent.argsPlaceholder')"
+              />
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('agent.env') }}</label>
+              <div class="env-editor">
+                <div
+                  v-for="(entry, index) in envEntries"
+                  :key="`env-${index}`"
+                  class="env-row"
+                >
+                  <input
+                    :data-testid="`agent-env-key-${index}`"
+                    :value="entry.key"
+                    type="text"
+                    :placeholder="$t('agent.envKeyPlaceholder')"
+                    @input="updateEnvEntry(index, 'key', $event.target.value)"
+                  />
+                  <input
+                    :data-testid="`agent-env-value-${index}`"
+                    :value="entry.value"
+                    type="text"
+                    :placeholder="$t('agent.envValuePlaceholder')"
+                    @input="updateEnvEntry(index, 'value', $event.target.value)"
+                  />
+                  <button type="button" class="btn btn-secondary btn-sm" @click="removeEnvEntry(index)">
+                    {{ $t('common.delete') }}
+                  </button>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" @click="addEnvEntry">
+                  + {{ $t('agent.addEnv') }}
+                </button>
+              </div>
             </div>
 
             <div class="form-group">
@@ -326,16 +388,130 @@ const executionStats = computed(() => {
   return stats
 })
 
+const DEFAULT_ENV_ENTRY = () => ({ key: '', value: '' })
+
 const form = ref({
   name: '',
-  type: 'CLAUDE',
+  executorType: 'CLAUDE_CODE',
   role: 'BACKEND_DEV',
   description: '',
   enabled: true,
-  skills: []
+  skills: [],
+  commandOverride: '',
+  args: [],
+  env: {}
 })
 
+const argsInput = ref('')
+const envEntries = ref([DEFAULT_ENV_ENTRY()])
 const newSkill = ref('')
+
+const normalizeArgs = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item).trim()).filter(Boolean)
+  }
+
+  if (typeof value !== 'string') {
+    return []
+  }
+
+  return value.split(',').map(item => item.trim()).filter(Boolean)
+}
+
+const buildEnvObject = (entries) => {
+  return entries.reduce((acc, entry) => {
+    const key = entry.key?.trim()
+    const value = entry.value?.trim()
+
+    if (!key) {
+      return acc
+    }
+
+    acc[key] = value || ''
+    return acc
+  }, {})
+}
+
+const toEnvEntries = (env) => {
+  const entries = Object.entries(env || {}).map(([key, value]) => ({
+    key,
+    value: String(value ?? '')
+  }))
+
+  return entries.length > 0 ? entries : [DEFAULT_ENV_ENTRY()]
+}
+
+const syncRuntimeConfigInputs = () => {
+  argsInput.value = (form.value.args || []).join(', ')
+  envEntries.value = toEnvEntries(form.value.env)
+}
+
+const setFormState = (agent) => {
+  form.value = {
+    name: agent?.name || '',
+    executorType: agent?.executorType || 'CLAUDE_CODE',
+    role: agent?.role || 'BACKEND_DEV',
+    description: agent?.description || '',
+    enabled: agent?.enabled ?? true,
+    skills: agent?.skills || [...getRoleConfig(agent?.role || 'BACKEND_DEV').skills],
+    commandOverride: agent?.commandOverride || '',
+    args: normalizeArgs(agent?.args || []),
+    env: { ...(agent?.env || {}) }
+  }
+  syncRuntimeConfigInputs()
+}
+
+const updateEnvEntry = (index, field, value) => {
+  envEntries.value[index] = {
+    ...envEntries.value[index],
+    [field]: value
+  }
+}
+
+const addEnvEntry = () => {
+  envEntries.value = [...envEntries.value, DEFAULT_ENV_ENTRY()]
+}
+
+const removeEnvEntry = (index) => {
+  const nextEntries = envEntries.value.filter((_, entryIndex) => entryIndex !== index)
+  envEntries.value = nextEntries.length > 0 ? nextEntries : [DEFAULT_ENV_ENTRY()]
+}
+
+const formatExecutorType = (executorType) => {
+  if (!executorType) return '-'
+  return t(`agent.types.${executorType}`)
+}
+
+const formatArgs = (args) => {
+  const normalizedArgs = normalizeArgs(args)
+  return normalizedArgs.length > 0 ? normalizedArgs.join(', ') : '-'
+}
+
+const formatEnv = (env) => {
+  const entries = Object.entries(env || {})
+  if (entries.length === 0) {
+    return '-'
+  }
+
+  return entries.map(([key, value]) => `${key}=${value}`).join(', ')
+}
+
+const buildAgentPayload = () => ({
+  ...form.value,
+  commandOverride: form.value.commandOverride.trim() || null,
+  args: normalizeArgs(argsInput.value),
+  env: buildEnvObject(envEntries.value)
+})
+
+const getResponseErrorMessage = (response, fallbackMessage) => {
+  return response?.message || fallbackMessage
+}
+
+const resetFormState = () => {
+  setFormState(null)
+}
+
+resetFormState()
 
 // Get preset skills based on selected role
 const presetSkills = computed(() => {
@@ -439,37 +615,36 @@ const closeExecutionDetail = () => {
 
 const openAddForm = () => {
   editingAgent.value = null
-  form.value = { name: '', type: 'CLAUDE', role: 'BACKEND_DEV', description: '', enabled: true, skills: [...presetSkills.value] }
+  resetFormState()
+  form.value.skills = [...presetSkills.value]
   showForm.value = true
 }
 
 const openEditForm = () => {
   if (!selectedAgent.value) return
   editingAgent.value = selectedAgent.value
-  form.value = {
-    name: selectedAgent.value.name,
-    type: selectedAgent.value.type,
-    role: selectedAgent.value.role || 'BACKEND_DEV',
-    description: selectedAgent.value.description || '',
-    enabled: selectedAgent.value.enabled,
-    skills: selectedAgent.value.skills || [...getRoleConfig(selectedAgent.value.role || 'BACKEND_DEV').skills]
-  }
+  setFormState(selectedAgent.value)
   showForm.value = true
 }
 
 const saveAgent = async () => {
   saving.value = true
   try {
-    const data = { ...form.value }
-    if (editingAgent.value) {
-      await agentStore.updateAgent(editingAgent.value.id, data)
-      // Update selected agent reference
-      if (selectedAgent.value?.id === editingAgent.value.id) {
-        selectedAgent.value = agentStore.agents.find(a => a.id === editingAgent.value.id)
-      }
-    } else {
-      await agentStore.createAgent(data)
+    const data = buildAgentPayload()
+    const response = editingAgent.value
+      ? await agentStore.updateAgent(editingAgent.value.id, data)
+      : await agentStore.createAgent(data)
+
+    if (!response?.success) {
+      showToast(getResponseErrorMessage(response, t('messages.saveFailed', { name: t('agent.title') })), 'error')
+      return
     }
+
+    // Update selected agent reference
+    if (editingAgent.value && selectedAgent.value?.id === editingAgent.value.id) {
+      selectedAgent.value = agentStore.agents.find(a => a.id === editingAgent.value.id)
+    }
+
     closeForm()
     showToast(t('messages.saved', { name: t('agent.title') }))
   } catch (e) {
@@ -482,7 +657,12 @@ const saveAgent = async () => {
 
 const toggleEnabled = async (agent) => {
   try {
-    await agentStore.toggleAgentEnabled(agent.id)
+    const response = await agentStore.toggleAgentEnabled(agent.id)
+    if (!response?.success) {
+      showToast(getResponseErrorMessage(response, t('messages.updateFailed', { name: t('agent.title') })), 'error')
+      return
+    }
+
     // Update selected agent reference
     if (selectedAgent.value?.id === agent.id) {
       selectedAgent.value = agentStore.agents.find(a => a.id === agent.id)
@@ -498,7 +678,12 @@ const confirmDelete = async () => {
   if (!confirm(t('agent.deleteConfirm'))) return
   try {
     const deletedId = selectedAgent.value.id
-    await agentStore.deleteAgent(deletedId)
+    const response = await agentStore.deleteAgent(deletedId)
+    if (!response?.success) {
+      showToast(getResponseErrorMessage(response, t('messages.deleteFailed', { name: t('agent.title') })), 'error')
+      return
+    }
+
     // Clear selection or select next available agent
     if (agentStore.agents.length > 0) {
       selectAgent(agentStore.agents[0])
