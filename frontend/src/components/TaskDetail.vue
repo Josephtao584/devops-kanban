@@ -219,17 +219,13 @@ import TaskForm from './task/TaskForm.vue'
 import TaskHistory from './task/TaskHistory.vue'
 import CommitDialog from './CommitDialog.vue'
 import { useToast } from '../composables/ui/useToast'
+import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 
 const { t } = useI18n()
 const toast = useToast()
+const apiError = useApiErrorHandler({ showMessage: false })
 
-const getApiData = (response, fallbackMessageKey) => {
-  if (!response?.success) {
-    throw new Error(response?.message || t(fallbackMessageKey))
-  }
-
-  return response?.data
-}
+const getApiData = (response, fallbackMessageKey) => apiError.unwrapResponse(response, t(fallbackMessageKey))
 
 const formatExecutorTypeLabel = (agent) => {
   const executorType = agent?.executorType || agent?.type
@@ -322,12 +318,8 @@ const loadGitStatus = async () => {
   gitLoading.value = true
   try {
     const response = await getStatus(props.projectId, props.task.id)
-    if (response.success && response.data) {
-      gitStatus.value = response.data
-      hasWorktree.value = true
-    } else {
-      hasWorktree.value = false
-    }
+    gitStatus.value = getApiData(response, 'git.statusFailed')
+    hasWorktree.value = true
   } catch (e) {
     console.log('No worktree for this task:', e)
     hasWorktree.value = false
@@ -340,12 +332,9 @@ const showDiffDialog = async () => {
   if (!props.task?.id) return
   try {
     const response = await getDiff(props.projectId, props.task.id)
-    if (response.success && response.data) {
-      diffContent.value = response.data.content || ''
-      diffDialogVisible.value = true
-    } else {
-      toast.error(response.message || t('git.diffFailed'))
-    }
+    const diffData = getApiData(response, 'git.diffFailed')
+    diffContent.value = diffData?.content || ''
+    diffDialogVisible.value = true
   } catch (e) {
     toast.apiError(e, t('git.diffFailed'))
   }
@@ -371,11 +360,10 @@ const loadSessionHistory = async () => {
   historyLoading.value = true
   try {
     const response = await getSessionHistory(props.task.id)
-    if (response.success && response.data) {
-      sessionHistory.value = response.data
-        .filter(s => !localSession.value || s.id !== localSession.value.id)
-        .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
-    }
+    const history = getApiData(response, 'common.error') || []
+    sessionHistory.value = history
+      .filter(s => !localSession.value || s.id !== localSession.value.id)
+      .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
   } catch (e) {
     console.error('Failed to load session history:', e)
   } finally {
@@ -396,22 +384,14 @@ const handleSave = async (formData) => {
   }
 
   try {
-    let response
-    if (isNew.value) {
-      response = await createTask(data)
-    } else {
-      response = await updateTask(props.task.id, data)
-    }
-    // Check response.success to handle cases where backend returns { success: false }
-    if (response && response.success) {
-      toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
-      emit('saved')
-      emit('close')
-    } else {
-      // Backend returned success: false
-      console.error('Save task failed:', response?.message)
-      toast.error(response?.message || t('messages.saveFailed', { name: t('task.title') }))
-    }
+    const response = isNew.value
+      ? await createTask(data)
+      : await updateTask(props.task.id, data)
+
+    getApiData(response, 'common.saveFailed')
+    toast.success(isNew.value ? t('messages.created', { name: t('task.title') }) : t('messages.saved', { name: t('task.title') }))
+    emit('saved')
+    emit('close')
   } catch (e) {
     console.error('Failed to save task:', e)
     toast.apiError(e, t('messages.saveFailed', { name: t('task.title') }))
@@ -431,13 +411,10 @@ const handleDelete = async () => {
 
   try {
     const response = await deleteTask(props.task.id)
-    if (response && response.success) {
-      toast.success(t('messages.deleted', { name: t('task.title') }))
-      emit('deleted')
-      emit('close')
-    } else {
-      toast.error(response?.message || t('messages.deleteFailed', { name: t('task.title') }))
-    }
+    getApiData(response, 'common.deleteFailed')
+    toast.success(t('messages.deleted', { name: t('task.title') }))
+    emit('deleted')
+    emit('close')
   } catch (e) {
     console.error('Failed to delete task:', e)
     toast.apiError(e, t('messages.deleteFailed', { name: t('task.title') }))
@@ -453,12 +430,8 @@ const createNewSession = async () => {
   try {
     console.log('Creating session for task:', props.task.id, 'agent:', selectedAgentId.value)
     const response = await createSession(props.task.id, selectedAgentId.value)
-    if (response.success && response.data) {
-      localSession.value = response.data
-      toast.success(t('messages.created', { name: t('session.title') }))
-    } else {
-      toast.error(response.message || t('messages.createFailed', { name: t('session.title') }))
-    }
+    localSession.value = getApiData(response, 'common.createFailed')
+    toast.success(t('messages.created', { name: t('session.title') }))
   } catch (e) {
     console.error('Failed to create session:', e)
     toast.apiError(e, t('messages.createFailed', { name: t('session.title') }))
@@ -484,12 +457,9 @@ const deleteCurrentSession = async () => {
 
   try {
     const response = await deleteSession(localSession.value.id)
-    if (response && response.success) {
-      localSession.value = null
-      toast.success(t('messages.deleted', { name: t('session.title') }))
-    } else {
-      toast.error(response?.message || t('messages.deleteFailed', { name: t('session.title') }))
-    }
+    getApiData(response, 'common.deleteFailed')
+    localSession.value = null
+    toast.success(t('messages.deleted', { name: t('session.title') }))
   } catch (e) {
     console.error('Failed to delete session:', e)
     toast.apiError(e, t('messages.deleteFailed', { name: t('session.title') }))
