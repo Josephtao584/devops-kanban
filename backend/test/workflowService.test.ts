@@ -729,21 +729,130 @@ test.test('executeWorkflow finalizes the active step session when the stream thr
 });
 
 
-test.test('cancelWorkflow terminates the active process', async () => {
+test.test('executeWorkflow finalizes the active step session when the stream result fails without a step error event', async () => {
+  const harness = createExecuteWorkflowHarness();
+
+  (harness.service as WorkflowService & {
+    _createWorkflowStream: () => Promise<{
+      fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
+      result: Promise<{ status: string; error?: string }>;
+    }>;
+  })._createWorkflowStream = async () => ({
+    fullStream: (async function* () {
+      yield {
+        type: 'workflow-step-start',
+        payload: { stepName: 'requirement-design' },
+      };
+    })(),
+    result: Promise.resolve({ status: 'failed', error: 'Workflow returned failure' }),
+  });
+
+  await (harness.service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
+  })._executeWorkflow(7, harness.task);
+
+  assert.equal(harness.run.status, 'FAILED');
+  assert.deepEqual(harness.run.context, { error: 'Workflow returned failure' });
+  assert.equal(harness.run.current_step, 'requirement-design');
+  assert.equal(harness.run.steps[0]?.status, 'FAILED');
+  assert.equal(harness.run.steps[0]?.error, 'Workflow returned failure');
+  assert.equal(harness.run.steps[0]?.session_id, 101);
+  assert.equal(harness.sessions.get(101)?.status, 'FAILED');
+  assert.equal(harness.segments[0]?.status, 'FAILED');
+  assert.equal(harness.taskUpdates.length, 0);
+  assert.deepEqual(harness.runUpdates, [
+    { status: 'RUNNING' },
+    { current_step: 'requirement-design' },
+    { status: 'FAILED', context: { error: 'Workflow returned failure' } },
+  ]);
+});
+
+
+test.test('cancelWorkflow terminates the active process and finalizes the running step lifecycle', async () => {
   const kills: string[] = [];
   let cancelled = false;
+  const run = {
+    id: 1,
+    status: 'RUNNING',
+    current_step: 'requirement-design',
+    steps: [
+      {
+        step_id: 'requirement-design',
+        name: '需求设计',
+        status: 'RUNNING',
+        started_at: '2026-03-23T00:00:00.000Z',
+        completed_at: null,
+        retry_count: 0,
+        session_id: 101,
+        summary: null,
+        error: null,
+      },
+    ],
+  };
+  const session = {
+    id: 101,
+    status: 'RUNNING',
+    completed_at: null,
+  };
+  const segment = {
+    id: 201,
+    session_id: 101,
+    status: 'RUNNING',
+    completed_at: null,
+  };
 
   const workflowRunRepo = {
     async findById(runId: number) {
-      return { id: runId, status: 'RUNNING' };
+      assert.equal(runId, 1);
+      return run;
+    },
+    async updateStep(runId: number, stepId: string, updateData: Record<string, unknown>) {
+      assert.equal(runId, 1);
+      assert.equal(stepId, 'requirement-design');
+      Object.assign(run.steps[0]!, updateData);
+      return run;
     },
     async update(runId: number, updateData: Record<string, unknown>) {
+      assert.equal(runId, 1);
+      Object.assign(run, updateData);
       return { id: runId, ...updateData };
+    },
+  };
+
+  const sessionRepo = {
+    async create() {
+      throw new Error('create should not be called');
+    },
+    async findById(sessionId: number) {
+      assert.equal(sessionId, 101);
+      return session;
+    },
+    async update(sessionId: number, updateData: Record<string, unknown>) {
+      assert.equal(sessionId, 101);
+      Object.assign(session, updateData);
+      return session;
+    },
+  };
+
+  const sessionSegmentRepo = {
+    async create() {
+      throw new Error('create should not be called');
+    },
+    async findLatestBySessionId(sessionId: number) {
+      assert.equal(sessionId, 101);
+      return segment;
+    },
+    async update(segmentId: number, updateData: Record<string, unknown>) {
+      assert.equal(segmentId, 201);
+      Object.assign(segment, updateData);
+      return segment;
     },
   };
 
   const service = new WorkflowService({
     workflowRunRepo: workflowRunRepo as never,
+    sessionRepo: sessionRepo as never,
+    sessionSegmentRepo: sessionSegmentRepo as never,
     taskRepo: {} as never,
   });
 
@@ -769,5 +878,9 @@ test.test('cancelWorkflow terminates the active process', async () => {
   assert.equal(cancelled, true);
   assert.deepEqual(kills, ['SIGTERM']);
   assert.equal(result?.status, 'CANCELLED');
+  assert.equal(run.steps[0]?.status, 'CANCELLED');
+  assert.equal(run.steps[0]?.error, 'Workflow cancelled');
+  assert.equal(session.status, 'CANCELLED');
+  assert.equal(segment.status, 'CANCELLED');
 });
 

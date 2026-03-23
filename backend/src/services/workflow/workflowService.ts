@@ -361,56 +361,55 @@ class WorkflowService {
     await this.workflowRunRepo.update(runId, { current_step: stepId });
   }
 
-  async _handleWorkflowStepCompletion(runId: number, stepId: string, result: Record<string, unknown>) {
+  private async _finalizeStepArtifacts(
+    runId: number,
+    stepId: string,
+    status: 'COMPLETED' | 'FAILED' | 'CANCELLED',
+    stepUpdate: Partial<Pick<WorkflowStepEntity, 'summary' | 'error'>>,
+  ) {
     const completedAt = new Date().toISOString();
     const { step } = await this._getRunStep(runId, stepId);
-    const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
 
     await this.workflowRunRepo.updateStep(runId, stepId, {
-      status: 'COMPLETED',
+      status,
       completed_at: completedAt,
-      summary: summary || null,
-      error: null,
+      ...stepUpdate,
     });
 
     if (step.session_id) {
       await this.sessionRepo.update(step.session_id, {
-        status: 'COMPLETED',
+        status,
         completed_at: completedAt,
       });
       const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
       if (latestSegment?.status === 'RUNNING') {
         await this.sessionSegmentRepo.update(latestSegment.id, {
-          status: 'COMPLETED',
+          status,
           completed_at: completedAt,
         });
       }
     }
   }
 
-  async _handleWorkflowStepFailure(runId: number, stepId: string, errorMessage: string) {
-    const completedAt = new Date().toISOString();
-    const { step } = await this._getRunStep(runId, stepId);
+  async _handleWorkflowStepCompletion(runId: number, stepId: string, result: Record<string, unknown>) {
+    const summary = typeof result.summary === 'string' ? result.summary.trim() : '';
 
-    await this.workflowRunRepo.updateStep(runId, stepId, {
-      status: 'FAILED',
-      completed_at: completedAt,
+    await this._finalizeStepArtifacts(runId, stepId, 'COMPLETED', {
+      summary: summary || null,
+      error: null,
+    });
+  }
+
+  async _handleWorkflowStepFailure(runId: number, stepId: string, errorMessage: string) {
+    await this._finalizeStepArtifacts(runId, stepId, 'FAILED', {
       error: errorMessage || 'Step failed',
     });
+  }
 
-    if (step.session_id) {
-      await this.sessionRepo.update(step.session_id, {
-        status: 'FAILED',
-        completed_at: completedAt,
-      });
-      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
-      if (latestSegment?.status === 'RUNNING') {
-        await this.sessionSegmentRepo.update(latestSegment.id, {
-          status: 'FAILED',
-          completed_at: completedAt,
-        });
-      }
-    }
+  async _handleWorkflowStepCancellation(runId: number, stepId: string) {
+    await this._finalizeStepArtifacts(runId, stepId, 'CANCELLED', {
+      error: 'Workflow cancelled',
+    });
   }
 
   async _finalizeRunningStepAfterUnexpectedError(runId: number, errorMessage: string) {
@@ -498,6 +497,7 @@ class WorkflowService {
         });
         await this.taskRepo.update(task.id, { status: 'DONE' });
       } else {
+        await this._finalizeRunningStepAfterUnexpectedError(runId, result.error || 'Workflow failed');
         await this.workflowRunRepo.update(runId, {
           status: 'FAILED',
           context: { error: result.error || 'Workflow failed' },
@@ -545,6 +545,14 @@ class WorkflowService {
       activeRun.cancel?.();
       activeRun.proc?.kill?.('SIGTERM');
       activeRun.context?.proc?.kill?.('SIGTERM');
+    }
+
+    const runningStep = (run.current_step
+      ? run.steps.find((candidate) => candidate.step_id === run.current_step && candidate.status === 'RUNNING')
+      : null) || run.steps.find((candidate) => candidate.status === 'RUNNING');
+
+    if (runningStep) {
+      await this._handleWorkflowStepCancellation(runId, runningStep.step_id);
     }
 
     return await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
