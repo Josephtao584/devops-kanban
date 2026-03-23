@@ -10,7 +10,7 @@
   >
     <div class="dialog-body-wrapper">
       <!-- Main Content: Split View -->
-      <div class="main-content">
+      <div class="commit-main-content">
         <!-- Left Panel: File List -->
         <div class="file-panel">
           <div class="panel-header">
@@ -321,7 +321,7 @@ onMounted(() => {
 
 <style scoped>
 /* ==================== Main Layout ==================== */
-.main-content {
+.commit-main-content {
   display: flex;
   gap: 16px;
   height: 500px;
