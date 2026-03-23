@@ -15,25 +15,25 @@ function buildValidTemplate(): UpdateWorkflowTemplateInput {
         id: 'requirement-design',
         name: '需求设计',
         instructionPrompt: '先做需求分析和设计拆解。',
-        executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
+        agentId: 1,
       },
       {
         id: 'code-development',
         name: '代码开发',
         instructionPrompt: '根据设计摘要完成代码实现。',
-        executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
+        agentId: 2,
       },
       {
         id: 'testing',
         name: '测试',
         instructionPrompt: '根据开发结果执行测试验证。',
-        executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
+        agentId: null,
       },
       {
         id: 'code-review',
         name: '代码审查',
         instructionPrompt: '根据测试结果完成代码审查总结。',
-        executor: { type: 'CLAUDE_CODE', commandOverride: null, args: [], env: {} },
+        agentId: 4,
       },
     ],
   };
@@ -87,15 +87,20 @@ test.test('GET /api/workflow-template returns the global template', async () => 
   await workflowTemplateRoutes(app as never, { service });
 
   const response = await app.inject({ method: 'GET', url: '/' });
-  const payload = response.json() as { success: boolean; data: { template_id: string; steps: Array<{ instructionPrompt: string }> } };
+  const payload = response.json() as {
+    success: boolean;
+    data: { template_id: string; steps: Array<{ name: string; instructionPrompt: string; agentId: number | null }> };
+  };
 
   assert.equal(response.statusCode, 200);
   assert.equal(payload.success, true);
   assert.equal(payload.data.template_id, 'dev-workflow-v1');
+  assert.equal(payload.data.steps[0]!.name, '需求设计');
   assert.equal(payload.data.steps[0]!.instructionPrompt, '先做需求分析和设计拆解。');
+  assert.equal(payload.data.steps[1]!.agentId, 2);
 });
 
-test.test('PUT /api/workflow-template updates step executor bindings', async () => {
+test.test('PUT /api/workflow-template updates step agent bindings with fixed step names', async () => {
   let savedTemplate: WorkflowTemplate | null = null;
   const service = new WorkflowTemplateService({
     workflowTemplateRepo: {
@@ -111,19 +116,49 @@ test.test('PUT /api/workflow-template updates step executor bindings', async () 
   const app = createFastifyStub(service);
   await workflowTemplateRoutes(app as never, { service });
   const payload = buildValidTemplate();
-  payload.steps[1]!.executor.type = 'CODEX';
+  payload.steps[1]!.agentId = 7;
   payload.steps[1]!.instructionPrompt = '根据设计摘要完成代码实现并记录主要改动。';
 
   const response = await app.inject({ method: 'PUT', url: '/', payload });
-  const body = response.json() as { data: { steps: Array<{ executor: { type: string }; instructionPrompt: string }> } };
+  const body = response.json() as {
+    success: boolean;
+    data: { steps: Array<{ name: string; agentId: number | null; instructionPrompt: string }> };
+  };
 
   assert.equal(response.statusCode, 200);
-  assert.equal(body.data.steps[1]!.executor.type, 'CODEX');
+  assert.equal(body.success, true);
+  assert.equal(body.data.steps[1]!.name, '代码开发');
+  assert.equal(body.data.steps[1]!.agentId, 7);
   assert.equal(body.data.steps[1]!.instructionPrompt, '根据设计摘要完成代码实现并记录主要改动。');
   if (savedTemplate === null) {
     throw new Error('Expected template to be saved');
   }
   const persistedTemplate: WorkflowTemplate = savedTemplate;
-  assert.equal(persistedTemplate.steps[1]!.executor.type, 'CODEX');
+  assert.equal(persistedTemplate.steps[1]!.name, '代码开发');
+  assert.equal(persistedTemplate.steps[1]!.agentId, 7);
   assert.equal(persistedTemplate.steps[1]!.instructionPrompt, '根据设计摘要完成代码实现并记录主要改动。');
+});
+
+test.test('PUT /api/workflow-template rejects renamed fixed step names', async () => {
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: {
+      async get() {
+        return buildValidTemplate();
+      },
+      async save(template: WorkflowTemplate) {
+        return template;
+      },
+    } as never,
+  });
+  const app = createFastifyStub(service);
+  await workflowTemplateRoutes(app as never, { service });
+  const payload = buildValidTemplate();
+  payload.steps[1]!.name = '开发实现';
+
+  const response = await app.inject({ method: 'PUT', url: '/', payload });
+  const body = response.json() as { success: boolean; message: string };
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(body.success, false);
+  assert.match(body.message, /Invalid workflow template step names/);
 });

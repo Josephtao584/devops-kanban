@@ -1,15 +1,8 @@
-export interface WorkflowTemplateExecutorInput {
-  type: string;
-  commandOverride: string | null;
-  args: string[];
-  env: Record<string, string>;
-}
-
 export interface WorkflowTemplateStepInput {
   id: string;
   name: string;
   instructionPrompt: string;
-  executor: WorkflowTemplateExecutorInput;
+  agentId: number | null;
 }
 
 export interface UpdateWorkflowTemplateInput {

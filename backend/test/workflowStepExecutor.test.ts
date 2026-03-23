@@ -9,43 +9,28 @@ const sharedState = {
   worktreePath: '/tmp/worktree',
 };
 
-test.test('executeWorkflowStep selects executor from global template for the current step', async () => {
-  const proc: ExecutorProcessHandle = { pid: 123 } as ExecutorProcessHandle;
-  const context: { proc?: ExecutorProcessHandle | null } = {};
-  const templateService = {
+function createStep(agentId: number | null) {
+  return {
+    id: 'requirement-design',
+    name: '需求设计',
+    instructionPrompt: '先完成需求分析和设计拆解。',
+    agentId,
+  };
+}
+
+function createTemplateService(step = createStep(7)) {
+  return {
     async getTemplate() {
       return {
         template_id: 'dev-workflow-v1',
-        steps: [
-          {
-            id: 'requirement-design',
-            name: '需求设计',
-            instructionPrompt: '先完成需求分析和设计拆解。',
-            executor: { type: 'CODEX', commandOverride: null, args: [], env: {} },
-          },
-        ],
+        steps: [step],
       };
     },
   };
-  const registry = {
-    getExecutor(type: keyof ExecutorMap) {
-      assert.equal(type, 'CODEX');
-      return {
-        async execute({ prompt, worktreePath, onSpawn }: ExecutorExecutionInput) {
-          assert.equal(worktreePath, sharedState.worktreePath);
-          assert.match(prompt, /当前步骤：需求设计/);
-          onSpawn?.(proc);
-          const rawResult: ExecutorRawResult = { summary: 'ok' };
-          return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
-        },
-      };
-    },
-  };
+}
 
-  const result = await executeWorkflowStep({
-    templateService: templateService as never,
-    registry: registry as never,
-    context,
+function createInputOverrides() {
+  return {
     stepId: 'requirement-design',
     worktreePath: sharedState.worktreePath,
     state: sharedState,
@@ -56,8 +41,212 @@ test.test('executeWorkflowStep selects executor from global template for the cur
       worktreePath: sharedState.worktreePath,
     },
     upstreamStepIds: [],
+  };
+}
+
+function createAgent(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 7,
+    name: 'Codex Designer',
+    executorType: 'CODEX',
+    commandOverride: 'codex run',
+    args: ['--json'],
+    env: { MODE: 'strict' },
+    skills: ['design'],
+    enabled: true,
+    ...overrides,
+  };
+}
+
+test.test('executeWorkflowStep resolves executor from the bound step agent', async () => {
+  const proc: ExecutorProcessHandle = {
+    kill() {
+      return true;
+    },
+  };
+  const context: { proc?: ExecutorProcessHandle | null } = {};
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent();
+    },
+  };
+  const registry = {
+    getExecutor(type: keyof ExecutorMap) {
+      assert.equal(type, 'CODEX');
+      return {
+        async execute({ prompt, worktreePath, executorConfig, onSpawn }: ExecutorExecutionInput) {
+          assert.equal(worktreePath, sharedState.worktreePath);
+          assert.match(prompt, /当前步骤：需求设计/);
+          assert.deepEqual(executorConfig, {
+            type: 'CODEX',
+            commandOverride: 'codex run',
+            args: ['--json'],
+            env: { MODE: 'strict' },
+            skills: ['design'],
+          });
+          onSpawn?.(proc);
+          const rawResult: ExecutorRawResult = { summary: 'ok' };
+          return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
+        },
+      };
+    },
+  };
+
+  const result = await executeWorkflowStep({
+    templateService: templateService as never,
+    agentRepo: agentRepo as never,
+    registry: registry as never,
+    context,
+    ...createInputOverrides(),
   });
 
   assert.equal(context.proc, proc);
   assert.deepEqual(result, { summary: 'ok' });
+});
+
+test.test('executeWorkflowStep fails when the bound step agent is disabled', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({ enabled: false, name: 'Disabled Codex Designer', commandOverride: null, args: [], env: {}, skills: [] });
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /disabled/
+  );
+});
+
+test.test('executeWorkflowStep fails when the step is unbound', async () => {
+  const templateService = createTemplateService(createStep(null));
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      ...createInputOverrides(),
+    }),
+    /does not have a bound agent/
+  );
+});
+
+test.test('executeWorkflowStep fails when the bound agent record is missing', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return null;
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /missing agent/
+  );
+});
+
+test.test('executeWorkflowStep fails when the persisted agent args config is invalid', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({ name: 'Broken Args Agent', args: ['--json', 1] as never });
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /invalid args configuration/
+  );
+});
+
+test.test('executeWorkflowStep fails when the persisted agent executor type is invalid', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({ name: 'Broken Type Agent', executorType: 'INVALID_EXECUTOR' });
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /unsupported executor type/
+  );
+});
+
+test.test('executeWorkflowStep fails when the persisted agent command override is invalid', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({ name: 'Broken Command Agent', commandOverride: '   ' });
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /invalid command override/
+  );
+});
+
+test.test('executeWorkflowStep fails when the persisted agent env config is invalid', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({ name: 'Broken Env Agent', env: { MODE: 1 } as never });
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /invalid env configuration/
+  );
+});
+
+test.test('executeWorkflowStep fails when the persisted agent skills config is invalid', async () => {
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({ name: 'Broken Skills Agent', skills: ['design', 1] as never });
+    },
+  };
+
+  await assert.rejects(
+    () => executeWorkflowStep({
+      templateService: templateService as never,
+      agentRepo: agentRepo as never,
+      ...createInputOverrides(),
+    }),
+    /invalid skills configuration/
+  );
 });
