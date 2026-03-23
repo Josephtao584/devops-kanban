@@ -15,6 +15,7 @@ import {
   taskSourceRoutes,
   workflowRoutes,
   workflowTemplateRoutes,
+  gitRoutes,
 } from './routes/index.js';
 
 export async function buildApp() {
@@ -65,6 +66,7 @@ export async function buildApp() {
   fastify.register(workflowRoutes, { prefix: '/api/workflows' });
   fastify.register(workflowTemplateRoutes, { prefix: '/api/workflow-template' });
   fastify.register(iterationRoutes, { prefix: '/api/iterations' });
+  fastify.register(gitRoutes, { prefix: '/api/git' });
 
   return fastify;
 }

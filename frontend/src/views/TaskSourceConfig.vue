@@ -407,13 +407,32 @@ const onTypeChange = () => {
   formData.value.config = {}
 }
 
+// Convert git_url (https://github.com/owner/repo.git) to owner/repo format
+const gitUrlToRepo = (gitUrl) => {
+  if (!gitUrl) return ''
+  // Match both https://github.com/owner/repo.git and git@github.com:owner/repo.git
+  const match = gitUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/)
+  if (match) return `${match[1]}/${match[2]}`
+  // If already in owner/repo format, return as-is
+  return gitUrl
+}
+
 const showAddDialog = () => {
   isEditMode.value = false
+
+  // Get current project's git_url and convert to owner/repo format
+  const currentProject = projectStore.projectList.find(p => String(p.id) === selectedProjectId.value)
+  const gitUrl = currentProject?.git_url || ''
+  const defaultRepo = gitUrlToRepo(gitUrl)
+
   formData.value = {
     name: '',
     type: taskSourceStore.availableTypes.length > 0 ? taskSourceStore.availableTypes[0].key : '',
     project_id: selectedProjectId.value,
-    config: {},
+    config: {
+      repo: defaultRepo,
+      state: 'open'
+    },
     enabled: true
   }
   dialogVisible.value = true
