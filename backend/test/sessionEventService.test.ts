@@ -45,11 +45,18 @@ async function createSegment(sessionSegmentService: SessionSegmentService, sessi
   });
 }
 
-test.test('SessionEventService appends monotonic event seq values through the repository contract, requires segment_id, and bootstraps the runtime JSON file', async () => {
+class GuardedSessionEventRepository extends SessionEventRepository {
+  getLastSeq(): Promise<number> {
+    throw new Error('getLastSeq should not be used by service append');
+  }
+}
+
+test.test('SessionEventService delegates monotonic seq allocation to the repository contract and bootstraps the runtime JSON file', async () => {
   const storagePath = await createTempStorageRoot();
   const sessionRepo = new SessionRepository({ storagePath });
   const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
-  const sessionEventRepo = new SessionEventRepository({ storagePath });
+  const sessionEventRepo = new GuardedSessionEventRepository({ storagePath });
+  const verificationEventRepo = new SessionEventRepository({ storagePath });
   const sessionSegmentService = new SessionSegmentService({ sessionRepo, sessionSegmentRepo });
   const service = new SessionEventService({
     sessionRepo,
@@ -59,17 +66,6 @@ test.test('SessionEventService appends monotonic event seq values through the re
 
   const session = await createSession(sessionRepo, 401);
   const segment = await createSegment(sessionSegmentService, session.id);
-
-  await assert.rejects(
-    () => service.appendEvent({
-      session_id: session.id,
-      kind: 'stream_chunk',
-      role: 'assistant',
-      content: 'missing segment',
-      payload: {},
-    } as never),
-    /segment_id is required/,
-  );
 
   const firstEvent = await service.appendEvent({
     session_id: session.id,
@@ -90,7 +86,7 @@ test.test('SessionEventService appends monotonic event seq values through the re
 
   assert.equal(firstEvent.seq, 1);
   assert.equal(secondEvent.seq, 2);
-  assert.equal(await sessionEventRepo.getLastSeq(session.id), 2);
+  assert.equal(await verificationEventRepo.getLastSeq(session.id), 2);
 
   const persisted = JSON.parse(
     await fs.readFile(path.join(storagePath, 'session_events.json'), 'utf-8'),
@@ -115,33 +111,52 @@ test.test('SessionEventService lists events after after_seq exclusively in ascen
   const session = await createSession(sessionRepo, 402);
   const segment = await createSegment(sessionSegmentService, session.id);
 
-  await sessionEventRepo.create({
-    session_id: session.id,
-    segment_id: segment.id,
-    seq: 3,
-    kind: 'stream_chunk',
-    role: 'assistant',
-    content: 'third',
-    payload: { order: 3 },
-  });
-  await sessionEventRepo.create({
-    session_id: session.id,
-    segment_id: segment.id,
-    seq: 1,
-    kind: 'message',
-    role: 'assistant',
-    content: 'first',
-    payload: { order: 1 },
-  });
-  await sessionEventRepo.create({
-    session_id: session.id,
-    segment_id: segment.id,
-    seq: 2,
-    kind: 'status',
-    role: 'system',
-    content: 'second',
-    payload: { order: 2 },
-  });
+  await fs.writeFile(
+    path.join(storagePath, 'session_events.json'),
+    JSON.stringify(
+      [
+        {
+          id: 1,
+          session_id: session.id,
+          segment_id: segment.id,
+          seq: 3,
+          kind: 'stream_chunk',
+          role: 'assistant',
+          content: 'third',
+          payload: { order: 3 },
+          created_at: '2026-03-23T00:00:03.000Z',
+          updated_at: '2026-03-23T00:00:03.000Z',
+        },
+        {
+          id: 2,
+          session_id: session.id,
+          segment_id: segment.id,
+          seq: 1,
+          kind: 'message',
+          role: 'assistant',
+          content: 'first',
+          payload: { order: 1 },
+          created_at: '2026-03-23T00:00:01.000Z',
+          updated_at: '2026-03-23T00:00:01.000Z',
+        },
+        {
+          id: 3,
+          session_id: session.id,
+          segment_id: segment.id,
+          seq: 2,
+          kind: 'status',
+          role: 'system',
+          content: 'second',
+          payload: { order: 2 },
+          created_at: '2026-03-23T00:00:02.000Z',
+          updated_at: '2026-03-23T00:00:02.000Z',
+        },
+      ],
+      null,
+      2,
+    ),
+    'utf-8',
+  );
 
   const events = await service.listEvents(session.id, { afterSeq: 1 });
 

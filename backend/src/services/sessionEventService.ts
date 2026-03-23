@@ -11,7 +11,7 @@ function createNotFoundError(message: string) {
   return Object.assign(new Error(message), { statusCode: 404 });
 }
 
-type AppendSessionEventInput = Omit<SessionEventEntity, 'id' | 'seq'> & { segment_id?: number };
+type AppendSessionEventInput = Omit<SessionEventEntity, 'id' | 'seq'>;
 
 class SessionEventService {
   sessionRepo: SessionRepository;
@@ -38,10 +38,6 @@ class SessionEventService {
       throw createNotFoundError('Session not found');
     }
 
-    if (eventData.segment_id === undefined || eventData.segment_id === null) {
-      throw createValidationError('segment_id is required');
-    }
-
     const segment = await this.sessionSegmentRepo.findById(eventData.segment_id);
     if (!segment) {
       throw createValidationError('Segment not found');
@@ -50,14 +46,7 @@ class SessionEventService {
       throw createValidationError('Segment must belong to the same session');
     }
 
-    const lastSeq = await this.sessionEventRepo.getLastSeq(eventData.session_id);
-    const seq = lastSeq + 1;
-
-    return await this.sessionEventRepo.append({
-      ...eventData,
-      segment_id: eventData.segment_id,
-      seq,
-    });
+    return await this.sessionEventRepo.append(eventData);
   }
 
   async listEvents(sessionId: number, { afterSeq, limit }: { afterSeq?: number; limit?: number } = {}) {
