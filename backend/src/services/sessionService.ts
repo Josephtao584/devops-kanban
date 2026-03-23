@@ -38,6 +38,7 @@ class SessionService {
   sessionEventRepo: SessionEventRepository;
   taskService: TaskService;
   runningProcesses: Map<number, ChildProcess>;
+  stopRequestedSessions: Set<number>;
 
   constructor() {
     this.sessionRepo = new SessionRepository();
@@ -45,6 +46,7 @@ class SessionService {
     this.sessionEventRepo = new SessionEventRepository();
     this.taskService = new TaskService();
     this.runningProcesses = new Map();
+    this.stopRequestedSessions = new Set();
   }
 
   async getAll(filters: { taskId?: number; activeOnly?: boolean } = {}) {
@@ -151,6 +153,8 @@ class SessionService {
       return session;
     }
 
+    this.stopRequestedSessions.delete(sessionId);
+
     const task = await this.taskService.getById(session.task_id) as TaskLike | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -203,6 +207,24 @@ class SessionService {
   _readProcessOutput(sessionId: number, segmentId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
     let pendingEventWrite = Promise.resolve();
 
+    const finalizeSession = async (status: 'COMPLETED' | 'ERROR' | 'STOPPED', completedAt = new Date().toISOString()) => {
+      const finalStatus = this.stopRequestedSessions.has(sessionId) ? 'STOPPED' : status;
+
+      await this.sessionRepo.update(sessionId, {
+        status: finalStatus,
+        completed_at: completedAt,
+      });
+      await this._markSegmentComplete(segmentId, finalStatus, completedAt);
+
+      broadcastFn?.(sessionId, 'status', {
+        type: 'status',
+        status: finalStatus,
+      });
+
+      this.runningProcesses.delete(sessionId);
+      this.stopRequestedSessions.delete(sessionId);
+    };
+
     const appendStreamEvent = (content: string, stream: 'stdout' | 'stderr', role: 'assistant' | 'system') => {
       const trimmed = content.trim();
       if (!trimmed) {
@@ -250,18 +272,7 @@ class SessionService {
       const completedAt = new Date().toISOString();
 
       await pendingEventWrite.catch(() => undefined);
-      await this.sessionRepo.update(sessionId, {
-        status,
-        completed_at: completedAt,
-      });
-      await this._markSegmentComplete(segmentId, status, completedAt);
-
-      broadcastFn?.(sessionId, 'status', {
-        type: 'status',
-        status,
-      });
-
-      this.runningProcesses.delete(sessionId);
+      await finalizeSession(status, completedAt);
     });
 
     proc.on('error', async (error) => {
@@ -280,8 +291,7 @@ class SessionService {
         });
 
       await pendingEventWrite.catch(() => undefined);
-      await this.sessionRepo.update(sessionId, { status: 'ERROR', completed_at: timestamp });
-      await this._markSegmentComplete(segmentId, 'ERROR', timestamp);
+      await finalizeSession('ERROR', timestamp);
 
       broadcastFn?.(sessionId, 'output', {
         type: 'chunk',
@@ -289,7 +299,6 @@ class SessionService {
         stream: 'stderr',
         timestamp,
       });
-      this.runningProcesses.delete(sessionId);
     });
   }
 
@@ -304,6 +313,8 @@ class SessionService {
     if (session.status !== 'RUNNING' && session.status !== 'IDLE') {
       return session;
     }
+
+    this.stopRequestedSessions.add(sessionId);
 
     const proc = this.runningProcesses.get(sessionId);
     if (proc) {

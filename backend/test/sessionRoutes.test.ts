@@ -77,7 +77,7 @@ async function buildApp(service: Record<string, unknown>) {
   return app;
 }
 
-test.test('GET /sessions/:id/events returns the planned event envelope and maps after_seq query to service options', async () => {
+test.test('GET /sessions/:id/events returns the standard success envelope and maps after_seq query to service options', async () => {
   const { service, calls, events } = buildSessionServiceStub();
   const app = await buildApp(service);
 
@@ -90,11 +90,13 @@ test.test('GET /sessions/:id/events returns the planned event envelope and maps 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
     success: true,
+    message: 'Success',
     data: {
       events,
       last_seq: 4,
       has_more: false,
     },
+    error: null,
   });
   assert.deepEqual(calls.listEvents, [{ sessionId: 7, options: { afterSeq: 3, limit: 25 } }]);
 
