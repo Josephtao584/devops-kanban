@@ -753,19 +753,21 @@ test.test('executeWorkflow finalizes the active step session when the stream thr
 });
 
 
-test.test('executeWorkflow preserves CANCELLED when the killed stream throws after user cancellation', async () => {
+test.test('executeWorkflow preserves CANCELLED when stream.result resolves success after user cancellation', async () => {
   const harness = createExecuteWorkflowHarness();
-  const streamFailure = new Error('Stream exploded after cancel');
-  let releaseStreamThrow: (() => void) | null = null;
+  let releaseResult: (() => void) | null = null;
   let resolveStepStarted: (() => void) | null = null;
   const stepStarted = new Promise<void>((resolve) => {
     resolveStepStarted = resolve;
+  });
+  const resultResolved = new Promise<void>((resolve) => {
+    releaseResult = resolve;
   });
 
   (harness.service as WorkflowService & {
     _createWorkflowStream: () => Promise<{
       fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
-      result: Promise<{ status: string }>;
+      result: Promise<{ status: string; result: Record<string, unknown> }>;
     }>;
   })._createWorkflowStream = async () => ({
     fullStream: (async function* () {
@@ -774,12 +776,11 @@ test.test('executeWorkflow preserves CANCELLED when the killed stream throws aft
         payload: { stepName: 'requirement-design' },
       };
       resolveStepStarted?.();
-      await new Promise<void>((resolve) => {
-        releaseStreamThrow = resolve;
-      });
-      throw streamFailure;
     })(),
-    result: Promise.resolve({ status: 'success' }),
+    result: (async () => {
+      await resultResolved;
+      return { status: 'success', result: { summary: 'ignored after cancel' } };
+    })(),
   });
 
   const executionPromise = (harness.service as WorkflowService & {
@@ -788,7 +789,7 @@ test.test('executeWorkflow preserves CANCELLED when the killed stream throws aft
 
   await stepStarted;
   await harness.service.cancelWorkflow(7);
-  releaseStreamThrow?.();
+  releaseResult?.();
   await executionPromise;
 
   assert.equal(harness.run.status, 'CANCELLED');

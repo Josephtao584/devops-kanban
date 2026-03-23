@@ -496,6 +496,9 @@ class WorkflowService {
 
       const result = await stream.result;
       if (result.status === 'success') {
+        if (await this._isWorkflowRunCancelled(runId)) {
+          return;
+        }
         await this.workflowRunRepo.update(runId, {
           status: 'COMPLETED',
           context: result.result || {},
