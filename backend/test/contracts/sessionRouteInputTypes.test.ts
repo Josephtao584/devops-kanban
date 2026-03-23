@@ -11,7 +11,7 @@ import type {
 } from '../../src/types/entities.ts';
 import type { BroadcastPayload, SessionChannel, WebSocketPayload } from '../../src/types/ws/sessions.ts';
 
-test.test('session shared boundary types accept event-based assignments', () => {
+test.test('session shared boundary types accept canonical event-based assignments', () => {
   const createInput: CreateSessionInput = { task_id: 1, initial_prompt: 'continue' };
   const continueBody: ContinueSessionBody = { input: 'fix tests' };
   const session: SessionEntity = {
@@ -28,8 +28,18 @@ test.test('session shared boundary types accept event-based assignments', () => 
   const segment: SessionSegmentEntity = {
     id: 2,
     session_id: 1,
-    segment_type: 'assistant',
-    sequence: 1,
+    segment_index: 1,
+    status: 'RUNNING',
+    executor_type: 'claude_code',
+    agent_id: 7,
+    provider_session_id: null,
+    resume_token: null,
+    checkpoint_ref: null,
+    trigger_type: 'START',
+    parent_segment_id: null,
+    started_at: '2026-03-23T00:00:00.000Z',
+    completed_at: null,
+    metadata: { source: 'workflow-step' },
     created_at: '2026-03-23T00:00:00.000Z',
     updated_at: '2026-03-23T00:00:00.000Z',
   };
@@ -37,14 +47,26 @@ test.test('session shared boundary types accept event-based assignments', () => 
     id: 3,
     session_id: 1,
     segment_id: 2,
-    event_type: 'output.chunk',
-    sequence: 1,
-    payload: { content: 'hello' },
+    seq: 1,
+    kind: 'stream_chunk',
+    role: 'assistant',
+    content: 'hello',
+    payload: { stream: 'stdout' },
     created_at: '2026-03-23T00:00:00.000Z',
     updated_at: '2026-03-23T00:00:00.000Z',
   };
-  const listQuery: ListSessionEventsQuery = { segment_id: '2', limit: '50', after: '1' };
-  const listItem: SessionEventListItem = sessionEvent;
+  const listQuery: ListSessionEventsQuery = { after_seq: '1', limit: '50' };
+  const listItem: SessionEventListItem = {
+    id: 3,
+    session_id: 1,
+    segment_id: 2,
+    seq: 1,
+    kind: 'stream_chunk',
+    role: 'assistant',
+    content: 'hello',
+    payload: { stream: 'stdout' },
+    created_at: '2026-03-23T00:00:00.000Z',
+  };
   const step: WorkflowStepEntity = {
     step_id: 'design',
     name: 'Design',
@@ -52,7 +74,6 @@ test.test('session shared boundary types accept event-based assignments', () => 
     started_at: null,
     completed_at: null,
     retry_count: 0,
-    output: null,
     error: null,
     session_id: 1,
     summary: null,
@@ -65,10 +86,17 @@ test.test('session shared boundary types accept event-based assignments', () => 
   assert.equal(continueBody.input, 'fix tests');
   assert.equal(sessionListItem.task_id, 10);
   assert.equal('output' in session, false);
-  assert.equal(segment.segment_type, 'assistant');
-  assert.equal(sessionEvent.event_type, 'output.chunk');
-  assert.equal(listQuery.after, '1');
+  assert.equal(segment.segment_index, 1);
+  assert.equal(segment.trigger_type, 'START');
+  assert.equal('segment_type' in segment, false);
+  assert.equal(sessionEvent.kind, 'stream_chunk');
+  assert.equal(sessionEvent.seq, 1);
+  assert.equal('event_type' in sessionEvent, false);
+  assert.equal('sequence' in sessionEvent, false);
+  assert.equal(listQuery.after_seq, '1');
+  assert.equal('after' in listQuery, false);
   assert.equal(listItem.segment_id, 2);
+  assert.equal(listItem.created_at, '2026-03-23T00:00:00.000Z');
   assert.equal(step.session_id, 1);
   assert.equal(step.summary, null);
   assert.equal(payload.channel, 'output');

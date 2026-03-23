@@ -36,22 +36,34 @@ export interface SessionEntity {
 export interface SessionSegmentEntity {
   id: number;
   session_id: number;
-  segment_type: string;
-  sequence: number;
-  created_at: string;
-  updated_at: string;
+  segment_index: number;
+  status: string;
+  executor_type: string;
+  agent_id: number | null;
+  provider_session_id?: string | null;
+  resume_token?: string | null;
+  checkpoint_ref?: string | null;
+  trigger_type: 'START' | 'CONTINUE' | 'RESUME' | 'RETRY';
+  parent_segment_id?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
   [key: string]: unknown;
 }
 
 export interface SessionEventEntity {
   id: number;
   session_id: number;
-  segment_id?: number | null;
-  event_type: string;
-  sequence: number;
-  payload?: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
+  segment_id: number;
+  seq: number;
+  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+  role: 'assistant' | 'system' | 'tool' | 'user';
+  content: string;
+  payload: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
   [key: string]: unknown;
 }
 
@@ -62,7 +74,6 @@ export interface WorkflowStepEntity {
   started_at: string | null;
   completed_at: string | null;
   retry_count: number;
-  output: unknown;
   error: string | null;
   session_id?: number | null;
   summary?: string | null;

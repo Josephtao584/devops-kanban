@@ -1,9 +1,16 @@
-import type { SessionEventEntity } from '../entities.ts';
-
 export interface ListSessionEventsQuery {
-  segment_id?: string;
+  after_seq?: string;
   limit?: string;
-  after?: string;
 }
 
-export type SessionEventListItem = SessionEventEntity;
+export interface SessionEventListItem {
+  id: number;
+  session_id: number;
+  segment_id: number;
+  seq: number;
+  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+  role: 'assistant' | 'system' | 'tool' | 'user';
+  content: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
