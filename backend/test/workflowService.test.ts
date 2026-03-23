@@ -620,6 +620,8 @@ test.test('workflow step completion and failure persist only summary and error s
   assert.equal(completionHarness.run.steps[0]?.summary, 'Step completed');
   assert.equal(completionHarness.run.steps[0]?.error, null);
   assert.equal('output' in (completionHarness.run.steps[0] ?? {}), false);
+  assert.equal(completionHarness.sessionUpdates[0]?.sessionId, 101);
+  assert.equal(completionHarness.sessionUpdates[0]?.updateData.status, 'COMPLETED');
   assert.equal(completionHarness.segmentUpdates[0]?.segmentId, 201);
   assert.equal(completionHarness.segmentUpdates[0]?.updateData.status, 'COMPLETED');
 
@@ -636,8 +638,10 @@ test.test('workflow step completion and failure persist only summary and error s
   assert.equal(failureHarness.run.steps[0]?.status, 'FAILED');
   assert.equal(failureHarness.run.steps[0]?.summary, null);
   assert.equal(failureHarness.run.steps[0]?.error, 'Step failed hard');
+  assert.equal(failureHarness.sessionUpdates[0]?.sessionId, 101);
+  assert.equal(failureHarness.sessionUpdates[0]?.updateData.status, 'FAILED');
   assert.equal(failureHarness.segmentUpdates[0]?.segmentId, 201);
-  assert.equal(failureHarness.segmentUpdates[0]?.updateData.status, 'ERROR');
+  assert.equal(failureHarness.segmentUpdates[0]?.updateData.status, 'FAILED');
 });
 
 test.test('cancelWorkflow terminates the active process', async () => {

@@ -400,13 +400,13 @@ class WorkflowService {
 
     if (step.session_id) {
       await this.sessionRepo.update(step.session_id, {
-        status: 'ERROR',
+        status: 'FAILED',
         completed_at: completedAt,
       });
       const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
       if (latestSegment?.status === 'RUNNING') {
         await this.sessionSegmentRepo.update(latestSegment.id, {
-          status: 'ERROR',
+          status: 'FAILED',
           completed_at: completedAt,
         });
       }
