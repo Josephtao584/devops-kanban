@@ -1,21 +1,30 @@
 import crossSpawn from 'cross-spawn';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
+import type { ExecutorConfig, ExecutorProcessHandle } from '../../../types/executors.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
+
+type ClaudeRuntimeExecutorConfig = Pick<ExecutorConfig, 'commandOverride' | 'args' | 'env'>;
+
+type ClaudeSpawnExecution = {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  commandSummary: string;
+  cwd: string;
+  prompt: string;
+  proc: ExecutorProcessHandle | null;
+};
 
 function buildClaudeCliArgs(prompt: string) {
   return ['-p', prompt, '--dangerously-skip-permissions'];
 }
 
-function buildClaudeSpawnCommand(executorConfig = {}, processEnv = process.env) {
+function buildClaudeSpawnCommand(executorConfig: ClaudeRuntimeExecutorConfig = {}, processEnv = process.env) {
   return resolveCommand({
     defaultCommand: CLAUDE_DEFAULT_COMMAND,
-    executorConfig: executorConfig as {
-      commandOverride?: string | null;
-      args?: string[];
-      env?: Record<string, string>;
-    },
+    executorConfig,
     processEnv,
   });
 }
@@ -28,6 +37,25 @@ function summarizeCommand(command: string, args: string[]) {
   return [command, ...args].map((arg) => JSON.stringify(arg)).join(' ');
 }
 
+function toExecutorProcessHandle(proc: unknown): ExecutorProcessHandle {
+  if (typeof proc !== 'object' || proc === null) {
+    return {};
+  }
+
+  const handle: ExecutorProcessHandle = {};
+  const pid = Reflect.get(proc, 'pid');
+  if (typeof pid === 'number') {
+    handle.pid = pid;
+  }
+
+  const kill = Reflect.get(proc, 'kill');
+  if (typeof kill === 'function') {
+    handle.kill = (signal) => Reflect.apply(kill, proc, [signal]) as boolean;
+  }
+
+  return handle;
+}
+
 async function defaultSpawnImpl({
   worktreePath,
   prompt,
@@ -36,49 +64,40 @@ async function defaultSpawnImpl({
 }: {
   worktreePath: string;
   prompt: string;
-  onSpawn?: ((proc: unknown) => void) | undefined;
-  executorConfig?: unknown;
+  onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
+  executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
 }) {
   const cliArgs = buildClaudeCliArgs(prompt);
-  const resolved = buildClaudeSpawnCommand(executorConfig as Record<string, unknown>);
+  const resolved = buildClaudeSpawnCommand(executorConfig);
   const spawnCommand = resolved.command || 'npx';
   const commandArgs = [...resolved.args, ...cliArgs];
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
   const spawnImpl = await resolveCrossSpawn();
 
-  return await new Promise<{
-    exitCode: number | null;
-    stdout: string;
-    stderr: string;
-    commandSummary: string;
-    cwd: string;
-    prompt: string;
-    proc: unknown;
-  }>((resolve, reject) => {
-    const proc = spawnImpl(spawnCommand, commandArgs, {
+  return await new Promise<ClaudeSpawnExecution>((resolve, reject) => {
+    const spawnedProc = spawnImpl(spawnCommand, commandArgs, {
       cwd: worktreePath,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: resolved.env,
       shell: false,
     });
+    const proc = toExecutorProcessHandle(spawnedProc);
 
-    if (onSpawn) {
-      onSpawn(proc);
-    }
+    onSpawn?.(proc);
 
     let stdout = '';
     let stderr = '';
 
-    proc.stdout?.on('data', (data: Buffer | string) => {
+    spawnedProc.stdout?.on('data', (data: Buffer | string) => {
       stdout += data.toString();
     });
 
-    proc.stderr?.on('data', (data: Buffer | string) => {
+    spawnedProc.stderr?.on('data', (data: Buffer | string) => {
       stderr += data.toString();
     });
 
-    proc.on('error', reject);
-    proc.on('close', async (exitCode: number | null) => {
+    spawnedProc.on('error', reject);
+    spawnedProc.on('close', async (exitCode: number | null) => {
       resolve({
         exitCode,
         stdout,
@@ -116,8 +135,8 @@ class ClaudeStepRunner {
   }: {
     prompt: string;
     worktreePath: string;
-    executorConfig?: unknown;
-    onSpawn?: ((proc: unknown) => void) | undefined;
+    executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
+    onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,

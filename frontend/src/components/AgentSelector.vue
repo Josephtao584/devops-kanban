@@ -28,11 +28,11 @@
         @click="selectedAgentId = agent.id"
       >
         <el-icon :size="28" class="agent-icon">
-          <component :is="getAgentIcon(agent.type)" />
+          <component :is="getAgentIcon(agent.executorType)" />
         </el-icon>
         <div class="agent-info">
           <span class="agent-name">{{ agent.name }}</span>
-          <span class="agent-type">{{ formatAgentType(agent.type) }}</span>
+          <span class="agent-type">{{ formatExecutorTypeLabel(agent.executorType) }}</span>
         </div>
         <el-icon v-if="selectedAgentId === agent.id" class="check-icon" color="#67c23a">
           <Check />
@@ -71,6 +71,19 @@ import {
 import { getAgents } from '../api/agent'
 
 const { t } = useI18n()
+
+const getApiData = (response, fallbackMessageKey) => {
+  if (!response?.success) {
+    throw new Error(response?.message || t(fallbackMessageKey))
+  }
+
+  return response?.data
+}
+
+const formatExecutorTypeLabel = (executorType) => {
+  if (!executorType) return t('common.none')
+  return t(`agent.types.${executorType}`)
+}
 
 const props = defineProps({
   modelValue: {
@@ -111,35 +124,30 @@ const loadAgents = async () => {
   try {
     const response = await getAgents()
     console.log('[AgentSelector] getAgents response:', response)
-    // Backend returns ApiResponse { success, data, message }
-    agents.value = Array.isArray(response) ? response : (response.data || [])
+    const loadedAgents = getApiData(response, 'agent.loadFailed')
+    agents.value = Array.isArray(loadedAgents) ? loadedAgents : []
     console.log('[AgentSelector] agents.value:', agents.value)
     // Auto-select first agent if only one available
     if (agents.value.length === 1) {
       selectedAgentId.value = agents.value[0].id
     }
   } catch (e) {
+    agents.value = []
     console.error('[AgentSelector] Failed to load agents:', e)
-    ElMessage.error('Failed to load agents')
+    ElMessage.error(e?.message || t('agent.loadFailed'))
   } finally {
     loading.value = false
   }
 }
 
-const getAgentIcon = (type) => {
+const getAgentIcon = (executorType) => {
   const icons = {
     CLAUDE_CODE: Monitor,
     CODEX: Cpu,
-    LOCAL: Connection,
+    OPENCODE: Connection,
     DEFAULT: User
   }
-  return icons[type] || icons.DEFAULT
-}
-
-const formatAgentType = (type) => {
-  if (!type) return 'Unknown'
-  return type.replace(/_/g, ' ').toLowerCase()
-    .replace(/\b\w/g, l => l.toUpperCase())
+  return icons[executorType] || icons.DEFAULT
 }
 
 const confirmSelect = () => {

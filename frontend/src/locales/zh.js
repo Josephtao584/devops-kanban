@@ -215,7 +215,8 @@ export default {
   },
   workflowTemplate: {
     title: '工作流模板',
-    description: '配置全局固定工作流中每个步骤使用的角色和提示词。',
+    description: '配置全局固定工作流中每个步骤使用的执行器和提示词。',
+    templateId: '模板 ID',
     name: '模板名称',
     stepName: '步骤名称',
     stepId: '步骤 ID',
@@ -224,8 +225,12 @@ export default {
     instructionPromptHint: '输入当前步骤的专属执行提示词',
     retry: '重试',
     loadFailed: '加载工作流模板失败',
+    loadAgentsFailed: '加载成员失败',
     saveSuccess: '工作流模板已保存',
-    saveFailed: '保存工作流模板失败'
+    saveFailed: '保存工作流模板失败',
+    missingAgent: '缺失成员 (#{id})',
+    disabled: '已禁用',
+    agentFallbackName: '成员 #{id}'
   },
   agent: {
     title: '我的团队',
@@ -245,10 +250,21 @@ export default {
     loading: '加载中...',
     noAgents: '暂无成员',
     pleaseConfigure: '请先添加团队成员',
+    loadFailed: '加载成员失败',
     startSession: '开始会话',
+    commandOverride: '命令覆盖',
+    commandOverridePlaceholder: '留空则使用默认命令',
+    args: '命令参数',
+    argsPlaceholder: '使用逗号分隔参数，例如 --json, --verbose',
+    env: '环境变量',
+    envKeyPlaceholder: '变量名',
+    envValuePlaceholder: '变量值',
+    addEnv: '添加环境变量',
     types: {
       CLAUDE: 'Claude Code',
+      CLAUDE_CODE: 'Claude Code',
       CODEX: 'OpenAI Codex',
+      OPENCODE: 'OpenCode',
       CURSOR: 'Cursor',
       GEMINI: 'Gemini',
       CUSTOM: '自定义'

@@ -2,7 +2,7 @@
   {
     "id": 1,
     "name": "架构师 - 老王",
-    "type": "CLAUDE",
+    "executorType": "CLAUDE_CODE",
     "role": "ARCHITECT",
     "description": "系统架构设计专家",
     "enabled": true,
@@ -12,13 +12,16 @@
       "架构评估",
       "微服务设计"
     ],
+    "commandOverride": null,
+    "args": [],
+    "env": {},
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-17T07:28:59.857211"
   },
   {
     "id": 2,
     "name": "后端开发 - 小李",
-    "type": "CODEX",
+    "executorType": "CODEX",
     "role": "BACKEND_DEV",
     "description": "后端开发专家",
     "enabled": true,
@@ -28,13 +31,16 @@
       "RESTful API",
       "数据库设计"
     ],
+    "commandOverride": null,
+    "args": [],
+    "env": {},
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-17T00:00:00"
   },
   {
     "id": 3,
     "name": "前端开发 - 小张",
-    "type": "CURSOR",
+    "executorType": "OPENCODE",
     "role": "FRONTEND_DEV",
     "description": "前端开发专家",
     "enabled": true,
@@ -44,13 +50,16 @@
       "TypeScript",
       "CSS/SCSS"
     ],
+    "commandOverride": null,
+    "args": [],
+    "env": {},
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-17T00:00:00"
   },
   {
     "id": 4,
     "name": "测试工程师 - 小赵",
-    "type": "CUSTOM",
+    "executorType": "CLAUDE_CODE",
     "role": "QA_ENGINEER",
     "description": "测试工程师",
     "enabled": true,
@@ -60,6 +69,9 @@
       "自动化测试",
       "性能测试"
     ],
+    "commandOverride": null,
+    "args": [],
+    "env": {},
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-17T00:00:00"
   }

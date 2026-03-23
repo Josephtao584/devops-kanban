@@ -5,46 +5,26 @@
     {
       "id": "requirement-design",
       "name": "需求设计",
-      "instructionPrompt": "先完成需求分析，整理实现思路、关键约束和交付方案。将需求设计实现文档写入到docs文件夹中",
-      "executor": {
-        "type": "CLAUDE_CODE",
-        "commandOverride": null,
-        "args": [],
-        "env": {}
-      }
+      "instructionPrompt": "先完成需求分析，整理实现思路、关键约束和交付方案。",
+      "agentId": null
     },
     {
       "id": "code-development",
       "name": "代码开发",
-      "instructionPrompt": "根据上游步骤摘要和需求设计文档完成代码实现，保持改动聚焦，并总结主要修改结果。",
-      "executor": {
-        "type": "CLAUDE_CODE",
-        "commandOverride": null,
-        "args": [],
-        "env": {}
-      }
+      "instructionPrompt": "根据上游步骤摘要完成代码实现，保持改动聚焦，并总结主要修改结果。",
+      "agentId": null
     },
     {
       "id": "testing",
       "name": "测试",
       "instructionPrompt": "根据上游步骤摘要执行必要验证，说明测试结果、发现的问题和结论。",
-      "executor": {
-        "type": "CLAUDE_CODE",
-        "commandOverride": null,
-        "args": [],
-        "env": {}
-      }
+      "agentId": null
     },
     {
       "id": "code-review",
       "name": "代码审查",
       "instructionPrompt": "根据上游步骤摘要完成代码审查，说明主要风险、问题和审查结论。",
-      "executor": {
-        "type": "CLAUDE_CODE",
-        "commandOverride": null,
-        "args": [],
-        "env": {}
-      }
+      "agentId": null
     }
   ]
 }

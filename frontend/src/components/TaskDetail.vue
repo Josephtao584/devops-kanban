@@ -110,7 +110,7 @@
             <el-option
               v-for="agent in agents"
               :key="agent.id"
-              :label="`${agent.name} (${agent.type})`"
+              :label="`${agent.name} (${formatExecutorTypeLabel(agent)})`"
               :value="agent.id"
             />
           </el-select>
@@ -223,6 +223,23 @@ import { useToast } from '../composables/ui/useToast'
 const { t } = useI18n()
 const toast = useToast()
 
+const getApiData = (response, fallbackMessageKey) => {
+  if (!response?.success) {
+    throw new Error(response?.message || t(fallbackMessageKey))
+  }
+
+  return response?.data
+}
+
+const formatExecutorTypeLabel = (agent) => {
+  const executorType = agent?.executorType || agent?.type
+  if (!executorType) {
+    return t('common.none')
+  }
+
+  return t(`agent.types.${executorType}`)
+}
+
 const props = defineProps({
   task: {
     type: Object,
@@ -275,14 +292,16 @@ const loadSessionForTask = async (task) => {
   console.log('[TaskDetail] loadSessionForTask, task:', task.id)
   try {
     const response = await getAgents()
-    agents.value = response.data || []
+    const loadedAgents = getApiData(response, 'agent.loadFailed')
+    agents.value = Array.isArray(loadedAgents) ? loadedAgents : []
     console.log('[TaskDetail] Loaded agents:', agents.value.length)
 
     const sessionResponse = await getActiveSessionByTask(task.id)
-    console.log('[TaskDetail] Active session response:', sessionResponse.data ? sessionResponse.data.id : null)
-    if (sessionResponse.data) {
-      localSession.value = sessionResponse.data
-      selectedAgentId.value = sessionResponse.data.agentId
+    const activeSession = getApiData(sessionResponse, 'common.error')
+    console.log('[TaskDetail] Active session response:', activeSession ? activeSession.id : null)
+    if (activeSession) {
+      localSession.value = activeSession
+      selectedAgentId.value = activeSession.agentId
     } else if (agents.value.length > 0) {
       selectedAgentId.value = agents.value[0].id
       await createNewSession()
@@ -291,6 +310,9 @@ const loadSessionForTask = async (task) => {
     loadSessionHistory()
     loadGitStatus()
   } catch (e) {
+    agents.value = []
+    localSession.value = null
+    selectedAgentId.value = null
     console.error('Failed to load agents:', e)
   }
 }

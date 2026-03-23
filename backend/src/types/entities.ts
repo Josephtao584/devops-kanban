@@ -63,12 +63,7 @@ export interface WorkflowTemplateEntity {
     id: string;
     name: string;
     instructionPrompt: string;
-    executor: {
-      type: string;
-      commandOverride?: string | null;
-      args?: string[];
-      env?: Record<string, string>;
-    };
+    agentId: number | null;
   }>;
 }
 
