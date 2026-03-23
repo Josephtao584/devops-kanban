@@ -1,3 +1,5 @@
+import type { ExecutorType } from './executors.ts';
+
 export interface ProjectEntity {
   id: number;
   name: string;
@@ -29,7 +31,7 @@ export interface SessionEntity {
   branch?: string | null;
   initial_prompt?: string | null;
   agent_id?: number | null;
-  executor_type?: string | null;
+  executor_type?: ExecutorType | null;
   started_at?: string | null;
   completed_at?: string | null;
   created_at?: string;
@@ -41,7 +43,7 @@ export interface SessionSegmentEntity {
   session_id: number;
   segment_index: number;
   status: string;
-  executor_type: string;
+  executor_type: ExecutorType;
   agent_id: number | null;
   provider_session_id?: string | null;
   resume_token?: string | null;
