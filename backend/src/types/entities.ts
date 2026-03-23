@@ -28,9 +28,12 @@ export interface SessionEntity {
   worktree_path?: string | null;
   branch?: string | null;
   initial_prompt?: string | null;
+  agent_id?: number | null;
+  executor_type?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   created_at?: string;
   updated_at?: string;
-  [key: string]: unknown;
 }
 
 export interface SessionSegmentEntity {
@@ -50,7 +53,6 @@ export interface SessionSegmentEntity {
   metadata?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
-  [key: string]: unknown;
 }
 
 export interface SessionEventEntity {
@@ -64,8 +66,8 @@ export interface SessionEventEntity {
   payload: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
-  [key: string]: unknown;
 }
+
 
 export interface WorkflowStepEntity {
   step_id: string;
