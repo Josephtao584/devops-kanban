@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workflow Step Session Design Draft</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111827;
+      --panel2: #1f2937;
+      --line: #334155;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --blue: #38bdf8;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #020617, #0f172a);
+    }
+    .page { max-width: 1360px; margin: 0 auto; padding: 28px 22px 56px; }
+    .hero, .section {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.88);
+      padding: 22px;
+      margin-bottom: 22px;
+    }
+    h1, h2, h3, p { margin: 0; }
+    .hero h1 { font-size: 30px; margin-bottom: 8px; }
+    .hero p, .desc, .small, li { color: var(--muted); }
+    .desc { margin: 8px 0 18px; }
+    .tags { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .tag {
+      border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px;
+      background: rgba(30, 41, 59, 0.88); color: var(--muted);
+    }
+    .grid { display:grid; gap:16px; }
+    .grid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      border:1px solid var(--line); border-radius:14px; padding:16px;
+      background: linear-gradient(180deg, rgba(30,41,59,.9), rgba(17,24,39,.96));
+    }
+    .card h3 { margin-bottom:8px; font-size:17px; }
+    .card ul { margin:8px 0 0 18px; padding:0; }
+    .diagram {
+      border:1px dashed var(--line); border-radius:16px; padding:18px; background: rgba(2, 6, 23, 0.42);
+    }
+    .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .node {
+      min-width: 200px; padding: 14px 16px; border-radius: 14px; border:1px solid var(--line);
+      background: rgba(30, 41, 59, 0.95);
+    }
+    .node strong { display:block; margin-bottom:4px; }
+    .node span { display:block; color: var(--muted); font-size:13px; }
+    .node.blue { border-color: rgba(56, 189, 248, .55); }
+    .node.green { border-color: rgba(34, 197, 94, .55); }
+    .node.amber { border-color: rgba(245, 158, 11, .55); }
+    .arrow { color: var(--blue); font-size: 26px; }
+    table {
+      width:100%; border-collapse: collapse; overflow: hidden; border-radius: 14px;
+      border:1px solid var(--line); background: rgba(15, 23, 42, 0.92);
+    }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align:left; vertical-align: top; }
+    th { background: rgba(30, 41, 59, 0.9); color: white; font-size: 14px; }
+    td { color: var(--muted); font-size: 14px; }
+    .good { color: #86efac; }
+    .bad { color: #fca5a5; }
+    .mid { color: #fde68a; }
+    .timeline {
+      display:grid; grid-template-columns: 210px 1fr; gap: 16px;
+    }
+    .steps, .panel { border:1px solid var(--line); border-radius:14px; padding:16px; background: rgba(15, 23, 42, 0.92); }
+    .step { padding:10px 12px; border-radius:10px; margin-bottom:10px; background: rgba(30, 41, 59, 0.9); color: var(--muted); border:1px solid transparent; }
+    .step.active { color:white; border-color: rgba(56, 189, 248, .55); }
+    .chat { display:flex; flex-direction:column; gap:12px; }
+    .bubble { max-width: 78%; padding: 12px 14px; border:1px solid var(--line); border-radius: 14px; font-size:14px; }
+    .bubble.system { align-self:center; background: rgba(8,47,73,.72); color:#bae6fd; }
+    .bubble.assistant { align-self:flex-start; background: rgba(30,41,59,.95); }
+    .bubble.tool { align-self:flex-start; background: rgba(20,83,45,.52); color:#dcfce7; }
+    .bubble.error { align-self:flex-start; background: rgba(127,29,29,.52); color:#fecaca; }
+    .small { font-size: 13px; margin-top: 12px; }
+    .em { color: var(--blue); font-weight: 600; }
+    .warn-box {
+      margin-top: 14px; padding: 14px 16px; border-radius: 12px; border:1px solid rgba(245, 158, 11, .4);
+      background: rgba(120, 53, 15, 0.22); color: #fde68a;
+    }
+    @media (max-width: 980px) {
+      .grid.c2, .grid.c3, .timeline { grid-template-columns: 1fr; }
+      .row { flex-direction: column; align-items: stretch; }
+      .arrow { transform: rotate(90deg); text-align:center; }
+      .bubble { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="hero">
+      <h1>Workflow Step Session Design Draft</h1>
+      <p>修正版：<span class="em">session 这个概念保留</span>，但要把 session 内字段做纯化。核心不是否定 session，而是避免一个 session record 同时混入 owner 绑定、编排状态、执行配置快照、传输语义等多种职责。</p>
+      <div class="tags">
+        <div class="tag">Keep Session</div>
+        <div class="tag">No WebSocket in V1</div>
+        <div class="tag">Polling Incremental Read</div>
+        <div class="tag">Pure Session Fields</div>
+        <div class="tag">Workflow Step as Session Owner</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>1. 修正后的核心观点</h2>
+      <p class="desc">session 没问题，问题是 <b>session 表里塞了太多不属于 session 本体的字段</b>。所以需要做“会话本体”和“归属/编排/视图投影”分离。</p>
+      <div class="diagram">
+        <div class="row">
+          <div class="node blue">
+            <strong>Session</strong>
+            <span>一次独立 agent 会话</span>
+            <span>负责：身份、状态、基础上下文</span>
+          </div>
+          <div class="arrow">+</div>
+          <div class="node green">
+            <strong>SessionEvent</strong>
+            <span>消息 / tool / stdout / stderr / status</span>
+            <span>append-only 历史</span>
+          </div>
+          <div class="arrow">+</div>
+          <div class="node amber">
+            <strong>SessionOwner / Projection</strong>
+            <span>谁拥有它、在哪展示、如何轮询</span>
+            <span>这些不进 session 本体</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>2. 什么叫“不纯”</h2>
+      <p class="desc">不纯不是 session 这个词不对，而是一个实体混了多个层次的职责。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>字段类别</th>
+            <th>是否应该进 session</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="good">session 自身身份</span><br/>id / status / created_at / updated_at</td>
+            <td class="good">应该</td>
+            <td>这是会话本体属性</td>
+          </tr>
+          <tr>
+            <td><span class="good">执行上下文</span><br/>agent_id / executor_type / worktree_path / branch / initial_prompt</td>
+            <td class="good">应该</td>
+            <td>这是会话运行所需的基础上下文</td>
+          </tr>
+          <tr>
+            <td><span class="mid">owner 归属</span><br/>workflow_step_id / workflow_run_id / task_id</td>
+            <td class="mid">谨慎</td>
+            <td>可以有，但最好是关联层或 owner 映射，不要把 session 变成 orchestration 总表</td>
+          </tr>
+          <tr>
+            <td><span class="bad">编排投影</span><br/>current_step / workflow summary / ui selection</td>
+            <td class="bad">不应该</td>
+            <td>这是 workflow 或 view model 的职责</td>
+          </tr>
+          <tr>
+            <td><span class="bad">传输语义</span><br/>websocket channel / polling cursor</td>
+            <td class="bad">不应该</td>
+            <td>这是读取协议/应用层职责，不属于领域会话</td>
+          </tr>
+          <tr>
+            <td><span class="bad">大块历史输出</span><br/>完整 output string 作为唯一真相</td>
+            <td class="bad">不应该</td>
+            <td>历史应由 event log 主导，output 只能做兼容快照或摘要</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>3. 推荐的纯化拆分</h2>
+      <p class="desc">核心思路：session 保留，但拆掉多余职责。</p>
+      <div class="grid c3">
+        <div class="card">
+          <h3>sessions</h3>
+          <ul>
+            <li>id</li>
+            <li>status</li>
+            <li>agent_id</li>
+            <li>executor_type</li>
+            <li>worktree_path</li>
+            <li>branch</li>
+            <li>initial_prompt</li>
+            <li>started_at / completed_at</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>session_events</h3>
+          <ul>
+            <li>session_id</li>
+            <li>seq</li>
+            <li>kind</li>
+            <li>role</li>
+            <li>content</li>
+            <li>payload</li>
+            <li>created_at</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>workflow_step_session_links</h3>
+          <ul>
+            <li>workflow_run_id</li>
+            <li>step_id</li>
+            <li>session_id</li>
+            <li>display summary</li>
+            <li>error</li>
+            <li>started_at / completed_at</li>
+          </ul>
+        </div>
+      </div>
+      <div class="small">如果你不想单独建 link 表，也可以把 <span class="em">session_id</span> 轻量放在 workflow run step 摘要里，但不要把 workflow 编排字段反向塞满 session。</div>
+    </div>
+
+    <div class="section">
+      <h2>4. session 本体建议字段</h2>
+      <p class="desc">这一版更聚焦“会话自身”。owner 关系和视图投影只保留最小必要引用。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>字段</th>
+            <th>是否建议保留</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>id</td><td class="good">保留</td><td>会话标识</td></tr>
+          <tr><td>status</td><td class="good">保留</td><td>CREATED / RUNNING / COMPLETED / FAILED / STOPPED</td></tr>
+          <tr><td>agent_id</td><td class="good">保留</td><td>运行该会话的 agent</td></tr>
+          <tr><td>executor_type</td><td class="good">保留</td><td>决定如何解释执行结果</td></tr>
+          <tr><td>worktree_path</td><td class="good">保留</td><td>运行上下文</td></tr>
+          <tr><td>branch</td><td class="good">保留</td><td>运行上下文</td></tr>
+          <tr><td>initial_prompt</td><td class="good">保留</td><td>会话起始输入</td></tr>
+          <tr><td>task_id</td><td class="mid">可保留</td><td>如果 session 天然属于某任务，可接受</td></tr>
+          <tr><td>workflow_run_id</td><td class="mid">尽量不主挂</td><td>除非查询性能强依赖，否则更建议放 link/projection</td></tr>
+          <tr><td>workflow_step_id</td><td class="mid">尽量不主挂</td><td>更像 owner 关系，不是 session 自身属性</td></tr>
+          <tr><td>output</td><td class="mid">仅兼容保留</td><td>不能再作为唯一真相，权威来源应是 session_events</td></tr>
+          <tr><td>poll_after_seq / ws_channel</td><td class="bad">删除</td><td>属于传输层，不属于领域模型</td></tr>
+        </tbody>
+      </table>
+      <div class="warn-box">重点：<b>session 可以是核心对象，但要尽量只表达“会话是什么”</b>，不要表达“workflow 怎么编排它”“前端怎么读它”“传输层怎么订阅它”。</div>
+    </div>
+
+    <div class="section">
+      <h2>5. 这版 workflow 怎么接 session</h2>
+      <p class="desc">workflow step 与 session 关联，但不反向污染 session 本体。</p>
+      <div class="diagram">
+        <div class="row">
+          <div class="node blue">
+            <strong>WorkflowRun.step</strong>
+            <span>状态摘要</span>
+            <span>session_id（轻量引用）</span>
+          </div>
+          <div class="arrow">→</div>
+          <div class="node green">
+            <strong>Session</strong>
+            <span>这一步的独立会话</span>
+            <span>负责事件历史与运行状态</span>
+          </div>
+          <div class="arrow">→</div>
+          <div class="node green">
+            <strong>SessionEvents</strong>
+            <span>右侧聊天窗口真实来源</span>
+            <span>按 seq 增量轮询</span>
+          </div>
+        </div>
+      </div>
+      <div class="small">这样 workflow 只知道“这个 step 对应哪个 session”，不会要求 session 反向承载整套 workflow 编排语义。</div>
+    </div>
+
+    <div class="section">
+      <h2>6. 前端读取方式</h2>
+      <p class="desc">第一版不做 WebSocket，点击 step 后直接走 session 详情 + event 增量轮询。</p>
+      <div class="timeline">
+        <div class="steps">
+          <div class="step">需求设计</div>
+          <div class="step active">代码开发</div>
+          <div class="step">测试</div>
+          <div class="step">代码审查</div>
+        </div>
+        <div class="panel">
+          <div class="chat">
+            <div class="bubble system">Step linked to Session #128 · polling every 2s</div>
+            <div class="bubble assistant">我先读取 workflowService 和 executor 相关代码，确认当前 step 内部过程为什么没被持久化。</div>
+            <div class="bubble tool">Tool call · Read backend/src/services/workflow/workflowService.ts</div>
+            <div class="bubble assistant">当前只在 step 完成时回写 output，因此右侧无法看到过程消息。</div>
+            <div class="bubble error">stderr · fallback to raw chunk</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>7. 当前修正版结论</h2>
+      <p class="desc">我现在理解你的意思了：<b>session 保留</b>，但 session 字段要纯化，不能混成一个“万能执行上下文大对象”。</p>
+      <div class="grid c2">
+        <div class="card">
+          <h3>这版应该坚持</h3>
+          <ul>
+            <li>workflow step = 独立 session</li>
+            <li>session history = session_events</li>
+            <li>step 右侧面板读 session + events</li>
+            <li>实时靠轮询 after_seq</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>这版要避免</h3>
+          <ul>
+            <li>把 workflow 编排状态塞进 session</li>
+            <li>把传输层字段塞进 session</li>
+            <li>把 output string 当唯一来源</li>
+            <li>让 session record 承担 owner projection</li>
+          </ul>
+        </div>
+      </div>
+      <div class="small">如果你认可这次修正，我下一步就按这个方向把字段级设计继续收紧：<span class="em">session 字段白名单</span>、<span class="em">session_events 结构</span>、<span class="em">workflow step 到 session 的最小关联方式</span>。</div>
+    </div>
+  </div>
+</body>
+</html>
