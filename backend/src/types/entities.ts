@@ -25,10 +25,33 @@ export interface SessionEntity {
   id: number;
   task_id: number;
   status?: string;
-  output?: string | null;
   worktree_path?: string | null;
   branch?: string | null;
   initial_prompt?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionSegmentEntity {
+  id: number;
+  session_id: number;
+  segment_type: string;
+  sequence: number;
+  created_at: string;
+  updated_at: string;
+  [key: string]: unknown;
+}
+
+export interface SessionEventEntity {
+  id: number;
+  session_id: number;
+  segment_id?: number | null;
+  event_type: string;
+  sequence: number;
+  payload?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
   [key: string]: unknown;
 }
 
@@ -41,6 +64,8 @@ export interface WorkflowStepEntity {
   retry_count: number;
   output: unknown;
   error: string | null;
+  session_id?: number | null;
+  summary?: string | null;
 }
 
 export interface WorkflowRunEntity {
