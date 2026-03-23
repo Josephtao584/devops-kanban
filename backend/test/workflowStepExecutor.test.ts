@@ -160,7 +160,7 @@ test.test('ExecutionEventSink normalizes raw executor events through append', as
   await sink.append({ kind: 'status', role: 'assistant', content: 'ignored status', payload: { from: 'QUEUED', to: 'RUNNING' } });
   await sink.append({ kind: 'artifact', role: 'system', content: 'design.md', payload: { artifact_type: 'file' } });
   await sink.append({ kind: 'stream_chunk', role: 'user', content: 'stderr output', payload: { stream: 'stderr' } });
-  await sink.append({ kind: 'message', role: 'user', content: 'raw note', payload: undefined as never });
+  await sink.append({ kind: 'message', role: 'user', content: 'raw note' });
 
   assert.deepEqual(events, [
     { kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'shell', arguments: { cwd: '/tmp/worktree' } } },

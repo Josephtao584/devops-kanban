@@ -25,7 +25,7 @@ export interface WorkflowExecutionEvent {
   kind: WorkflowExecutionEventKind;
   role: WorkflowExecutionEventRole;
   content: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
 }
 
 export interface ExecutorProviderState {
