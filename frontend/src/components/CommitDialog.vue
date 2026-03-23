@@ -245,10 +245,7 @@ const loadDiff = async () => {
   if (!selectedFile.value) return
   diffLoading.value = true
   try {
-    const response = await getDiff(props.projectId, props.taskId, {
-      source: 'master',
-      target: props.currentBranch
-    })
+    const response = await getDiff(props.projectId, props.taskId)
     if (response.success) {
       diffData.value = response.data
     }

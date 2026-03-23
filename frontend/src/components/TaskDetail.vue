@@ -176,19 +176,45 @@
     width="80%"
     top="5vh"
   >
-    <div class="diff-stats" v-if="diffContent">
-      <el-tag type="success">
-        <el-icon><Plus /></el-icon>
-        {{ (diffContent.match(/^\+/gm) || []).length }} additions
-      </el-tag>
-      <el-tag type="danger">
-        <el-icon><Minus /></el-icon>
-        {{ (diffContent.match(/^-/gm) || []).length }} deletions
-      </el-tag>
-    </div>
-    <el-scrollbar height="60vh">
-      <pre class="diff-content">{{ diffContent }}</pre>
-    </el-scrollbar>
+    <template v-if="diffData?.files?.length">
+      <div class="diff-stats">
+        <el-tag type="success">
+          <el-icon><Plus /></el-icon>
+          {{ totalDiffAdditions }} additions
+        </el-tag>
+        <el-tag type="danger">
+          <el-icon><Minus /></el-icon>
+          {{ totalDiffDeletions }} deletions
+        </el-tag>
+        <el-tag type="info">
+          {{ diffData.files.length }} files changed
+        </el-tag>
+      </div>
+
+      <div class="diff-dialog-content">
+        <div class="diff-file-list">
+          <div
+            v-for="file in diffData.files"
+            :key="file.path"
+            :class="['diff-file-item', { active: selectedDiffFile === file.path }]"
+            @click="selectedDiffFile = file.path"
+          >
+            <div class="diff-file-path">{{ file.path }}</div>
+            <div class="diff-file-meta">
+              <span>{{ file.status }}</span>
+              <span v-if="file.additions || file.deletions">+{{ file.additions }} -{{ file.deletions }}</span>
+            </div>
+          </div>
+        </div>
+
+        <el-scrollbar height="60vh" class="diff-preview-scroll">
+          <pre class="diff-content">{{ selectedDiffContent }}</pre>
+        </el-scrollbar>
+      </div>
+    </template>
+
+    <el-empty v-else :description="$t('git.noChanges')" :image-size="60" />
+
     <template #footer>
       <el-button @click="diffDialogVisible = false">{{ $t('common.close') }}</el-button>
     </template>
@@ -269,7 +295,8 @@ const gitLoading = ref(false)
 const gitStatus = ref(null)
 const hasWorktree = ref(false)
 const diffDialogVisible = ref(false)
-const diffContent = ref('')
+const diffData = ref(null)
+const selectedDiffFile = ref('')
 const commitDialogVisible = ref(false)
 
 const hasActiveSession = computed(() => {
@@ -278,6 +305,21 @@ const hasActiveSession = computed(() => {
     return ['CREATED', 'RUNNING', 'IDLE'].includes(status)
   }
   return false
+})
+
+const totalDiffAdditions = computed(() => {
+  if (!diffData.value?.files) return 0
+  return diffData.value.files.reduce((sum, file) => sum + (file.additions || 0), 0)
+})
+
+const totalDiffDeletions = computed(() => {
+  if (!diffData.value?.files) return 0
+  return diffData.value.files.reduce((sum, file) => sum + (file.deletions || 0), 0)
+})
+
+const selectedDiffContent = computed(() => {
+  if (!diffData.value?.diffs || !selectedDiffFile.value) return ''
+  return diffData.value.diffs[selectedDiffFile.value] || ''
 })
 
 watch(() => props.task, (newTask, oldTask) => {
@@ -341,7 +383,8 @@ const showDiffDialog = async () => {
   try {
     const response = await getDiff(props.projectId, props.task.id)
     if (response.success && response.data) {
-      diffContent.value = response.data.content || ''
+      diffData.value = response.data
+      selectedDiffFile.value = response.data.files?.[0]?.path || ''
       diffDialogVisible.value = true
     } else {
       toast.error(response.message || t('git.diffFailed'))
@@ -640,6 +683,54 @@ const onSelectHistory = (session) => {
   margin-bottom: 12px;
 }
 
+.diff-dialog-content {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.diff-file-list {
+  width: 240px;
+  flex-shrink: 0;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+}
+
+.diff-file-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+}
+
+.diff-file-item:last-child {
+  border-bottom: none;
+}
+
+.diff-file-item.active {
+  background: var(--el-color-primary-light-9);
+}
+
+.diff-file-path {
+  font-size: 12px;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.diff-file-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.diff-preview-scroll {
+  flex: 1;
+}
+
 .diff-content {
   margin: 0;
   padding: 16px;
@@ -651,5 +742,15 @@ const onSelectHistory = (session) => {
   background: #1e1e1e;
   color: #d4d4d4;
   border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .diff-dialog-content {
+    flex-direction: column;
+  }
+
+  .diff-file-list {
+    width: 100%;
+  }
 }
 </style>
