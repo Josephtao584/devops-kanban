@@ -139,8 +139,8 @@ class ClaudeStepRunner {
     worktreePath: string;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
     onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
-    onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
-    onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
+    onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+    onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,

@@ -66,39 +66,52 @@ function createAgent(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test.test('ExecutionEventSink emits canonical workflow events and provider state updates', () => {
+test.test('ExecutionEventSink exposes canonical append helpers and awaits async callbacks', async () => {
   const events: WorkflowExecutionEvent[] = [];
   const providerStates: ExecutorProviderState[] = [];
+  const callbackOrder: string[] = [];
   const sink = new ExecutionEventSink({
-    onEvent(event) {
+    async onEvent(event) {
+      callbackOrder.push(`start:${event.kind}`);
+      await Promise.resolve();
       events.push(event);
+      callbackOrder.push(`end:${event.kind}`);
     },
-    onProviderState(providerState) {
+    async onProviderState(providerState) {
+      callbackOrder.push('start:provider');
+      await Promise.resolve();
       providerStates.push(providerState);
+      callbackOrder.push('end:provider');
     },
   });
 
-  sink.status('step started', { stepId: 'requirement-design' });
-  sink.message('drafted design', { summary: 'ok' });
-  sink.toolCall('npm test', { toolName: 'shell' });
-  sink.toolResult('tests passed', { exitCode: 0 });
-  sink.streamChunk('partial output', { stream: 'stdout' });
-  sink.artifact('design.md', { path: '/tmp/design.md' });
-  sink.error('step failed', { code: 'E_STEP' });
-  sink.providerState({
+  await sink.appendMessage('drafted design');
+  await sink.appendMessage('operator note', 'system');
+  await sink.appendToolCall('npm test', { cwd: '/tmp/worktree' });
+  await sink.appendToolResult('npm test', { exitCode: 0 });
+  await sink.appendStatus('QUEUED', 'RUNNING');
+  await sink.appendError('step failed', { code: 'E_STEP' });
+  await sink.appendArtifact('design.md', { artifact_type: 'file', ref: '/tmp/design.md' });
+  await sink.appendStreamChunk('partial output', 'stdout');
+  await sink.appendStreamChunk('stderr output', 'stderr');
+  await sink.append({ kind: 'message', role: 'assistant', content: 'raw event', payload: { traceId: 'trace-1' } });
+  await sink.appendProviderState({
     providerSessionId: 'provider-session-1',
     resumeToken: 'resume-token-1',
     checkpointRef: 'checkpoint-1',
   });
 
   assert.deepEqual(events, [
-    { kind: 'status', role: 'system', content: 'step started', payload: { stepId: 'requirement-design' } },
-    { kind: 'message', role: 'assistant', content: 'drafted design', payload: { summary: 'ok' } },
-    { kind: 'tool_call', role: 'assistant', content: 'npm test', payload: { toolName: 'shell' } },
-    { kind: 'tool_result', role: 'tool', content: 'tests passed', payload: { exitCode: 0 } },
-    { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } },
-    { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { path: '/tmp/design.md' } },
+    { kind: 'message', role: 'assistant', content: 'drafted design', payload: {} },
+    { kind: 'message', role: 'system', content: 'operator note', payload: {} },
+    { kind: 'tool_call', role: 'assistant', content: 'npm test', payload: { tool_name: 'npm test', arguments: { cwd: '/tmp/worktree' } } },
+    { kind: 'tool_result', role: 'tool', content: 'npm test', payload: { tool_name: 'npm test', result: { exitCode: 0 } } },
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
     { kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP' } },
+    { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file', ref: '/tmp/design.md' } },
+    { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } },
+    { kind: 'stream_chunk', role: 'system', content: 'stderr output', payload: { stream: 'stderr' } },
+    { kind: 'message', role: 'assistant', content: 'raw event', payload: { traceId: 'trace-1' } },
   ]);
   assert.deepEqual(providerStates, [
     {
@@ -107,9 +120,33 @@ test.test('ExecutionEventSink emits canonical workflow events and provider state
       checkpointRef: 'checkpoint-1',
     },
   ]);
+  assert.deepEqual(callbackOrder, [
+    'start:message',
+    'end:message',
+    'start:message',
+    'end:message',
+    'start:tool_call',
+    'end:tool_call',
+    'start:tool_result',
+    'end:tool_result',
+    'start:status',
+    'end:status',
+    'start:error',
+    'end:error',
+    'start:artifact',
+    'end:artifact',
+    'start:stream_chunk',
+    'end:stream_chunk',
+    'start:stream_chunk',
+    'end:stream_chunk',
+    'start:message',
+    'end:message',
+    'start:provider',
+    'end:provider',
+  ]);
 });
 
-test.test('executeWorkflowStep forwards sink-driven canonical events and provider state updates', async () => {
+test.test('executeWorkflowStep forwards events through the canonical sink helper surface', async () => {
   const proc: ExecutorProcessHandle = {
     kill() {
       return true;
@@ -135,11 +172,9 @@ test.test('executeWorkflowStep forwards sink-driven canonical events and provide
             worktreePath,
             executorConfig,
             onSpawn,
+            onEvent,
+            onProviderState,
           } = input;
-          const { onEvent, onProviderState } = input as ExecutorExecutionInput & {
-            onEvent?: (event: WorkflowExecutionEvent) => void;
-            onProviderState?: (providerState: ExecutorProviderState) => void;
-          };
 
           assert.equal(worktreePath, sharedState.worktreePath);
           assert.match(prompt, /当前步骤：需求设计/);
@@ -151,9 +186,14 @@ test.test('executeWorkflowStep forwards sink-driven canonical events and provide
             skills: ['design'],
           });
           onSpawn?.(proc);
-          onEvent?.({ kind: 'status', role: 'system', content: 'step started', payload: { stepId: 'requirement-design' } });
-          onEvent?.({ kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } });
-          onProviderState?.({
+          await onEvent?.({ kind: 'message', role: 'assistant', content: 'drafted design', payload: {} });
+          await onEvent?.({ kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'npm test', arguments: { cwd: '/tmp/worktree' } } });
+          await onEvent?.({ kind: 'tool_result', role: 'tool', content: 'shell', payload: { tool_name: 'npm test', result: { exitCode: 0 } } });
+          await onEvent?.({ kind: 'status', role: 'system', content: 'step started', payload: { from: 'QUEUED', to: 'RUNNING' } });
+          await onEvent?.({ kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file', ref: '/tmp/design.md' } });
+          await onEvent?.({ kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } });
+          await onEvent?.({ kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP' } });
+          await onProviderState?.({
             providerSessionId: 'provider-session-1',
             resumeToken: 'resume-token-1',
             checkpointRef: 'checkpoint-1',
@@ -170,10 +210,10 @@ test.test('executeWorkflowStep forwards sink-driven canonical events and provide
     agentRepo: agentRepo as never,
     registry: registry as never,
     context,
-    onEvent(event) {
+    async onEvent(event) {
       events.push(event);
     },
-    onProviderState(providerState) {
+    async onProviderState(providerState) {
       providerStates.push(providerState);
     },
     ...createInputOverrides(),
@@ -181,8 +221,13 @@ test.test('executeWorkflowStep forwards sink-driven canonical events and provide
 
   assert.equal(context.proc, proc);
   assert.deepEqual(events, [
-    { kind: 'status', role: 'system', content: 'step started', payload: { stepId: 'requirement-design' } },
+    { kind: 'message', role: 'assistant', content: 'drafted design', payload: {} },
+    { kind: 'tool_call', role: 'assistant', content: 'npm test', payload: { tool_name: 'npm test', arguments: { cwd: '/tmp/worktree' } } },
+    { kind: 'tool_result', role: 'tool', content: 'npm test', payload: { tool_name: 'npm test', result: { exitCode: 0 } } },
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+    { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file', ref: '/tmp/design.md' } },
     { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } },
+    { kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP' } },
   ]);
   assert.deepEqual(providerStates, [
     {
@@ -193,6 +238,7 @@ test.test('executeWorkflowStep forwards sink-driven canonical events and provide
   ]);
   assert.deepEqual(result, { summary: 'ok' });
 });
+
 
 test.test('executeWorkflowStep fails when the bound step agent is disabled', async () => {
   const templateService = createTemplateService();

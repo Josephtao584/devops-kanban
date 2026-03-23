@@ -1,64 +1,65 @@
 import type { ExecutorProviderState, WorkflowExecutionEvent, WorkflowExecutionEventKind, WorkflowExecutionEventRole } from '../../types/executors.js';
 
 type ExecutionEventSinkCallbacks = {
-  onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
-  onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
+  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+  onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
 };
 
 type ExecutionEventPayload = Record<string, unknown>;
+type WorkflowStream = 'stdout' | 'stderr';
 
 class ExecutionEventSink {
-  onEvent: ((event: WorkflowExecutionEvent) => void) | undefined;
-  onProviderState: ((providerState: ExecutorProviderState) => void) | undefined;
+  onEvent: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+  onProviderState: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
 
   constructor({ onEvent, onProviderState }: ExecutionEventSinkCallbacks = {}) {
     this.onEvent = onEvent;
     this.onProviderState = onProviderState;
   }
 
-  emit(event: WorkflowExecutionEvent) {
-    this.onEvent?.({
+  async append(event: WorkflowExecutionEvent) {
+    await this.onEvent?.({
       ...event,
       payload: event.payload ?? {},
     });
   }
 
-  providerState(providerState: ExecutorProviderState) {
-    this.onProviderState?.(providerState);
+  async appendProviderState(providerState: ExecutorProviderState) {
+    await this.onProviderState?.(providerState);
   }
 
-  status(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('status', 'system', content, payload);
+  async appendMessage(content: string, role: WorkflowExecutionEventRole = 'assistant') {
+    await this.appendCanonical('message', role, content, {});
   }
 
-  message(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('message', 'assistant', content, payload);
+  async appendToolCall(toolName: string, argumentsValue: unknown) {
+    await this.appendCanonical('tool_call', 'assistant', toolName, { tool_name: toolName, arguments: argumentsValue });
   }
 
-  toolCall(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('tool_call', 'assistant', content, payload);
+  async appendToolResult(toolName: string, result: unknown) {
+    await this.appendCanonical('tool_result', 'tool', toolName, { tool_name: toolName, result });
   }
 
-  toolResult(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('tool_result', 'tool', content, payload);
+  async appendStatus(from: string, to: string) {
+    await this.appendCanonical('status', 'system', `${from} -> ${to}`, { from, to });
   }
 
-  streamChunk(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('stream_chunk', 'assistant', content, payload);
+  async appendError(content: string, payload: ExecutionEventPayload = {}) {
+    await this.appendCanonical('error', 'system', content, payload);
   }
 
-  artifact(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('artifact', 'assistant', content, payload);
+  async appendArtifact(content: string, payload: ExecutionEventPayload) {
+    await this.appendCanonical('artifact', 'assistant', content, payload);
   }
 
-  error(content: string, payload: ExecutionEventPayload = {}) {
-    this.emitCanonical('error', 'system', content, payload);
+  async appendStreamChunk(content: string, stream: WorkflowStream) {
+    await this.appendCanonical('stream_chunk', stream === 'stderr' ? 'system' : 'assistant', content, { stream });
   }
 
-  private emitCanonical(kind: WorkflowExecutionEventKind, role: WorkflowExecutionEventRole, content: string, payload: ExecutionEventPayload) {
-    this.emit({ kind, role, content, payload });
+  private async appendCanonical(kind: WorkflowExecutionEventKind, role: WorkflowExecutionEventRole, content: string, payload: ExecutionEventPayload) {
+    await this.append({ kind, role, content, payload });
   }
 }
 
 export { ExecutionEventSink };
-export type { ExecutionEventPayload, ExecutionEventSinkCallbacks };
+export type { ExecutionEventPayload, ExecutionEventSinkCallbacks, WorkflowStream };

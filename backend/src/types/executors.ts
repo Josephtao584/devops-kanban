@@ -39,8 +39,8 @@ export interface ExecutorExecutionInput {
   worktreePath: string;
   executorConfig?: ExecutorConfig | undefined;
   onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
-  onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
-  onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
+  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+  onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
 }
 
 export interface ExecutorExecutionResult {

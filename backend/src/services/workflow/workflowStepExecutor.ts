@@ -23,8 +23,8 @@ interface ExecuteWorkflowStepInput {
   templateService?: WorkflowTemplateService;
   agentRepo?: Pick<AgentRepository, 'findById'>;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
-  onEvent?: ((event: WorkflowExecutionEvent) => void) | undefined;
-  onProviderState?: ((providerState: ExecutorProviderState) => void) | undefined;
+  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+  onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   stepId: string;
   worktreePath: string;
   state: {
@@ -68,6 +68,41 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
     env: { ...agent.env },
     skills: [...agent.skills],
   };
+}
+
+async function appendCanonicalExecutionEvent(sink: ExecutionEventSink, event: WorkflowExecutionEvent) {
+  const payload = event.payload ?? {};
+
+  switch (event.kind) {
+    case 'message':
+      await sink.appendMessage(event.content, event.role);
+      return;
+    case 'tool_call':
+      await sink.appendToolCall(typeof payload.tool_name === 'string' ? payload.tool_name : event.content, payload.arguments);
+      return;
+    case 'tool_result':
+      await sink.appendToolResult(typeof payload.tool_name === 'string' ? payload.tool_name : event.content, payload.result);
+      return;
+    case 'status':
+      if (typeof payload.from === 'string' && typeof payload.to === 'string') {
+        await sink.appendStatus(payload.from, payload.to);
+        return;
+      }
+      break;
+    case 'error':
+      await sink.appendError(event.content, payload);
+      return;
+    case 'artifact':
+      await sink.appendArtifact(event.content, payload);
+      return;
+    case 'stream_chunk':
+      await sink.appendStreamChunk(event.content, payload.stream === 'stderr' ? 'stderr' : 'stdout');
+      return;
+    default:
+      break;
+  }
+
+  await sink.append(event);
 }
 
 export async function executeWorkflowStep({
@@ -122,11 +157,11 @@ export async function executeWorkflowStep({
         context.proc = proc;
       }
     },
-    onEvent: (event) => {
-      sink.emit(event);
+    onEvent: async (event) => {
+      await appendCanonicalExecutionEvent(sink, event);
     },
-    onProviderState: (providerState) => {
-      sink.providerState(providerState);
+    onProviderState: async (providerState) => {
+      await sink.appendProviderState(providerState);
     },
   });
 
