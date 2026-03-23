@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { SessionService } from '../services/sessionService.js';
+import type { ListSessionEventsQuery } from '../types/dto/sessionEvents.ts';
 import type { ContinueSessionBody, CreateSessionInput } from '../types/dto/sessions.js';
 import type { IdParams, TaskIdParams } from '../types/http/params.js';
 import type { SessionFiltersQuery } from '../types/http/query.js';
@@ -167,6 +168,20 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       request.log.error(error);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to send input'));
+    }
+  });
+
+  fastify.get<{ Params: IdParams; Querystring: ListSessionEventsQuery }>('/sessions/:id/events', async (request, reply) => {
+    try {
+      const events = await service.listEvents(parseNumber(request.params.id), {
+        afterSeq: request.query.after_seq ? parseNumber(request.query.after_seq) : undefined,
+        limit: request.query.limit ? parseNumber(request.query.limit) : undefined,
+      });
+      return successResponse(events);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get session events'));
     }
   });
 

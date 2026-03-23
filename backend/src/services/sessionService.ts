@@ -2,19 +2,25 @@ import * as fs from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 
 import { SessionRepository } from '../repositories/sessionRepository.js';
+import { SessionSegmentRepository } from '../repositories/sessionSegmentRepository.js';
+import { SessionEventRepository } from '../repositories/sessionEventRepository.js';
 import { TaskService } from './taskService.js';
 import { createWorktree, cleanupWorktree } from '../utils/git.js';
 import type { CreateSessionInput } from '../types/dto/sessions.js';
+import type { SessionSegmentEntity } from '../types/entities.ts';
 import type { BroadcastFn, BroadcastPayload } from '../types/ws/sessions.js';
 
 interface SessionLike {
   id: number;
   task_id: number;
   status?: string;
-  output?: string | null;
   worktree_path?: string | null;
   branch?: string | null;
   initial_prompt?: string | null;
+  agent_id?: number | null;
+  executor_type?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
 }
 
 interface TaskLike {
@@ -28,11 +34,15 @@ interface TaskLike {
 
 class SessionService {
   sessionRepo: SessionRepository;
+  sessionSegmentRepo: SessionSegmentRepository;
+  sessionEventRepo: SessionEventRepository;
   taskService: TaskService;
   runningProcesses: Map<number, ChildProcess>;
 
   constructor() {
     this.sessionRepo = new SessionRepository();
+    this.sessionSegmentRepo = new SessionSegmentRepository();
+    this.sessionEventRepo = new SessionEventRepository();
     this.taskService = new TaskService();
     this.runningProcesses = new Map();
   }
@@ -64,10 +74,20 @@ class SessionService {
   async getHistoryByTask(taskId: number, includeOutput = true) {
     const sessions = await this.sessionRepo.getByTask(taskId);
     if (!includeOutput) {
-      // Return sessions without output field for lighter payload
-      return sessions.map(({ output: _output, ...session }) => session);
+      return sessions.map(({ ...session }) => session);
     }
     return sessions;
+  }
+
+  async listEvents(sessionId: number, options: { afterSeq?: number; limit?: number } = {}) {
+    const session = await this.sessionRepo.findById(sessionId);
+    if (!session) {
+      const error = new Error('Session not found') as Error & { statusCode?: number };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return await this.sessionEventRepo.listBySessionId(sessionId, options);
   }
 
   async create(sessionData: CreateSessionInput) {
@@ -99,6 +119,10 @@ class SessionService {
       worktree_path: worktreePath,
       branch: branchName,
       initial_prompt: sessionData.initial_prompt || task.description || '',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE' as const,
+      started_at: null,
+      completed_at: null,
     };
 
     return await this.sessionRepo.create(sessionDataWithWorktree);
@@ -123,13 +147,29 @@ class SessionService {
       throw error;
     }
 
-    await this.sessionRepo.update(sessionId, { status: 'RUNNING' });
+    const startedAt = new Date().toISOString();
+    await this.sessionRepo.update(sessionId, {
+      status: 'RUNNING',
+      started_at: session.started_at || startedAt,
+      completed_at: null,
+    });
 
     if (session.worktree_path && fs.existsSync(session.worktree_path)) {
-      const prompt = session.initial_prompt || task.description || '';
-      const proc = this._spawnClaudeCode(session.worktree_path, ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'], sessionId, 'start');
-      this.runningProcesses.set(sessionId, proc);
-      this._readProcessOutput(sessionId, proc, broadcastFn);
+      const segment = await this._createSegment(session, 'START', null);
+      try {
+        const prompt = session.initial_prompt || task.description || '';
+        const proc = this._spawnClaudeCode(
+          session.worktree_path,
+          ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'],
+          sessionId,
+          'start',
+        );
+        this.runningProcesses.set(sessionId, proc);
+        this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+      } catch (error) {
+        await this._markSegmentComplete(segment.id, 'ERROR');
+        throw error;
+      }
     }
 
     return await this.sessionRepo.findById(sessionId);
@@ -143,49 +183,67 @@ class SessionService {
         shell: true,
       });
     } catch (error) {
-      void this.sessionRepo.update(sessionId, { status: 'ERROR' });
+      void this.sessionRepo.update(sessionId, { status: 'ERROR', completed_at: new Date().toISOString() });
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to ${action} Claude Code: ${message}`);
     }
   }
 
-  _readProcessOutput(sessionId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
-    const output: string[] = [];
+  _readProcessOutput(sessionId: number, segmentId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
+    let pendingEventWrite = Promise.resolve();
+
+    const appendStreamEvent = (content: string, stream: 'stdout' | 'stderr', role: 'assistant' | 'system') => {
+      const trimmed = content.trim();
+      if (!trimmed) {
+        return;
+      }
+
+      const timestamp = new Date().toISOString();
+      pendingEventWrite = pendingEventWrite
+        .catch(() => undefined)
+        .then(async () => {
+          await this.sessionEventRepo.append({
+            session_id: sessionId,
+            segment_id: segmentId,
+            kind: 'stream_chunk',
+            role,
+            content: trimmed,
+            payload: { stream, timestamp },
+          });
+        });
+
+      broadcastFn?.(sessionId, 'output', {
+        type: 'chunk',
+        content: trimmed,
+        stream,
+        timestamp,
+      });
+    };
 
     proc.stdout?.on('data', (data: Buffer | string) => {
       const lines = data.toString().split('\n');
       for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
-
-        output.push(trimmed);
-        broadcastFn?.(sessionId, 'output', {
-          type: 'chunk',
-          content: trimmed,
-          stream: 'stdout',
-          timestamp: new Date().toISOString(),
-        });
+        appendStreamEvent(line, 'stdout', 'assistant');
       }
     });
 
     proc.stderr?.on('data', (data: Buffer | string) => {
-      broadcastFn?.(sessionId, 'output', {
-        type: 'chunk',
-        content: data.toString(),
-        stream: 'stderr',
-        timestamp: new Date().toISOString(),
-      });
+      const lines = data.toString().split('\n');
+      for (const line of lines) {
+        appendStreamEvent(line, 'stderr', 'system');
+      }
     });
 
     proc.on('close', async (code) => {
       const status = code === 0 ? 'COMPLETED' : 'ERROR';
+      const completedAt = new Date().toISOString();
 
+      await pendingEventWrite.catch(() => undefined);
       await this.sessionRepo.update(sessionId, {
         status,
-        output: output.join('\n'),
+        completed_at: completedAt,
       });
+      await this._markSegmentComplete(segmentId, status, completedAt);
 
       broadcastFn?.(sessionId, 'status', {
         type: 'status',
@@ -196,12 +254,29 @@ class SessionService {
     });
 
     proc.on('error', async (error) => {
-      await this.sessionRepo.update(sessionId, { status: 'ERROR' });
+      const timestamp = new Date().toISOString();
+      pendingEventWrite = pendingEventWrite
+        .catch(() => undefined)
+        .then(async () => {
+          await this.sessionEventRepo.append({
+            session_id: sessionId,
+            segment_id: segmentId,
+            kind: 'error',
+            role: 'system',
+            content: `Error: ${error.message}`,
+            payload: { stream: 'stderr', timestamp },
+          });
+        });
+
+      await pendingEventWrite.catch(() => undefined);
+      await this.sessionRepo.update(sessionId, { status: 'ERROR', completed_at: timestamp });
+      await this._markSegmentComplete(segmentId, 'ERROR', timestamp);
+
       broadcastFn?.(sessionId, 'output', {
         type: 'chunk',
         content: `Error: ${error.message}`,
         stream: 'stderr',
-        timestamp: new Date().toISOString(),
+        timestamp,
       });
       this.runningProcesses.delete(sessionId);
     });
@@ -235,7 +310,12 @@ class SessionService {
       this.runningProcesses.delete(sessionId);
     }
 
-    const updated = await this.sessionRepo.update(sessionId, { status: 'STOPPED' });
+    const stoppedAt = new Date().toISOString();
+    const updated = await this.sessionRepo.update(sessionId, { status: 'STOPPED', completed_at: stoppedAt });
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+    if (latestSegment) {
+      await this._markSegmentComplete(latestSegment.id, 'STOPPED', stoppedAt);
+    }
 
     broadcastFn?.(sessionId, 'status', {
       type: 'status',
@@ -259,12 +339,24 @@ class SessionService {
       throw error;
     }
 
-    await this.sessionRepo.update(sessionId, { status: 'RUNNING' });
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+    await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
 
     if (session.worktree_path && fs.existsSync(session.worktree_path)) {
-      const proc = this._spawnClaudeCode(session.worktree_path, ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input], sessionId, 'resume');
-      this.runningProcesses.set(sessionId, proc);
-      this._readProcessOutput(sessionId, proc, broadcastFn);
+      const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
+      try {
+        const proc = this._spawnClaudeCode(
+          session.worktree_path,
+          ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input],
+          sessionId,
+          'resume',
+        );
+        this.runningProcesses.set(sessionId, proc);
+        this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+      } catch (error) {
+        await this._markSegmentComplete(segment.id, 'ERROR');
+        throw error;
+      }
     }
 
     return await this.sessionRepo.findById(sessionId);
@@ -314,6 +406,35 @@ class SessionService {
 
   async exists(sessionId: number) {
     return (await this.sessionRepo.findById(sessionId)) !== null;
+  }
+
+  private async _createSegment(
+    session: SessionLike,
+    triggerType: SessionSegmentEntity['trigger_type'],
+    parentSegmentId: number | null,
+  ) {
+    const startedAt = new Date().toISOString();
+    return await this.sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'RUNNING',
+      executor_type: (session.executor_type || 'CLAUDE_CODE') as SessionSegmentEntity['executor_type'],
+      agent_id: session.agent_id ?? null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: triggerType,
+      parent_segment_id: parentSegmentId,
+      started_at: startedAt,
+      completed_at: null,
+      metadata: {},
+    });
+  }
+
+  private async _markSegmentComplete(segmentId: number, status: string, completedAt = new Date().toISOString()) {
+    await this.sessionSegmentRepo.update(segmentId, {
+      status,
+      completed_at: completedAt,
+    });
   }
 }
 
