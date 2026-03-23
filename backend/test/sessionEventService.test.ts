@@ -45,7 +45,7 @@ async function createSegment(sessionSegmentService: SessionSegmentService, sessi
   });
 }
 
-test.test('SessionEventService appends monotonic event seq values, requires segment_id, and bootstraps the runtime JSON file', async () => {
+test.test('SessionEventService appends monotonic event seq values through the repository contract, requires segment_id, and bootstraps the runtime JSON file', async () => {
   const storagePath = await createTempStorageRoot();
   const sessionRepo = new SessionRepository({ storagePath });
   const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
@@ -90,6 +90,7 @@ test.test('SessionEventService appends monotonic event seq values, requires segm
 
   assert.equal(firstEvent.seq, 1);
   assert.equal(secondEvent.seq, 2);
+  assert.equal(await sessionEventRepo.getLastSeq(session.id), 2);
 
   const persisted = JSON.parse(
     await fs.readFile(path.join(storagePath, 'session_events.json'), 'utf-8'),

@@ -43,7 +43,9 @@ class SessionSegmentService {
       }
     }
 
-    const segment_index = await this.sessionSegmentRepo.getNextSegmentIndex(segmentData.session_id);
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(segmentData.session_id);
+    const segment_index = latestSegment ? latestSegment.segment_index + 1 : 1;
+
     return await this.sessionSegmentRepo.create({
       ...segmentData,
       segment_index,

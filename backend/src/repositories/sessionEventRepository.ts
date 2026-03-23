@@ -16,32 +16,33 @@ class SessionEventRepository extends BaseRepository<
     super('session_events.json', { storagePath });
   }
 
-  async findBySession(sessionId: number): Promise<StoredSessionEventEntity[]> {
+  async append(event: CreateSessionEventRecord): Promise<StoredSessionEventEntity> {
+    return await super.create(event);
+  }
+
+  async listBySessionId(
+    sessionId: number,
+    { afterSeq, limit }: { afterSeq?: number; limit?: number } = {},
+  ): Promise<StoredSessionEventEntity[]> {
     const data = await this._loadAll();
-    return data
+    const filtered = data
       .filter((item) => item.session_id === sessionId)
-      .sort((left, right) => left.seq - right.seq || left.id - right.id);
-  }
-
-  async getNextSeq(sessionId: number): Promise<number> {
-    const events = await this.findBySession(sessionId);
-    if (events.length === 0) {
-      return 1;
-    }
-    return Math.max(...events.map((event) => event.seq)) + 1;
-  }
-
-  async listBySession(sessionId: number, { afterSeq, limit }: { afterSeq?: number; limit?: number } = {}): Promise<StoredSessionEventEntity[]> {
-    const events = await this.findBySession(sessionId);
-    const filtered = afterSeq === undefined
-      ? events
-      : events.filter((event) => event.seq > afterSeq);
+      .sort((left, right) => left.seq - right.seq || left.id - right.id)
+      .filter((event) => afterSeq === undefined || event.seq > afterSeq);
 
     if (limit === undefined) {
       return filtered;
     }
 
     return filtered.slice(0, limit);
+  }
+
+  async getLastSeq(sessionId: number): Promise<number> {
+    const events = await this.listBySessionId(sessionId);
+    if (events.length === 0) {
+      return 0;
+    }
+    return events[events.length - 1].seq;
   }
 }
 

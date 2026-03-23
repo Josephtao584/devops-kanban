@@ -50,8 +50,10 @@ class SessionEventService {
       throw createValidationError('Segment must belong to the same session');
     }
 
-    const seq = await this.sessionEventRepo.getNextSeq(eventData.session_id);
-    return await this.sessionEventRepo.create({
+    const lastSeq = await this.sessionEventRepo.getLastSeq(eventData.session_id);
+    const seq = lastSeq + 1;
+
+    return await this.sessionEventRepo.append({
       ...eventData,
       segment_id: eventData.segment_id,
       seq,
@@ -64,7 +66,7 @@ class SessionEventService {
       throw createNotFoundError('Session not found');
     }
 
-    return await this.sessionEventRepo.listBySession(sessionId, { afterSeq, limit });
+    return await this.sessionEventRepo.listBySessionId(sessionId, { afterSeq, limit });
   }
 }
 
