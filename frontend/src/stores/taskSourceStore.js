@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useCrudStore } from '../composables/useCrudStore'
+import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import * as taskSourceApi from '../api/taskSource'
 
 export const useTaskSourceStore = defineStore('taskSource', () => {
@@ -14,6 +15,16 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
 
   const error = ref(null)
   const availableTypes = ref([])
+  const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'Task source request failed' })
+
+  const unwrap = (response, fallbackMessage) => {
+    try {
+      return apiError.unwrapResponse(response, fallbackMessage)
+    } catch (e) {
+      error.value = e.message
+      throw e
+    }
+  }
   const currentProjectId = ref(null)
   const syncing = ref(false)
   const testing = ref(false)
@@ -23,6 +34,9 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const showPreviewDialog = ref(false)
   const previewLoading = ref(false)
   const currentTaskSource = ref(null)
+  const syncPreviewTasks = ref([])
+  const selectedSyncTasks = ref(new Set())
+  const syncError = ref(null)
 
   const enabledSources = computed(() =>
     crud.items.value.filter(s => s.enabled)
@@ -46,13 +60,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.getTaskSources(projectId)
-      if (response && response.success) {
-        crud.items.value = response.data || []
-        return response
-      }
-
-      error.value = response?.message || 'Failed to fetch task sources'
-      throw new Error(error.value)
+      crud.items.value = unwrap(response, 'Failed to fetch task sources') || []
+      return response
     } catch (e) {
       error.value = e.message
       throw e
@@ -80,13 +89,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.getAvailableTaskSourceTypes()
-      if (response && response.success) {
-        availableTypes.value = normalizeAvailableTypes(response.data)
-        return availableTypes.value
-      }
-
-      error.value = response?.message || 'Failed to fetch task source types'
-      throw new Error(error.value)
+      availableTypes.value = normalizeAvailableTypes(unwrap(response, 'Failed to fetch task source types'))
+      return availableTypes.value
     } catch (e) {
       error.value = e.message
       throw e
@@ -97,16 +101,11 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.createTaskSource(data)
-      if (response && response.success) {
-        // Refresh the list
-        if (currentProjectId.value) {
-          await fetchTaskSources(currentProjectId.value)
-        }
-        return response
+      unwrap(response, 'Failed to create task source')
+      if (currentProjectId.value) {
+        await fetchTaskSources(currentProjectId.value)
       }
-
-      error.value = response?.message || 'Failed to create task source'
-      throw new Error(error.value)
+      return response
     } catch (e) {
       error.value = e.message
       throw e
@@ -117,16 +116,11 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.updateTaskSource(id, data)
-      if (response && response.success) {
-        // Refresh the list
-        if (currentProjectId.value) {
-          await fetchTaskSources(currentProjectId.value)
-        }
-        return response
+      unwrap(response, 'Failed to update task source')
+      if (currentProjectId.value) {
+        await fetchTaskSources(currentProjectId.value)
       }
-
-      error.value = response?.message || 'Failed to update task source'
-      throw new Error(error.value)
+      return response
     } catch (e) {
       error.value = e.message
       throw e
@@ -137,16 +131,11 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.deleteTaskSource(id)
-      if (response && response.success) {
-        // Refresh the list
-        if (currentProjectId.value) {
-          await fetchTaskSources(currentProjectId.value)
-        }
-        return response
+      unwrap(response, 'Failed to delete task source')
+      if (currentProjectId.value) {
+        await fetchTaskSources(currentProjectId.value)
       }
-
-      error.value = response?.message || 'Failed to delete task source'
-      throw new Error(error.value)
+      return response
     } catch (e) {
       error.value = e.message
       throw e
@@ -158,12 +147,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.syncTaskSource(id)
-      if (response && response.success) {
-        return response
-      }
-
-      error.value = response?.message || 'Failed to sync task source'
-      throw new Error(error.value)
+      unwrap(response, 'Failed to sync task source')
+      return response
     } catch (e) {
       error.value = e.message
       throw e
@@ -177,12 +162,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.testTaskSource(id)
-      if (response && response.success) {
-        return response
-      }
-
-      error.value = response?.message || 'Failed to test task source'
-      throw new Error(error.value)
+      unwrap(response, 'Failed to test task source')
+      return response
     } catch (e) {
       error.value = e.message
       throw e
@@ -191,26 +172,92 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
-  async function previewSync(sourceId) {
+  async function fetchPreviewItems(sourceId) {
     previewLoading.value = true
     error.value = null
     currentTaskSource.value = sourceId
     try {
       const response = await taskSourceApi.previewSync(sourceId)
-      if (response && response.success) {
-        previewItems.value = response.data || []
-        showPreviewDialog.value = true
-        return previewItems.value
-      } else {
-        error.value = response?.message || 'Failed to preview sync'
-        throw new Error(error.value)
-      }
+      return unwrap(response, 'Failed to preview sync') || []
     } catch (e) {
       error.value = e.message
       throw e
     } finally {
       previewLoading.value = false
     }
+  }
+
+  function setSyncPreviewTasks(tasks) {
+    syncPreviewTasks.value = tasks
+    previewItems.value = tasks
+    selectedSyncTasks.value = new Set(
+      tasks.filter(task => !task.imported).map(task => task.external_id)
+    )
+    syncError.value = null
+    showPreviewDialog.value = tasks.length > 0
+  }
+
+  async function previewSync(sourceId) {
+    const items = await fetchPreviewItems(sourceId)
+    previewItems.value = items
+    showPreviewDialog.value = items.length > 0
+    return items
+  }
+
+  async function openSyncPreviewForSource(source) {
+    closePreviewDialog()
+    const items = await fetchPreviewItems(source.id)
+    const tasks = items.map(item => ({
+      ...item,
+      sourceId: source.id,
+      sourceName: source.name
+    }))
+    setSyncPreviewTasks(tasks)
+    return tasks
+  }
+
+  async function openSyncPreviewForProject(projectId) {
+    closePreviewDialog()
+    await fetchTaskSources(projectId)
+
+    const previewTasks = []
+    for (const source of crud.items.value) {
+      try {
+        const items = await fetchPreviewItems(source.id)
+        previewTasks.push(...items.map(item => ({
+          ...item,
+          sourceId: source.id,
+          sourceName: source.name
+        })))
+      } catch (e) {
+        console.error(`Failed to preview source ${source.id}:`, e)
+      }
+    }
+
+    setSyncPreviewTasks(previewTasks)
+    return previewTasks
+  }
+
+  function toggleSyncTask(task) {
+    const next = new Set(selectedSyncTasks.value)
+    if (next.has(task.external_id)) {
+      next.delete(task.external_id)
+    } else {
+      next.add(task.external_id)
+    }
+    selectedSyncTasks.value = next
+  }
+
+  function selectAllSyncTasks() {
+    selectedSyncTasks.value = new Set(
+      syncPreviewTasks.value
+        .filter(task => !task.imported)
+        .map(task => task.external_id)
+    )
+  }
+
+  function deselectAllSyncTasks() {
+    selectedSyncTasks.value = new Set()
   }
 
   async function importSelectedIssues(sourceId, selectedItems, projectId, iterationId = null) {
@@ -222,14 +269,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         project_id: projectId,
         iteration_id: iterationId
       })
-      if (response && response.success) {
-        previewItems.value = []
-        showPreviewDialog.value = false
-        return response.data
-      } else {
-        error.value = response?.message || 'Failed to import issues'
-        throw new Error(error.value)
-      }
+      return unwrap(response, 'Failed to import issues')
     } catch (e) {
       error.value = e.message
       throw e
@@ -238,9 +278,42 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
+  async function importSelectedPreviewTasks(projectId, iterationId = null) {
+    const tasksToImport = syncPreviewTasks.value.filter(task =>
+      selectedSyncTasks.value.has(task.external_id) && !task.imported
+    )
+
+    let totalImported = 0
+    const tasksBySource = {}
+
+    for (const task of tasksToImport) {
+      if (!tasksBySource[task.sourceId]) {
+        tasksBySource[task.sourceId] = []
+      }
+      tasksBySource[task.sourceId].push(task)
+    }
+
+    for (const [sourceId, items] of Object.entries(tasksBySource)) {
+      const result = await importSelectedIssues(
+        Number(sourceId),
+        items,
+        projectId,
+        iterationId
+      )
+      totalImported += result?.created || 0
+    }
+
+    closePreviewDialog()
+    return totalImported
+  }
+
   function closePreviewDialog() {
     showPreviewDialog.value = false
     previewItems.value = []
+    syncPreviewTasks.value = []
+    selectedSyncTasks.value = new Set()
+    syncError.value = null
+    currentTaskSource.value = null
   }
 
   function clearTaskSources() {
@@ -266,6 +339,9 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     previewItems,
     showPreviewDialog,
     previewLoading,
+    syncPreviewTasks,
+    selectedSyncTasks,
+    syncError,
     fetchTaskSources,
     loadAvailableTypes,
     createTaskSource,
@@ -274,7 +350,13 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     syncTaskSource,
     testTaskSource,
     previewSync,
+    openSyncPreviewForSource,
+    openSyncPreviewForProject,
+    toggleSyncTask,
+    selectAllSyncTasks,
+    deselectAllSyncTasks,
     importSelectedIssues,
+    importSelectedPreviewTasks,
     closePreviewDialog,
     fetchTaskSource: crud.fetchById,
     clearTaskSources,

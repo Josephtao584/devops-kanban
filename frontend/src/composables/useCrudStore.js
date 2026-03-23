@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { useApiErrorHandler } from './useApiErrorHandler'
 
 /**
  * Generic CRUD store composable for eliminating duplicate code across stores.
@@ -39,11 +40,22 @@ export function useCrudStore(options = {}) {
     delete: apiMethods.delete || 'delete'
   }
 
+  const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'CRUD request failed' })
+
   // State
   const items = ref([])
   const currentItem = ref(null)
   const loading = ref(false)
   const error = ref(null)
+
+  const unwrap = (response, fallbackMessage = 'CRUD request failed') => {
+    try {
+      return apiError.unwrapResponse(response, fallbackMessage)
+    } catch (e) {
+      error.value = e.message
+      throw e
+    }
+  }
 
   // Default getters
   const defaultGetters = {
@@ -90,10 +102,8 @@ export function useCrudStore(options = {}) {
       }
       const params = fetchAllParams ? fetchAllParams() : null
       const response = params !== null ? await apiMethod(params) : await apiMethod()
-      if (response.success) {
-        items.value = response.data
-        saveToStorage()
-      }
+      items.value = unwrap(response) || []
+      saveToStorage()
       return response
     } catch (e) {
       error.value = e.message
@@ -112,15 +122,13 @@ export function useCrudStore(options = {}) {
         throw new Error(`API method '${methods.getById}' not found`)
       }
       const response = await apiMethod(id)
-      if (response.success) {
-        currentItem.value = response.data
-        // Also update in items array if exists
-        const index = items.value.findIndex(item => item.id === id)
-        if (index !== -1) {
-          items.value[index] = response.data
-        }
+      const item = unwrap(response)
+      currentItem.value = item
+      const index = items.value.findIndex(existingItem => existingItem.id === id)
+      if (index !== -1) {
+        items.value[index] = item
       }
-      return response.data
+      return item
     } catch (e) {
       error.value = e.message
       throw e
@@ -139,10 +147,9 @@ export function useCrudStore(options = {}) {
         throw new Error(`API method '${methods.create}' not found`)
       }
       const response = await apiMethod(transformedData)
-      if (response.success) {
-        items.value.push(response.data)
-        saveToStorage()
-      }
+      const createdItem = unwrap(response)
+      items.value.push(createdItem)
+      saveToStorage()
       return response
     } catch (e) {
       error.value = e.message
@@ -162,16 +169,15 @@ export function useCrudStore(options = {}) {
         throw new Error(`API method '${methods.update}' not found`)
       }
       const response = await apiMethod(id, transformedData)
-      if (response.success) {
-        const index = items.value.findIndex(item => item.id === id)
-        if (index !== -1) {
-          items.value[index] = response.data
-        }
-        if (currentItem.value?.id === id) {
-          currentItem.value = response.data
-        }
-        saveToStorage()
+      const updatedItem = unwrap(response)
+      const index = items.value.findIndex(item => item.id === id)
+      if (index !== -1) {
+        items.value[index] = updatedItem
       }
+      if (currentItem.value?.id === id) {
+        currentItem.value = updatedItem
+      }
+      saveToStorage()
       return response
     } catch (e) {
       error.value = e.message
@@ -190,13 +196,12 @@ export function useCrudStore(options = {}) {
         throw new Error(`API method '${methods.delete}' not found`)
       }
       const response = await apiMethod(id)
-      if (response.success) {
-        items.value = items.value.filter(item => item.id !== id)
-        if (currentItem.value?.id === id) {
-          currentItem.value = null
-        }
-        saveToStorage()
+      unwrap(response)
+      items.value = items.value.filter(item => item.id !== id)
+      if (currentItem.value?.id === id) {
+        currentItem.value = null
       }
+      saveToStorage()
       return response
     } catch (e) {
       error.value = e.message
