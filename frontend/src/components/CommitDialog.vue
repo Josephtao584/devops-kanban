@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="true"
     title="提交更改"
-    width="900px"
+    width="90%"
     :top="top"
     :close-on-click-modal="false"
     @close="$emit('close')"
@@ -324,20 +324,21 @@ onMounted(() => {
 .main-content {
   display: flex;
   gap: 16px;
-  flex: 1;
-  min-height: 0;
+  height: 500px;
+  min-height: 350px;
   overflow: hidden;
   box-sizing: border-box;
   max-width: 100%;
+  background: #fff;
 }
 
 .dialog-body-wrapper {
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 0 8px 8px 8px;
+  padding: 16px;
+  background: #fff;
 }
 
 /* ==================== File Panel ==================== */
@@ -346,12 +347,13 @@ onMounted(() => {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  background: #fff;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
   min-width: 0;
   box-sizing: border-box;
+  height: 100%;
 }
 
 .panel-header {
@@ -361,6 +363,7 @@ onMounted(() => {
   padding: 14px 16px;
   background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .panel-title {
@@ -479,10 +482,11 @@ onMounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  background: #fff;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
+  height: 100%;
 }
 
 .diff-panel .panel-header {
@@ -540,6 +544,16 @@ onMounted(() => {
   justify-content: center;
   gap: 12px;
   padding: 60px 40px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.diff-panel :deep(.el-empty) {
+  margin: 0;
+  padding: 0;
+}
+
+.diff-panel :deep(.el-empty__description) {
   color: var(--text-muted);
   font-size: 14px;
 }
@@ -703,6 +717,7 @@ onMounted(() => {
   padding: 18px 24px;
   border-bottom: 1px solid var(--border-color);
   background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  flex-shrink: 0;
 }
 
 :deep(.el-dialog__title) {
@@ -733,19 +748,20 @@ onMounted(() => {
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
+  border-radius: 0;
 }
 
 :deep(.el-dialog) {
-  height: 75vh;
-  max-height: 800px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  margin: 0 auto !important;
+  height: auto;
+  max-height: 75vh;
   max-width: 90vw !important;
+  margin: 0 auto !important;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .commit-dialog {
@@ -771,5 +787,6 @@ onMounted(() => {
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 </style>

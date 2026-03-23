@@ -6,6 +6,7 @@
     top="5vh"
     :close-on-click-modal="false"
     @close="$emit('close')"
+    class="diff-viewer-dialog"
   >
     <template #header>
       <div class="dialog-header">
@@ -18,78 +19,80 @@
       </div>
     </template>
 
-    <div v-if="loading" class="loading-container">
-      <el-skeleton :rows="10" animated />
-    </div>
-
-    <el-empty v-else-if="!diffData?.files?.length" description="No changes to display" />
-
-    <div v-else class="diff-container">
-      <div class="diff-stats">
-        <el-tag type="success">
-          <el-icon><Plus /></el-icon>
-          {{ totalAdditions }} additions
-        </el-tag>
-        <el-tag type="danger">
-          <el-icon><Minus /></el-icon>
-          {{ totalDeletions }} deletions
-        </el-tag>
-        <el-tag type="info">
-          {{ diffData.files.length }} files changed
-        </el-tag>
+    <div class="dialog-body-wrapper">
+      <div v-if="loading" class="loading-container">
+        <el-skeleton :rows="10" animated />
       </div>
 
-      <div class="diff-panels">
-        <!-- Left panel: File list -->
-        <div class="file-list-panel">
-          <el-scrollbar height="55vh">
-            <el-menu
-              :default-active="selectedFile"
-              @select="handleFileSelect"
-            >
-              <el-menu-item
-                v-for="file in diffData.files"
-                :key="file.path"
-                :index="file.path"
-                class="file-menu-item"
-              >
-                <div class="file-item-content">
-                  <span class="file-name" :title="file.path">{{ file.path }}</span>
-                  <div class="file-stats">
-                    <span v-if="file.additions > 0" class="stat-additions">+{{ file.additions }}</span>
-                    <span v-if="file.deletions > 0" class="stat-deletions">-{{ file.deletions }}</span>
-                    <el-tag
-                      :type="getStatusType(file.status)"
-                      size="small"
-                      class="status-tag"
-                    >
-                      {{ getStatusLabel(file.status) }}
-                    </el-tag>
-                  </div>
-                </div>
-              </el-menu-item>
-            </el-menu>
-          </el-scrollbar>
+      <el-empty v-else-if="!diffData?.files?.length" description="No changes to display" />
+
+      <div v-else class="diff-container">
+        <div class="diff-stats">
+          <el-tag type="success">
+            <el-icon><Plus /></el-icon>
+            {{ totalAdditions }} additions
+          </el-tag>
+          <el-tag type="danger">
+            <el-icon><Minus /></el-icon>
+            {{ totalDeletions }} deletions
+          </el-tag>
+          <el-tag type="info">
+            {{ diffData.files.length }} files changed
+          </el-tag>
         </div>
 
-        <!-- Right panel: Diff content -->
-        <div class="diff-content-panel">
-          <el-scrollbar height="55vh">
-            <div class="diff-view">
-              <div
-                v-for="(line, index) in parsedDiff"
-                :key="index"
-                :class="['diff-line', line.type]"
+        <div class="diff-panels">
+          <!-- Left panel: File list -->
+          <div class="file-list-panel">
+            <el-scrollbar height="55vh">
+              <el-menu
+                :default-active="selectedFile"
+                @select="handleFileSelect"
               >
-                <span class="line-number">{{ line.lineNumber || '' }}</span>
-                <span class="line-prefix">{{ line.prefix }}</span>
-                <span class="line-content">{{ line.content }}</span>
+                <el-menu-item
+                  v-for="file in diffData.files"
+                  :key="file.path"
+                  :index="file.path"
+                  class="file-menu-item"
+                >
+                  <div class="file-item-content">
+                    <span class="file-name" :title="file.path">{{ file.path }}</span>
+                    <div class="file-stats">
+                      <span v-if="file.additions > 0" class="stat-additions">+{{ file.additions }}</span>
+                      <span v-if="file.deletions > 0" class="stat-deletions">-{{ file.deletions }}</span>
+                      <el-tag
+                        :type="getStatusType(file.status)"
+                        size="small"
+                        class="status-tag"
+                      >
+                        {{ getStatusLabel(file.status) }}
+                      </el-tag>
+                    </div>
+                  </div>
+                </el-menu-item>
+              </el-menu>
+            </el-scrollbar>
+          </div>
+
+          <!-- Right panel: Diff content -->
+          <div class="diff-content-panel">
+            <el-scrollbar height="55vh">
+              <div class="diff-view">
+                <div
+                  v-for="(line, index) in parsedDiff"
+                  :key="index"
+                  :class="['diff-line', line.type]"
+                >
+                  <span class="line-number">{{ line.lineNumber || '' }}</span>
+                  <span class="line-prefix">{{ line.prefix }}</span>
+                  <span class="line-content">{{ line.content }}</span>
+                </div>
+                <div v-if="!parsedDiff.length" class="no-diff">
+                  Select a file to view changes
+                </div>
               </div>
-              <div v-if="!parsedDiff.length" class="no-diff">
-                Select a file to view changes
-              </div>
-            </div>
-          </el-scrollbar>
+            </el-scrollbar>
+          </div>
         </div>
       </div>
     </div>
@@ -287,6 +290,7 @@ const loadDiff = async () => {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  flex-shrink: 0;
 }
 
 .branch-info {
@@ -305,8 +309,23 @@ const loadDiff = async () => {
   padding: 20px;
 }
 
+/* ==================== Dialog Body Wrapper ==================== */
+.dialog-body-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px;
+  background: var(--bg-primary);
+  height: 100%;
+}
+
 /* ==================== Diff Container ==================== */
 .diff-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
   border-radius: 10px;
   overflow: hidden;
@@ -331,7 +350,9 @@ const loadDiff = async () => {
 /* ==================== Diff Panels ==================== */
 .diff-panels {
   display: flex;
-  height: 60vh;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
 }
 
 .file-list-panel {
@@ -339,6 +360,10 @@ const loadDiff = async () => {
   min-width: 280px;
   border-right: 1px solid var(--border-color);
   background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .file-list-panel :deep(.el-menu) {
@@ -423,6 +448,10 @@ const loadDiff = async () => {
   flex: 1;
   min-width: 0;
   background: var(--bg-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .diff-view {
@@ -529,23 +558,51 @@ const loadDiff = async () => {
   padding: 18px 24px;
   border-bottom: 1px solid var(--border-color);
   background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  flex-shrink: 0;
 }
 
 :deep(.el-dialog__title) {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+:deep(.el-dialog__title)::before {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 20px;
+  background: var(--accent-color);
+  border-radius: 3px;
 }
 
 :deep(.el-dialog__body) {
-  padding: 24px;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
   background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
 }
 
 :deep(.el-dialog) {
+  height: auto;
+  max-height: 75vh;
+  max-width: 90vw !important;
+  margin: 0 auto !important;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 :deep(.el-dialog__headerbtn) {
@@ -566,5 +623,6 @@ const loadDiff = async () => {
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 </style>
