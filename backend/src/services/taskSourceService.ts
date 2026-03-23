@@ -29,22 +29,24 @@ class TaskSourceService {
 
   async loadSources(): Promise<SourceRecord[]> {
     const records = await this.repository.findAll();
-    return records.map((record) => {
-      const source: SourceRecord = {
-        id: String(record.id),
-        type: record.type,
-        name: record.name,
-        project_id: record.project_id,
-        config: record.config,
-        enabled: record.enabled,
-      };
+    return records.map((record) => this._toSourceRecord(record));
+  }
 
-      if (record.last_sync_at !== undefined) {
-        source.last_sync_at = record.last_sync_at;
-      }
+  _toSourceRecord(record: { id: number; type: string; name: string; project_id: number; config: Record<string, unknown>; enabled: boolean; last_sync_at?: string | null }): SourceRecord {
+    const source: SourceRecord = {
+      id: String(record.id),
+      type: record.type,
+      name: record.name,
+      project_id: record.project_id,
+      config: record.config,
+      enabled: record.enabled,
+    };
 
-      return source;
-    });
+    if (record.last_sync_at) {
+      source.last_sync_at = record.last_sync_at;
+    }
+
+    return source;
   }
 
   async getAll() {
@@ -58,7 +60,13 @@ class TaskSourceService {
 
   async getByProject(projectId: number) {
     const sources = await this.loadSources();
-    return sources.filter((source) => source.project_id === projectId);
+    const numericProjectId = typeof projectId === 'string' ? parseInt(projectId, 10) : projectId;
+    return sources.filter((source) => {
+      const sourceProjectId = typeof source.project_id === 'string'
+        ? parseInt(source.project_id, 10)
+        : source.project_id;
+      return sourceProjectId === numericProjectId;
+    });
   }
 
   async getAvailableSourceTypes(): Promise<Record<string, SourceTypeDefinition>> {
@@ -72,8 +80,16 @@ class TaskSourceService {
     return error;
   }
 
-  async create(_sourceData: CreateTaskSourceInput) {
-    throw this._buildReadOnlyError();
+  async create(sourceData: CreateTaskSourceInput) {
+    // Ensure project_id is a number
+    const normalizedData = {
+      ...sourceData,
+      project_id: typeof sourceData.project_id === 'string'
+        ? parseInt(sourceData.project_id, 10)
+        : sourceData.project_id,
+    };
+    const entity = await this.repository.create(normalizedData as unknown as Omit<import('../types/entities.js').TaskSourceEntity, 'id'>);
+    return this._toSourceRecord(entity);
   }
 
   async update(sourceId: string, sourceData: UpdateTaskSourceInput) {
@@ -87,11 +103,14 @@ class TaskSourceService {
       return existing;
     }
 
-    throw this._buildReadOnlyError();
+    const numericId = parseInt(sourceId, 10);
+    const updated = await this.repository.update(numericId, sourceData as unknown as Partial<import('../types/entities.js').TaskSourceEntity>);
+    return updated ? this._toSourceRecord(updated) : null;
   }
 
-  async delete(_sourceId: string) {
-    throw this._buildReadOnlyError();
+  async delete(sourceId: string) {
+    const numericId = parseInt(sourceId, 10);
+    return await this.repository.delete(numericId);
   }
 
   async exists(sourceId: string) {
@@ -176,7 +195,8 @@ class TaskSourceService {
     }));
   }
 
-  async importIssues(sourceId: string, selectedItems: ImportedTask[], projectId: number, iterationId: number | null = null) {
+  async importIssues(sourceId: string, selectedItems: ImportedTask[], projectId: number | string, iterationId: number | null = null) {
+    const numericProjectId = typeof projectId === 'string' ? parseInt(projectId, 10) : projectId;
     const source = await this.getById(sourceId);
     if (!source) {
       const error = new Error('Task source not found') as Error & { statusCode?: number };
@@ -195,7 +215,7 @@ class TaskSourceService {
       }
 
       await this.taskRepository.create({
-        project_id: projectId,
+        project_id: numericProjectId,
         title: item.title,
         description: item.description,
         status: 'TODO',

@@ -670,7 +670,8 @@ watch(selectedIterationId, (newValue) => {
   if (newValue) {
     localStorage.setItem(LAST_ITERATION_KEY, String(newValue))
   } else {
-    localStorage.removeItem(LAST_ITERATION_KEY)
+    // Store special value to indicate "全部迭代" was explicitly selected
+    localStorage.setItem(LAST_ITERATION_KEY, '__ALL__')
   }
 })
 
@@ -1197,16 +1198,21 @@ const onProjectChange = async () => {
     await iterationStore.fetchByProject(selectedProjectId.value)
     // Try to restore saved iteration or default to "26.3.0"
     const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
-    const targetIteration = storedIterationId
-      ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
-      : null
-    if (targetIteration) {
-      selectedIterationId.value = Number(targetIteration.id)
+    if (storedIterationId === '__ALL__') {
+      // "全部迭代" was explicitly selected
+      selectedIterationId.value = null
     } else {
-      const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-      if (defaultIteration) {
-        selectedIterationId.value = Number(defaultIteration.id)
-        localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+      const targetIteration = storedIterationId
+        ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
+        : null
+      if (targetIteration) {
+        selectedIterationId.value = Number(targetIteration.id)
+      } else {
+        const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+        if (defaultIteration) {
+          selectedIterationId.value = Number(defaultIteration.id)
+          localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+        }
       }
     }
   }
@@ -1218,7 +1224,8 @@ const onIterationChange = (iterationId) => {
   if (iterationId) {
     localStorage.setItem(LAST_ITERATION_KEY, String(iterationId))
   } else {
-    localStorage.removeItem(LAST_ITERATION_KEY)
+    // Store special value to indicate "全部迭代" was explicitly selected
+    localStorage.setItem(LAST_ITERATION_KEY, '__ALL__')
   }
 }
 
@@ -1517,16 +1524,21 @@ onMounted(async () => {
       await iterationStore.fetchByProject(selectedProjectId.value)
       // Try to restore saved iteration or default to "26.3.0"
       const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
-      const targetIteration = storedIterationId
-        ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
-        : null
-      if (targetIteration) {
-        selectedIterationId.value = Number(targetIteration.id)
+      if (storedIterationId === '__ALL__') {
+        // "全部迭代" was explicitly selected
+        selectedIterationId.value = null
       } else {
-        const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-        if (defaultIteration) {
-          selectedIterationId.value = Number(defaultIteration.id)
-          localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+        const targetIteration = storedIterationId
+          ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
+          : null
+        if (targetIteration) {
+          selectedIterationId.value = Number(targetIteration.id)
+        } else {
+          const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
+          if (defaultIteration) {
+            selectedIterationId.value = Number(defaultIteration.id)
+            localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
+          }
         }
       }
     }

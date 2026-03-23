@@ -81,7 +81,13 @@ test.test('task source Fastify contract accepts explicit source-facing return ty
     },
   };
 
-  assert.deepEqual(await contract.create({}), projectSource);
+  assert.deepEqual(await contract.create({
+    name: 'Orders',
+    type: 'REQUIREMENT',
+    project_id: 1,
+    config: {},
+    enabled: true,
+  }), projectSource);
   assert.deepEqual(await contract.update('requirement-orders', { last_sync_at: '2026-03-20T10:00:00.000Z' }), {
     ...projectSource,
     last_sync_at: '2026-03-20T10:00:00.000Z',
