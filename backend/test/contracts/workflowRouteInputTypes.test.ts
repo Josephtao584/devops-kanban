@@ -5,6 +5,7 @@ import type { CreateExecutionInput, UpdateExecutionInput } from '../../src/types
 import type { CreateSessionInput } from '../../src/types/dto/sessions.ts';
 import type { StartWorkflowBody } from '../../src/types/dto/workflows.ts';
 import type { WorkflowStepEntity } from '../../src/types/entities.ts';
+import type { UpdateWorkflowStepRecord } from '../../src/repositories/workflowRunRepository.js';
 
 test.test('workflow and related route body types accept expected assignments', () => {
   const workflowBody: StartWorkflowBody = { task_id: 1 };
@@ -31,19 +32,17 @@ test.test('workflow and related route body types accept expected assignments', (
   assert.equal(workflowStep.summary, 'Summarized result');
 });
 
-test.test('workflow step entity requires session snapshot fields for null defaults', () => {
-  const workflowStep: WorkflowStepEntity = {
-    step_id: 'code-development',
-    name: '代码开发',
-    status: 'PENDING',
-    started_at: null,
-    completed_at: null,
-    retry_count: 0,
-    session_id: null,
-    summary: null,
-    error: null,
+
+
+test.test('workflow step updates allow partial snapshot mutations without session id', () => {
+  const stepUpdate: UpdateWorkflowStepRecord = {
+    status: 'FAILED',
+    completed_at: '2026-03-23T00:00:00.000Z',
+    error: 'Workflow failed',
   };
 
-  assert.equal(workflowStep.session_id, null);
-  assert.equal(workflowStep.summary, null);
+  assert.equal(stepUpdate.status, 'FAILED');
+  assert.equal(stepUpdate.completed_at, '2026-03-23T00:00:00.000Z');
+  assert.equal(stepUpdate.error, 'Workflow failed');
+  assert.equal('session_id' in stepUpdate, false);
 });

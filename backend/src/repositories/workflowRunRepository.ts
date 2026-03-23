@@ -4,7 +4,7 @@ import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts
 
 type CreateWorkflowRunRecord = Omit<WorkflowRunEntity, 'id'>;
 type UpdateWorkflowRunRecord = Partial<Omit<WorkflowRunEntity, 'id'>>;
-type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>> & Pick<WorkflowStepEntity, 'session_id' | 'summary' | 'error'>;
+type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>>;
 
 interface StoredWorkflowRunEntity extends WorkflowRunEntity, BaseEntity {}
 
