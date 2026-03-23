@@ -174,8 +174,8 @@ class TaskService {
       throw error;
     }
 
-    if (task.status !== 'TODO') {
-      const error = new Error('只有待处理的任务可以启动') as Error & { statusCode?: number };
+    if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
+      const error = new Error('只有待处理或进行中的任务可以启动') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
