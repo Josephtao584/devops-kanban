@@ -26,10 +26,17 @@ async function createSession(sessionRepo: SessionRepository, taskId: number) {
   });
 }
 
-test.test('SessionSegmentService uses the latest stored segment index per session and bootstraps the runtime JSON file', async () => {
+class GuardedSessionSegmentRepository extends SessionSegmentRepository {
+  findLatestBySessionId(): Promise<never> {
+    throw new Error('findLatestBySessionId should not be used by service create');
+  }
+}
+
+test.test('SessionSegmentService delegates monotonic segment index allocation to the repository contract and bootstraps the runtime JSON file', async () => {
   const storagePath = await createTempStorageRoot();
   const sessionRepo = new SessionRepository({ storagePath });
-  const sessionSegmentRepo = new SessionSegmentRepository({ storagePath });
+  const sessionSegmentRepo = new GuardedSessionSegmentRepository({ storagePath });
+  const verificationSegmentRepo = new SessionSegmentRepository({ storagePath });
   const service = new SessionSegmentService({ sessionRepo, sessionSegmentRepo });
 
   const firstSession = await createSession(sessionRepo, 101);
@@ -82,8 +89,8 @@ test.test('SessionSegmentService uses the latest stored segment index per sessio
   assert.equal(secondSegment.segment_index, 2);
   assert.equal(otherSessionSegment.segment_index, 1);
 
-  const latestFirstSessionSegment = await sessionSegmentRepo.findLatestBySessionId(firstSession.id);
-  const latestSecondSessionSegment = await sessionSegmentRepo.findLatestBySessionId(secondSession.id);
+  const latestFirstSessionSegment = await verificationSegmentRepo.findLatestBySessionId(firstSession.id);
+  const latestSecondSessionSegment = await verificationSegmentRepo.findLatestBySessionId(secondSession.id);
 
   assert.equal(latestFirstSessionSegment?.id, secondSegment.id);
   assert.equal(latestFirstSessionSegment?.segment_index, 2);
