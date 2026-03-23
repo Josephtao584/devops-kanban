@@ -1,30 +1,22 @@
 import { BaseRepository } from './base.js';
 import type { BaseEntity } from './base.js';
-import type { CreateAgentBody, UpdateAgentBody } from '../types/dto/agents.js';
+import type { CreateAgentBody, UpdateAgentBody, AgentExecutorType } from '../types/dto/agents.js';
 
 interface AgentEntity extends BaseEntity {
   name: string;
-  type: string;
+  executorType: AgentExecutorType;
   role: string;
   description?: string;
   enabled: boolean;
   skills: string[];
+  commandOverride?: string | null;
+  args: string[];
+  env: Record<string, string>;
 }
 
-type AgentCreateRecord = CreateAgentBody;
-type AgentUpdateRecord = UpdateAgentBody;
-
-class AgentRepository extends BaseRepository<AgentEntity, AgentCreateRecord, AgentUpdateRecord> {
+class AgentRepository extends BaseRepository<AgentEntity, CreateAgentBody, UpdateAgentBody> {
   constructor() {
     super('agents.json');
-  }
-
-  override async create(agentData: CreateAgentBody): Promise<AgentEntity> {
-    return await super.create(agentData as AgentCreateRecord);
-  }
-
-  override async update(agentId: number, agentData: UpdateAgentBody): Promise<AgentEntity | null> {
-    return await super.update(agentId, agentData as AgentUpdateRecord);
   }
 }
 

@@ -25,7 +25,7 @@ class ClaudeCodeExecutor implements Executor {
       exitCode: result.exitCode,
       stdout: result.stdout,
       stderr: result.stderr,
-      proc: result.proc as ExecutorExecutionResult['proc'],
+      proc: result.proc,
       rawResult: result.parsedResult,
     };
   }

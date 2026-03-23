@@ -1,14 +1,16 @@
 export type ExecutorType = 'CLAUDE_CODE' | 'CODEX' | 'OPENCODE';
 
 export interface ExecutorConfig {
-  type: string;
+  type: ExecutorType;
   commandOverride?: string | null;
   args?: string[];
   env?: Record<string, string>;
+  skills?: string[];
 }
 
 export interface ExecutorProcessHandle {
-  kill?: (signal: string) => void;
+  pid?: number;
+  kill?: (signal?: NodeJS.Signals | number) => boolean;
 }
 
 export interface ExecutorRawResult {
@@ -18,8 +20,8 @@ export interface ExecutorRawResult {
 export interface ExecutorExecutionInput {
   prompt: string;
   worktreePath: string;
-  executorConfig?: ExecutorConfig;
-  onSpawn?: (proc: ExecutorProcessHandle | unknown) => void;
+  executorConfig?: ExecutorConfig | undefined;
+  onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
 }
 
 export interface ExecutorExecutionResult {

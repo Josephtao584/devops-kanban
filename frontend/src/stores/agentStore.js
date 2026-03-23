@@ -20,11 +20,11 @@ export const useAgentStore = defineStore('agent', () => {
   const agentsByType = computed(() => {
     const grouped = {}
     crud.items.value.forEach(agent => {
-      const type = agent.type || 'OTHER'
-      if (!grouped[type]) {
-        grouped[type] = []
+      const executorType = agent.executorType || 'OTHER'
+      if (!grouped[executorType]) {
+        grouped[executorType] = []
       }
-      grouped[type].push(agent)
+      grouped[executorType].push(agent)
     })
     return grouped
   })

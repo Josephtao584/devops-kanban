@@ -1,9 +1,11 @@
 import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
+import { AgentRepository } from '../../repositories/agentRepository.js';
 import { getDevWorkflow, buildWorkflowSharedState } from './workflows.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
-import type { ExecutorProcessHandle } from '../../types/executors.js';
+import { WorkflowTemplateService } from './workflowTemplateService.js';
+import type { ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const STEP_DEFINITIONS = [
   { step_id: 'requirement-design', name: '需求设计' },
@@ -25,6 +27,29 @@ interface WorkflowExecutionContext {
   cancelled?: boolean;
   proc?: ExecutorProcessHandle | null;
   worktreePath?: string;
+}
+
+interface WorkflowTemplateStepBinding {
+  id: string;
+  name: string;
+  instructionPrompt: string;
+  agentId: number | null;
+}
+
+interface WorkflowTemplateRecord {
+  template_id: string;
+  name: string;
+  steps: WorkflowTemplateStepBinding[];
+}
+
+interface WorkflowAgentRecord {
+  id: number;
+  executorType: string;
+  enabled: boolean;
+  commandOverride?: unknown;
+  args: unknown;
+  env: unknown;
+  skills?: unknown;
 }
 
 interface ActiveRunContext {
@@ -53,16 +78,56 @@ interface WorkflowStreamHandle {
   result: Promise<WorkflowRunResult>;
 }
 
+const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
+
+function createValidationError(message: string) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+function isSupportedExecutorType(value: unknown): value is ExecutorType {
+  return typeof value === 'string' && SUPPORTED_EXECUTOR_TYPES.includes(value as ExecutorType);
+}
+
+function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null {
+  if (agent.commandOverride != null && (typeof agent.commandOverride !== 'string' || agent.commandOverride.trim().length === 0)) {
+    return 'commandOverride must be null, undefined, or a non-empty string';
+  }
+
+  if (!Array.isArray(agent.args) || agent.args.some((arg) => typeof arg !== 'string')) {
+    return 'args must be an array of strings';
+  }
+
+  if (agent.env == null || typeof agent.env !== 'object' || Array.isArray(agent.env) || Object.values(agent.env).some((value) => typeof value !== 'string')) {
+    return 'env must be a string map';
+  }
+
+  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
+    return 'skills must be an array of strings';
+  }
+
+  return null;
+}
+
 class WorkflowService {
   workflowRunRepo: WorkflowRunRepository;
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
+  workflowTemplateService: WorkflowTemplateService;
+  agentRepo: Pick<AgentRepository, 'findById'>;
   _activeRuns: Map<number, ActiveRunContext>;
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo }: { workflowRunRepo?: WorkflowRunRepository; taskRepo?: TaskRepository; projectRepo?: ProjectRepository } = {}) {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo }: {
+    workflowRunRepo?: WorkflowRunRepository;
+    taskRepo?: TaskRepository;
+    projectRepo?: ProjectRepository;
+    workflowTemplateService?: WorkflowTemplateService;
+    agentRepo?: Pick<AgentRepository, 'findById'>;
+  } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
+    this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
+    this.agentRepo = agentRepo || new AgentRepository();
     this._activeRuns = new Map();
   }
 
@@ -81,6 +146,9 @@ class WorkflowService {
       error.statusCode = 409;
       throw error;
     }
+
+    const template = await this._loadTemplate();
+    await this._validateTemplateAgents(template);
 
     const steps = STEP_DEFINITIONS.map((def) => ({
       step_id: def.step_id,
@@ -110,6 +178,46 @@ class WorkflowService {
     });
 
     return run;
+  }
+
+  async _loadTemplate() {
+    return await this.workflowTemplateService.getTemplate() as WorkflowTemplateRecord;
+  }
+
+  async _validateTemplateAgents(template: WorkflowTemplateRecord) {
+    const expectedStepIds = STEP_DEFINITIONS.map((step) => step.step_id);
+    const actualStepIds = template.steps.map((step) => step.id);
+    const hasExpectedStructure = actualStepIds.length === expectedStepIds.length
+      && new Set(actualStepIds).size === expectedStepIds.length
+      && expectedStepIds.every((stepId, index) => actualStepIds[index] === stepId);
+
+    if (!hasExpectedStructure) {
+      throw createValidationError('Workflow template steps do not match the workflow definition');
+    }
+
+    for (const step of template.steps) {
+      if (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId)) {
+        throw createValidationError(`Step "${step.name}" has no agent assigned`);
+      }
+
+      const agent = await this.agentRepo.findById(step.agentId) as WorkflowAgentRecord | null;
+      if (!agent) {
+        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} that was not found`);
+      }
+
+      if (!agent.enabled) {
+        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} that is disabled`);
+      }
+
+      if (!isSupportedExecutorType(agent.executorType)) {
+        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with unsupported executor type: ${String(agent.executorType)}`);
+      }
+
+      const invalidConfigReason = getInvalidAgentConfigReason(agent);
+      if (invalidConfigReason) {
+        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with invalid executor configuration: ${invalidConfigReason}`);
+      }
+    }
   }
 
   async _resolveExecutionPath(task: Pick<WorkflowTaskRecord, 'project_id' | 'worktree_path'>) {

@@ -23,19 +23,20 @@ const FIXED_STEPS = [
   },
 ] as const;
 
-const SUPPORTED_EXECUTOR_TYPES = new Set(['CLAUDE_CODE', 'CODEX', 'OPENCODE']);
+const FIXED_STEP_BY_ID = new Map(FIXED_STEPS.map((step) => [step.id, step] as const));
+
+type FixedStepId = typeof FIXED_STEPS[number]['id'];
 
 type WorkflowTemplateStep = {
   id: string;
   name: string;
   instructionPrompt: string;
-  executor: {
-    type: string;
-    commandOverride: string | null;
-    args: string[];
-    env: Record<string, string>;
-  };
+  agentId: number | null;
 };
+
+function isFixedStepId(value: string): value is FixedStepId {
+  return FIXED_STEP_BY_ID.has(value as FixedStepId);
+}
 
 type WorkflowTemplate = {
   template_id: string;
@@ -48,53 +49,88 @@ function buildDefaultTemplate(): WorkflowTemplate {
     template_id: 'dev-workflow-v1',
     name: '默认研发工作流',
     steps: FIXED_STEPS.map((step) => ({
-      ...step,
-      executor: {
-        type: 'CLAUDE_CODE',
-        commandOverride: null,
-        args: [],
-        env: {},
-      },
+      id: step.id,
+      name: step.name,
+      instructionPrompt: step.instructionPrompt,
+      agentId: null,
     })),
   };
 }
 
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return Boolean(value)
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && Object.entries(value as Record<string, unknown>).every(([key, item]) => typeof key === 'string' && typeof item === 'string');
+function createValidationError(message: string) {
+  return Object.assign(new Error(message), { statusCode: 400 });
 }
 
-function normalizeStep(step: Partial<WorkflowTemplateStep> | undefined, fixedStep: typeof FIXED_STEPS[number]): WorkflowTemplateStep {
+function isWorkflowTemplateStepRecord(value: unknown): value is Partial<WorkflowTemplateStep> & { id?: unknown; name?: unknown } {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeStep(
+  step: Partial<WorkflowTemplateStep> | undefined,
+  fixedStep: typeof FIXED_STEPS[number],
+): WorkflowTemplateStep {
   return {
-    ...fixedStep,
-    ...step,
+    id: fixedStep.id,
+    name: fixedStep.name,
     instructionPrompt: typeof step?.instructionPrompt === 'string' && step.instructionPrompt.trim()
       ? step.instructionPrompt
       : fixedStep.instructionPrompt,
-    executor: {
-      type: 'CLAUDE_CODE',
-      commandOverride: null,
-      args: [],
-      env: {},
-      ...(step?.executor || {}),
-    },
+    agentId: typeof step?.agentId === 'number' && Number.isFinite(step.agentId)
+      ? step.agentId
+      : null,
   };
 }
 
 function normalizeTemplate(template: WorkflowTemplate | null): WorkflowTemplate | null {
-  if (!template || template.template_id !== 'dev-workflow-v1') {
-    return template;
+  if (!template) {
+    return null;
+  }
+
+  if (template.template_id !== 'dev-workflow-v1') {
+    throw createValidationError('Invalid workflow template id');
   }
 
   if (!Array.isArray(template.steps)) {
-    return template;
+    throw createValidationError('Invalid workflow template steps');
   }
+
+  if (!template.steps.every((step) => isWorkflowTemplateStepRecord(step))) {
+    throw createValidationError('Invalid workflow template steps');
+  }
+
+  const actualStepIds = template.steps.map((step) => step.id);
+  const expectedStepIds = FIXED_STEPS.map((step) => step.id);
+  if (
+    actualStepIds.length !== expectedStepIds.length
+    || new Set(actualStepIds).size !== expectedStepIds.length
+    || expectedStepIds.some((stepId) => !actualStepIds.includes(stepId))
+  ) {
+    throw createValidationError('Invalid workflow template step ids');
+  }
+
+  for (const step of template.steps) {
+    if (!isFixedStepId(step.id)) {
+      throw createValidationError('Invalid workflow template step names');
+    }
+
+    const fixedStep = FIXED_STEP_BY_ID.get(step.id);
+    if (!fixedStep || step.name !== fixedStep.name) {
+      throw createValidationError('Invalid workflow template step names');
+    }
+  }
+
+  const stepsById = new Map<FixedStepId, WorkflowTemplateStep>(
+    template.steps.map((step) => {
+      if (!isFixedStepId(step.id)) {
+        throw createValidationError('Invalid workflow template step ids');
+      }
+      return [step.id, step] as const;
+    }),
+  );
 
   return {
     ...template,
-    steps: FIXED_STEPS.map((fixedStep, index) => normalizeStep(template.steps[index], fixedStep)),
+    steps: FIXED_STEPS.map((fixedStep) => normalizeStep(stepsById.get(fixedStep.id), fixedStep)),
   };
 }
 
@@ -128,40 +164,37 @@ class WorkflowTemplateService {
 
   _validateTemplate(template: WorkflowTemplate) {
     if (!template || template.template_id !== 'dev-workflow-v1') {
-      throw new Error('Invalid workflow template id');
+      throw createValidationError('Invalid workflow template id');
     }
 
-    const actualStepIds = Array.isArray(template.steps) ? template.steps.map((step) => step.id) : [];
+    const actualStepIds = Array.isArray(template.steps) && template.steps.every((step) => isWorkflowTemplateStepRecord(step))
+      ? template.steps.map((step) => step.id)
+      : [];
     const expectedStepIds = FIXED_STEPS.map((step) => step.id);
     if (JSON.stringify(actualStepIds) !== JSON.stringify(expectedStepIds)) {
-      throw new Error('Invalid workflow template step ids');
+      throw createValidationError('Invalid workflow template step ids');
     }
 
     for (const step of template.steps) {
+      if (!isFixedStepId(step.id)) {
+        throw createValidationError('Invalid workflow template step names');
+      }
+
+      const fixedStep = FIXED_STEP_BY_ID.get(step.id);
+      if (!fixedStep || step.name !== fixedStep.name) {
+        throw createValidationError('Invalid workflow template step names');
+      }
+
       if (typeof step.instructionPrompt !== 'string' || !step.instructionPrompt.trim()) {
-        throw new Error('instructionPrompt must be a non-empty string');
+        throw createValidationError('instructionPrompt must be a non-empty string');
       }
 
-      if (!step.executor || !SUPPORTED_EXECUTOR_TYPES.has(step.executor.type)) {
-        throw new Error('Unsupported executor type');
-      }
-
-      if (step.executor.commandOverride !== null && step.executor.commandOverride !== undefined) {
-        if (typeof step.executor.commandOverride !== 'string' || !step.executor.commandOverride.trim()) {
-          throw new Error('commandOverride must be a non-empty string');
-        }
-      }
-
-      if (!Array.isArray(step.executor.args) || step.executor.args.some((arg) => typeof arg !== 'string')) {
-        throw new Error('args must be an array of strings');
-      }
-
-      if (!isStringRecord(step.executor.env || {})) {
-        throw new Error('env must be an object of string values');
+      if (step.agentId !== null && (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId))) {
+        throw createValidationError('agentId must be a number or null');
       }
     }
   }
 }
 
-export { WorkflowTemplateService, FIXED_STEPS, SUPPORTED_EXECUTOR_TYPES, buildDefaultTemplate, normalizeTemplate };
+export { WorkflowTemplateService, FIXED_STEPS, buildDefaultTemplate, normalizeTemplate };
 export type { WorkflowTemplate, WorkflowTemplateStep };
