@@ -60,14 +60,6 @@ export const deleteBranch = (projectId, branchName, force = false) =>
     params: { projectId, force }
   })
 
-/**
- * Merge a branch
- */
-export const mergeBranch = (projectId, source, target) =>
-  api.post(`/git/branches/${source}/merge/${target}`, null, {
-    params: { projectId }
-  })
-
 // ==================== Remote Operations ====================
 
 /**

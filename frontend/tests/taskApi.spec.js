@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import api from '../src/api/index.js'
+import * as gitApi from '../src/api/git.js'
 import { createTask, updateTask } from '../src/api/task.js'
 
 describe('task api payload normalization', () => {
@@ -48,5 +49,16 @@ describe('task api payload normalization', () => {
       iterationId: '4',
       iteration_id: 4
     })
+  })
+})
+
+describe('git api push-only exports', () => {
+  it('exports push as a public api function', () => {
+    expect(gitApi.push).toBeTypeOf('function')
+  })
+
+  it('does not export mergeBranch', () => {
+    expect('mergeBranch' in gitApi).toBe(false)
+    expect(gitApi.mergeBranch).toBeUndefined()
   })
 })
