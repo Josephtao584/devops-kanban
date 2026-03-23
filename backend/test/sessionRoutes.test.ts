@@ -58,7 +58,11 @@ function buildSessionServiceStub() {
       },
       async listEvents(sessionId: number, options: { afterSeq?: number; limit?: number }) {
         calls.listEvents.push({ sessionId, options });
-        return events;
+        return {
+          events,
+          last_seq: 4,
+          has_more: false,
+        };
       },
     },
     calls,
@@ -73,7 +77,7 @@ async function buildApp(service: Record<string, unknown>) {
   return app;
 }
 
-test.test('GET /sessions/:id/events returns event records and maps after_seq query to service options', async () => {
+test.test('GET /sessions/:id/events returns the planned event envelope and maps after_seq query to service options', async () => {
   const { service, calls, events } = buildSessionServiceStub();
   const app = await buildApp(service);
 
@@ -85,13 +89,17 @@ test.test('GET /sessions/:id/events returns event records and maps after_seq que
 
   const payload = response.json() as {
     success: boolean;
-    data: SessionEventListItem[];
+    data: { events: SessionEventListItem[]; last_seq: number; has_more: boolean };
     error: null;
   };
 
   assert.equal(response.statusCode, 200);
   assert.equal(payload.success, true);
-  assert.deepEqual(payload.data, events);
+  assert.deepEqual(payload.data, {
+    events,
+    last_seq: 4,
+    has_more: false,
+  });
   assert.deepEqual(calls.listEvents, [{ sessionId: 7, options: { afterSeq: 3, limit: 25 } }]);
 
   await app.close();
@@ -110,6 +118,17 @@ test.test('GET /sessions/:id/events returns 404 when the session does not exist'
   assert.equal(response.statusCode, 404);
   assert.equal(payload.success, false);
   assert.equal(payload.message, 'Session not found');
+
+  await app.close();
+});
+
+test.test('GET /sessions/:id/output is not registered in the v1 routes', async () => {
+  const { service } = buildSessionServiceStub();
+  const app = await buildApp(service);
+
+  const response = await app.inject({ method: 'GET', url: '/sessions/7/output' });
+
+  assert.equal(response.statusCode, 404);
 
   await app.close();
 });

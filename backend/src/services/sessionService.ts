@@ -87,7 +87,18 @@ class SessionService {
       throw error;
     }
 
-    return await this.sessionEventRepo.listBySessionId(sessionId, options);
+    const requestedLimit = options.limit;
+    const events = await this.sessionEventRepo.listBySessionId(sessionId, {
+      afterSeq: options.afterSeq,
+      limit: requestedLimit === undefined ? undefined : requestedLimit + 1,
+    });
+    const hasMore = requestedLimit !== undefined && events.length > requestedLimit;
+
+    return {
+      events: hasMore ? events.slice(0, requestedLimit) : events,
+      last_seq: await this.sessionEventRepo.getLastSeq(sessionId),
+      has_more: hasMore,
+    };
   }
 
   async create(sessionData: CreateSessionInput) {
