@@ -27,8 +27,8 @@ export const pruneWorktrees = (projectId) =>
 /**
  * Commit changes in a worktree
  */
-export const commit = (projectId, taskId, { message, addAll = true, authorName, authorEmail }) =>
-  api.post(`/git/worktrees/${taskId}/commit`, { message, addAll, authorName, authorEmail }, { params: { projectId } })
+export const commit = (projectId, taskId, { message, addAll = true, files = [], authorName, authorEmail }) =>
+  api.post(`/git/worktrees/${taskId}/commit`, { message, addAll, files, authorName, authorEmail }, { params: { projectId } })
 
 /**
  * Get uncommitted changes in a worktree

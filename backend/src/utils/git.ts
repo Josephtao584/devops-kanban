@@ -41,6 +41,10 @@ export function createWorktree(taskId: number, taskTitle: string, projectName: s
   } catch (error) {
     const execError = error as Error & { stderr?: string };
     const stderr = execError.stderr || execError.message;
+    // Improve error message for empty repository
+    if (stderr.includes('Not a valid object name') || stderr.includes('does not have any commits')) {
+      throw new Error(`Git 仓库还没有提交，无法创建 worktree。请先对仓库进行初始提交。`);
+    }
     throw new Error(`Failed to create worktree: ${stderr}`);
   }
 }

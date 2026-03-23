@@ -7,3 +7,4 @@ export { taskSourceRoutes } from './taskSources.js';
 export { sessionRoutes } from './sessions.js';
 export { workflowRoutes } from './workflows.js';
 export { workflowTemplateRoutes } from './workflowTemplate.js';
+export { gitRoutes } from './git.js';
