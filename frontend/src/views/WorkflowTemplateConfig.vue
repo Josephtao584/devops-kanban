@@ -228,7 +228,13 @@ import {
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
 import {
+  MIN_WORKFLOW_TEMPLATE_STEPS,
+  normalizeWorkflowStep,
   normalizeWorkflowTemplate,
+  sanitizeWorkflowStep,
+  createEmptyWorkflowStep,
+  buildWorkflowTemplatePayload,
+  validateWorkflowTemplatePayload,
   getAgentDisplayName,
   formatAgentOption,
   createAgentLookup,
@@ -238,7 +244,6 @@ import {
 } from '../components/workflow/templateEditorShared.js'
 
 const DEFAULT_TEMPLATE_ID = 'dev-workflow-v1'
-const MIN_TEMPLATE_STEPS = 2
 
 const { t } = useI18n()
 
@@ -263,7 +268,7 @@ const canDeleteSelected = computed(() => {
 const isDraftTemplate = computed(() => Boolean(template.value?.isDraft))
 
 const canDeleteStep = computed(() => {
-  return (template.value?.steps?.length || 0) > MIN_TEMPLATE_STEPS
+  return (template.value?.steps?.length || 0) > MIN_WORKFLOW_TEMPLATE_STEPS
 })
 
 const selectedStep = computed(() => {
@@ -272,7 +277,7 @@ const selectedStep = computed(() => {
 
 const stepValidationHint = computed(() => {
   if (!canDeleteStep.value) {
-    return t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS })
+    return t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS })
   }
   return ''
 })
@@ -289,51 +294,13 @@ const getErrorMessage = (error, fallbackMessageKey) => {
   return error?.response?.data?.message || error?.message || t(fallbackMessageKey)
 }
 
-const normalizeStep = (step = {}) => ({
-  id: typeof step.id === 'string' ? step.id : '',
-  name: typeof step.name === 'string' ? step.name : '',
-  instructionPrompt: typeof step.instructionPrompt === 'string' ? step.instructionPrompt : '',
-  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
-})
-
-const sanitizeStep = (step = {}) => ({
-  id: (step.id || '').trim(),
-  name: (step.name || '').trim(),
-  instructionPrompt: (step.instructionPrompt || '').trim(),
-  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
-})
-
-const slugifyStepName = (value = '') => {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-  return normalized
-}
-
-const createGeneratedStepId = (step, index, usedIds) => {
-  const base = slugifyStepName(step.name) || `step-${index + 1}`
-  let candidate = base
-  let suffix = 2
-
-  while (usedIds.has(candidate)) {
-    candidate = `${base}-${suffix}`
-    suffix += 1
-  }
-
-  usedIds.add(candidate)
-  return candidate
-}
-
 const normalizeTemplate = (rawTemplate) => {
   if (!rawTemplate) return null
 
   return {
     ...normalizeWorkflowTemplate(rawTemplate, null),
     isDraft: rawTemplate.isDraft === true,
-    steps: Array.isArray(rawTemplate.steps) ? rawTemplate.steps.map(normalizeStep) : []
+    steps: Array.isArray(rawTemplate.steps) ? rawTemplate.steps.map(normalizeWorkflowStep) : []
   }
 }
 
@@ -348,38 +315,18 @@ const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
 const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
 const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 
-const buildStepsPayload = (steps = []) => {
-  const usedIds = new Set()
-
-  return steps.map((step, index) => {
-    const normalizedStep = sanitizeStep(step)
-    const generatedId = normalizedStep.id || createGeneratedStepId(normalizedStep, index, usedIds)
-    usedIds.add(generatedId)
-    return {
-      id: generatedId,
-      name: normalizedStep.name,
-      instructionPrompt: normalizedStep.instructionPrompt,
-      agentId: normalizedStep.agentId
-    }
-  })
-}
-
-const buildSavePayload = (currentTemplate) => ({
-  template_id: currentTemplate.template_id,
-  name: currentTemplate.name?.trim?.() || '',
-  steps: buildStepsPayload(currentTemplate.steps || [])
-})
+const buildSavePayload = (currentTemplate) => buildWorkflowTemplatePayload(currentTemplate)
 
 const createDraftTemplate = () => ({
   template_id: `draft-${Date.now()}`,
   name: t('workflowTemplate.newTemplateDefaultName'),
   isDraft: true,
-  steps: (template.value?.steps || []).map(step => normalizeStep(step))
+  steps: (template.value?.steps || []).map(step => normalizeWorkflowStep(step))
 })
 
 const previewSteps = computed(() => {
   return (template.value?.steps || []).map((step, index) => {
-    const sanitized = sanitizeStep(step)
+    const sanitized = sanitizeWorkflowStep(step)
     let agentSummary = t('workflowTemplate.unassignedAgent')
     let agentStateClass = 'workflow-chip--info'
 
@@ -425,12 +372,7 @@ const addStep = () => {
   if (!template.value) return
   template.value.steps = [
     ...(template.value.steps || []),
-    {
-      id: '',
-      name: t('workflowTemplate.newStepDefaultName'),
-      instructionPrompt: '',
-      agentId: null
-    }
+    createEmptyWorkflowStep(t('workflowTemplate.newStepDefaultName'))
   ]
   selectedStepIndex.value = template.value.steps.length - 1
 }
@@ -438,7 +380,7 @@ const addStep = () => {
 const removeStep = (index) => {
   if (!template.value) return
   if (!canDeleteStep.value) {
-    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS }))
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
     return
   }
 
@@ -454,7 +396,7 @@ const removeStep = (index) => {
 const confirmRemoveStep = async (index) => {
   if (!template.value) return
   if (!canDeleteStep.value) {
-    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS }))
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
     return
   }
 
@@ -475,33 +417,10 @@ const confirmRemoveStep = async (index) => {
 }
 
 const validateTemplateBeforeSave = (currentTemplate) => {
-  if (!currentTemplate?.name?.trim()) {
-    return t('workflowTemplate.templateNameRequired')
-  }
-
-  const steps = buildStepsPayload(currentTemplate.steps || [])
-  if (steps.length < MIN_TEMPLATE_STEPS) {
-    return t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS })
-  }
-
-  const seenIds = new Set()
-  for (const step of steps) {
-    if (!step.name) {
-      return t('workflowTemplate.stepNameRequired')
-    }
-    if (seenIds.has(step.id)) {
-      return t('workflowTemplate.stepIdUnique')
-    }
-    seenIds.add(step.id)
-    if (typeof step.agentId !== 'number') {
-      return t('workflowTemplate.stepAgentRequired')
-    }
-    if (!step.instructionPrompt) {
-      return t('workflowTemplate.stepPromptRequired')
-    }
-  }
-
-  return ''
+  return validateWorkflowTemplatePayload(currentTemplate, t, {
+    isMissingAgent,
+    isDisabledAgent
+  })
 }
 
 const resolvePreferredTemplateId = (availableTemplates, preferredId) => {

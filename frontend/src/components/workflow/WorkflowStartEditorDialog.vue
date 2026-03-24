@@ -15,6 +15,9 @@
       <section class="workflow-preview-section">
         <div class="section-heading-row">
           <div class="section-heading">{{ $t('workflowTemplate.workflowPreview') }}</div>
+          <el-button data-testid="add-step-button" plain @click="addStep">
+            {{ $t('workflowTemplate.addStep') }}
+          </el-button>
         </div>
         <div class="workflow-preview-shell">
           <div class="workflow-preview-track">
@@ -59,7 +62,7 @@
 
     <template #footer>
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
+      <el-button data-testid="confirm-start-button" type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
     </template>
 
     <el-dialog
@@ -76,6 +79,15 @@
               {{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}
             </div>
           </div>
+          <el-button
+            data-testid="delete-step-button"
+            text
+            type="danger"
+            :disabled="!canDeleteStep"
+            @click="confirmRemoveStep(selectedStepIndex)"
+          >
+            {{ $t('workflowTemplate.deleteStep') }}
+          </el-button>
         </div>
 
         <div class="step-editor-state-row binding-state-row">
@@ -135,10 +147,16 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAgents } from '../../api/agent.js'
 import {
+  MIN_WORKFLOW_TEMPLATE_STEPS,
+  normalizeWorkflowStep,
   normalizeWorkflowTemplate,
+  sanitizeWorkflowStep,
+  createEmptyWorkflowStep,
+  buildWorkflowTemplatePayload,
+  validateWorkflowTemplatePayload,
   getAgentDisplayName,
   formatAgentOption,
   createAgentLookup,
@@ -161,7 +179,13 @@ const localTemplate = ref({ template_id: '', name: '', steps: [] })
 const selectedStepIndex = ref(0)
 const showStepDetailsDialog = ref(false)
 
-const normalizeTemplate = (rawTemplate) => normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
+const normalizeTemplate = (rawTemplate) => {
+  const normalized = normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
+  return {
+    ...normalized,
+    steps: Array.isArray(normalized.steps) ? normalized.steps.map(normalizeWorkflowStep) : []
+  }
+}
 
 watch(() => props.draftTemplate, (value) => {
   localTemplate.value = normalizeTemplate(value)
@@ -196,41 +220,100 @@ const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
 const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
 const selectedStep = computed(() => localTemplate.value.steps[selectedStepIndex.value] || null)
+const canDeleteStep = computed(() => (localTemplate.value.steps?.length || 0) > MIN_WORKFLOW_TEMPLATE_STEPS)
 
 const previewSteps = computed(() => {
   return (localTemplate.value.steps || []).map((step, index) => {
+    const sanitized = sanitizeWorkflowStep(step)
     let agentSummary = t('workflowTemplate.unassignedAgent')
     let agentStateClass = 'workflow-chip--info'
     let stateClass = 'state-ready'
 
-    if (typeof step.agentId === 'number') {
-      if (isMissingAgent(step)) {
-        agentSummary = t('workflowTemplate.missingAgent', { id: step.agentId })
+    if (typeof sanitized.agentId === 'number') {
+      if (isMissingAgent(sanitized)) {
+        agentSummary = t('workflowTemplate.missingAgent', { id: sanitized.agentId })
         agentStateClass = 'workflow-chip--danger'
         stateClass = 'state-missing'
-      } else if (isDisabledAgent(step)) {
-        agentSummary = formatBoundAgentState(step)
+      } else if (isDisabledAgent(sanitized)) {
+        agentSummary = formatBoundAgentState(sanitized)
         agentStateClass = 'workflow-chip--warning'
         stateClass = 'state-disabled'
       } else {
-        agentSummary = getAgentDisplayName(getAgentById(step.agentId), t)
+        agentSummary = getAgentDisplayName(getAgentById(sanitized.agentId), t)
         agentStateClass = 'workflow-chip--success'
       }
     }
 
     return {
-      ...step,
+      ...sanitized,
       localKey: `${index}-${step.id || 'empty'}`,
       agentSummary,
       agentStateClass,
       stateClass,
-      hasWarning: isMissingAgent(step) || isDisabledAgent(step) || !String(step.instructionPrompt || '').trim()
+      hasWarning: isMissingAgent(sanitized) || isDisabledAgent(sanitized) || !sanitized.instructionPrompt
     }
   })
 })
 
 const selectStep = (index) => {
   selectedStepIndex.value = index
+}
+
+const syncSelectedStepIndex = () => {
+  const stepCount = localTemplate.value.steps.length || 0
+  if (stepCount === 0) {
+    selectedStepIndex.value = 0
+    return
+  }
+  if (selectedStepIndex.value >= stepCount) {
+    selectedStepIndex.value = stepCount - 1
+  }
+}
+
+const addStep = () => {
+  localTemplate.value.steps = [
+    ...(localTemplate.value.steps || []),
+    createEmptyWorkflowStep(t('workflowTemplate.newStepDefaultName'))
+  ]
+  selectedStepIndex.value = localTemplate.value.steps.length - 1
+}
+
+const removeStep = (index) => {
+  if (!canDeleteStep.value) {
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
+    return
+  }
+
+  localTemplate.value.steps = localTemplate.value.steps.filter((_, stepIndex) => stepIndex !== index)
+  if (selectedStepIndex.value > index) {
+    selectedStepIndex.value -= 1
+  } else if (selectedStepIndex.value === index) {
+    selectedStepIndex.value = Math.max(0, index - 1)
+  }
+  syncSelectedStepIndex()
+  showStepDetailsDialog.value = false
+}
+
+const confirmRemoveStep = async (index) => {
+  if (!canDeleteStep.value) {
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      t('workflowTemplate.deleteStepConfirm'),
+      t('workflowTemplate.deleteStepConfirmTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+    removeStep(index)
+  } catch {
+    // user cancelled
+  }
 }
 
 const openStepDetails = (index) => {
@@ -242,22 +325,20 @@ const closeStepDetails = () => {
   showStepDetailsDialog.value = false
 }
 
-const canConfirm = computed(() => (
-  localTemplate.value.steps.length > 0
-  && localTemplate.value.steps.every((step) => (
-    typeof step.agentId === 'number'
-    && Number.isFinite(step.agentId)
-    && String(step.instructionPrompt || '').trim()
-    && !isMissingAgent(step)
-    && !isDisabledAgent(step)
-  ))
-))
+const validationMessage = computed(() => validateWorkflowTemplatePayload(localTemplate.value, t, {
+  requireTemplateName: false,
+  requireExistingEnabledAgent: true,
+  isMissingAgent,
+  isDisabledAgent
+}))
+
+const canConfirm = computed(() => !validationMessage.value)
 
 const handleCancel = () => {
   showStepDetailsDialog.value = false
   emit('update:modelValue', false)
 }
-const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.value))
+const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTemplate.value))
 </script>
 
 <style scoped>
