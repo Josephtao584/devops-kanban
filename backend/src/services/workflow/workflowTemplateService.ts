@@ -31,48 +31,6 @@ const BUILT_IN_TEMPLATES = [
       },
     ],
   },
-  {
-    template_id: 'quick-fix-v1',
-    name: '快速修复工作流',
-    steps: [
-      {
-        id: 'triage',
-        name: '问题定位',
-        instructionPrompt: '先确认问题范围、触发条件和修复策略。',
-        agentId: null,
-      },
-      {
-        id: 'fix',
-        name: '实施修复',
-        instructionPrompt: '根据定位结果完成最小改动修复。',
-        agentId: null,
-      },
-      {
-        id: 'verify',
-        name: '回归验证',
-        instructionPrompt: '验证修复结果并确认没有引入明显回归。',
-        agentId: null,
-      },
-    ],
-  },
-  {
-    template_id: 'review-only-v1',
-    name: '审查工作流',
-    steps: [
-      {
-        id: 'review',
-        name: '代码审查',
-        instructionPrompt: '审查现有改动并记录风险。',
-        agentId: null,
-      },
-      {
-        id: 'report',
-        name: '输出结论',
-        instructionPrompt: '汇总结论并给出建议。',
-        agentId: null,
-      },
-    ],
-  },
 ] as const;
 
 type WorkflowTemplateStep = {
