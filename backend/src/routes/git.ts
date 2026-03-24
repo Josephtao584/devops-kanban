@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { execSync, execFileSync } from 'node:child_process';
+import { execSync, execFileSync, spawnSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import iconv from 'iconv-lite';
@@ -33,6 +33,10 @@ function decodeGitTextOutput(content: string | Buffer) {
   const gbkReplacementCount = (gbkText.match(/�/g) || []).length;
 
   return gbkReplacementCount < utf8ReplacementCount ? gbkText : utf8Text;
+}
+
+function isValidRemoteName(value: string) {
+  return /^(?!-)[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value);
 }
 
 type ProjectIdQuery = { projectId?: string };
@@ -627,6 +631,61 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
 
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, `Failed to commit: ${stderr}`));
+    }
+  });
+
+  fastify.post<{ Params: { taskId: string }; Querystring: ProjectIdQuery; Body: { remote?: string; setUpstream?: boolean } }>('/worktrees/:taskId/push', async (request, reply) => {
+    try {
+      const taskId = parseNumber(request.params.taskId);
+      const { remote = 'origin', setUpstream = false } = request.body || {};
+
+      const task = await taskRepo.findById(taskId);
+      if (!task) {
+        reply.code(404);
+        return errorResponse('Task not found');
+      }
+
+      if (!task.worktree_path) {
+        reply.code(400);
+        return errorResponse('Task has no worktree');
+      }
+
+      if (!fs.existsSync(task.worktree_path)) {
+        reply.code(400);
+        return errorResponse('Task worktree path does not exist');
+      }
+
+      if (!isValidRemoteName(remote)) {
+        reply.code(400);
+        return errorResponse('Invalid remote');
+      }
+
+      const args = ['push'];
+      if (setUpstream) {
+        args.push('--set-upstream', remote, task.worktree_branch || `task/${taskId}`);
+      } else {
+        args.push(remote);
+      }
+
+      const result = spawnSync('git', args, {
+        cwd: task.worktree_path,
+        encoding: 'utf-8',
+      });
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      if (result.status !== 0) {
+        throw new Error(result.stderr?.trim() || result.stdout?.trim() || 'Failed to push changes');
+      }
+
+      const output = [result.stdout?.trim(), result.stderr?.trim()].filter(Boolean).join('\n');
+      return successResponse({ output }, 'Changes pushed successfully');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to push changes'));
     }
   });
 
