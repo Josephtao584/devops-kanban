@@ -164,10 +164,15 @@ watch(() => props.modelValue, (value) => {
 
 .workflow-template-select-dialog__worktree-option {
   margin-top: 16px;
-  padding: 12px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  font-size: 10px;
+  padding: 12px 0 0;
+}
+
+.workflow-template-select-dialog__worktree-option :deep(.el-checkbox) {
+  --el-checkbox-font-size: 12px;
+}
+
+.workflow-template-select-dialog__worktree-option :deep(.el-checkbox__label) {
+  font-size: 12px;
 }
 
 .workflow-template-select-dialog__worktree-warning {
@@ -179,6 +184,7 @@ watch(() => props.modelValue, (value) => {
   background-color: var(--el-color-warning-light);
   border-radius: 4px;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--el-color-warning-dark-2);
 }
 
