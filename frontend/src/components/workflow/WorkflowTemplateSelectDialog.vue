@@ -167,7 +167,7 @@ watch(() => props.modelValue, (value) => {
   padding: 12px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .workflow-template-select-dialog__worktree-warning {
