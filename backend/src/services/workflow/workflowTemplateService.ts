@@ -50,6 +50,18 @@ function createValidationError(message: string) {
   return Object.assign(new Error(message), { statusCode: 400 });
 }
 
+function createNotFoundError(message: string) {
+  return Object.assign(new Error(message), { statusCode: 404 });
+}
+
+function createConflictError(message: string) {
+  return Object.assign(new Error(message), { statusCode: 409 });
+}
+
+function isBuiltInTemplateId(templateId: string) {
+  return BUILT_IN_TEMPLATES.some((template) => template.template_id === templateId);
+}
+
 function cloneTemplate(template: WorkflowTemplate): WorkflowTemplate {
   return {
     template_id: template.template_id,
@@ -85,8 +97,8 @@ function normalizeStep(step: unknown): WorkflowTemplateStep {
     throw createValidationError('instructionPrompt must be a non-empty string');
   }
 
-  if (agentId !== null && (typeof agentId !== 'number' || !Number.isFinite(agentId))) {
-    throw createValidationError('agentId must be a number or null');
+  if (agentId !== null && (!Number.isInteger(agentId) || agentId < 0)) {
+    throw createValidationError('agentId must be null or a non-negative integer');
   }
 
   return {
@@ -181,19 +193,48 @@ class WorkflowTemplateService {
     return template ? cloneTemplate(template) : null;
   }
 
+  async createTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate> {
+    const normalizedTemplate = normalizeTemplate(template);
+    const templates = await this.getTemplates();
+
+    if (templates.some((entry) => entry.template_id === normalizedTemplate.template_id)) {
+      throw createConflictError(`Workflow template already exists: ${normalizedTemplate.template_id}`);
+    }
+
+    const nextTemplates = [...templates, normalizedTemplate];
+    await this.workflowTemplateRepo.saveAll(nextTemplates);
+    return cloneTemplate(normalizedTemplate);
+  }
+
   async updateTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate> {
     const normalizedTemplate = normalizeTemplate(template);
     const templates = await this.getTemplates();
+
+    if (!templates.some((entry) => entry.template_id === normalizedTemplate.template_id)) {
+      throw createNotFoundError(`Workflow template not found: ${normalizedTemplate.template_id}`);
+    }
+
     const nextTemplates = templates.map((entry) => (
       entry.template_id === normalizedTemplate.template_id ? normalizedTemplate : entry
     ));
 
-    if (!nextTemplates.some((entry) => entry.template_id === normalizedTemplate.template_id)) {
-      nextTemplates.push(normalizedTemplate);
-    }
-
     await this.workflowTemplateRepo.saveAll(nextTemplates);
     return cloneTemplate(normalizedTemplate);
+  }
+
+  async deleteTemplate(templateId: string): Promise<void> {
+    const templates = await this.getTemplates();
+
+    if (isBuiltInTemplateId(templateId)) {
+      throw createValidationError(`Cannot delete built-in workflow template: ${templateId}`);
+    }
+
+    if (!templates.some((entry) => entry.template_id === templateId)) {
+      throw createNotFoundError(`Workflow template not found: ${templateId}`);
+    }
+
+    const nextTemplates = templates.filter((entry) => entry.template_id !== templateId);
+    await this.workflowTemplateRepo.saveAll(nextTemplates);
   }
 
   _validateTemplate(template: WorkflowTemplate) {

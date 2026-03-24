@@ -46,24 +46,22 @@ function buildQuickFixTemplate(): WorkflowTemplate {
   };
 }
 
-test.test('WorkflowTemplateService seeds multiple built-in templates when no stored data exists', async () => {
+test.test('WorkflowTemplateService seeds only the default built-in template when no stored data exists', async () => {
   const paths = createRepositoryPaths();
   const repo = new WorkflowTemplateRepository(paths);
   const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
 
   const templates = await service.getTemplates();
 
-  assert.ok(templates.length >= 3);
-  assert.ok(templates.some((template) => template.template_id === 'dev-workflow-v1'));
-  assert.ok(templates.some((template) => template.template_id === 'quick-fix-v1'));
-  assert.ok(templates.some((template) => template.template_id === 'review-only-v1'));
+  assert.equal(templates.length, 1);
+  assert.equal(templates[0]?.template_id, 'dev-workflow-v1');
   assert.ok(templates.every((template) => template.steps.length >= 2));
   assert.ok(templates.every((template) => template.steps.every((step) => typeof step.id === 'string' && step.id.trim())));
   assert.ok(templates.every((template) => template.steps.every((step) => typeof step.instructionPrompt === 'string' && step.instructionPrompt.trim())));
 
   const persisted = JSON.parse(await fs.readFile(paths.filePath, 'utf-8')) as WorkflowTemplate[];
   assert.equal(persisted.length, templates.length);
-  assert.ok(persisted.some((template) => template.template_id === 'quick-fix-v1'));
+  assert.equal(persisted[0]?.template_id, 'dev-workflow-v1');
 });
 
 test.test('WorkflowTemplateService returns template details by id from the stored collection', async () => {
@@ -120,18 +118,45 @@ test.test('WorkflowTemplateService migrates legacy singleton storage and preserv
 
   assert.equal(migrated?.name, '旧版研发工作流');
   assert.equal(migrated?.steps[0]?.instructionPrompt, '先完成旧版需求分析。');
-  assert.ok(templates.some((template) => template.template_id === 'quick-fix-v1'));
+  assert.equal(templates.length, 1);
 
   const persisted = JSON.parse(await fs.readFile(paths.filePath, 'utf-8')) as WorkflowTemplate[];
   assert.ok(Array.isArray(persisted));
   assert.ok(persisted.some((template) => template.template_id === 'dev-workflow-v1'));
-  assert.ok(persisted.some((template) => template.template_id === 'quick-fix-v1'));
 });
 
-test.test('WorkflowTemplateService updates templates with variable linear step definitions', async () => {
+test.test('WorkflowTemplateService creates a new custom workflow template', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  const created = await service.createTemplate(buildQuickFixTemplate());
+
+  assert.equal(created.template_id, 'quick-fix-v1');
+  const persisted = await service.getTemplateById('quick-fix-v1');
+  assert.deepEqual(persisted?.steps.map((step) => step.id), ['triage', 'fix', 'verify']);
+});
+
+test.test('WorkflowTemplateService rejects creating a duplicate workflow template id', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await service.createTemplate(buildQuickFixTemplate());
+
+  await assert.rejects(
+    () => service.createTemplate(buildQuickFixTemplate()),
+    /Workflow template already exists: quick-fix-v1/
+  );
+});
+
+test.test('WorkflowTemplateService updates an existing custom workflow template with variable linear step definitions', async () => {
   const paths = createRepositoryPaths();
   const repo = new WorkflowTemplateRepository(paths);
   const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
+  await service.createTemplate(buildQuickFixTemplate());
   const template = buildQuickFixTemplate();
   template.steps = [
     {
@@ -155,6 +180,84 @@ test.test('WorkflowTemplateService updates templates with variable linear step d
 
   const persisted = await service.getTemplateById('quick-fix-v1');
   assert.deepEqual(persisted?.steps.map((step) => step.name), ['调查问题', '实施修改']);
+});
+
+test.test('WorkflowTemplateService updates the default built-in template', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+  const template = await service.getTemplateById('dev-workflow-v1');
+  assert.ok(template);
+  template.steps = [
+    {
+      id: 'design',
+      name: '设计',
+      instructionPrompt: '更新默认模板设计步骤。',
+      agentId: null,
+    },
+    {
+      id: 'build',
+      name: '开发',
+      instructionPrompt: '更新默认模板开发步骤。',
+      agentId: null,
+    },
+  ];
+
+  const updated = await service.updateTemplate(template);
+
+  assert.deepEqual(updated.steps.map((step) => step.id), ['design', 'build']);
+  const persisted = await service.getTemplateById('dev-workflow-v1');
+  assert.deepEqual(persisted?.steps.map((step) => step.name), ['设计', '开发']);
+});
+
+test.test('WorkflowTemplateService rejects updating a missing workflow template', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await assert.rejects(
+    () => service.updateTemplate(buildQuickFixTemplate()),
+    /Workflow template not found: quick-fix-v1/
+  );
+});
+
+test.test('WorkflowTemplateService deletes a custom workflow template', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await service.createTemplate(buildQuickFixTemplate());
+  await service.deleteTemplate('quick-fix-v1');
+
+  const deleted = await service.getTemplateById('quick-fix-v1');
+  assert.equal(deleted, null);
+});
+
+test.test('WorkflowTemplateService rejects deleting the default built-in template', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await assert.rejects(
+    () => service.deleteTemplate('dev-workflow-v1'),
+    /Cannot delete built-in workflow template: dev-workflow-v1/
+  );
+});
+
+test.test('WorkflowTemplateService rejects deleting a missing workflow template', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await assert.rejects(
+    () => service.deleteTemplate('missing-template'),
+    /Workflow template not found: missing-template/
+  );
 });
 
 test.test('WorkflowTemplateService surfaces malformed current storage instead of reseeding built-ins', async () => {
@@ -215,5 +318,27 @@ test.test('WorkflowTemplateService rejects templates with blank step prompts', a
   const template = buildQuickFixTemplate();
   template.steps[1]!.instructionPrompt = '   ';
 
-  await assert.rejects(() => service.updateTemplate(template), /instructionPrompt must be a non-empty string/i);
+  await assert.rejects(() => service.createTemplate(template), /instructionPrompt must be a non-empty string/i);
+});
+
+test.test('WorkflowTemplateService rejects templates with negative agent ids', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+  const template = buildQuickFixTemplate();
+  template.steps[0]!.agentId = -1;
+
+  await assert.rejects(() => service.createTemplate(template), /agentId must be null or a non-negative integer/i);
+});
+
+test.test('WorkflowTemplateService rejects templates with fractional agent ids', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+  const template = buildQuickFixTemplate();
+  template.steps[0]!.agentId = 1.5;
+
+  await assert.rejects(() => service.createTemplate(template), /agentId must be null or a non-negative integer/i);
 });
