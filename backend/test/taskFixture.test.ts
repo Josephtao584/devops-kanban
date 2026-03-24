@@ -72,7 +72,7 @@ test.test('TaskService.startTask starts workflow without template id when body i
   assert.deepEqual(startWorkflowCalls, [{ taskId: 8, workflowTemplateId: undefined }]);
 });
 
-test.test('TaskService.startTask rejects non-TODO tasks before starting a workflow', async () => {
+test.test('TaskService.startTask allows IN_PROGRESS tasks to re-enter workflow startup', async () => {
   const taskRepo = {
     async findById(taskId: number) {
       return {
@@ -97,8 +97,8 @@ test.test('TaskService.startTask rejects non-TODO tasks before starting a workfl
     workflowService: workflowService as never,
   });
 
-  await assert.rejects(() => service.startTask(9, { workflow_template_id: 'quick-fix-v1' }), /只有待处理的任务可以启动/);
-  assert.equal(startWorkflowCalled, false);
+  await service.startTask(9, { workflow_template_id: 'quick-fix-v1' });
+  assert.equal(startWorkflowCalled, true);
 });
 
 test.test('TaskService.startTask rejects missing tasks before starting a workflow', async () => {

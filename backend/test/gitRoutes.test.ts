@@ -221,13 +221,15 @@ function getDiffText(payload: RoutePayload, filePath: string): string {
   return diff;
 }
 
-serialTest('POST /api/git/branches/:source/merge/:target is not available in push-only workflow', async () => {
+serialTest('POST /api/git/branches/:source/merge/:target remains available for explicit branch merges', async () => {
   const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
   seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response } = await postMerge(fixture.branchName, 'master');
+  const { response, payload } = await postMerge(fixture.branchName, 'master');
 
-  assert.equal(response.statusCode, 404);
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.success, true);
+  assert.ok(payload.data);
 });
 
 serialTest('GET /api/git/worktrees/:taskId/diff returns tracked uncommitted diff against HEAD', async () => {

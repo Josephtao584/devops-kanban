@@ -98,7 +98,12 @@ describe('WorkflowTemplateSelectDialog', () => {
     await radios[1].setValue()
     await wrapper.find('button:last-of-type').trigger('click')
 
-    expect(wrapper.emitted('confirm')).toEqual([[ 'review-only-v1' ]])
+    expect(wrapper.emitted('confirm')).toEqual([[
+      {
+        templateId: 'review-only-v1',
+        autoCreateWorktree: true
+      }
+    ]])
   })
 
   it('renders an empty state when no templates are available', async () => {

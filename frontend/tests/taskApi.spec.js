@@ -86,8 +86,8 @@ describe('git api push-only exports', () => {
     expect(gitApi.push).toBeTypeOf('function')
   })
 
-  it('does not export mergeBranch', () => {
-    expect('mergeBranch' in gitApi).toBe(false)
-    expect(gitApi.mergeBranch).toBeUndefined()
+  it('exports mergeBranch as a public api function', () => {
+    expect('mergeBranch' in gitApi).toBe(true)
+    expect(gitApi.mergeBranch).toBeTypeOf('function')
   })
 })
