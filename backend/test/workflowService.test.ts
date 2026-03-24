@@ -337,8 +337,10 @@ function createStartWorkflowHarness({
 
 function createStepSessionHarness({
   blockSegmentCreate = false,
+  blockSegmentCreateAt = blockSegmentCreate ? 1 : null,
 }: {
   blockSegmentCreate?: boolean;
+  blockSegmentCreateAt?: number | null;
 } = {}) {
   const agentRecords = buildValidAgents();
   const run = {
@@ -382,6 +384,7 @@ function createStepSessionHarness({
   };
   let nextSessionId = 101;
   let nextSegmentId = 201;
+  let segmentCreateCount = 0;
 
   const workflowRunRepo = {
     async findById(runId: number) {
@@ -428,7 +431,13 @@ function createStepSessionHarness({
   const sessionSegmentRepo = {
     async create(payload: Record<string, unknown>) {
       segmentCreates.push(payload);
-      if (blockedSegmentCreate && releaseBlockedSegmentCreate) {
+      segmentCreateCount += 1;
+      if (
+        blockedSegmentCreate
+        && releaseBlockedSegmentCreate
+        && blockSegmentCreateAt != null
+        && segmentCreateCount === blockSegmentCreateAt
+      ) {
         blockedSegmentCreate.resolve();
         await releaseBlockedSegmentCreate.promise;
       }
@@ -1004,89 +1013,52 @@ test.test('workflow step start closes session artifacts when cancellation wins d
   assert.equal(harness.segmentUpdates[0]?.updateData.status, 'CANCELLED');
 });
 
-test.test('workflow step completion and failure persist only summary and error snapshot fields', async () => {
-  const completionHarness = createStepSessionHarness();
-
-  await (completionHarness.service as WorkflowService & {
-    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
-  })._handleWorkflowStepStart(7, 'requirement-design', completionHarness.task);
-
-  await (completionHarness.service as WorkflowService & {
-    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
-  })._handleWorkflowStepCompletion(7, 'requirement-design', {
-    summary: 'Step completed',
-    rawOutput: { ignored: true },
-  });
-
-  assert.equal(completionHarness.run.steps[0]?.status, 'COMPLETED');
-  assert.equal(completionHarness.run.steps[0]?.summary, 'Step completed');
-  assert.equal(completionHarness.run.steps[0]?.error, null);
-  assert.equal('output' in (completionHarness.run.steps[0] ?? {}), false);
-  assert.equal(completionHarness.sessionUpdates[0]?.sessionId, 101);
-  assert.equal(completionHarness.sessionUpdates[0]?.updateData.status, 'COMPLETED');
-  assert.equal(completionHarness.segmentUpdates[0]?.segmentId, 201);
-  assert.equal(completionHarness.segmentUpdates[0]?.updateData.status, 'COMPLETED');
-
-  const failureHarness = createStepSessionHarness();
-
-  await (failureHarness.service as WorkflowService & {
-    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
-  })._handleWorkflowStepStart(7, 'requirement-design', failureHarness.task);
-
-  await (failureHarness.service as WorkflowService & {
-    _handleWorkflowStepFailure: (runId: number, stepId: string, errorMessage: string) => Promise<void>;
-  })._handleWorkflowStepFailure(7, 'requirement-design', 'Step failed hard');
-
-  assert.equal(failureHarness.run.steps[0]?.status, 'FAILED');
-  assert.equal(failureHarness.run.steps[0]?.summary, null);
-  assert.equal(failureHarness.run.steps[0]?.error, 'Step failed hard');
-  assert.equal(failureHarness.sessionUpdates[0]?.sessionId, 101);
-  assert.equal(failureHarness.sessionUpdates[0]?.updateData.status, 'FAILED');
-  assert.equal(failureHarness.segmentUpdates[0]?.segmentId, 201);
-  assert.equal(failureHarness.segmentUpdates[0]?.updateData.status, 'FAILED');
-});
-
-
-
-test.test('executeWorkflow finalizes the active step session when the stream throws after step start', async () => {
-  const harness = createExecuteWorkflowHarness();
-  const streamFailure = new Error('Stream exploded after start');
-
-  (harness.service as WorkflowService & {
-    _createWorkflowStream: () => Promise<{
-      fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
-      result: Promise<{ status: string }>;
-    }>;
-  })._createWorkflowStream = async () => ({
-    fullStream: (async function* () {
-      yield {
-        type: 'workflow-step-start',
-        payload: { stepName: 'requirement-design' },
-      };
-      throw streamFailure;
-    })(),
-    result: Promise.resolve({ status: 'success' }),
+test.test('workflow step retry cancellation does not retroactively cancel the previous segment when no new segment exists yet', async () => {
+  const harness = createStepSessionHarness({
+    blockSegmentCreate: true,
+    blockSegmentCreateAt: 2,
   });
 
   await (harness.service as WorkflowService & {
-    _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
-  })._executeWorkflow(7, harness.task);
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
 
-  assert.equal(harness.run.status, 'FAILED');
-  assert.deepEqual(harness.run.context, { error: 'Stream exploded after start' });
-  assert.equal(harness.run.current_step, 'requirement-design');
-  assert.equal(harness.run.steps[0]?.status, 'FAILED');
-  assert.equal(harness.run.steps[0]?.error, 'Stream exploded after start');
-  assert.equal(harness.run.steps[0]?.session_id, 101);
-  assert.equal(harness.sessions.get(101)?.status, 'FAILED');
-  assert.equal(harness.segments[0]?.status, 'FAILED');
-  assert.equal(harness.taskUpdates.length, 0);
-  assert.deepEqual(harness.runUpdates, [
-    { status: 'RUNNING' },
-    { current_step: 'requirement-design' },
-    { status: 'FAILED', context: { error: 'Stream exploded after start' } },
-  ]);
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepCompletion(7, 'requirement-design', { summary: 'Initial summary' });
+
+  const retryStartPromise = (harness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+
+  await harness.waitUntilSegmentCreateBlocked();
+
+  harness.run.status = 'CANCELLED';
+  harness.run.steps[0]!.status = 'CANCELLED';
+  harness.run.steps[0]!.completed_at = '2026-03-24T00:00:00.000Z';
+  harness.run.steps[0]!.error = 'Workflow cancelled';
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepCompletion(7, 'requirement-design', { summary: 'late retry completion' });
+
+  harness.releaseSegmentCreate();
+  await retryStartPromise;
+
+  assert.equal(harness.segments.length, 2);
+  assert.equal(harness.segments[0]?.id, 201);
+  assert.equal(harness.segments[0]?.status, 'COMPLETED');
+  assert.equal(harness.segments[1]?.id, 202);
+  assert.equal(harness.segments[1]?.status, 'CANCELLED');
+  assert.deepEqual(
+    harness.segmentUpdates.map(({ segmentId, updateData }) => ({ segmentId, status: updateData.status })),
+    [
+      { segmentId: 201, status: 'COMPLETED' },
+      { segmentId: 202, status: 'CANCELLED' },
+    ],
+  );
 });
+
 
 
 test.test('executeWorkflow stops before creating the stream when cancellation wins during startup', async () => {

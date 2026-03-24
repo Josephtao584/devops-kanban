@@ -120,6 +120,7 @@ class WorkflowService {
   sessionRepo: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
   sessionSegmentRepo: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
   _activeRuns: Map<number, ActiveRunContext>;
+  _stepAttemptSegmentIds: Map<string, number | null>;
 
   constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, sessionRepo, sessionSegmentRepo }: {
     workflowRunRepo?: WorkflowRunRepository;
@@ -138,6 +139,7 @@ class WorkflowService {
     this.sessionRepo = sessionRepo || new SessionRepository();
     this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
     this._activeRuns = new Map();
+    this._stepAttemptSegmentIds = new Map();
   }
 
   async startWorkflow(taskId: number) {
@@ -323,8 +325,14 @@ class WorkflowService {
     } as Omit<SessionEntity, 'id'>);
   }
 
-  private async _createStepAttemptSegment(session: SessionEntity, triggerType: SessionSegmentEntity['trigger_type'], parentSegmentId: number | null) {
-    return await this.sessionSegmentRepo.create({
+  private async _createStepAttemptSegment(
+    runId: number,
+    stepId: string,
+    session: SessionEntity,
+    triggerType: SessionSegmentEntity['trigger_type'],
+    parentSegmentId: number | null,
+  ) {
+    const segment = await this.sessionSegmentRepo.create({
       session_id: session.id,
       status: 'RUNNING',
       executor_type: (session.executor_type || 'CLAUDE_CODE') as SessionSegmentEntity['executor_type'],
@@ -338,6 +346,51 @@ class WorkflowService {
       completed_at: null,
       metadata: {},
     });
+
+    this._rememberStepAttemptSegmentId(runId, stepId, segment.id);
+    return segment;
+  }
+
+  private _getStepAttemptSegmentKey(runId: number, stepId: string) {
+    return `${runId}:${stepId}`;
+  }
+
+  private _getStepAttemptSegmentId(runId: number, stepId: string) {
+    return this._stepAttemptSegmentIds.get(this._getStepAttemptSegmentKey(runId, stepId)) ?? null;
+  }
+
+  private _rememberStepAttemptSegmentId(runId: number, stepId: string, segmentId: number | null) {
+    this._stepAttemptSegmentIds.set(this._getStepAttemptSegmentKey(runId, stepId), segmentId);
+  }
+
+  private _clearStepAttemptSegmentId(runId: number, stepId: string) {
+    this._stepAttemptSegmentIds.delete(this._getStepAttemptSegmentKey(runId, stepId));
+  }
+
+  private async _clearStepAttemptSegmentIfLatest(runId: number, stepId: string, sessionId: number) {
+    const attemptSegmentId = this._getStepAttemptSegmentId(runId, stepId);
+    if (!attemptSegmentId) {
+      return;
+    }
+
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+    if (latestSegment?.id === attemptSegmentId) {
+      this._clearStepAttemptSegmentId(runId, stepId);
+    }
+  }
+
+  private async _getCurrentAttemptSegment(runId: number, stepId: string, sessionId: number) {
+    const attemptSegmentId = this._getStepAttemptSegmentId(runId, stepId);
+    if (!attemptSegmentId) {
+      return null;
+    }
+
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+    if (!latestSegment || latestSegment.id !== attemptSegmentId) {
+      return null;
+    }
+
+    return latestSegment;
   }
 
   private async _finalizeCancelledStepStart(
@@ -367,9 +420,9 @@ class WorkflowService {
         completed_at: completedAt,
       });
 
-      const latestSegment = segment || await this.sessionSegmentRepo.findLatestBySessionId(session.id);
-      if (latestSegment?.status === 'RUNNING') {
-        await this.sessionSegmentRepo.update(latestSegment.id, {
+      const attemptSegment = segment || await this._getCurrentAttemptSegment(runId, stepId, session.id);
+      if (attemptSegment?.status === 'RUNNING') {
+        await this.sessionSegmentRepo.update(attemptSegment.id, {
           status: 'CANCELLED',
           completed_at: completedAt,
         });
@@ -408,6 +461,8 @@ class WorkflowService {
     }
 
     const attemptSegment = await this._createStepAttemptSegment(
+      runId,
+      stepId,
       session,
       latestSegment ? 'RETRY' : 'START',
       latestSegment?.id ?? null,
@@ -444,6 +499,7 @@ class WorkflowService {
     const { step } = await this._getRunStep(runId, stepId);
 
     if (!step.session_id) {
+      this._clearStepAttemptSegmentId(runId, stepId);
       return;
     }
 
@@ -452,14 +508,15 @@ class WorkflowService {
       completed_at: completedAt,
     });
 
-    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
-    if (latestSegment && latestSegment.status !== 'CANCELLED') {
-      await this.sessionSegmentRepo.update(latestSegment.id, {
+    const attemptSegment = await this._getCurrentAttemptSegment(runId, stepId, step.session_id);
+    if (attemptSegment?.status === 'RUNNING') {
+      await this.sessionSegmentRepo.update(attemptSegment.id, {
         status: 'CANCELLED',
         completed_at: completedAt,
       });
     }
   }
+
 
   private async _finalizeStepArtifacts(
     runId: number,
@@ -511,6 +568,10 @@ class WorkflowService {
           completed_at: completedAt,
         });
       }
+    }
+
+    if (status !== 'CANCELLED') {
+      this._clearStepAttemptSegmentId(runId, stepId);
     }
   }
 
