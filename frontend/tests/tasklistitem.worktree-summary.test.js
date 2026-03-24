@@ -1,12 +1,39 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import TaskListItem from '../src/components/task/TaskListItem.vue'
+
+const {
+  createWorktreeMock,
+  deleteWorktreeMock,
+  getWorkflowRunMock
+} = vi.hoisted(() => ({
+  createWorktreeMock: vi.fn(),
+  deleteWorktreeMock: vi.fn(),
+  getWorkflowRunMock: vi.fn(() => Promise.resolve({ success: true, data: null }))
+}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (_key, fallback) => fallback
   })
 }))
+
+vi.mock('../src/composables/useWorktree', () => ({
+  useWorktree: () => ({
+    isWorktreeLoading: () => false,
+    getWorktreeClass: (task) => `worktree-${task.worktree_status || 'none'}`,
+    getWorktreeTooltip: () => 'worktree tooltip',
+    getWorktreeStatusText: (task) => (task.worktree_status === 'created' ? '已创建' : '未创建'),
+    createWorktree: createWorktreeMock,
+    deleteWorktree: deleteWorktreeMock
+  })
+}))
+
+vi.mock('../src/api/workflow', () => ({
+  getWorkflowRun: getWorkflowRunMock
+}))
+
+import TaskListItem from '../src/components/task/TaskListItem.vue'
+import zh from '../src/locales/zh.js'
 
 const createTask = (overrides = {}) => ({
   id: 1,
@@ -21,39 +48,47 @@ const createTask = (overrides = {}) => ({
   ...overrides
 })
 
-import zh from '../src/locales/zh.js'
+const createWorkflow = () => ({
+  stages: [
+    {
+      id: 'stage-1',
+      nodes: []
+    }
+  ]
+})
+
+const mountTaskListItem = (taskOverrides = {}) => mount(TaskListItem, {
+  props: {
+    task: createTask(taskOverrides),
+    workflowExpanded: true,
+    workflow: createWorkflow()
+  },
+  global: {
+    stubs: {
+      PriorityBadge: true,
+      InlineWorkflowPanel: true,
+      'el-icon': true,
+      'el-tag': true
+    },
+    mocks: {
+      $t: (_, fallback) => fallback
+    }
+  }
+})
 
 describe('TaskListItem worktree summary', () => {
+  beforeEach(() => {
+    createWorktreeMock.mockReset()
+    deleteWorktreeMock.mockReset()
+    getWorkflowRunMock.mockClear()
+  })
+
   it('defines a zh translation for git.path', () => {
     expect(zh.git.path).toBe('路径')
   })
 
   it('renders branch and path in separate rows after quick actions', () => {
-    const wrapper = mount(TaskListItem, {
-      props: {
-        task: createTask(),
-        workflowExpanded: true,
-        workflow: {
-          stages: [
-            {
-              id: 'stage-1',
-              nodes: []
-            }
-          ]
-        }
-      },
-      global: {
-        stubs: {
-          PriorityBadge: true,
-          InlineWorkflowPanel: true,
-          'el-icon': true,
-          'el-tag': true
-        },
-        mocks: {
-          $t: (_, fallback) => fallback
-        }
-      }
-    })
+    const wrapper = mountTaskListItem()
 
     const rows = wrapper.findAll('.worktree-summary-row')
     const branchValue = wrapper.find('.worktree-summary-branch')
@@ -74,37 +109,45 @@ describe('TaskListItem worktree summary', () => {
   })
 
   it('marks long path content as wrap-friendly in kanban cards', () => {
-    const wrapper = mount(TaskListItem, {
-      props: {
-        task: createTask({
-          worktree_path: '/tmp/claude-repos/1/worktrees/devops/very/long/path/that/should/remain/visible/in/kanban/view'
-        }),
-        workflowExpanded: true,
-        workflow: {
-          stages: [
-            {
-              id: 'stage-1',
-              nodes: []
-            }
-          ]
-        }
-      },
-      global: {
-        stubs: {
-          PriorityBadge: true,
-          InlineWorkflowPanel: true,
-          'el-icon': true,
-          'el-tag': true
-        },
-        mocks: {
-          $t: (_, fallback) => fallback
-        }
-      }
+    const wrapper = mountTaskListItem({
+      worktree_path: '/tmp/claude-repos/1/worktrees/devops/very/long/path/that/should/remain/visible/in/kanban/view'
     })
 
     const pathValue = wrapper.find('.worktree-summary-path')
 
     expect(pathValue.exists()).toBe(true)
     expect(pathValue.classes()).toContain('worktree-summary-path-wrap')
+  })
+
+  it('shows delete worktree button only when worktree is created', () => {
+    const createdWrapper = mountTaskListItem()
+    const noneWrapper = mountTaskListItem({
+      worktree_status: 'none',
+      worktree_branch: null,
+      worktree_path: null
+    })
+
+    expect(createdWrapper.find('.worktree-summary-delete-btn').exists()).toBe(true)
+    expect(noneWrapper.find('.worktree-summary-delete-btn').exists()).toBe(false)
+  })
+
+  it('uses deleteWorktree when delete button is clicked', async () => {
+    deleteWorktreeMock.mockImplementation(async (task, onUpdate) => {
+      onUpdate?.(task)
+      return task
+    })
+
+    const wrapper = mountTaskListItem()
+
+    await wrapper.find('.worktree-summary-delete-btn').trigger('click')
+
+    expect(deleteWorktreeMock).toHaveBeenCalledTimes(1)
+    expect(createWorktreeMock).not.toHaveBeenCalled()
+
+    const [taskArg, onUpdateArg] = deleteWorktreeMock.mock.calls[0]
+    expect(taskArg.id).toBe(1)
+    expect(typeof onUpdateArg).toBe('function')
+    expect(wrapper.emitted('worktree-update')).toHaveLength(1)
+    expect(wrapper.emitted('worktree-update')[0][0]).toBe(taskArg)
   })
 })
