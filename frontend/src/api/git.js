@@ -121,3 +121,9 @@ export const getLog = (projectId, taskId, limit = 10) =>
 // Legacy diff endpoint
 export const getDiffLegacy = (projectId, source, target) =>
   api.get('/git/diff', { params: { projectId, source, target } })
+
+/**
+ * Merge source branch into target branch
+ */
+export const mergeBranch = (projectId, source, target) =>
+  api.post(`/git/branches/${source}/merge/${target}`, null, { params: { projectId } })
