@@ -9,7 +9,6 @@ import {
   mockIterations,
   generateId
 } from './data.js'
-import { mockWorkflows } from './workflowData.js'
 
 // Simulate network delay
 const delay = (ms = 100) => new Promise(resolve => setTimeout(resolve, ms))
@@ -288,28 +287,6 @@ export const mockHandlers = {
     executions[index].status = 'CANCELLED'
     executions[index].completedAt = new Date().toISOString()
     return response(executions[index])
-  },
-
-  // Workflows
-  'GET /workflows': async (params) => {
-    await delay()
-    let result = mockWorkflows
-    if (params?.projectId) {
-      result = result.filter(w => w.projectId === Number(params.projectId))
-    }
-    return response(result)
-  },
-
-  'GET /workflows/:id': async (id) => {
-    await delay()
-    const workflow = mockWorkflows.find(w => w.id === Number(id))
-    return workflow ? response(workflow) : response(null, false, 'Workflow not found')
-  },
-
-  'GET /workflows/project/:projectId': async (projectId) => {
-    await delay()
-    const workflow = mockWorkflows.find(w => w.projectId === Number(projectId))
-    return workflow ? response(workflow) : response(null, false, 'Workflow not found')
   },
 
   // Iterations

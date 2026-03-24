@@ -84,13 +84,18 @@ import MessageList from './session/MessageList.vue'
 import MessageInput from './session/MessageInput.vue'
 import { useSessionManager } from '../composables/useSessionManager'
 import { useWebSocketConnection } from '../composables/useWebSocketConnection'
+import { getSessionOutput, getSessionHistory } from '../api/session'
+import { useToast } from '../composables/ui/useToast'
+import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import { useMessageFilter } from '../composables/useMessageFilter'
 import { parseOutputToMessages } from '../utils/messageParser'
-import { agentConfig } from '@/mock/workflowData'
+import { agentConfig } from '@/constants/workflowPresentation'
 
 // Dev mode flag for template
 const isDev = import.meta.env.DEV
 const { t } = useI18n()
+const toast = useToast()
+const apiError = useApiErrorHandler({ showMessage: false })
 const isUnmounted = ref(false)
 
 // Icon mapping for agent types
@@ -129,9 +134,12 @@ const {
   isStopping,
   setSession,
   loadActiveSession: loadSession,
+  createSession: createManagedSession,
+  deleteSession: deleteManagedSession,
   startSession: startExistingSession,
   stopSession: stopExistingSession,
   continueSession,
+  sendInput: sendSessionInput,
   refreshSession
 } = useSessionManager()
 
@@ -300,10 +308,8 @@ const initializeSession = async (sessionData, isHistory = false) => {
     if ((!output || !output.trim()) && isHistory && sessionData.id) {
       console.log('[ChatBox] Output is empty, fetching from API for session:', sessionData.id)
       try {
-        const response = await fetch(`/api/sessions/${sessionData.id}/output`).then(r => r.json())
-        if (response.success && response.data) {
-          output = response.data
-        }
+        const response = await getSessionOutput(sessionData.id)
+        output = apiError.unwrapResponse(response, 'Failed to load session output') || ''
       } catch (e) {
         console.error('[ChatBox] Failed to fetch output from API:', e)
       }
@@ -379,10 +385,10 @@ const loadActiveSession = async () => {
 const loadLastHistorySession = async () => {
   try {
     // Load session with messages but not raw output
-    const response = await fetch(`/api/sessions/task/${props.task.id}/history?includeOutput=false`)
-      .then(r => r.json())
-    if (response.success && response.data && response.data.length > 0) {
-      const sortedSessions = response.data.sort((a, b) => {
+    const response = await getSessionHistory(props.task.id, false)
+    const history = apiError.unwrapResponse(response, 'Failed to load session history') || []
+    if (history.length > 0) {
+      const sortedSessions = history.sort((a, b) => {
         const timeA = new Date(a.startedAt || 0).getTime()
         const timeB = new Date(b.startedAt || 0).getTime()
         return timeB - timeA
@@ -409,24 +415,17 @@ const createSession = async () => {
   }
 
   try {
-    const response = await fetch('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: props.task.id, agentId: props.agentId })
-    }).then(r => r.json())
-
-    if (response.success && response.data) {
-      setSession(response.data)
-      emit('session-created', session.value)
-      setupWebSocket(session.value.id)
-      return session.value
-    } else {
-      ElMessage.error(response.message || 'Failed to create session')
+    const newSession = await createManagedSession(props.task.id, props.agentId)
+    if (!newSession) {
       return null
     }
+
+    emit('session-created', newSession)
+    await setupWebSocket(newSession.id)
+    return newSession
   } catch (e) {
     console.error('Failed to create session:', e)
-    ElMessage.error(e.response?.data?.message || e.message || 'Failed to create session')
+    toast.error(e.message || 'Failed to create session')
     return null
   }
 }
@@ -486,22 +485,19 @@ const startSession = async () => {
   startWaitingTimer()
 
   try {
-    const response = await fetch(`/api/sessions/${session.value.id}/start`, {
-      method: 'POST'
-    }).then(r => r.json())
+    const started = await startExistingSession((status) => {
+      emit('status-change', status)
+    })
 
-    if (response.success && response.data) {
-      setSession(response.data)
-      emit('status-change', session.value.status)
-
-      if (response.data.initialPrompt) {
-        setInitialPrompt(response.data.initialPrompt)
+    if (started) {
+      if (session.value.initialPrompt) {
+        setInitialPrompt(session.value.initialPrompt)
       }
 
       messages.value = messages.value.filter(m => m.role !== 'system')
 
-      if (response.data.output) {
-        const parsedMessages = parseOutputToMessages(response.data.output)
+      if (session.value.output) {
+        const parsedMessages = parseOutputToMessages(session.value.output)
         const assistantMessages = parsedMessages.filter(msg =>
           msg.role === 'assistant' && !shouldFilterContent(msg.content)
         )
@@ -512,14 +508,13 @@ const startSession = async () => {
       await setupWebSocket(session.value.id)
     } else {
       stopWaitingTimer()
-      messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (response.message || 'Failed to start session') })
-      ElMessage.error(response.message || 'Failed to start session')
+      messages.value.push({ id: Date.now(), role: 'system', content: 'Error: Failed to start session' })
     }
   } catch (e) {
     stopWaitingTimer()
     console.error('Failed to start session:', e)
-    messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (e.response?.data?.message || e.message || 'Failed to start session') })
-    ElMessage.error(e.response?.data?.message || e.message || 'Failed to start session')
+    messages.value.push({ id: Date.now(), role: 'system', content: 'Error: ' + (e.message || 'Failed to start session') })
+    toast.error(e.message || 'Failed to start session')
   } finally {
     isStarting.value = false
   }
@@ -575,15 +570,10 @@ const sendMessage = async () => {
     } else if (isConnected.value) {
       wsSendInput(session.value.id, input)
     } else {
-      const response = await fetch(`/api/sessions/${session.value.id}/input`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input })
-      }).then(r => r.json())
-
-      if (!response.success) {
+      const success = await sendSessionInput(input)
+      if (!success) {
         stopWaitingTimer()
-        ElMessage.error('Failed to send message')
+        toast.error('Failed to send message')
         inputText.value = input
         messages.value.pop()
       }
@@ -591,7 +581,7 @@ const sendMessage = async () => {
   } catch (e) {
     stopWaitingTimer()
     console.error('Failed to send message:', e)
-    ElMessage.error('Failed to send message')
+    toast.error('Failed to send message')
     inputText.value = input
     messages.value.pop()
   }
@@ -611,24 +601,19 @@ const confirmDeleteSession = async () => {
       }
     )
 
-    const response = await fetch(`/api/sessions/${session.value.id}`, {
-      method: 'DELETE'
-    }).then(r => r.json())
-
-    if (response.success) {
-      ElMessage.success(t('messages.deleted', { name: t('session.title', '会话') }))
-      disconnectWebSocket(session.value.id)
+    const deleted = await deleteManagedSession()
+    if (deleted) {
+      toast.success(t('messages.deleted', { name: t('session.title', '会话') }))
+      disconnectWebSocket(session.value?.id)
       setSession(null)
       messages.value = []
       resetFilter()
       emit('session-deleted')
-    } else {
-      ElMessage.error(response.message || t('messages.deleteFailed', { name: t('session.title') }))
     }
   } catch (e) {
     if (e !== 'cancel') {
       console.error('Failed to delete session:', e)
-      ElMessage.error(t('messages.deleteFailed', { name: t('session.title') }))
+      toast.error(t('messages.deleteFailed', { name: t('session.title') }))
     }
   }
 }

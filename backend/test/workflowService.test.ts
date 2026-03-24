@@ -79,6 +79,14 @@ function buildTemplateWithSteps(steps: TemplateStep[]): WorkflowTemplateRecord {
   };
 }
 
+function buildNamedTemplate(templateId: string, steps: TemplateStep[] = getBaseTemplateSteps()): WorkflowTemplateRecord {
+  return {
+    template_id: templateId,
+    name: `模板 ${templateId}`,
+    steps,
+  };
+}
+
 function assertValidationError(error: unknown, expectedMessage: RegExp) {
   assert.match((error as Error).message, expectedMessage);
   assert.equal((error as Error & { statusCode?: number }).statusCode, 400);
@@ -302,6 +310,10 @@ function createStartWorkflowHarness({
     async getTemplate() {
       templateLoads += 1;
       return template;
+    },
+    async getTemplateById(templateId: string) {
+      templateLoads += 1;
+      return template.template_id === templateId ? template : null;
     },
   };
 
@@ -757,17 +769,21 @@ function createExecuteWorkflowHarness() {
   };
 }
 
-test.test('startWorkflow creates a run when every bound step agent is valid and enabled', async () => {
-  const harness = createStartWorkflowHarness();
+test.test('startWorkflow stores the selected template id and snapshot on the created run', async () => {
+  const selectedTemplate = buildNamedTemplate('quick-fix-v1');
+  const harness = createStartWorkflowHarness({
+    template: selectedTemplate,
+  });
 
-  const run = await harness.service.startWorkflow(1);
+  await harness.service.startWorkflow(1, 'quick-fix-v1');
 
-  assert.equal(run.status, 'PENDING');
-  assert.equal(harness.createCalls.length, 1);
-  assert.equal(harness.taskUpdates.length, 1);
-  assert.deepEqual(harness.agentLookupIds, [11, 12, 13, 14]);
-  assert.equal(harness.getTemplateLoads(), 1);
+  const createdRun = harness.createCalls[0];
+  assert.ok(createdRun);
+  assert.equal(createdRun.workflow_id, 'quick-fix-v1');
+  assert.equal(createdRun.workflow_template_id, 'quick-fix-v1');
+  assert.deepEqual(createdRun.workflow_template_snapshot, selectedTemplate);
 });
+
 
 test.test('startWorkflow rejects a template step with no assigned agent', async () => {
   const harness = createStartWorkflowHarness({

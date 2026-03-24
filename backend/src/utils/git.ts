@@ -33,10 +33,29 @@ export function createWorktree(taskId: number, taskTitle: string, projectName: s
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
-    execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    });
+
+    // Check if branch already exists
+    let branchExists = false;
+    try {
+      execSync(`git rev-parse --verify refs/heads/${branchName}`, { cwd: repoPath, stdio: 'pipe' });
+      branchExists = true;
+    } catch {
+      branchExists = false;
+    }
+
+    if (branchExists) {
+      // Branch exists, just add worktree without creating branch
+      execSync(`git worktree add "${worktreePath}" "${branchName}"`, {
+        cwd: repoPath,
+        encoding: 'utf-8',
+      });
+    } else {
+      // Branch doesn't exist, create it with worktree
+      execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
+        cwd: repoPath,
+        encoding: 'utf-8',
+      });
+    }
     return worktreePath;
   } catch (error) {
     const execError = error as Error & { stderr?: string };
@@ -134,5 +153,94 @@ export function isGitRepository(repoPath = process.cwd()) {
     return true;
   } catch {
     return false;
+  }
+}
+
+export interface MergeResult {
+  success: boolean;
+  conflicts: string[];
+  hasConflicts: boolean;
+  message: string;
+}
+
+export function mergeBranch(
+  sourceBranch: string,
+  repoPath: string,
+  options: { noFastForward?: boolean; message?: string } = {}
+): MergeResult {
+  const { noFastForward = true, message } = options;
+
+  // 构建合并命令
+  const flags = ['merge'];
+  if (noFastForward) flags.push('--no-ff');
+  flags.push(sourceBranch);
+  if (message) {
+    flags.push('-m', message);
+  }
+
+  try {
+    const output = execSync(`git ${flags.join(' ')}`, {
+      cwd: repoPath,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    return {
+      success: true,
+      conflicts: [],
+      hasConflicts: false,
+      message: output || 'Merge completed successfully',
+    };
+  } catch (error) {
+    const execError = error as Error & { stderr?: string; stdout?: string };
+    const stderr = execError.stderr || '';
+    const stdout = execError.stdout || '';
+    const combinedOutput = stderr + stdout;
+
+    // 检测合并冲突
+    if (combinedOutput.includes('CONFLICT') || combinedOutput.includes('merge failed')) {
+      const conflicts: string[] = [];
+
+      // 解析冲突文件：both modified: xxx, both added: xxx, both deleted: xxx
+      const conflictPatterns = [
+        /both\s+modified:\s+(.+)/gi,
+        /both\s+added:\s+(.+)/gi,
+        /both\s+deleted:\s+(.+)/gi,
+      ];
+
+      for (const pattern of conflictPatterns) {
+        let match;
+        while ((match = pattern.exec(combinedOutput)) !== null) {
+          if (match[1]) {
+            conflicts.push(match[1].trim());
+          }
+        }
+      }
+
+      // 也尝试解析 "error: ..." 格式
+      const errorFilePattern = /error: (?:merge conflict in |could not apply) (.+)/gi;
+      let match;
+      while ((match = errorFilePattern.exec(combinedOutput)) !== null) {
+        const file = match[1]?.trim();
+        if (file && !conflicts.includes(file)) {
+          conflicts.push(file);
+        }
+      }
+
+      return {
+        success: false,
+        conflicts,
+        hasConflicts: conflicts.length > 0,
+        message: `Merge conflicts in ${conflicts.length} file(s)`,
+      };
+    }
+
+    // 其他错误
+    return {
+      success: false,
+      conflicts: [],
+      hasConflicts: false,
+      message: combinedOutput || 'Merge failed',
+    };
   }
 }

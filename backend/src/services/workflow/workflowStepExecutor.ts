@@ -8,6 +8,7 @@ import type {
   ExecutorType,
   WorkflowExecutionEvent,
 } from '../../types/executors.js';
+import type { WorkflowTemplateEntity } from '../../types/entities.ts';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { ExecutionEventSink } from './executionEventSink.js';
 import { adaptStepResult } from './stepResultAdapter.js';
@@ -20,6 +21,7 @@ const defaultAgentRepo = new AgentRepository();
 
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
+  templateSnapshot?: WorkflowTemplateEntity;
   templateService?: WorkflowTemplateService;
   agentRepo?: Pick<AgentRepository, 'findById'>;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
@@ -72,6 +74,7 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
 
 export async function executeWorkflowStep({
   registry = defaultRegistry,
+  templateSnapshot,
   templateService = defaultTemplateService,
   agentRepo = defaultAgentRepo,
   context,
@@ -83,7 +86,7 @@ export async function executeWorkflowStep({
   inputData,
   upstreamStepIds = [],
 }: ExecuteWorkflowStepInput) {
-  const template = await templateService.getTemplate();
+  const template = templateSnapshot ?? await templateService.getTemplate();
   const step = template.steps.find((item: { id: string }) => item.id === stepId);
 
   if (!step) {

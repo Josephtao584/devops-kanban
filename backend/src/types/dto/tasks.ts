@@ -15,6 +15,10 @@ export interface CreateTaskInput {
   order?: number;
 }
 
+export interface StartTaskInput {
+  workflow_template_id?: string;
+}
+
 export interface UpdateTaskInput {
   title?: string;
   description?: string;

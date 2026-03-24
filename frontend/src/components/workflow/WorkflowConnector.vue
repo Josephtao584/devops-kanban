@@ -8,7 +8,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { nodeStatusConfig } from '@/mock/workflowData'
+import { nodeStatusConfig } from '@/constants/workflowPresentation'
 
 const props = defineProps({
   fromStatus: {

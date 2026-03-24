@@ -29,13 +29,17 @@ function createStep(agentId: number | null) {
   };
 }
 
+function createTemplateSnapshot(step = createStep(7)) {
+  return {
+    template_id: 'dev-workflow-v1',
+    steps: [step],
+  };
+}
+
 function createTemplateService(step = createStep(7)) {
   return {
     async getTemplate() {
-      return {
-        template_id: 'dev-workflow-v1',
-        steps: [step],
-      };
+      return createTemplateSnapshot(step);
     },
   };
 }
@@ -68,6 +72,40 @@ function createAgent(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+test.test('executeWorkflowStep uses the provided template snapshot instead of loading the default template service', async () => {
+  const proc: ExecutorProcessHandle = {
+    kill() {
+      return true;
+    },
+  };
+  const registry = {
+    getExecutor(type: keyof ExecutorMap) {
+      assert.equal(type, 'CODEX');
+      return {
+        async execute(input: ExecutorExecutionInput) {
+          assert.match(input.prompt, /当前步骤：需求设计/);
+          return { exitCode: 0, stdout: '', stderr: '', rawResult: { summary: 'ok' }, proc };
+        },
+      };
+    },
+  };
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent();
+    },
+  };
+
+  const result = await executeWorkflowStep({
+    registry: registry as never,
+    agentRepo: agentRepo as never,
+    templateSnapshot: createTemplateSnapshot(),
+    ...createInputOverrides(),
+  });
+
+  assert.deepEqual(result, { summary: 'ok' });
+});
 
 test.test('ExecutionEventSink exposes canonical append helpers and awaits async callbacks', async () => {
   const events: WorkflowExecutionEvent[] = [];

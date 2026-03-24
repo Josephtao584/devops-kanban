@@ -45,11 +45,10 @@
         <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
         <el-button
           type="primary"
-          :disabled="!selectedAgentId"
-          :loading="starting"
+          :disabled="!selectedAgentId || starting"
           @click="confirmSelect"
         >
-          {{ $t('agent.startSession') }}
+          {{ starting ? $t('agent.startingSession', '启动中...') : $t('agent.startSession') }}
         </el-button>
       </div>
     </template>

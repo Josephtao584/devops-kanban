@@ -82,12 +82,9 @@
         </el-empty>
       </div>
       <div v-else-if="outputLines.length === 0" class="terminal-placeholder">
-        <p>Session ready. Click "Start" to begin...</p>
+        <p>实时输出已迁移到 workflow step 会话面板；这里暂不展示历史输出。</p>
       </div>
       <div v-else>
-        <div v-if="session && session.status === 'STOPPED'" class="history-indicator">
-          [Historical output - session stopped]
-        </div>
         <div
           v-for="(line, index) in outputLines"
           :key="index"
@@ -287,16 +284,6 @@ const loadActiveSession = async () => {
         setInitialPrompt(response.data.initialPrompt)
         console.log('Initial prompt set for filtering:', initialPrompt.value.substring(0, 50) + '...')
       }
-      // Load existing output
-      if (response.data.output) {
-        const lines = response.data.output.split('\n').filter(l => l.trim())
-        outputLines.value = lines.map((line, i) => ({
-          data: line,
-          stream: 'stdout',
-          timestamp: Date.now() + i
-        }))
-        scrollToBottom()
-      }
       // Connect WebSocket if session is running
       if (['RUNNING', 'IDLE'].includes(response.data.status)) {
         connectWebSocket()
@@ -336,22 +323,6 @@ const startSession = async () => {
     // Refresh initial prompt from session
     if (session.value.initialPrompt) {
       setInitialPrompt(session.value.initialPrompt)
-    }
-
-    // Load existing output from session
-    if (session.value.output) {
-      const lines = session.value.output.split('\n').filter(l => l.trim())
-      outputLines.value = []
-      lines.forEach((line, i) => {
-        if (!shouldFilterContent(line)) {
-          outputLines.value.push({
-            data: line,
-            stream: 'stdout',
-            timestamp: Date.now() + i
-          })
-        }
-      })
-      scrollToBottom()
     }
 
     // Connect WebSocket after session starts
@@ -422,7 +393,7 @@ const continueSession = async () => {
 
   isContinuing.value = false
 }
-﻿const sendInput = async () => {
+const sendInput = async () => {
   if (!inputText.value.trim() || !session.value) return
 
   const input = inputText.value.trim()
@@ -505,16 +476,6 @@ onMounted(() => {
     if (props.initialSession.initialPrompt) {
       setInitialPrompt(props.initialSession.initialPrompt)
     }
-    // Load existing output from session
-    if (props.initialSession.output) {
-      const lines = props.initialSession.output.split('\n').filter(l => l.trim())
-      outputLines.value = lines.map((line, i) => ({
-        data: line,
-        stream: 'stdout',
-        timestamp: Date.now() + i
-      })).filter(line => !shouldFilterContent(line.data))
-      scrollToBottom()
-    }
     // Connect WebSocket if session is running
     if (['RUNNING', 'IDLE'].includes(props.initialSession.status)) {
       connectWebSocket()
@@ -546,16 +507,6 @@ watch(() => props.initialSession, (newSession) => {
     // Store initial prompt for filtering
     if (newSession.initialPrompt) {
       setInitialPrompt(newSession.initialPrompt)
-    }
-    // Only load output if outputLines are empty (avoid duplicate loading)
-    if (newSession.output && outputLines.value.length === 0) {
-      const lines = newSession.output.split('\n').filter(l => l.trim())
-      outputLines.value = lines.map((line, i) => ({
-        data: line,
-        stream: 'stdout',
-        timestamp: Date.now() + i
-      })).filter(line => !shouldFilterContent(line.data))
-      scrollToBottom()
     }
     // Connect WebSocket if session is running and not already connected
     if (['RUNNING', 'IDLE'].includes(newSession.status) && !isConnected.value) {

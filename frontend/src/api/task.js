@@ -23,8 +23,9 @@ export const createTask = (data) => api.post('/tasks', convertTaskData(data))
 export const updateTask = (id, data) => api.put(`/tasks/${id}`, convertTaskData(data))
 export const updateTaskStatus = (id, status) => api.patch(`/tasks/${id}/status`, { status })
 export const updateTaskAutoTransition = (id, autoTransitionEnabled) => api.put(`/tasks/${id}`, { autoTransitionEnabled })
-export const deleteTask = (id) => api.delete(`/tasks/${id}`)
-export const startTask = (id) => api.post(`/tasks/${id}/start`)
+export const deleteTask = (id, deleteWorktree = false) =>
+  api.delete(`/tasks/${id}`, { params: { deleteWorktree } })
+export const startTask = (id, data) => api.post(`/tasks/${id}/start`, data)
 
 /**
  * Reorder tasks - batch update order field

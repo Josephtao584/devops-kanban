@@ -56,8 +56,8 @@
 
     <template #footer>
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="loading" @click="handleSubmit">
-        {{ isEditing ? $t('common.save') : $t('common.create') }}
+      <el-button type="primary" :disabled="loading" @click="handleSubmit">
+        {{ loading ? (isEditing ? $t('common.saving', '保存中...') : $t('common.creating', '创建中...')) : (isEditing ? $t('common.save') : $t('common.create')) }}
       </el-button>
     </template>
   </el-dialog>

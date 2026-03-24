@@ -6,239 +6,214 @@ import * as path from 'node:path';
 
 import { WorkflowTemplateRepository } from '../src/repositories/workflowTemplateRepository.js';
 import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
-import type { UpdateWorkflowTemplateInput } from '../src/types/dto/workflowTemplates.ts';
+import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.js';
 
-function createTempFilePath(name = 'workflow-template.json') {
+function createTempFilePath(name: string) {
   return path.join(os.tmpdir(), `kanban-${Date.now()}-${Math.random().toString(16).slice(2)}-${name}`);
 }
 
-function buildValidTemplate(): UpdateWorkflowTemplateInput {
+function createRepositoryPaths() {
   return {
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
+    filePath: createTempFilePath('workflow-templates.json'),
+    legacyFilePath: createTempFilePath('workflow-template.json'),
+  };
+}
+
+function buildQuickFixTemplate(): WorkflowTemplate {
+  return {
+    template_id: 'quick-fix-v1',
+    name: '快速修复工作流',
     steps: [
       {
-        id: 'requirement-design',
-        name: '需求设计',
-        instructionPrompt: '先做需求分析和设计拆解。',
+        id: 'triage',
+        name: '问题定位',
+        instructionPrompt: '先确认问题范围、触发条件和修复策略。',
         agentId: 1,
       },
       {
-        id: 'code-development',
-        name: '代码开发',
-        instructionPrompt: '根据设计摘要完成代码实现。',
+        id: 'fix',
+        name: '实施修复',
+        instructionPrompt: '根据定位结果完成最小改动修复。',
         agentId: 2,
       },
       {
-        id: 'testing',
-        name: '测试',
-        instructionPrompt: '根据开发结果执行测试验证。',
-        agentId: null,
-      },
-      {
-        id: 'code-review',
-        name: '代码审查',
-        instructionPrompt: '根据测试结果完成代码审查总结。',
-        agentId: 4,
+        id: 'verify',
+        name: '回归验证',
+        instructionPrompt: '验证修复结果并确认没有引入明显回归。',
+        agentId: 3,
       },
     ],
   };
 }
 
-test.test('WorkflowTemplateService returns default fixed four-step template when no data exists', async () => {
-  const filePath = createTempFilePath();
-  const repo = new WorkflowTemplateRepository({ filePath });
+test.test('WorkflowTemplateService seeds multiple built-in templates when no stored data exists', async () => {
+  const paths = createRepositoryPaths();
+  const repo = new WorkflowTemplateRepository(paths);
   const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
 
-  const template = await service.getTemplate();
+  const templates = await service.getTemplates();
 
-  assert.equal(template.template_id, 'dev-workflow-v1');
-  assert.deepEqual(template.steps.map((step) => step.id), [
-    'requirement-design',
-    'code-development',
-    'testing',
-    'code-review',
-  ]);
-  assert.deepEqual(template.steps.map((step) => step.name), [
-    '需求设计',
-    '代码开发',
-    '测试',
-    '代码审查',
-  ]);
-  assert.deepEqual(template.steps.map((step) => step.agentId), [null, null, null, null]);
-  assert.ok(template.steps.every((step) => typeof step.instructionPrompt === 'string' && step.instructionPrompt.trim()));
+  assert.ok(templates.length >= 3);
+  assert.ok(templates.some((template) => template.template_id === 'dev-workflow-v1'));
+  assert.ok(templates.some((template) => template.template_id === 'quick-fix-v1'));
+  assert.ok(templates.some((template) => template.template_id === 'review-only-v1'));
+  assert.ok(templates.every((template) => template.steps.length >= 2));
+  assert.ok(templates.every((template) => template.steps.every((step) => typeof step.id === 'string' && step.id.trim())));
+  assert.ok(templates.every((template) => template.steps.every((step) => typeof step.instructionPrompt === 'string' && step.instructionPrompt.trim())));
 
-  const persisted = JSON.parse(await fs.readFile(filePath, 'utf-8')) as typeof template;
-  assert.equal(persisted.template_id, 'dev-workflow-v1');
-  assert.deepEqual(persisted.steps.map((step) => step.agentId), [null, null, null, null]);
-  assert.ok(persisted.steps.every((step) => typeof step.instructionPrompt === 'string' && step.instructionPrompt.trim()));
+  const persisted = JSON.parse(await fs.readFile(paths.filePath, 'utf-8')) as WorkflowTemplate[];
+  assert.equal(persisted.length, templates.length);
+  assert.ok(persisted.some((template) => template.template_id === 'quick-fix-v1'));
 });
 
-test.test('WorkflowTemplateService normalizes legacy template missing instructionPrompt', async () => {
-  const filePath = createTempFilePath();
-  const repo = new WorkflowTemplateRepository({ filePath });
-  await repo.save({
+test.test('WorkflowTemplateService returns template details by id from the stored collection', async () => {
+  const paths = createRepositoryPaths();
+  const repo = new WorkflowTemplateRepository(paths);
+  await repo.saveAll([buildQuickFixTemplate()]);
+  const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
+
+  const template = await service.getTemplateById('quick-fix-v1');
+
+  assert.equal(template?.template_id, 'quick-fix-v1');
+  assert.deepEqual(template?.steps.map((step) => step.id), ['triage', 'fix', 'verify']);
+  assert.equal(template?.steps[1]?.name, '实施修复');
+});
+
+test.test('WorkflowTemplateService migrates legacy singleton storage and preserves its template data', async () => {
+  const paths = createRepositoryPaths();
+  const repo = new WorkflowTemplateRepository(paths);
+  await fs.mkdir(path.dirname(paths.legacyFilePath), { recursive: true });
+  await fs.writeFile(paths.legacyFilePath, JSON.stringify({
     template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
+    name: '旧版研发工作流',
     steps: [
-      { id: 'requirement-design', name: '需求设计' },
-      { id: 'code-development', name: '代码开发', agentId: 2 },
-      { id: 'testing', name: '测试', agentId: 'bad-value' },
-      { id: 'code-review', name: '代码审查', agentId: 4 },
+      {
+        id: 'requirement-design',
+        name: '需求设计',
+        instructionPrompt: '先完成旧版需求分析。',
+        agentId: 11,
+      },
+      {
+        id: 'code-development',
+        name: '代码开发',
+        instructionPrompt: '根据旧版设计完成开发。',
+        agentId: 12,
+      },
+      {
+        id: 'testing',
+        name: '测试',
+        instructionPrompt: '执行旧版验证。',
+        agentId: 13,
+      },
+      {
+        id: 'code-review',
+        name: '代码审查',
+        instructionPrompt: '完成旧版审查。',
+        agentId: 14,
+      },
     ],
-  } as never);
+  }, null, 2), 'utf-8');
   const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
 
-  const template = await service.getTemplate();
+  const templates = await service.getTemplates();
+  const migrated = templates.find((template) => template.template_id === 'dev-workflow-v1');
 
-  assert.ok(template.steps.every((step) => typeof step.instructionPrompt === 'string' && step.instructionPrompt.trim()));
-  assert.deepEqual(template.steps.map((step) => step.agentId), [null, 2, null, 4]);
+  assert.equal(migrated?.name, '旧版研发工作流');
+  assert.equal(migrated?.steps[0]?.instructionPrompt, '先完成旧版需求分析。');
+  assert.ok(templates.some((template) => template.template_id === 'quick-fix-v1'));
+
+  const persisted = JSON.parse(await fs.readFile(paths.filePath, 'utf-8')) as WorkflowTemplate[];
+  assert.ok(Array.isArray(persisted));
+  assert.ok(persisted.some((template) => template.template_id === 'dev-workflow-v1'));
+  assert.ok(persisted.some((template) => template.template_id === 'quick-fix-v1'));
 });
 
-test.test('WorkflowTemplateService normalizes reordered stored steps by step id', async () => {
-  const filePath = createTempFilePath();
-  const repo = new WorkflowTemplateRepository({ filePath });
-  await repo.save({
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
-    steps: [
-      { id: 'testing', name: '测试', instructionPrompt: '测试步骤提示', agentId: 33 },
-      { id: 'requirement-design', name: '需求设计', instructionPrompt: '需求步骤提示', agentId: 11 },
-      { id: 'code-review', name: '代码审查', instructionPrompt: '审查步骤提示', agentId: 44 },
-      { id: 'code-development', name: '代码开发', instructionPrompt: '开发步骤提示', agentId: 22 },
-    ],
-  } as never);
+test.test('WorkflowTemplateService updates templates with variable linear step definitions', async () => {
+  const paths = createRepositoryPaths();
+  const repo = new WorkflowTemplateRepository(paths);
   const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
-
-  const template = await service.getTemplate();
-
-  assert.deepEqual(template.steps.map((step) => step.id), [
-    'requirement-design',
-    'code-development',
-    'testing',
-    'code-review',
-  ]);
-  assert.deepEqual(template.steps.map((step) => step.instructionPrompt), [
-    '需求步骤提示',
-    '开发步骤提示',
-    '测试步骤提示',
-    '审查步骤提示',
-  ]);
-  assert.deepEqual(template.steps.map((step) => step.agentId), [11, 22, 33, 44]);
-});
-
-test.test('WorkflowTemplateService rejects stored template with renamed fixed step names on read', async () => {
-  const filePath = createTempFilePath();
-  const repo = new WorkflowTemplateRepository({ filePath });
-  await repo.save({
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
-    steps: [
-      { id: 'requirement-design', name: '需求分析', instructionPrompt: '先做需求分析和设计拆解。', agentId: 1 },
-      { id: 'code-development', name: '代码开发', instructionPrompt: '根据设计摘要完成代码实现。', agentId: 2 },
-      { id: 'testing', name: '测试', instructionPrompt: '根据开发结果执行测试验证。', agentId: null },
-      { id: 'code-review', name: '代码审查', instructionPrompt: '根据测试结果完成代码审查总结。', agentId: 4 },
-    ],
-  } as never);
-  const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
-
-  await assert.rejects(() => service.getTemplate(), /Invalid workflow template step names/);
-});
-
-test.test('WorkflowTemplateService rejects stored template with invalid template id on read', async () => {
-  const filePath = createTempFilePath();
-  const repo = new WorkflowTemplateRepository({ filePath });
-  await repo.save({
-    template_id: 'other-workflow',
-    name: '默认研发工作流',
-    steps: buildValidTemplate().steps,
-  } as never);
-  const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
-
-  await assert.rejects(() => service.getTemplate(), /Invalid workflow template id/);
-});
-
-test.test('WorkflowTemplateService rejects stored template with non-array steps on read', async () => {
-  const filePath = createTempFilePath();
-  const repo = new WorkflowTemplateRepository({ filePath });
-  await repo.save({
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
-    steps: {} as never,
-  } as never);
-  const service = new WorkflowTemplateService({ workflowTemplateRepo: repo });
-
-  await assert.rejects(() => service.getTemplate(), /Invalid workflow template steps/);
-});
-
-test.test('WorkflowTemplateService rejects templates with non-fixed step ids', async () => {
-  const filePath = createTempFilePath();
-  const service = new WorkflowTemplateService({
-    workflowTemplateRepo: new WorkflowTemplateRepository({ filePath }),
-  });
-
-  await assert.rejects(() => service.updateTemplate({
-    template_id: 'dev-workflow-v1',
-    name: 'x',
-    steps: [{
-      id: 'custom-step',
-      name: '自定义',
-      instructionPrompt: 'foo',
-      agentId: 1,
-    }],
-  } as never), /Invalid workflow template step ids/);
-});
-
-test.test('WorkflowTemplateService rejects templates with renamed fixed steps', async () => {
-  const filePath = createTempFilePath();
-  const service = new WorkflowTemplateService({
-    workflowTemplateRepo: new WorkflowTemplateRepository({ filePath }),
-  });
-  const template = buildValidTemplate();
-  template.steps[1]!.name = '开发实现';
-
-  await assert.rejects(() => service.updateTemplate(template), /Invalid workflow template step names/);
-});
-
-test.test('WorkflowTemplateService rejects non-number non-null agentId', async () => {
-  const filePath = createTempFilePath();
-  const service = new WorkflowTemplateService({
-    workflowTemplateRepo: new WorkflowTemplateRepository({ filePath }),
-  });
-  const template = buildValidTemplate();
-  template.steps[1]!.agentId = 'x' as never;
-
-  await assert.rejects(() => service.updateTemplate(template), /agentId must be a number or null/);
-});
-
-test.test('WorkflowTemplateService rejects blank instructionPrompt', async () => {
-  const filePath = createTempFilePath();
-  const service = new WorkflowTemplateService({
-    workflowTemplateRepo: new WorkflowTemplateRepository({ filePath }),
-  });
-  const template = buildValidTemplate();
-  template.steps[1]!.instructionPrompt = '   ';
-
-  await assert.rejects(() => service.updateTemplate(template), /instructionPrompt must be a non-empty string/);
-});
-
-test.test('WorkflowTemplateService updates valid template', async () => {
-  const filePath = createTempFilePath();
-  const service = new WorkflowTemplateService({
-    workflowTemplateRepo: new WorkflowTemplateRepository({ filePath }),
-  });
-  const template = buildValidTemplate();
-  template.steps[1]!.agentId = 7;
-  template.steps[1]!.instructionPrompt = '根据设计摘要完成代码实现并记录修改结果。';
+  const template = buildQuickFixTemplate();
+  template.steps = [
+    {
+      id: 'investigate',
+      name: '调查问题',
+      instructionPrompt: '先梳理现象与根因。',
+      agentId: 8,
+    },
+    {
+      id: 'implement',
+      name: '实施修改',
+      instructionPrompt: '基于调查结论完成实现。',
+      agentId: 9,
+    },
+  ];
 
   const updated = await service.updateTemplate(template);
 
-  assert.equal(updated.steps[1]!.name, '代码开发');
-  assert.equal(updated.steps[1]!.agentId, 7);
-  assert.equal(updated.steps[1]!.instructionPrompt, '根据设计摘要完成代码实现并记录修改结果。');
+  assert.deepEqual(updated.steps.map((step) => step.id), ['investigate', 'implement']);
+  assert.equal(updated.steps[0]?.agentId, 8);
 
-  const persisted = JSON.parse(await fs.readFile(filePath, 'utf-8')) as typeof updated;
-  assert.equal(persisted.steps[1]!.name, '代码开发');
-  assert.equal(persisted.steps[1]!.agentId, 7);
-  assert.equal(persisted.steps[1]!.instructionPrompt, '根据设计摘要完成代码实现并记录修改结果。');
+  const persisted = await service.getTemplateById('quick-fix-v1');
+  assert.deepEqual(persisted?.steps.map((step) => step.name), ['调查问题', '实施修改']);
+});
+
+test.test('WorkflowTemplateService surfaces malformed current storage instead of reseeding built-ins', async () => {
+  const paths = createRepositoryPaths();
+  await fs.mkdir(path.dirname(paths.filePath), { recursive: true });
+  await fs.writeFile(paths.filePath, '{not valid json', 'utf-8');
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await assert.rejects(
+    () => service.getTemplates(),
+    /Failed to read workflow template storage/
+  );
+
+  const persisted = await fs.readFile(paths.filePath, 'utf-8');
+  assert.equal(persisted, '{not valid json');
+});
+
+test.test('WorkflowTemplateService surfaces malformed legacy storage instead of reseeding built-ins', async () => {
+  const paths = createRepositoryPaths();
+  await fs.mkdir(path.dirname(paths.legacyFilePath), { recursive: true });
+  await fs.writeFile(paths.legacyFilePath, '{not valid json', 'utf-8');
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+
+  await assert.rejects(
+    () => service.getTemplates(),
+    /Failed to read legacy workflow template storage/
+  );
+
+  await assert.rejects(() => fs.access(paths.filePath));
+});
+
+test.test('WorkflowTemplateService rejects templates with duplicate step ids', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+  const template = buildQuickFixTemplate();
+  template.steps = [
+    template.steps[0]!,
+    {
+      ...template.steps[1]!,
+      id: 'triage',
+    },
+  ];
+
+  await assert.rejects(() => service.updateTemplate(template), /step ids must be unique/i);
+});
+
+test.test('WorkflowTemplateService rejects templates with blank step prompts', async () => {
+  const paths = createRepositoryPaths();
+  const service = new WorkflowTemplateService({
+    workflowTemplateRepo: new WorkflowTemplateRepository(paths),
+  });
+  const template = buildQuickFixTemplate();
+  template.steps[1]!.instructionPrompt = '   ';
+
+  await assert.rejects(() => service.updateTemplate(template), /instructionPrompt must be a non-empty string/i);
 });

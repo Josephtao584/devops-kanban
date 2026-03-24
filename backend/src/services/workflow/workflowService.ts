@@ -7,7 +7,7 @@ import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepos
 import { getDevWorkflow, buildWorkflowSharedState } from './workflows.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
-import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity } from '../../types/entities.ts';
+import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity, WorkflowTemplateEntity } from '../../types/entities.ts';
 import type { ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const STEP_DEFINITIONS = [
@@ -30,6 +30,7 @@ interface WorkflowExecutionContext {
   cancelled?: boolean;
   proc?: ExecutorProcessHandle | null;
   worktreePath?: string;
+  templateSnapshot?: WorkflowTemplateEntity | null;
 }
 
 interface WorkflowTemplateStepBinding {
@@ -142,7 +143,7 @@ class WorkflowService {
     this._stepAttemptSegmentIds = new Map();
   }
 
-  async startWorkflow(taskId: number) {
+  async startWorkflow(taskId: number, workflowTemplateId?: string) {
     const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -158,7 +159,7 @@ class WorkflowService {
       throw error;
     }
 
-    const template = await this._loadTemplate();
+    const template = await this._loadTemplate(workflowTemplateId);
     await this._validateTemplateAgents(template);
 
     const steps: WorkflowStepEntity[] = STEP_DEFINITIONS.map((def) => ({
@@ -175,7 +176,13 @@ class WorkflowService {
 
     const run = await this.workflowRunRepo.create({
       task_id: taskId,
-      workflow_id: 'dev-workflow-v1',
+      workflow_id: template.template_id,
+      workflow_template_id: template.template_id,
+      workflow_template_snapshot: {
+        template_id: template.template_id,
+        name: template.name,
+        steps: template.steps.map((step) => ({ ...step })),
+      },
       status: 'PENDING',
       current_step: null,
       steps,
@@ -184,8 +191,8 @@ class WorkflowService {
       context: {},
     });
 
+    this._activeRuns.set(run.id, this._createActiveRunContext(executionPath, run.workflow_template_snapshot as WorkflowTemplateEntity));
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
-    this._activeRuns.set(run.id, this._createActiveRunContext(executionPath));
     this._executeWorkflow(run.id, { ...task, execution_path: executionPath }).catch((err) => {
       console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
     });
@@ -193,7 +200,19 @@ class WorkflowService {
     return run;
   }
 
-  async _loadTemplate() {
+  async _loadTemplate(templateId?: string) {
+    if (templateId !== undefined) {
+      if (typeof templateId !== 'string' || templateId.trim().length === 0) {
+        throw createValidationError('Workflow template id must be a non-empty string');
+      }
+
+      const selectedTemplate = await this.workflowTemplateService.getTemplateById(templateId.trim());
+      if (!selectedTemplate) {
+        throw createValidationError(`Workflow template not found: ${templateId.trim()}`);
+      }
+      return selectedTemplate as WorkflowTemplateRecord;
+    }
+
     return await this.workflowTemplateService.getTemplate() as WorkflowTemplateRecord;
   }
 
@@ -256,11 +275,12 @@ class WorkflowService {
     });
   }
 
-  private _createActiveRunContext(worktreePath?: string): ActiveRunContext {
+  private _createActiveRunContext(worktreePath?: string, templateSnapshot?: WorkflowTemplateEntity | null): ActiveRunContext {
     const context: WorkflowExecutionContext = {
       cancelled: false,
       proc: null,
       worktreePath,
+      templateSnapshot: templateSnapshot ?? null,
     };
 
     return {
@@ -286,8 +306,13 @@ class WorkflowService {
     return { run, step };
   }
 
-  private async _getTemplateStepBinding(stepId: string) {
-    const template = await this._loadTemplate();
+  private async _getTemplateStepBinding(runId: number, stepId: string) {
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    if (!run) {
+      throw new Error(`Workflow run not found: ${runId}`);
+    }
+
+    const template = run.workflow_template_snapshot ?? await this._loadTemplate(run.workflow_template_id ?? undefined);
     const stepBinding = template.steps.find((candidate) => candidate.id === stepId) || null;
     if (!stepBinding) {
       throw new Error(`Workflow template step not found: ${stepId}`);
@@ -300,7 +325,7 @@ class WorkflowService {
     stepId: string,
     task: WorkflowTaskRecord & { execution_path: string },
   ) {
-    const stepBinding = await this._getTemplateStepBinding(stepId);
+    const stepBinding = await this._getTemplateStepBinding(runId, stepId);
     if (typeof stepBinding.agentId !== 'number') {
       throw new Error(`Workflow template step ${stepId} has no bound agent`);
     }
@@ -494,7 +519,6 @@ class WorkflowService {
     }
   }
 
-
   private async _syncCancelledStepArtifacts(runId: number, stepId: string, completedAt: string) {
     const { step } = await this._getRunStep(runId, stepId);
 
@@ -516,7 +540,6 @@ class WorkflowService {
       });
     }
   }
-
 
   private async _finalizeStepArtifacts(
     runId: number,
@@ -638,15 +661,20 @@ class WorkflowService {
   }
 
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }) {
-    const activeRun = this._activeRuns.get(runId) || this._createActiveRunContext(task.execution_path);
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    const activeRun = this._activeRuns.get(runId) || this._createActiveRunContext(task.execution_path, run?.workflow_template_snapshot ?? null);
     this._activeRuns.set(runId, activeRun);
 
     const context = activeRun.context || {
       cancelled: false,
       proc: null,
       worktreePath: task.execution_path,
+      templateSnapshot: run?.workflow_template_snapshot ?? null,
     };
     context.worktreePath = task.execution_path;
+    if (context.templateSnapshot == null) {
+      context.templateSnapshot = run?.workflow_template_snapshot ?? null;
+    }
     activeRun.context = context;
     activeRun.cancel = () => {
       context.cancelled = true;

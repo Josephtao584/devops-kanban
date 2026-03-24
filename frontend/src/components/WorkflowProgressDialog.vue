@@ -2,7 +2,7 @@
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
-    width="600px"
+    width="960px"
     class="workflow-progress-dialog"
     @close="handleClose"
     @opened="startPolling"
@@ -17,53 +17,60 @@
       <el-button size="small" @click="fetchRun">重试</el-button>
     </div>
 
-    <div v-else-if="run" class="progress-content">
-      <!-- Overall status -->
-      <div class="overall-status">
-        <span class="run-status" :class="statusClass">
-          {{ statusIcon }} {{ statusText }}
-        </span>
-        <span class="run-time" v-if="run.created_at">
-          {{ formatTime(run.created_at) }}
-        </span>
-      </div>
-
-      <!-- Steps -->
-      <div class="steps-list">
-        <template v-for="(step, index) in run.steps" :key="step.step_id">
-          <div
-            class="step-item"
-            :class="stepStatusClass(step)"
-          >
-            <div class="step-icon">
-              <span v-if="step.status === 'COMPLETED'">✓</span>
-              <span v-else-if="step.status === 'FAILED'">✗</span>
-              <el-icon v-else-if="isStepRunning(step)" class="is-loading"><Loading /></el-icon>
-              <span v-else>○</span>
-            </div>
-            <div class="step-info">
-              <span class="step-name">{{ step.name }}</span>
-              <span class="step-status-text">{{ stepStatusText(step) }}</span>
-            </div>
-          </div>
-          <!-- Arrow connector between steps -->
-          <div v-if="index < run.steps.length - 1" class="step-connector" :class="getConnectorClass(step)">
-            →
-          </div>
-        </template>
-      </div>
-
-      <!-- Result context (when completed) -->
-      <div v-if="run.status === 'COMPLETED' && run.context?.approved !== undefined" class="result-section">
-        <div class="result-badge" :class="run.context.approved ? 'approved' : 'rejected'">
-          {{ run.context.approved ? '✓ 审查通过' : '✗ 审查未通过' }}
+    <div v-else-if="run" class="progress-layout">
+      <div class="progress-sidebar">
+        <div class="overall-status">
+          <span class="run-status" :class="statusClass">
+            {{ statusIcon }} {{ statusText }}
+          </span>
+          <span class="run-time" v-if="run.created_at">
+            {{ formatTime(run.created_at) }}
+          </span>
         </div>
-        <p v-if="run.context.comments" class="result-comments">{{ run.context.comments }}</p>
+
+        <div class="steps-list">
+          <template v-for="step in run.steps" :key="step.step_id">
+            <div
+              class="step-item"
+              :class="[stepStatusClass(step), { selected: selectedStep?.step_id === step.step_id, clickable: !!step.session_id }]"
+              :data-step-id="step.step_id"
+              @click="handleSelectStep(step)"
+            >
+              <div class="step-icon">
+                <span v-if="step.status === 'COMPLETED'">✓</span>
+                <span v-else-if="step.status === 'FAILED'">✗</span>
+                <span v-else-if="step.status === 'CANCELLED'">⊘</span>
+                <el-icon v-else-if="isStepRunning(step)" class="is-loading"><Loading /></el-icon>
+                <span v-else>○</span>
+              </div>
+              <div class="step-info">
+                <span class="step-name">{{ step.name }}</span>
+                <span class="step-status-text">{{ stepStatusText(step) }}</span>
+              </div>
+            </div>
+          </template>
+        </div>
       </div>
 
-      <!-- Error context (when failed) -->
-      <div v-if="run.status === 'FAILED' && run.context?.error" class="error-section">
-        <p class="error-text">{{ run.context.error }}</p>
+      <div class="progress-detail">
+        <div v-if="run.status === 'COMPLETED' && run.context?.approved !== undefined" class="result-section">
+          <div class="result-badge" :class="run.context.approved ? 'approved' : 'rejected'">
+            {{ run.context.approved ? '✓ 审查通过' : '✗ 审查未通过' }}
+          </div>
+          <p v-if="run.context.comments" class="result-comments">{{ run.context.comments }}</p>
+        </div>
+
+        <div v-if="run.status === 'FAILED' && run.context?.error" class="error-section">
+          <p class="error-text">{{ run.context.error }}</p>
+        </div>
+
+        <StepSessionPanel
+          v-if="selectedStep?.session_id"
+          :session-id="selectedStep.session_id"
+          :session-status="selectedStep.status"
+          :step-name="selectedStep.name"
+        />
+        <div v-else class="detail-empty">当前步骤暂无会话记录</div>
       </div>
     </div>
 
@@ -74,12 +81,12 @@
           type="danger"
           size="small"
           @click="handleCancel"
-          :loading="cancelling"
+          :disabled="cancelling"
         >
-          取消工作流
+          {{ cancelling ? '取消中...' : '取消工作流' }}
         </el-button>
-        <el-button size="small" @click="fetchRun" :loading="loading">
-          刷新
+        <el-button size="small" @click="fetchRun" :disabled="loading">
+          {{ loading ? '刷新中...' : '刷新' }}
         </el-button>
       </div>
     </template>
@@ -90,6 +97,7 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import { getWorkflowRun, cancelWorkflow } from '../api/workflow.js'
+import StepSessionPanel from './workflow/StepSessionPanel.vue'
 
 const props = defineProps({
   modelValue: {
@@ -121,11 +129,11 @@ const run = ref(null)
 const loading = ref(false)
 const error = ref(null)
 const cancelling = ref(false)
+const selectedStepId = ref(null)
+const selectionMode = ref('auto')
 let pollTimer = null
 
-const dialogTitle = computed(() => {
-  return `工作流进度${props.taskTitle ? ' - ' + props.taskTitle : ''}`
-})
+const dialogTitle = computed(() => `工作流进度${props.taskTitle ? ' - ' + props.taskTitle : ''}`)
 
 const statusClass = computed(() => {
   if (!run.value) return ''
@@ -144,26 +152,42 @@ const statusText = computed(() => {
   return texts[run.value.status] || run.value.status
 })
 
-const canCancel = computed(() => {
-  return run.value && (run.value.status === 'RUNNING' || run.value.status === 'PENDING')
+const canCancel = computed(() => run.value && (run.value.status === 'RUNNING' || run.value.status === 'PENDING'))
+const isTerminal = computed(() => run.value && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(run.value.status))
+
+const selectedStep = computed(() => {
+  if (!run.value?.steps?.length) return null
+  return run.value.steps.find((step) => step.step_id === selectedStepId.value) || null
 })
 
-const isTerminal = computed(() => {
-  return run.value && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(run.value.status)
-})
-
-function stepStatusClass(step) {
-  // If this is the current running step, show as running even if status is PENDING
-  if (isStepRunning(step)) {
-    return 'step-running'
-  }
-  return `step-${step.status.toLowerCase()}`
+function pickDefaultStep(steps = []) {
+  return steps.find((step) => step.status === 'RUNNING')
+    || [...steps].reverse().find((step) => step.session_id)
+    || steps[0]
+    || null
 }
 
-function getConnectorClass(step) {
-  // If current step is completed, connector is also "completed" style
-  if (step.status === 'COMPLETED') return 'connector-completed'
-  return 'connector-pending'
+function syncSelectedStep() {
+  const steps = run.value?.steps || []
+  const currentStep = steps.find((step) => step.step_id === selectedStepId.value)
+
+  if (selectionMode.value === 'manual' && currentStep) {
+    return
+  }
+
+  const nextStep = pickDefaultStep(steps)
+  selectedStepId.value = nextStep?.step_id || null
+  selectionMode.value = 'auto'
+}
+
+function handleSelectStep(step) {
+  selectedStepId.value = step.step_id
+  selectionMode.value = 'manual'
+}
+
+function stepStatusClass(step) {
+  if (isStepRunning(step)) return 'step-running'
+  return `step-${String(step.status || '').toLowerCase()}`
 }
 
 function isStepRunning(step) {
@@ -171,14 +195,13 @@ function isStepRunning(step) {
 }
 
 function stepStatusText(step) {
-  const texts = { PENDING: '待处理', RUNNING: '进行中', COMPLETED: '已完成', FAILED: '失败' }
+  const texts = { PENDING: '待处理', RUNNING: '进行中', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
   return texts[step.status] || step.status
 }
 
 function formatTime(isoStr) {
   if (!isoStr) return ''
-  const d = new Date(isoStr)
-  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return new Date(isoStr).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 async function fetchRun() {
@@ -190,13 +213,10 @@ async function fetchRun() {
     if (response.success) {
       const prevStatus = run.value?.status
       run.value = response.data
-
-      // If workflow just completed, emit event
+      syncSelectedStep()
       if (prevStatus && prevStatus !== 'COMPLETED' && run.value.status === 'COMPLETED') {
         emit('workflow-completed', run.value)
       }
-
-      // Stop polling if terminal
       if (isTerminal.value) {
         stopPolling()
       }
@@ -216,8 +236,6 @@ async function handleCancel() {
   try {
     await cancelWorkflow(props.workflowRunId)
     await fetchRun()
-  } catch (err) {
-    console.error('Failed to cancel workflow:', err)
   } finally {
     cancelling.value = false
   }
@@ -247,15 +265,15 @@ function handleClose() {
   emit('update:modelValue', false)
 }
 
-// Cleanup on unmount
 onBeforeUnmount(() => {
   stopPolling()
 })
 
-// Reset when dialog reopens with different run
 watch(() => props.workflowRunId, () => {
   run.value = null
   error.value = null
+  selectedStepId.value = null
+  selectionMode.value = 'auto'
 })
 </script>
 
@@ -265,7 +283,8 @@ watch(() => props.workflowRunId, () => {
 }
 
 .loading-state,
-.error-state {
+.error-state,
+.detail-empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -279,7 +298,18 @@ watch(() => props.workflowRunId, () => {
   color: #ef4444;
 }
 
-/* Overall status */
+.progress-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 420px;
+}
+
+.progress-sidebar,
+.progress-detail {
+  min-width: 0;
+}
+
 .overall-status {
   display: flex;
   align-items: center;
@@ -290,239 +320,63 @@ watch(() => props.workflowRunId, () => {
   margin-bottom: 16px;
 }
 
-.run-status {
-  font-weight: 600;
-  font-size: 14px;
-}
-
+.run-status { font-weight: 600; font-size: 14px; }
 .run-status.status-pending { color: #6b7280; }
 .run-status.status-running { color: #3b82f6; }
 .run-status.status-completed { color: #10b981; }
 .run-status.status-failed { color: #ef4444; }
 .run-status.status-cancelled { color: #f59e0b; }
+.run-time { font-size: 12px; color: var(--text-muted, #94a3b8); }
 
-.run-time {
-  font-size: 12px;
-  color: var(--text-muted, #94a3b8);
-}
-
-/* Steps - Horizontal pipeline layout */
 .steps-list {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 0;
-  overflow-x: auto;
-  padding: 8px 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .step-item {
   display: flex;
-  flex-direction: column;
+  gap: 10px;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  padding: 12px;
   border-radius: 8px;
-  min-width: 100px;
-  max-width: 140px;
-  flex-shrink: 0;
-  transition: all 0.2s;
-  border: 2px solid transparent;
-  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  background: #fff;
 }
 
-.step-item:hover {
-  background: #f1f5f9;
+.step-item.clickable {
+  cursor: pointer;
 }
 
-/* Step connector arrow */
-.step-connector {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  font-size: 16px;
-  flex-shrink: 0;
-  align-self: center;
-}
-
-.connector-pending {
-  color: #d1d5db;
-}
-
-.connector-completed {
-  color: #10b981;
-}
-
-/* Step icon */
-.step-icon {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 14px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-/* Pending step */
-.step-pending {
-  border-color: #e5e7eb;
-  background: #f9fafb;
-}
-
-.step-pending .step-icon {
-  background: rgba(107, 114, 128, 0.1);
-  color: #6b7280;
-}
-
-.step-pending .step-name {
-  color: #6b7280;
-}
-
-/* Running step (current executing) */
-.step-running {
+.step-item.selected {
   border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.05);
-  animation: pulse-border 2s infinite;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15);
+  background: #eff6ff;
 }
 
-@keyframes pulse-border {
-  0%, 100% { border-color: #3b82f6; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-  50% { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
-}
-
-.step-running .step-icon {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-}
-
-.step-running .step-name {
-  color: #3b82f6;
-  font-weight: 600;
-}
-
-.step-running .step-status-text {
-  color: #3b82f6;
-}
-
-/* Completed step */
-.step-completed {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.05);
-}
-
-.step-completed .step-icon {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-}
-
-.step-completed .step-name {
-  color: #059669;
-}
-
-.step-completed .step-status-text {
-  color: #10b981;
-}
-
-/* Failed step */
-.step-failed {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.05);
-}
-
-.step-failed .step-icon {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
-.step-failed .step-name {
-  color: #dc2626;
-}
-
-.step-failed .step-status-text {
-  color: #ef4444;
+.step-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f8fafc;
 }
 
 .step-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 4px;
-  text-align: center;
+  min-width: 0;
 }
 
-.step-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary, #1e293b);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
+.step-name { font-size: 13px; font-weight: 600; color: #0f172a; }
+.step-status-text { font-size: 12px; color: #64748b; }
 
-.step-status-text {
-  font-size: 11px;
-  color: var(--text-muted, #94a3b8);
-}
-
-.step-completed .step-status-text { color: #10b981; }
-.step-running .step-status-text { color: #3b82f6; }
-.step-failed .step-status-text { color: #ef4444; }
-
-/* Result section */
-.result-section {
-  margin-top: 16px;
-  padding: 12px;
-  background: var(--bg-tertiary, #f8fafc);
-  border-radius: 8px;
-}
-
-.result-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.result-badge.approved {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-}
-
-.result-badge.rejected {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
-.result-comments {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--text-secondary, #64748b);
-}
-
-/* Error section */
-.error-section {
-  margin-top: 16px;
-  padding: 12px;
-  background: rgba(239, 68, 68, 0.05);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 8px;
-}
-
-.error-text {
-  font-size: 13px;
-  color: #ef4444;
-  margin: 0;
-}
-
-/* Footer */
 .dialog-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

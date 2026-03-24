@@ -5,7 +5,7 @@
       <div class="project-selector">
         <select
           v-model="selectedProjectId"
-          @change="onProjectChange"
+          @change="handleProjectChange"
           :disabled="loading.projects"
         >
           <option value="" disabled>{{ $t('project.selectProject') }}</option>
@@ -91,7 +91,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @add-task="openTaskModal()"
             @worktree-update="handleWorktreeUpdate"
             @sync="handleSyncTaskSources"
@@ -112,7 +112,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
@@ -131,7 +131,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
@@ -150,7 +150,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
@@ -168,7 +168,7 @@
           :currentNodeId="currentViewingNodeId"
           @select-task="selectTask"
           @edit-task="openTaskModal"
-          @delete-task="deleteTask"
+          @delete-task="onDeleteTask"
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
           @reorder-tasks="handleReorderTasks"
@@ -186,32 +186,32 @@
         width="650px"
         class="sync-preview-dialog"
       >
-        <div v-if="syncPreviewTasks.length === 0 && !syncError" class="sync-preview-empty">
+        <div v-if="taskSourceStore.syncPreviewTasks.length === 0 && !taskSourceStore.syncError" class="sync-preview-empty">
           {{ $t('common.loading') }}
         </div>
-        <div v-else-if="syncError" class="sync-preview-error">
-          {{ syncError }}
+        <div v-else-if="taskSourceStore.syncError" class="sync-preview-error">
+          {{ taskSourceStore.syncError }}
         </div>
         <div v-else>
           <div class="sync-preview-controls">
             <el-button size="small" @click="selectAllSyncTasks">{{ $t('taskSource.selectAll') }}</el-button>
             <el-button size="small" @click="deselectAllSyncTasks">{{ $t('taskSource.deselectAll') }}</el-button>
             <span class="selected-count">
-              {{ selectedSyncTasks.size }} / {{ syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected') }}
+              {{ taskSourceStore.selectedSyncTasks.size }} / {{ taskSourceStore.syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected') }}
             </span>
           </div>
           <div class="sync-preview-list">
             <div
-              v-for="task in syncPreviewTasks"
+              v-for="task in taskSourceStore.syncPreviewTasks"
               :key="task.external_id"
               class="sync-preview-item"
-              :class="{ selected: selectedSyncTasks.has(task.external_id), imported: task.imported }"
+              :class="{ selected: taskSourceStore.selectedSyncTasks.has(task.external_id), imported: task.imported }"
               @click="!task.imported && toggleSyncTask(task)"
             >
               <div class="item-checkbox">
                 <input
                   type="checkbox"
-                  :checked="selectedSyncTasks.has(task.external_id)"
+                  :checked="taskSourceStore.selectedSyncTasks.has(task.external_id)"
                   :disabled="task.imported"
                   @click.stop="!task.imported && toggleSyncTask(task)"
                 />
@@ -243,7 +243,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="syncPreviewTasks.length === 0" class="sync-preview-empty">
+            <div v-if="taskSourceStore.syncPreviewTasks.length === 0" class="sync-preview-empty">
               {{ $t('taskSource.noTasksToImport') }}
             </div>
           </div>
@@ -253,9 +253,9 @@
           <el-button
             type="primary"
             @click="confirmSyncImport"
-            :disabled="selectedSyncTasks.size === 0"
+            :disabled="taskSourceStore.selectedSyncTasks.size === 0"
           >
-            {{ $t('taskSource.confirmImport') }} ({{ selectedSyncTasks.size }})
+            {{ $t('taskSource.confirmImport') }} ({{ taskSourceStore.selectedSyncTasks.size }})
           </el-button>
         </template>
       </el-dialog>
@@ -404,6 +404,7 @@
     <WorkflowTimelineDialog
       v-model="showWorkflowDialog"
       :task-id="selectedTask?.id"
+      :workflow-run-id="selectedTask?.workflow_run_id"
       @select-node="onNodeSelect"
       @view-details="onNodeViewDetails"
       @start-workflow="onStartWorkflow"
@@ -436,6 +437,16 @@
       @close="showCommitDialog = false"
     />
 
+    <!-- Merge Dialog -->
+    <MergeDialog
+      v-if="showMergeDialog"
+      :project-id="mergeDialogData.projectId"
+      :task-id="mergeDialogData.taskId"
+      :source-branch="mergeDialogData.worktreeBranch"
+      @close="showMergeDialog = false"
+      @merged="handleMerged"
+    />
+
     <!-- Iteration Form Dialog -->
     <IterationForm
       v-model="showIterationModal"
@@ -445,6 +456,10 @@
       @cancel="showIterationModal = false"
     />
 
+    <WorkflowTemplateSelectDialog
+      v-model="showWorkflowTemplateDialog"
+      @confirm="handleWorkflowTemplateConfirm"
+    />
 
     <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
@@ -454,7 +469,7 @@
             <el-icon class="header-icon"><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon>
             <div>
               <h2>{{ selectedNode.name }}</h2>
-              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} �?{{ selectedNode.agentName }}</span>
+              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} · {{ selectedNode.agentName }}</span>
             </div>
           </div>
           <button class="modal-close" @click="showNodeDialog = false">&times;</button>
@@ -470,7 +485,7 @@
                     <path d="M12 16v-4"></path>
                     <path d="M12 8h.01"></path>
                   </svg>
-                  状�?
+                  状态
                 </span>
                 <span class="info-value status-badge" :class="'status-' + selectedNode.status?.toLowerCase()">
                   <span class="status-dot"></span>
@@ -520,7 +535,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
               </svg>
-              �?{{ selectedNode.agentName }} 对话
+              与 {{ selectedNode.agentName }} 对话
             </h3>
             <div class="node-chat-container">
               <ChatBox
@@ -541,7 +556,7 @@
                 <polyline points="16 18 22 12 16 6"></polyline>
                 <polyline points="8 6 2 12 8 18"></polyline>
               </svg>
-              子节点完成情�?
+              子节点完成情况
             </h3>
             <div class="child-nodes-list">
               <div v-for="child in selectedNode.childNodes" :key="child.id" class="child-node-item" :class="'status-' + child.status?.toLowerCase()">
@@ -567,13 +582,34 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete Task Confirmation Dialog -->
+  <el-dialog
+    v-model="showDeleteConfirm"
+    :title="t('task.deleteConfirmTitle')"
+    width="400px"
+    :close-on-click-modal="false"
+  >
+    <div class="delete-confirm-content">
+      <p>{{ t('task.deleteConfirmMessage') }}</p>
+      <el-checkbox v-model="deleteWorktreeChecked" class="delete-worktree-checkbox">
+        {{ t('task.deleteWorktreeCheckbox') }}
+      </el-checkbox>
+    </div>
+    <template #footer>
+      <el-button @click="showDeleteConfirm = false">{{ t('common.cancel') }}</el-button>
+      <el-button type="danger" :loading="loading.saving" @click="confirmDeleteTask">
+        {{ t('common.delete') }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
   OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
@@ -589,8 +625,10 @@ import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
 import DiffSelectDialog from '../components/DiffSelectDialog.vue'
 import CommitDialog from '../components/CommitDialog.vue'
+import MergeDialog from '../components/MergeDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
+import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
 import IterationSelect from '../components/iteration/IterationSelect.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
@@ -598,43 +636,49 @@ import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
+import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
 import { analyzeTaskCategory } from '../mock/workflowAssignment'
-import {
-  getWorkflowByProject,
-  getWorkflowByTask,
-  getOrCreateWorkflowForProject,
-  addNodeToWorkflow
-} from '../mock/workflowData'
-import { reorderTasks, startTask } from '../api/task.js'
-import { deleteTaskWorktree } from '../api/taskWorktree.js'
+import { reorderTasks, startTask, deleteTask } from '../api/task.js'
+import { useToast } from '../composables/ui/useToast'
+import { useWorktree } from '../composables/useWorktree'
 
 const { t } = useI18n()
 const route = useRoute()
-
-// localStorage key for project and iteration selection persistence
-const LAST_PROJECT_KEY = 'kanban-selected-project-id'
-const LAST_ITERATION_KEY = 'kanban-selected-iteration-id'
+const toast = useToast()
 
 // Use Pinia stores
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
 const iterationStore = useIterationStore()
 const taskSourceStore = useTaskSourceStore()
+const { handleWorktree } = useWorktree()
 
-// Icon mappings
-const agentIconMap = { Monitor, VideoPlay, Edit, Cpu }
-const roleIconMap = {
-  OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
-  Aim, CircleCheck, View, Lock, Promotion, Box
-}
+const {
+  selectedProjectId,
+  selectedIterationId,
+  viewMode,
+  projectIterations,
+  initializeSelection,
+  onProjectChange,
+} = useKanbanSelection({
+  route,
+  projectStore,
+  taskStore,
+  iterationStore,
+})
 
 // Local state
-const selectedProjectId = ref('')
 const selectedTask = ref(null)
 const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
 const showProgressDialog = ref(false)
+const showDiffDialog = ref(false)
+const diffDialogData = ref(null)
+const showCommitDialog = ref(false)
+const commitDialogData = ref(null)
+const showMergeDialog = ref(false)
+const mergeDialogData = ref(null)
 const showIterationModal = ref(false)
 const editingIteration = ref(null)
 const creatingIteration = ref(false)
@@ -650,30 +694,10 @@ const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
-const viewMode = ref(localStorage.getItem('kanban-view-mode') || 'list')
-const showDiffDialog = ref(false)
-const diffDialogData = ref({})
-
-const showCommitDialog = ref(false)
-const commitDialogData = ref({})
-
-// Iteration filter
-const selectedIterationId = ref(null)
-
-// 监听 viewMode 变化并保存到 localStorage
-watch(viewMode, (newValue) => {
-  localStorage.setItem('kanban-view-mode', newValue)
-})
-
-// Watch iteration changes and persist to localStorage
-watch(selectedIterationId, (newValue) => {
-  if (newValue) {
-    localStorage.setItem(LAST_ITERATION_KEY, String(newValue))
-  } else {
-    // Store special value to indicate "全部迭代" was explicitly selected
-    localStorage.setItem(LAST_ITERATION_KEY, '__ALL__')
-  }
-})
+const showWorkflowTemplateDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const deleteWorktreeChecked = ref(false)
+const pendingDeleteTaskId = ref(null)
 
 // Clear currentViewingNodeId when selected task becomes DONE
 watch(() => selectedTask.value?.status, (newStatus) => {
@@ -711,8 +735,6 @@ const {
   selectedTask,
   selectedProjectId,
   showWorkflowDialog,
-  getWorkflowByTask,
-  getWorkflowByProject,
   t
 })
 
@@ -773,138 +795,52 @@ const handleWorktreeUpdate = (task) => {
   console.log('[KanbanView] Worktree updated for task:', task.id)
 }
 
-// Sync preview dialog state - use store's preview state
-const syncPreviewTasks = ref([])
-const selectedSyncTasks = ref(new Set())
-const syncError = ref('')
-
 // Handle sync task sources from TODO column - show preview first
 const handleSyncTaskSources = async () => {
   if (!selectedProjectId.value) return
 
-  syncPreviewTasks.value = []
-  selectedSyncTasks.value = new Set()
-  syncError.value = ''
-
   try {
-    await taskSourceStore.fetchTaskSources(selectedProjectId.value)
-    const sources = taskSourceStore.taskSources
-
-    if (sources.length === 0) {
-      ElMessage.warning(t('taskSource.noSources'))
-      return
+    const tasks = await taskSourceStore.openSyncPreviewForProject(selectedProjectId.value)
+    if (tasks.length === 0) {
+      taskSourceStore.closePreviewDialog()
     }
-
-    // Preview each source and collect tasks
-    for (const source of sources) {
-      try {
-        await taskSourceStore.previewSync(source.id)
-        if (taskSourceStore.previewItems && taskSourceStore.previewItems.length > 0) {
-          syncPreviewTasks.value.push(...taskSourceStore.previewItems.map(item => ({
-            ...item,
-            sourceId: source.id,
-            sourceName: source.name
-          })))
-        }
-      } catch (err) {
-        console.error(`Failed to preview source ${source.id}:`, err)
-      }
-    }
-
-    if (syncPreviewTasks.value.length === 0) {
-      ElMessage.info(t('taskSource.noTasksToImport'))
-      return
-    }
-
-    // Open store's preview dialog
-    taskSourceStore.showPreviewDialog = true
-
-    // Select all non-imported tasks by default
-    syncPreviewTasks.value.forEach(task => {
-      if (!task.imported) {
-        selectedSyncTasks.value.add(task.external_id)
-      }
-    })
   } catch (err) {
     console.error('Failed to sync task sources:', err)
-    syncError.value = err.message
-    ElMessage.error(err.message)
+    toast.error(err.message || t('taskSource.syncFailed'))
   }
 }
 
-// Toggle task selection in preview
 const toggleSyncTask = (task) => {
-  if (selectedSyncTasks.value.has(task.external_id)) {
-    selectedSyncTasks.value.delete(task.external_id)
-  } else {
-    selectedSyncTasks.value.add(task.external_id)
-  }
+  taskSourceStore.toggleSyncTask(task)
 }
 
-// Select all tasks in preview
 const selectAllSyncTasks = () => {
-  syncPreviewTasks.value.forEach(task => {
-    if (!task.imported) {
-      selectedSyncTasks.value.add(task.external_id)
-    }
-  })
+  taskSourceStore.selectAllSyncTasks()
 }
 
-// Deselect all tasks in preview
 const deselectAllSyncTasks = () => {
-  selectedSyncTasks.value.clear()
+  taskSourceStore.deselectAllSyncTasks()
 }
 
-// Confirm import selected tasks
 const confirmSyncImport = async () => {
-  const tasksToImport = syncPreviewTasks.value.filter(task =>
-    selectedSyncTasks.value.has(task.external_id) && !task.imported
-  )
-
-  if (tasksToImport.length === 0) {
-    ElMessage.warning(t('taskSource.selectAtLeastOne'))
+  if (taskSourceStore.selectedSyncTasks.size === 0) {
     return
   }
 
   try {
-    // Group tasks by source
-    const tasksBySource = {}
-    for (const task of tasksToImport) {
-      if (!tasksBySource[task.sourceId]) {
-        tasksBySource[task.sourceId] = []
-      }
-      tasksBySource[task.sourceId].push(task)
-    }
-
-    // Import tasks for each source
-    let totalImported = 0
-    for (const [sourceId, items] of Object.entries(tasksBySource)) {
-      const result = await taskSourceStore.importSelectedIssues(
-        parseInt(sourceId),
-        items,
-        selectedProjectId.value
-      )
-      if (result) {
-        totalImported += result.created || 0
-      }
-    }
-
+    const totalImported = await taskSourceStore.importSelectedPreviewTasks(selectedProjectId.value)
     await taskStore.fetchTasks(selectedProjectId.value)
-    ElMessage.success(t('taskSource.importSuccess', { count: totalImported }))
-    taskSourceStore.closePreviewDialog()
-    syncPreviewTasks.value = []
-    selectedSyncTasks.value.clear()
+    if (totalImported > 0) {
+      toast.success(t('taskSource.importSuccess', { count: totalImported }))
+    }
   } catch (err) {
     console.error('Failed to import tasks:', err)
-    ElMessage.error(t('taskSource.importFailed'))
+    toast.error(t('taskSource.importFailed'))
   }
 }
 
-// Close preview dialog
 const closeSyncPreview = () => {
   taskSourceStore.closePreviewDialog()
-  syncPreviewTasks.value = []
-  selectedSyncTasks.value.clear()
 }
 
 // Handle show diff dialog from butler chat
@@ -919,33 +855,29 @@ const handleShowCommit = (data) => {
   showCommitDialog.value = true
 }
 
+// Handle show merge dialog
+const openMergeDialog = (data) => {
+  mergeDialogData.value = data
+  showMergeDialog.value = true
+}
+
+// Handle merged event
+const handleMerged = () => {
+  // Refresh task data after merge
+  if (selectedProjectId.value) {
+    taskStore.fetchTasks(selectedProjectId.value)
+  }
+  toast.success(t('git.mergeSuccess', '合并成功'))
+}
+
 // Handle delete worktree from butler header
 const handleDeleteWorktree = async (task) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除 Worktree "${task.worktree_branch}" 吗？`,
-      '确认删除',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
-
-    const response = await deleteTaskWorktree(task.id)
-    if (response.success) {
-      task.worktree_path = null
-      task.worktree_branch = null
-      task.worktree_status = 'none'
-      ElMessage.success('Worktree 已删除')
+  const updatedTask = await handleWorktree(task, async () => {
+    if (selectedProjectId.value) {
       await taskStore.fetchTasks(selectedProjectId.value)
     }
-  } catch (error) {
-    const isCancelled = error === 'cancel' || error === 'esc'
-    if (!isCancelled) {
-      ElMessage.error(error.message || '删除失败')
-    }
-  }
+  })
+  return updatedTask
 }
 
 // Handle workflow expand/collapse
@@ -953,31 +885,66 @@ const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
 }
 
+const startSelectedTaskWithTemplate = async (workflowTemplateId, autoCreateWorktree = false) => {
+  if (!selectedTask.value) return
+
+  // If auto-create worktree is requested, create it first
+  if (autoCreateWorktree && selectedTask.value) {
+    try {
+      await handleWorktree(selectedTask.value)
+    } catch (err) {
+      console.error('Worktree 创建失败，阻止任务启动:', err)
+      return // Stop - don't start the task
+    }
+  }
+
+  try {
+    const response = await startTask(selectedTask.value.id, {
+      workflow_template_id: workflowTemplateId
+    })
+
+    if (response.success) {
+      ElMessage.success('任务已启动')
+      showWorkflowTemplateDialog.value = false
+
+      if (selectedProjectId.value) {
+        await taskStore.fetchTasks(selectedProjectId.value)
+        const updated = taskStore.tasks.find(t => t.id === selectedTask.value?.id)
+        if (updated) {
+          selectedTask.value = updated
+        }
+      }
+    } else {
+      ElMessage.error(response.message || '启动失败')
+    }
+  } catch (error) {
+    console.error('启动任务失败:', error)
+    ElMessage.error('启动失败')
+  }
+}
+
+const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree }) => {
+  await startSelectedTaskWithTemplate(templateId, autoCreateWorktree)
+}
+
 // Handle workflow action from inline workflow panel
 const handleWorkflowAction = (payload) => {
-  if (typeof payload === 'string') {
-    // Simple action string
-    const action = payload
-    if (action === 'start') {
-      if (selectedTask.value) {
-        startTask(selectedTask.value.id)
-          .then((response) => {
-            if (response.success) {
-              ElMessage.success('任务已启动')
-              // Refresh task data
-              if (selectedProjectId.value) {
-                taskStore.fetchTasks(selectedProjectId.value)
-              }
-            } else {
-              ElMessage.error(response.message || '启动失败')
-            }
-          })
-          .catch((error) => {
-            console.error('启动任务失败:', error)
-            ElMessage.error('启动失败')
-          })
-      }
-    } else if (action === 'pause') {
+  console.log('[KanbanView] handleWorkflowAction called:', payload, 'selectedTask:', selectedTask.value?.id)
+
+  // Extract action and task from payload
+  const action = typeof payload === 'string' ? payload : payload.action
+  const task = typeof payload === 'string' ? selectedTask.value : (payload.task || selectedTask.value)
+
+  if (action === 'start') {
+    console.log('[KanbanView] start action, task:', task?.id)
+    if (task) {
+      selectedTask.value = task
+      console.log('[KanbanView] showing workflow template dialog')
+      showWorkflowTemplateDialog.value = true
+    } else {
+      console.log('[KanbanView] no task, cannot start')
+    }
+  } else if (action === 'pause') {
       // Handle pause
     } else if (action === 'diff') {
       if (selectedTask.value) {
@@ -1004,6 +971,13 @@ const handleWorkflowAction = (payload) => {
       }
     } else if (action === 'help') {
       // Help will be shown in chat
+    } else if (action === 'merge') {
+      if (selectedTask.value) {
+        openMergeDialog({
+          taskId: selectedTask.value.id,
+          projectId: selectedTask.value.project_id,
+          worktreeBranch: selectedTask.value.worktree_branch
+        })
     }
   } else if (payload && payload.action === 'node-click') {
     selectedTask.value = payload.task || null
@@ -1014,37 +988,9 @@ const handleWorkflowAction = (payload) => {
   }
 }
 
-// Get current node from workflow for a task
-const getCurrentNode = (task, expandedTaskId) => {
-  if (!task.workflow) return null
-  // Find current in-progress node
-  for (const stage of task.workflow.stages || []) {
-    for (const node of stage.nodes || []) {
-      if (node.status === 'IN_PROGRESS') {
-        return node
-      }
-    }
-  }
-  // If no in-progress node, return first pending node
-  for (const stage of task.workflow.stages || []) {
-    for (const node of stage.nodes || []) {
-      if (node.status === 'PENDING' || node.status === 'TODO') {
-        return node
-      }
-    }
-  }
-  return null
-}
-
 // Computed - tasks and projects
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
-
-// Iterations for current project
-const projectIterations = computed(() => {
-  if (!selectedProjectId.value) return []
-  return iterationStore.iterations.filter(i => String(i.project_id) === selectedProjectId.value)
-})
 
 // Filtered tasks by iteration
 const filteredTasks = computed(() => {
@@ -1187,46 +1133,10 @@ const getStatusText = (status) => {
   return statusMap[status] || status
 }
 
-// Project change handler
-const onProjectChange = async () => {
+const handleProjectChange = async () => {
   selectedTask.value = null
-  selectedIterationId.value = null
-  if (selectedProjectId.value) {
-    // Save to localStorage
-    localStorage.setItem(LAST_PROJECT_KEY, selectedProjectId.value)
-    await taskStore.fetchTasks(selectedProjectId.value)
-    await iterationStore.fetchByProject(selectedProjectId.value)
-    // Try to restore saved iteration or default to "26.3.0"
-    const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
-    if (storedIterationId === '__ALL__') {
-      // "全部迭代" was explicitly selected
-      selectedIterationId.value = null
-    } else {
-      const targetIteration = storedIterationId
-        ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
-        : null
-      if (targetIteration) {
-        selectedIterationId.value = Number(targetIteration.id)
-      } else {
-        const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-        if (defaultIteration) {
-          selectedIterationId.value = Number(defaultIteration.id)
-          localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
-        }
-      }
-    }
-  }
+  await onProjectChange()
   updateColumnRefs()
-}
-
-// Handle iteration selection change
-const onIterationChange = (iterationId) => {
-  if (iterationId) {
-    localStorage.setItem(LAST_ITERATION_KEY, String(iterationId))
-  } else {
-    // Store special value to indicate "全部迭代" was explicitly selected
-    localStorage.setItem(LAST_ITERATION_KEY, '__ALL__')
-  }
 }
 
 // Task selection
@@ -1356,24 +1266,21 @@ const handleIterationSubmit = async (formData) => {
 }
 
 // Delete task
-const deleteTask = async (taskId) => {
-  try {
-    await ElMessageBox.confirm(
-      t('task.deleteConfirmMessage'),
-      t('task.deleteConfirmTitle'),
-      {
-        confirmButtonText: t('common.delete'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-  } catch {
-    return
-  }
+const onDeleteTask = async (taskId) => {
+  pendingDeleteTaskId.value = taskId
+  deleteWorktreeChecked.value = false
+  showDeleteConfirm.value = true
+}
 
+const confirmDeleteTask = async () => {
+  const taskId = pendingDeleteTaskId.value
+  if (!taskId) return
+
+  showDeleteConfirm.value = false
   loading.saving = true
   try {
-    await taskStore.deleteTask(taskId)
+    await deleteTask(taskId, deleteWorktreeChecked.value)
+    await taskStore.fetchTasks(selectedProjectId.value)
     if (selectedTask.value?.id === taskId) {
       selectedTask.value = null
     }
@@ -1384,6 +1291,7 @@ const deleteTask = async (taskId) => {
     ElMessage.error(t('task.deleteFailed'))
   } finally {
     loading.saving = false
+    pendingDeleteTaskId.value = null
   }
 }
 
@@ -1504,44 +1412,7 @@ const loadActiveSession = async () => {
 // Lifecycle
 onMounted(async () => {
   try {
-    await projectStore.fetchProjects()
-
-    // Get projectId from route or localStorage or first project
-    const routeProjectId = route.params.projectId ? String(route.params.projectId) : null
-    const storedProjectId = localStorage.getItem(LAST_PROJECT_KEY)
-
-    let targetProjectId = routeProjectId || storedProjectId
-
-    // Validate targetProjectId exists in projects list (compare as strings since localStorage stores strings)
-    if (!targetProjectId || !projectStore.projects.find(p => String(p.id) === targetProjectId)) {
-      targetProjectId = projectStore.projects[0]?.id ? String(projectStore.projects[0].id) : ''
-    }
-
-    if (targetProjectId) {
-      selectedProjectId.value = targetProjectId
-      localStorage.setItem(LAST_PROJECT_KEY, targetProjectId)
-      await taskStore.fetchTasks(selectedProjectId.value)
-      await iterationStore.fetchByProject(selectedProjectId.value)
-      // Try to restore saved iteration or default to "26.3.0"
-      const storedIterationId = localStorage.getItem(LAST_ITERATION_KEY)
-      if (storedIterationId === '__ALL__') {
-        // "全部迭代" was explicitly selected
-        selectedIterationId.value = null
-      } else {
-        const targetIteration = storedIterationId
-          ? iterationStore.iterations.find(i => String(i.id) === storedIterationId)
-          : null
-        if (targetIteration) {
-          selectedIterationId.value = Number(targetIteration.id)
-        } else {
-          const defaultIteration = iterationStore.iterations.find(i => i.name === '26.3.0')
-          if (defaultIteration) {
-            selectedIterationId.value = Number(defaultIteration.id)
-            localStorage.setItem(LAST_ITERATION_KEY, String(defaultIteration.id))
-          }
-        }
-      }
-    }
+    await initializeSelection()
   } catch (error) {
     console.error('Failed to fetch initial data:', error)
     ElMessage.error('加载数据失败')
@@ -3121,5 +2992,18 @@ onUnmounted(() => {
   border-color: #6366f1;
   color: #6366f1;
   background: #eef2ff;
+}
+
+.delete-confirm-content {
+  padding: 10px 0;
+}
+
+.delete-confirm-content p {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+
+.delete-worktree-checkbox {
+  color: var(--text-secondary);
 }
 </style>

@@ -60,14 +60,6 @@ export const deleteBranch = (projectId, branchName, force = false) =>
     params: { projectId, force }
   })
 
-/**
- * Merge a branch
- */
-export const mergeBranch = (projectId, source, target) =>
-  api.post(`/git/branches/${source}/merge/${target}`, null, {
-    params: { projectId }
-  })
-
 // ==================== Remote Operations ====================
 
 /**
@@ -111,11 +103,11 @@ export const getStatus = (projectId, taskId) =>
   api.get(`/git/worktrees/${taskId}/status`, { params: { projectId } })
 
 /**
- * Get diff for a worktree
+ * Get uncommitted diff for a worktree
  */
-export const getDiff = (projectId, taskId, { source, target } = {}) =>
+export const getDiff = (projectId, taskId) =>
   api.get(`/git/worktrees/${taskId}/diff`, {
-    params: { projectId, source, target }
+    params: { projectId }
   })
 
 /**
@@ -129,3 +121,9 @@ export const getLog = (projectId, taskId, limit = 10) =>
 // Legacy diff endpoint
 export const getDiffLegacy = (projectId, source, target) =>
   api.get('/git/diff', { params: { projectId, source, target } })
+
+/**
+ * Merge source branch into target branch
+ */
+export const mergeBranch = (projectId, source, target) =>
+  api.post(`/git/branches/${source}/merge/${target}`, null, { params: { projectId } })
