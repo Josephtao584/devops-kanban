@@ -477,7 +477,7 @@ const handleNodeClick = (node) => {
 // Handle start button click
 const handleStartClick = () => {
   console.log('[TaskListItem] handleStartClick called, task:', props.task?.id, 'running:', props.running)
-  emit('workflow-action', 'start')
+  emit('workflow-action', { action: 'start', task: props.task })
 }
 
 const openWorktreeDirectory = () => {

@@ -898,18 +898,21 @@ const handleWorkflowTemplateConfirm = async (workflowTemplateId) => {
 // Handle workflow action from inline workflow panel
 const handleWorkflowAction = (payload) => {
   console.log('[KanbanView] handleWorkflowAction called:', payload, 'selectedTask:', selectedTask.value?.id)
-  if (typeof payload === 'string') {
-    // Simple action string
-    const action = payload
-    if (action === 'start') {
-      console.log('[KanbanView] start action, selectedTask:', selectedTask.value)
-      if (selectedTask.value) {
-        console.log('[KanbanView] showing workflow template dialog')
-        showWorkflowTemplateDialog.value = true
-      } else {
-        console.log('[KanbanView] no selectedTask, cannot start')
-      }
-    } else if (action === 'pause') {
+
+  // Extract action and task from payload
+  const action = typeof payload === 'string' ? payload : payload.action
+  const task = typeof payload === 'string' ? selectedTask.value : (payload.task || selectedTask.value)
+
+  if (action === 'start') {
+    console.log('[KanbanView] start action, task:', task?.id)
+    if (task) {
+      selectedTask.value = task
+      console.log('[KanbanView] showing workflow template dialog')
+      showWorkflowTemplateDialog.value = true
+    } else {
+      console.log('[KanbanView] no task, cannot start')
+    }
+  } else if (action === 'pause') {
       // Handle pause
     } else if (action === 'diff') {
       if (selectedTask.value) {
@@ -943,7 +946,6 @@ const handleWorkflowAction = (payload) => {
           projectId: selectedTask.value.project_id,
           worktreeBranch: selectedTask.value.worktree_branch
         })
-      }
     }
   } else if (payload && payload.action === 'node-click') {
     selectedTask.value = payload.task || null
