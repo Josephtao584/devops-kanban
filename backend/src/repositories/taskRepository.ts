@@ -15,8 +15,8 @@ interface TaskStatusCounts {
 }
 
 class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, TaskUpdateRecord> {
-  constructor() {
-    super('tasks.json');
+  constructor(storagePath?: string) {
+    super('tasks.json', storagePath ? { storagePath } : undefined);
   }
 
   async findByProject(projectId: number): Promise<StoredTaskEntity[]> {

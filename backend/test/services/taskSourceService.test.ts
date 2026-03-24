@@ -1,5 +1,8 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import { TaskSourceService } from '../../src/services/taskSourceService.js';
 import type {
@@ -39,6 +42,15 @@ class TestTaskSourceService extends TaskSourceService {
 
   override async getAvailableSourceTypes() {
     return Object.fromEntries(this.types.map((typeDefinition) => [typeDefinition.key, typeDefinition]));
+  }
+}
+
+async function withIsolatedTaskSourceStorage(run: (tempRoot: string) => Promise<void>) {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'task-source-service-test-'));
+  try {
+    await run(tempRoot);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
   }
 }
 
@@ -95,57 +107,58 @@ test.test('getAvailableSourceTypes returns config-backed task source types', asy
 });
 
 test.test('create now allows writes via repository', async () => {
-  // The service now delegates to the repository which persists to disk
-  // This test verifies the service doesn't throw 405 anymore
-  const service = new TaskSourceService();
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
 
-  const createInput: CreateTaskSourceInput = {
-    name: 'Test Source',
-    type: 'REQUIREMENT',
-    project_id: 1,
-    config: { token: 'test-token' },
-    enabled: true,
-  };
+    const createInput: CreateTaskSourceInput = {
+      name: 'Test Source',
+      type: 'REQUIREMENT',
+      project_id: 1,
+      config: { token: 'test-token' },
+      enabled: true,
+    };
 
-  // Should not throw - create now works
-  const result = await service.create(createInput);
-  assert.ok(result.id, 'Created source should have an id');
-  assert.equal(result.name, 'Test Source');
-  assert.equal(result.type, 'REQUIREMENT');
-  assert.equal(result.project_id, 1);
+    const result = await service.create(createInput);
+    assert.ok(result.id, 'Created source should have an id');
+    assert.equal(result.name, 'Test Source');
+    assert.equal(result.type, 'REQUIREMENT');
+    assert.equal(result.project_id, 1);
+  });
 });
 
 test.test('update rejects edits when source not found', async () => {
-  const service = new TaskSourceService();
-
-  const result = await service.update('99999', { name: 'Updated' } as never);
-  assert.equal(result, null);
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+    const result = await service.update('99999', { name: 'Updated' } as never);
+    assert.equal(result, null);
+  });
 });
 
 test.test('update allows transient last_sync_at refresh without persisting', async () => {
-  // First create a source
-  const service = new TaskSourceService();
-  const createInput: CreateTaskSourceInput = {
-    name: 'Test Source for Update',
-    type: 'REQUIREMENT',
-    project_id: 1,
-    config: {},
-    enabled: true,
-  };
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+    const createInput: CreateTaskSourceInput = {
+      name: 'Test Source for Update',
+      type: 'REQUIREMENT',
+      project_id: 1,
+      config: {},
+      enabled: true,
+    };
 
-  const created = await service.create(createInput);
-  const createdId = String(created.id);
+    const created = await service.create(createInput);
+    const createdId = String(created.id);
 
-  const result = await service.update(createdId, { last_sync_at: '2026-03-20T10:00:00.000Z' });
+    const result = await service.update(createdId, { last_sync_at: '2026-03-20T10:00:00.000Z' });
 
-  // last_sync_at only update should return existing without persisting
-  assert.ok(result);
-  assert.equal(result.id, createdId);
+    assert.ok(result);
+    assert.equal(result.id, createdId);
+  });
 });
 
 test.test('delete returns false when source not found', async () => {
-  const service = new TaskSourceService();
-
-  const result = await service.delete('99999');
-  assert.equal(result, false);
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+    const result = await service.delete('99999');
+    assert.equal(result, false);
+  });
 });

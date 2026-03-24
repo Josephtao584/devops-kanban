@@ -134,7 +134,7 @@ const WorkflowTemplateSelectDialogStub = defineComponent({
       ? h('div', { class: 'workflow-template-select-dialog-stub' }, [
           h('button', {
             class: 'confirm-template-selection',
-            onClick: () => emit('confirm', 'quick-fix-v1')
+            onClick: () => emit('confirm', { templateId: 'quick-fix-v1', autoCreateWorktree: false })
           }, 'confirm quick-fix')
         ])
       : null
@@ -398,6 +398,7 @@ describe('KanbanView workflow start entrypoint', () => {
       workflow_template_snapshot: {
         template_id: 'quick-fix-v1-custom',
         name: '快速修复工作流',
+        autoCreateWorktree: false,
         steps: [
           {
             id: 'triage',

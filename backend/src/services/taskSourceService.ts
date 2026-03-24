@@ -22,9 +22,9 @@ class TaskSourceService {
   repository: TaskSourceRepository;
   taskRepository: TaskRepository;
 
-  constructor() {
-    this.repository = new TaskSourceRepository();
-    this.taskRepository = new TaskRepository();
+  constructor(options: { taskSourceStoragePath?: string; taskStoragePath?: string } = {}) {
+    this.repository = new TaskSourceRepository(options.taskSourceStoragePath);
+    this.taskRepository = new TaskRepository(options.taskStoragePath);
   }
 
   async loadSources(): Promise<SourceRecord[]> {
