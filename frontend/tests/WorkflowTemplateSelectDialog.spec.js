@@ -65,6 +65,21 @@ function mountDialog(props = {}) {
   })
 }
 
+const getConfirmButton = (wrapper) => wrapper.find('button:last-of-type')
+const getRetryButton = (wrapper) => wrapper.findAll('button').find((button) => button.text() === '重试')
+
+const firstTemplate = {
+  template_id: 'quick-fix-v1',
+  name: '快速修复工作流',
+  steps: [{ id: 'triage' }, { id: 'fix' }]
+}
+
+const secondTemplate = {
+  template_id: 'review-only-v1',
+  name: '审查工作流',
+  steps: [{ id: 'review' }]
+}
+
 describe('WorkflowTemplateSelectDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -74,16 +89,8 @@ describe('WorkflowTemplateSelectDialog', () => {
     getWorkflowTemplates.mockResolvedValue({
       success: true,
       data: [
-        {
-          template_id: 'quick-fix-v1',
-          name: '快速修复工作流',
-          steps: [{ id: 'triage' }, { id: 'fix' }]
-        },
-        {
-          template_id: 'review-only-v1',
-          name: '审查工作流',
-          steps: [{ id: 'review' }]
-        }
+        firstTemplate,
+        secondTemplate
       ]
     })
 
@@ -96,11 +103,41 @@ describe('WorkflowTemplateSelectDialog', () => {
     const radios = wrapper.findAll('input[type="radio"]')
     expect(radios).toHaveLength(2)
     await radios[1].setValue()
-    await wrapper.find('button:last-of-type').trigger('click')
+    await getConfirmButton(wrapper).trigger('click')
 
     expect(wrapper.emitted('confirm')).toEqual([[
       {
         templateId: 'review-only-v1',
+        autoCreateWorktree: true
+      }
+    ]])
+  })
+
+  it('preselects the first returned template on initial load and allows immediate confirm', async () => {
+    getWorkflowTemplates.mockResolvedValue({
+      success: true,
+      data: [
+        firstTemplate,
+        secondTemplate
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const radios = wrapper.findAll('input[type="radio"]')
+    const confirmButton = getConfirmButton(wrapper)
+
+    expect(radios).toHaveLength(2)
+    expect(radios[0].element.checked).toBe(true)
+    expect(radios[1].element.checked).toBe(false)
+    expect(confirmButton.attributes('disabled')).toBeUndefined()
+
+    await confirmButton.trigger('click')
+
+    expect(wrapper.emitted('confirm')).toEqual([[
+      {
+        templateId: 'quick-fix-v1',
         autoCreateWorktree: true
       }
     ]])
@@ -116,7 +153,7 @@ describe('WorkflowTemplateSelectDialog', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('暂无可用的工作流模板')
-    const confirmButton = wrapper.find('button:last-of-type')
+    const confirmButton = getConfirmButton(wrapper)
     expect(confirmButton.attributes('disabled')).toBeDefined()
   })
 
@@ -139,12 +176,102 @@ describe('WorkflowTemplateSelectDialog', () => {
 
     expect(wrapper.text()).toContain('模板接口失败')
 
-    const retryButton = wrapper.findAll('button').find((button) => button.text() === '重试')
+    const retryButton = getRetryButton(wrapper)
     expect(retryButton).toBeTruthy()
     await retryButton.trigger('click')
     await flushPromises()
 
     expect(getWorkflowTemplates).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('快速修复工作流')
+  })
+
+  it('preselects the first returned template after retry success and allows immediate confirm', async () => {
+    getWorkflowTemplates
+      .mockResolvedValueOnce({ success: false, message: '模板接口失败' })
+      .mockResolvedValueOnce({
+        success: true,
+        data: [
+          secondTemplate,
+          firstTemplate
+        ]
+      })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const retryButton = getRetryButton(wrapper)
+    expect(retryButton).toBeTruthy()
+    await retryButton.trigger('click')
+    await flushPromises()
+
+    const radios = wrapper.findAll('input[type="radio"]')
+    const confirmButton = getConfirmButton(wrapper)
+
+    expect(radios).toHaveLength(2)
+    expect(radios[0].element.value).toBe('review-only-v1')
+    expect(radios[0].element.checked).toBe(true)
+    expect(radios[1].element.checked).toBe(false)
+    expect(confirmButton.attributes('disabled')).toBeUndefined()
+
+    await confirmButton.trigger('click')
+
+    expect(wrapper.emitted('confirm')).toEqual([[
+      {
+        templateId: 'review-only-v1',
+        autoCreateWorktree: true
+      }
+    ]])
+  })
+
+  it('reapplies the first returned template from the latest response when closed and reopened', async () => {
+    getWorkflowTemplates
+      .mockResolvedValueOnce({
+        success: true,
+        data: [
+          firstTemplate,
+          secondTemplate
+        ]
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: [
+          secondTemplate,
+          firstTemplate
+        ]
+      })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    let radios = wrapper.findAll('input[type="radio"]')
+    expect(radios[0].element.checked).toBe(true)
+
+    await radios[1].setValue()
+    expect(radios[1].element.checked).toBe(true)
+
+    await wrapper.setProps({ modelValue: false })
+    await flushPromises()
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+
+    expect(getWorkflowTemplates).toHaveBeenCalledTimes(2)
+
+    radios = wrapper.findAll('input[type="radio"]')
+    const confirmButton = getConfirmButton(wrapper)
+
+    expect(radios).toHaveLength(2)
+    expect(radios[0].element.value).toBe('review-only-v1')
+    expect(radios[0].element.checked).toBe(true)
+    expect(radios[1].element.checked).toBe(false)
+    expect(confirmButton.attributes('disabled')).toBeUndefined()
+
+    await confirmButton.trigger('click')
+
+    expect(wrapper.emitted('confirm')).toEqual([[
+      {
+        templateId: 'review-only-v1',
+        autoCreateWorktree: true
+      }
+    ]])
   })
 })
