@@ -2,6 +2,8 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { ExecutionEventSink } from '../src/services/workflow/executionEventSink.js';
 import { ClaudeCodeExecutor } from '../src/services/workflow/executors/claudeCodeExecutor.js';
+import { CodexExecutor } from '../src/services/workflow/executors/codexExecutor.js';
+import { OpenCodeExecutor } from '../src/services/workflow/executors/opencodeExecutor.js';
 import { executeWorkflowStep } from '../src/services/workflow/workflowStepExecutor.js';
 import type {
   ExecutorExecutionInput,
@@ -172,7 +174,9 @@ test.test('ExecutionEventSink normalizes raw executor events through append', as
   ]);
 });
 
-test.test('ClaudeCodeExecutor emits the parsed summary through execution events', async () => {
+
+
+test.test('ClaudeCodeExecutor emits canonical stream chunks before the parsed summary', async () => {
   const proc: ExecutorProcessHandle = {
     kill() {
       return true;
@@ -185,8 +189,8 @@ test.test('ClaudeCodeExecutor emits the parsed summary through execution events'
       async runStep() {
         return {
           exitCode: 0,
-          stdout: '  final summary  \n',
-          stderr: '',
+          stdout: 'stdout chunk',
+          stderr: 'stderr chunk',
           parsedResult: { summary: 'final summary' },
           proc,
         };
@@ -207,15 +211,86 @@ test.test('ClaudeCodeExecutor emits the parsed summary through execution events'
   });
 
   assert.deepEqual(events, [
+    { kind: 'stream_chunk', role: 'assistant', content: 'stdout chunk', payload: { stream: 'stdout' } },
+    { kind: 'stream_chunk', role: 'system', content: 'stderr chunk', payload: { stream: 'stderr' } },
     { kind: 'message', role: 'assistant', content: 'final summary', payload: {} },
   ]);
   assert.deepEqual(providerStates, []);
   assert.deepEqual(result, {
     exitCode: 0,
-    stdout: '  final summary  \n',
-    stderr: '',
+    stdout: 'stdout chunk',
+    stderr: 'stderr chunk',
     proc,
     rawResult: { summary: 'final summary' },
+  });
+});
+
+test.test('executor adapters emit only canonical session event kinds for raw textual streams', async () => {
+  const codexEvents: WorkflowExecutionEvent[] = [];
+  const codexExecutor = new CodexExecutor({
+    runImpl: async () => ({
+      summary: 'codex summary',
+      events: [
+        { kind: 'message', role: 'assistant', content: 'planning', payload: { phase: 'plan' } },
+        { kind: 'stdout', role: 'assistant', content: 'raw stdout chunk' },
+        { kind: 'stderr', role: 'system', content: 'raw stderr chunk' },
+      ],
+    } as ExecutorRawResult),
+  });
+
+  const codexResult = await codexExecutor.execute({
+    prompt: 'prompt body',
+    worktreePath: sharedState.worktreePath,
+    executorConfig: { type: 'CODEX' },
+    async onEvent(event) {
+      codexEvents.push(event);
+    },
+  });
+
+  assert.deepEqual(codexEvents, [
+    { kind: 'message', role: 'assistant', content: 'planning', payload: { phase: 'plan' } },
+    { kind: 'stream_chunk', role: 'assistant', content: 'raw stdout chunk', payload: { stream: 'stdout' } },
+    { kind: 'stream_chunk', role: 'system', content: 'raw stderr chunk', payload: { stream: 'stderr' } },
+  ]);
+  assert.deepEqual(codexResult.rawResult, {
+    summary: 'codex summary',
+    events: [
+      { kind: 'message', role: 'assistant', content: 'planning', payload: { phase: 'plan' } },
+      { kind: 'stream_chunk', role: 'assistant', content: 'raw stdout chunk', payload: { stream: 'stdout' } },
+      { kind: 'stream_chunk', role: 'system', content: 'raw stderr chunk', payload: { stream: 'stderr' } },
+    ],
+  });
+
+  const openCodeEvents: WorkflowExecutionEvent[] = [];
+  const openCodeExecutor = new OpenCodeExecutor({
+    runImpl: async () => ({
+      summary: 'opencode summary',
+      events: [
+        { kind: 'status', role: 'system', content: 'ignored', payload: { from: 'QUEUED', to: 'RUNNING' } },
+        { kind: 'stderr', role: 'assistant', content: 'raw tool stderr', payload: { source: 'pty' } },
+      ],
+    } as ExecutorRawResult),
+  });
+
+  const openCodeResult = await openCodeExecutor.execute({
+    prompt: 'prompt body',
+    worktreePath: sharedState.worktreePath,
+    executorConfig: { type: 'OPENCODE' },
+    async onEvent(event) {
+      openCodeEvents.push(event);
+    },
+  });
+
+  assert.deepEqual(openCodeEvents, [
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+    { kind: 'stream_chunk', role: 'system', content: 'raw tool stderr', payload: { stream: 'stderr', source: 'pty' } },
+  ]);
+  assert.deepEqual(openCodeResult.rawResult, {
+    summary: 'opencode summary',
+    events: [
+      { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+      { kind: 'stream_chunk', role: 'system', content: 'raw tool stderr', payload: { stream: 'stderr', source: 'pty' } },
+    ],
   });
 });
 

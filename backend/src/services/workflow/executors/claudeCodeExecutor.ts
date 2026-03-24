@@ -25,6 +25,14 @@ class ClaudeCodeExecutor implements Executor {
       ...(onSpawn ? { onSpawn } : {}),
     });
 
+    if (result.stdout) {
+      await sink.appendStreamChunk(result.stdout, 'stdout');
+    }
+
+    if (result.stderr) {
+      await sink.appendStreamChunk(result.stderr, 'stderr');
+    }
+
     await sink.appendMessage(result.parsedResult.summary);
 
     return {
