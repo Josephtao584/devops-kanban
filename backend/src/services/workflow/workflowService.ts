@@ -340,6 +340,45 @@ class WorkflowService {
     });
   }
 
+  private async _finalizeCancelledStepStart(
+    runId: number,
+    stepId: string,
+    startedAt: string,
+    session: SessionEntity | null,
+    segment: SessionSegmentEntity | null,
+  ) {
+    if (!await this._isWorkflowStepCancelled(runId, stepId)) {
+      return false;
+    }
+
+    const completedAt = new Date().toISOString();
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'CANCELLED',
+      started_at: startedAt,
+      completed_at: completedAt,
+      ...(session ? { session_id: session.id } : {}),
+      summary: null,
+      error: 'Workflow cancelled',
+    });
+
+    if (session) {
+      await this.sessionRepo.update(session.id, {
+        status: 'CANCELLED',
+        completed_at: completedAt,
+      });
+
+      const latestSegment = segment || await this.sessionSegmentRepo.findLatestBySessionId(session.id);
+      if (latestSegment?.status === 'RUNNING') {
+        await this.sessionSegmentRepo.update(latestSegment.id, {
+          status: 'CANCELLED',
+          completed_at: completedAt,
+        });
+      }
+    }
+
+    return true;
+  }
+
   async _handleWorkflowStepStart(runId: number, stepId: string, task: WorkflowTaskRecord & { execution_path: string }) {
     if (await this._isWorkflowStepCancelled(runId, stepId)) {
       return;
@@ -364,11 +403,19 @@ class WorkflowService {
       }
     }
 
-    await this._createStepAttemptSegment(
+    if (await this._finalizeCancelledStepStart(runId, stepId, startedAt, session, latestSegment)) {
+      return;
+    }
+
+    const attemptSegment = await this._createStepAttemptSegment(
       session,
       latestSegment ? 'RETRY' : 'START',
       latestSegment?.id ?? null,
     );
+
+    if (await this._finalizeCancelledStepStart(runId, stepId, startedAt, session, attemptSegment)) {
+      return;
+    }
 
     await this.workflowRunRepo.updateStep(runId, stepId, {
       status: 'RUNNING',
@@ -379,8 +426,19 @@ class WorkflowService {
       summary: null,
       error: null,
     });
+
+    if (await this._isWorkflowStepCancelled(runId, stepId)) {
+      await this._finalizeCancelledStepStart(runId, stepId, startedAt, session, attemptSegment);
+      return;
+    }
+
     await this.workflowRunRepo.update(runId, { current_step: stepId });
+
+    if (await this._isWorkflowStepCancelled(runId, stepId)) {
+      await this._finalizeCancelledStepStart(runId, stepId, startedAt, session, attemptSegment);
+    }
   }
+
 
   private async _syncCancelledStepArtifacts(runId: number, stepId: string, completedAt: string) {
     const { step } = await this._getRunStep(runId, stepId);

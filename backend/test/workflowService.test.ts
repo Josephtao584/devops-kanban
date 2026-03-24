@@ -335,7 +335,11 @@ function createStartWorkflowHarness({
   };
 }
 
-function createStepSessionHarness() {
+function createStepSessionHarness({
+  blockSegmentCreate = false,
+}: {
+  blockSegmentCreate?: boolean;
+} = {}) {
   const agentRecords = buildValidAgents();
   const run = {
     id: 7,
@@ -366,6 +370,8 @@ function createStepSessionHarness() {
   const segmentCreates: Array<Record<string, unknown>> = [];
   const segmentUpdates: Array<{ segmentId: number; updateData: Record<string, unknown> }> = [];
   const segments: Array<Record<string, unknown> & { id: number; session_id: number }> = [];
+  const blockedSegmentCreate = blockSegmentCreate ? createDeferred<void>() : null;
+  const releaseBlockedSegmentCreate = blockSegmentCreate ? createDeferred<void>() : null;
   const task = {
     id: 1,
     project_id: 100,
@@ -422,6 +428,10 @@ function createStepSessionHarness() {
   const sessionSegmentRepo = {
     async create(payload: Record<string, unknown>) {
       segmentCreates.push(payload);
+      if (blockedSegmentCreate && releaseBlockedSegmentCreate) {
+        blockedSegmentCreate.resolve();
+        await releaseBlockedSegmentCreate.promise;
+      }
       const segment = {
         id: nextSegmentId,
         ...payload,
@@ -473,6 +483,12 @@ function createStepSessionHarness() {
     segments,
     segmentCreates,
     segmentUpdates,
+    waitUntilSegmentCreateBlocked() {
+      return blockedSegmentCreate?.promise ?? Promise.resolve();
+    },
+    releaseSegmentCreate() {
+      releaseBlockedSegmentCreate?.resolve();
+    },
   };
 }
 
@@ -955,6 +971,38 @@ test.test('workflow step start reuses the logical session and creates retry segm
 });
 
 
+
+
+test.test('workflow step start closes session artifacts when cancellation wins during segment creation', async () => {
+  const harness = createStepSessionHarness({ blockSegmentCreate: true });
+
+  const startPromise = (harness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+
+  await harness.waitUntilSegmentCreateBlocked();
+
+  harness.run.status = 'CANCELLED';
+  harness.run.steps[0]!.status = 'CANCELLED';
+  harness.run.steps[0]!.completed_at = '2026-03-24T00:00:00.000Z';
+  harness.run.steps[0]!.error = 'Workflow cancelled';
+
+  harness.releaseSegmentCreate();
+  await startPromise;
+
+  assert.equal(harness.run.current_step, null);
+  assert.equal(harness.run.steps[0]?.status, 'CANCELLED');
+  assert.equal(harness.run.steps[0]?.session_id, 101);
+  assert.equal(harness.run.steps[0]?.error, 'Workflow cancelled');
+  assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
+  assert.notEqual(harness.sessions.get(101)?.completed_at, null);
+  assert.equal(harness.segments.length, 1);
+  assert.equal(harness.segments[0]?.status, 'CANCELLED');
+  assert.notEqual(harness.segments[0]?.completed_at, null);
+  assert.equal(harness.segmentUpdates.length, 1);
+  assert.equal(harness.segmentUpdates[0]?.segmentId, 201);
+  assert.equal(harness.segmentUpdates[0]?.updateData.status, 'CANCELLED');
+});
 
 test.test('workflow step completion and failure persist only summary and error snapshot fields', async () => {
   const completionHarness = createStepSessionHarness();
