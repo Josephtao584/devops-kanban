@@ -168,10 +168,10 @@ const taskCount = computed(() => props.tasks.length)
   flex-direction: column;
   background: var(--el-bg-color-page);
   border-radius: 8px;
-  min-width: 800px;
-  max-width: 800px;
-  width: 100%;
-  flex: 1 1 0;
+  width: 500px;
+  min-width: 500px;
+  max-width: 500px;
+  flex: 0 0 500px;
   max-height: 100%;
 }
 
