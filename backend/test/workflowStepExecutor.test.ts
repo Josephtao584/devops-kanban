@@ -9,12 +9,13 @@ const sharedState = {
   worktreePath: '/tmp/worktree',
 };
 
-function createStep(agentId: number | null) {
+function createStep(agentId: number | null, overrides: Record<string, unknown> = {}) {
   return {
     id: 'requirement-design',
     name: '需求设计',
     instructionPrompt: '先完成需求分析和设计拆解。',
     agentId,
+    ...overrides,
   };
 }
 
@@ -29,7 +30,7 @@ function createTemplateService(step = createStep(7)) {
   };
 }
 
-function createInputOverrides() {
+function createInputOverrides(overrides: Record<string, unknown> = {}) {
   return {
     stepId: 'requirement-design',
     worktreePath: sharedState.worktreePath,
@@ -41,6 +42,7 @@ function createInputOverrides() {
       worktreePath: sharedState.worktreePath,
     },
     upstreamStepIds: [],
+    ...overrides,
   };
 }
 
@@ -49,6 +51,7 @@ function createAgent(overrides: Record<string, unknown> = {}) {
     id: 7,
     name: 'Codex Designer',
     executorType: 'CODEX',
+    role: 'DESIGNER',
     commandOverride: 'codex run',
     args: ['--json'],
     env: { MODE: 'strict' },
@@ -72,20 +75,18 @@ test.test('executeWorkflowStep resolves executor from the bound step agent', asy
       return createAgent();
     },
   };
+  let executed = false;
+  let receivedPrompt = '';
+  let receivedConfig: ExecutorExecutionInput['executorConfig'] | undefined;
   const registry = {
     getExecutor(type: keyof ExecutorMap) {
       assert.equal(type, 'CODEX');
       return {
         async execute({ prompt, worktreePath, executorConfig, onSpawn }: ExecutorExecutionInput) {
+          executed = true;
+          receivedPrompt = prompt;
+          receivedConfig = executorConfig;
           assert.equal(worktreePath, sharedState.worktreePath);
-          assert.match(prompt, /当前步骤：需求设计/);
-          assert.deepEqual(executorConfig, {
-            type: 'CODEX',
-            commandOverride: 'codex run',
-            args: ['--json'],
-            env: { MODE: 'strict' },
-            skills: ['design'],
-          });
           onSpawn?.(proc);
           const rawResult: ExecutorRawResult = { summary: 'ok' };
           return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
@@ -102,8 +103,66 @@ test.test('executeWorkflowStep resolves executor from the bound step agent', asy
     ...createInputOverrides(),
   });
 
+  assert.equal(executed, true);
+  assert.match(receivedPrompt, /当前执行代理：/);
+  assert.match(receivedPrompt, /代理名称：Codex Designer/);
+  assert.match(receivedPrompt, /代理角色：DESIGNER/);
+  assert.match(receivedPrompt, /代理技能：design/);
+  assert.deepEqual(receivedConfig, {
+    type: 'CODEX',
+    commandOverride: 'codex run',
+    args: ['--json'],
+    env: { MODE: 'strict' },
+    skills: ['design'],
+  });
   assert.equal(context.proc, proc);
   assert.deepEqual(result, { summary: 'ok' });
+});
+
+test.test('executeWorkflowStep allows mismatched agent role guidance without blocking execution', async () => {
+  let executed = false;
+  let receivedPrompt = '';
+  const templateService = createTemplateService(createStep(7, {
+    id: 'test-validation',
+    name: '测试验证',
+    instructionPrompt: '请执行测试验证并记录测试结果。',
+  }));
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent({
+        name: 'Architect Agent',
+        role: 'ARCHITECT',
+        skills: ['architecture-review'],
+      });
+    },
+  };
+  const registry = {
+    getExecutor(type: keyof ExecutorMap) {
+      assert.equal(type, 'CODEX');
+      return {
+        async execute({ prompt }: ExecutorExecutionInput) {
+          executed = true;
+          receivedPrompt = prompt;
+          const rawResult: ExecutorRawResult = { summary: 'mismatch-ok' };
+          return { exitCode: 0, stdout: '', stderr: '', rawResult, proc: null };
+        },
+      };
+    },
+  };
+
+  const result = await executeWorkflowStep({
+    templateService: templateService as never,
+    agentRepo: agentRepo as never,
+    registry: registry as never,
+    ...createInputOverrides({ stepId: 'test-validation' }),
+  });
+
+  assert.equal(executed, true);
+  assert.match(receivedPrompt, /当前步骤：测试验证/);
+  assert.match(receivedPrompt, /代理角色：ARCHITECT/);
+  assert.match(receivedPrompt, /代理技能：architecture-review/);
+  assert.deepEqual(result, { summary: 'mismatch-ok' });
 });
 
 test.test('executeWorkflowStep fails when the bound step agent is disabled', async () => {
