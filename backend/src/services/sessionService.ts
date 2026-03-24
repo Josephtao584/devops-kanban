@@ -2,19 +2,25 @@ import * as fs from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 
 import { SessionRepository } from '../repositories/sessionRepository.js';
+import { SessionSegmentRepository } from '../repositories/sessionSegmentRepository.js';
+import { SessionEventRepository } from '../repositories/sessionEventRepository.js';
 import { TaskService } from './taskService.js';
 import { createWorktree, cleanupWorktree } from '../utils/git.js';
 import type { CreateSessionInput } from '../types/dto/sessions.js';
+import type { SessionSegmentEntity } from '../types/entities.ts';
 import type { BroadcastFn, BroadcastPayload } from '../types/ws/sessions.js';
 
 interface SessionLike {
   id: number;
   task_id: number;
   status?: string;
-  output?: string | null;
   worktree_path?: string | null;
   branch?: string | null;
   initial_prompt?: string | null;
+  agent_id?: number | null;
+  executor_type?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
 }
 
 interface TaskLike {
@@ -28,13 +34,21 @@ interface TaskLike {
 
 class SessionService {
   sessionRepo: SessionRepository;
+  sessionSegmentRepo: SessionSegmentRepository;
+  sessionEventRepo: SessionEventRepository;
   taskService: TaskService;
   runningProcesses: Map<number, ChildProcess>;
+  stopRequestedSessions: Set<number>;
+  sessionCompletionPromises: Map<number, Promise<void>>;
 
   constructor() {
     this.sessionRepo = new SessionRepository();
+    this.sessionSegmentRepo = new SessionSegmentRepository();
+    this.sessionEventRepo = new SessionEventRepository();
     this.taskService = new TaskService();
     this.runningProcesses = new Map();
+    this.stopRequestedSessions = new Set();
+    this.sessionCompletionPromises = new Map();
   }
 
   async getAll(filters: { taskId?: number; activeOnly?: boolean } = {}) {
@@ -64,10 +78,31 @@ class SessionService {
   async getHistoryByTask(taskId: number, includeOutput = true) {
     const sessions = await this.sessionRepo.getByTask(taskId);
     if (!includeOutput) {
-      // Return sessions without output field for lighter payload
-      return sessions.map(({ output: _output, ...session }) => session);
+      return sessions.map(({ ...session }) => session);
     }
     return sessions;
+  }
+
+  async listEvents(sessionId: number, options: { afterSeq?: number; limit?: number } = {}) {
+    const session = await this.sessionRepo.findById(sessionId);
+    if (!session) {
+      const error = new Error('Session not found') as Error & { statusCode?: number };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const requestedLimit = options.limit;
+    const events = await this.sessionEventRepo.listBySessionId(sessionId, {
+      afterSeq: options.afterSeq,
+      limit: requestedLimit === undefined ? undefined : requestedLimit + 1,
+    });
+    const hasMore = requestedLimit !== undefined && events.length > requestedLimit;
+
+    return {
+      events: hasMore ? events.slice(0, requestedLimit) : events,
+      last_seq: await this.sessionEventRepo.getLastSeq(sessionId),
+      has_more: hasMore,
+    };
   }
 
   async create(sessionData: CreateSessionInput) {
@@ -99,6 +134,10 @@ class SessionService {
       worktree_path: worktreePath,
       branch: branchName,
       initial_prompt: sessionData.initial_prompt || task.description || '',
+      agent_id: null,
+      executor_type: 'CLAUDE_CODE' as const,
+      started_at: null,
+      completed_at: null,
     };
 
     return await this.sessionRepo.create(sessionDataWithWorktree);
@@ -116,6 +155,8 @@ class SessionService {
       return session;
     }
 
+    this.stopRequestedSessions.delete(sessionId);
+
     const task = await this.taskService.getById(session.task_id) as TaskLike | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -123,13 +164,27 @@ class SessionService {
       throw error;
     }
 
-    await this.sessionRepo.update(sessionId, { status: 'RUNNING' });
-
-    if (session.worktree_path && fs.existsSync(session.worktree_path)) {
-      const prompt = session.initial_prompt || task.description || '';
-      const proc = this._spawnClaudeCode(session.worktree_path, ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'], sessionId, 'start');
+    const worktreePath = this._requireLaunchableWorktree(session);
+    const prompt = session.initial_prompt || task.description || '';
+    const segment = await this._createSegment(session, 'START', null);
+    try {
+      const proc = this._spawnClaudeCode(
+        worktreePath,
+        ['-y', '@anthropic-ai/claude-code', '--prompt', prompt, '--verbose'],
+        sessionId,
+        'start',
+      );
+      const startedAt = new Date().toISOString();
+      await this.sessionRepo.update(sessionId, {
+        status: 'RUNNING',
+        started_at: session.started_at || startedAt,
+        completed_at: null,
+      });
       this.runningProcesses.set(sessionId, proc);
-      this._readProcessOutput(sessionId, proc, broadcastFn);
+      this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+    } catch (error) {
+      await this._markSegmentComplete(segment.id, 'ERROR');
+      throw error;
     }
 
     return await this.sessionRepo.findById(sessionId);
@@ -143,67 +198,129 @@ class SessionService {
         shell: true,
       });
     } catch (error) {
-      void this.sessionRepo.update(sessionId, { status: 'ERROR' });
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to ${action} Claude Code: ${message}`);
     }
   }
 
-  _readProcessOutput(sessionId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
-    const output: string[] = [];
+  _readProcessOutput(sessionId: number, segmentId: number, proc: ChildProcess, broadcastFn?: BroadcastFn) {
+    let pendingEventWrite = Promise.resolve();
+    let finalizeSessionPromise: Promise<void> | null = null;
+    let resolveSessionCompletion: (() => void) | null = null;
+    let rejectSessionCompletion: ((error: unknown) => void) | null = null;
+    const sessionCompletionPromise = new Promise<void>((resolve, reject) => {
+      resolveSessionCompletion = resolve;
+      rejectSessionCompletion = reject;
+    });
+
+    this.sessionCompletionPromises.set(sessionId, sessionCompletionPromise);
+
+    const finalizeSession = async (status: 'COMPLETED' | 'ERROR' | 'STOPPED', completedAt = new Date().toISOString()) => {
+      if (finalizeSessionPromise) {
+        return await finalizeSessionPromise;
+      }
+
+      finalizeSessionPromise = (async () => {
+        const finalStatus = this.stopRequestedSessions.has(sessionId) ? 'STOPPED' : status;
+
+        await this.sessionRepo.update(sessionId, {
+          status: finalStatus,
+          completed_at: completedAt,
+        });
+        await this._markSegmentComplete(segmentId, finalStatus, completedAt);
+
+        broadcastFn?.(sessionId, 'status', {
+          type: 'status',
+          status: finalStatus,
+        });
+
+        this.runningProcesses.delete(sessionId);
+        this.stopRequestedSessions.delete(sessionId);
+      })();
+
+      void finalizeSessionPromise
+        .then(() => {
+          resolveSessionCompletion?.();
+        })
+        .catch((error) => {
+          rejectSessionCompletion?.(error);
+        })
+        .finally(() => {
+          if (this.sessionCompletionPromises.get(sessionId) === sessionCompletionPromise) {
+            this.sessionCompletionPromises.delete(sessionId);
+          }
+        });
+
+      return await finalizeSessionPromise;
+    };
+
+    const appendStreamEvent = (content: string, stream: 'stdout' | 'stderr', role: 'assistant' | 'system') => {
+      if (content.length === 0) {
+        return;
+      }
+
+      const timestamp = new Date().toISOString();
+      pendingEventWrite = pendingEventWrite
+        .catch(() => undefined)
+        .then(async () => {
+          await this.sessionEventRepo.append({
+            session_id: sessionId,
+            segment_id: segmentId,
+            kind: 'stream_chunk',
+            role,
+            content,
+            payload: { stream, timestamp },
+          });
+        });
+
+      broadcastFn?.(sessionId, 'output', {
+        type: 'chunk',
+        content,
+        stream,
+        timestamp,
+      });
+    };
 
     proc.stdout?.on('data', (data: Buffer | string) => {
-      const lines = data.toString().split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
-
-        output.push(trimmed);
-        broadcastFn?.(sessionId, 'output', {
-          type: 'chunk',
-          content: trimmed,
-          stream: 'stdout',
-          timestamp: new Date().toISOString(),
-        });
-      }
+      appendStreamEvent(data.toString(), 'stdout', 'assistant');
     });
 
     proc.stderr?.on('data', (data: Buffer | string) => {
-      broadcastFn?.(sessionId, 'output', {
-        type: 'chunk',
-        content: data.toString(),
-        stream: 'stderr',
-        timestamp: new Date().toISOString(),
-      });
+      appendStreamEvent(data.toString(), 'stderr', 'system');
     });
 
     proc.on('close', async (code) => {
       const status = code === 0 ? 'COMPLETED' : 'ERROR';
+      const completedAt = new Date().toISOString();
 
-      await this.sessionRepo.update(sessionId, {
-        status,
-        output: output.join('\n'),
-      });
-
-      broadcastFn?.(sessionId, 'status', {
-        type: 'status',
-        status,
-      });
-
-      this.runningProcesses.delete(sessionId);
+      await pendingEventWrite.catch(() => undefined);
+      await finalizeSession(status, completedAt);
     });
 
     proc.on('error', async (error) => {
-      await this.sessionRepo.update(sessionId, { status: 'ERROR' });
+      const timestamp = new Date().toISOString();
+      pendingEventWrite = pendingEventWrite
+        .catch(() => undefined)
+        .then(async () => {
+          await this.sessionEventRepo.append({
+            session_id: sessionId,
+            segment_id: segmentId,
+            kind: 'error',
+            role: 'system',
+            content: `Error: ${error.message}`,
+            payload: { stream: 'stderr', timestamp },
+          });
+        });
+
+      await pendingEventWrite.catch(() => undefined);
+      await finalizeSession('ERROR', timestamp);
+
       broadcastFn?.(sessionId, 'output', {
         type: 'chunk',
         content: `Error: ${error.message}`,
         stream: 'stderr',
-        timestamp: new Date().toISOString(),
+        timestamp,
       });
-      this.runningProcesses.delete(sessionId);
     });
   }
 
@@ -219,31 +336,48 @@ class SessionService {
       return session;
     }
 
+    this.stopRequestedSessions.add(sessionId);
+
     const proc = this.runningProcesses.get(sessionId);
-    if (proc) {
-      proc.kill('SIGTERM');
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          proc.kill('SIGKILL');
-          resolve();
-        }, 5000);
-        proc.on('close', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
+    if (!proc) {
+      const completedAt = new Date().toISOString();
+      await this.sessionRepo.update(sessionId, {
+        status: 'STOPPED',
+        completed_at: completedAt,
       });
-      this.runningProcesses.delete(sessionId);
+
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+      if (latestSegment?.status === 'RUNNING') {
+        await this._markSegmentComplete(latestSegment.id, 'STOPPED', completedAt);
+      }
+
+      broadcastFn?.(sessionId, 'status', {
+        type: 'status',
+        status: 'STOPPED',
+      });
+
+      this.stopRequestedSessions.delete(sessionId);
+      this.sessionCompletionPromises.delete(sessionId);
+      return await this.sessionRepo.findById(sessionId);
     }
 
-    const updated = await this.sessionRepo.update(sessionId, { status: 'STOPPED' });
-
-    broadcastFn?.(sessionId, 'status', {
-      type: 'status',
-      status: 'STOPPED',
+    proc.kill('SIGTERM');
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        proc.kill('SIGKILL');
+        resolve();
+      }, 5000);
+      proc.on('close', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
     });
 
-    return updated;
+    await this.sessionCompletionPromises.get(sessionId);
+
+    return await this.sessionRepo.findById(sessionId);
   }
+
 
   async continue(sessionId: number, input: string, broadcastFn?: BroadcastFn) {
     const session = await this.sessionRepo.findById(sessionId) as SessionLike | null;
@@ -259,12 +393,22 @@ class SessionService {
       throw error;
     }
 
-    await this.sessionRepo.update(sessionId, { status: 'RUNNING' });
-
-    if (session.worktree_path && fs.existsSync(session.worktree_path)) {
-      const proc = this._spawnClaudeCode(session.worktree_path, ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input], sessionId, 'resume');
+    const worktreePath = this._requireLaunchableWorktree(session);
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+    const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
+    try {
+      const proc = this._spawnClaudeCode(
+        worktreePath,
+        ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input],
+        sessionId,
+        'resume',
+      );
+      await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
       this.runningProcesses.set(sessionId, proc);
-      this._readProcessOutput(sessionId, proc, broadcastFn);
+      this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+    } catch (error) {
+      await this._markSegmentComplete(segment.id, 'ERROR');
+      throw error;
     }
 
     return await this.sessionRepo.findById(sessionId);
@@ -305,8 +449,8 @@ class SessionService {
       await this.stop(sessionId, broadcastFn);
     }
 
-    if (session.worktree_path) {
-      cleanupWorktree(session.worktree_path);
+    if (await this._canCleanupWorktree(session)) {
+      this._cleanupWorktree(session.worktree_path!);
     }
 
     return await this.sessionRepo.delete(sessionId);
@@ -314,6 +458,63 @@ class SessionService {
 
   async exists(sessionId: number) {
     return (await this.sessionRepo.findById(sessionId)) !== null;
+  }
+
+  private _requireLaunchableWorktree(session: SessionLike) {
+    if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
+      const error = new Error('Session worktree is unavailable') as Error & { statusCode?: number };
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return session.worktree_path;
+  }
+
+  private async _canCleanupWorktree(session: SessionLike) {
+    if (!session.worktree_path) {
+      return false;
+    }
+
+    const task = await this.taskService.getById(session.task_id) as TaskLike | null;
+    if (task?.worktree_path === session.worktree_path) {
+      return false;
+    }
+
+    const sessions = await this.sessionRepo.findAll();
+    return !sessions.some((candidate) => candidate.id !== session.id && candidate.worktree_path === session.worktree_path);
+  }
+
+  _cleanupWorktree(worktreePath: string) {
+    return cleanupWorktree(worktreePath);
+  }
+
+  private async _createSegment(
+    session: SessionLike,
+    triggerType: SessionSegmentEntity['trigger_type'],
+    parentSegmentId: number | null,
+  ) {
+    const startedAt = new Date().toISOString();
+    return await this.sessionSegmentRepo.create({
+      session_id: session.id,
+      status: 'RUNNING',
+      executor_type: (session.executor_type || 'CLAUDE_CODE') as SessionSegmentEntity['executor_type'],
+      agent_id: session.agent_id ?? null,
+      provider_session_id: null,
+      resume_token: null,
+      checkpoint_ref: null,
+      trigger_type: triggerType,
+      parent_segment_id: parentSegmentId,
+      started_at: startedAt,
+      completed_at: null,
+      metadata: {},
+    });
+  }
+
+  private async _markSegmentComplete(segmentId: number, status: string, completedAt = new Date().toISOString()) {
+    await this.sessionSegmentRepo.update(segmentId, {
+      status,
+      completed_at: completedAt,
+    });
   }
 }
 

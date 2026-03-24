@@ -12,7 +12,6 @@
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
         "retry_count": 0,
-        "output": null,
         "error": null
       },
       {
@@ -22,7 +21,6 @@
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
         "retry_count": 0,
-        "output": null,
         "error": null
       },
       {
@@ -32,7 +30,6 @@
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
         "retry_count": 0,
-        "output": null,
         "error": null
       },
       {
@@ -42,7 +39,6 @@
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
         "retry_count": 0,
-        "output": null,
         "error": null
       }
     ],

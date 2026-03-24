@@ -1,3 +1,5 @@
+import type { ExecutorType } from './executors.ts';
+
 export interface ProjectEntity {
   id: number;
   name: string;
@@ -24,12 +26,50 @@ export interface TaskEntity {
 export interface SessionEntity {
   id: number;
   task_id: number;
+  workflow_run_id?: number | null;
+  workflow_step_id?: string | null;
   status?: string;
-  output?: string | null;
   worktree_path?: string | null;
   branch?: string | null;
   initial_prompt?: string | null;
-  [key: string]: unknown;
+  agent_id?: number | null;
+  executor_type?: ExecutorType | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SessionSegmentEntity {
+  id: number;
+  session_id: number;
+  segment_index: number;
+  status: string;
+  executor_type: ExecutorType;
+  agent_id: number | null;
+  provider_session_id?: string | null;
+  resume_token?: string | null;
+  checkpoint_ref?: string | null;
+  trigger_type: 'START' | 'CONTINUE' | 'RESUME' | 'RETRY';
+  parent_segment_id?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SessionEventEntity {
+  id: number;
+  session_id: number;
+  segment_id: number;
+  seq: number;
+  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+  role: 'assistant' | 'system' | 'tool' | 'user';
+  content: string;
+  payload: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface WorkflowStepEntity {
@@ -39,8 +79,9 @@ export interface WorkflowStepEntity {
   started_at: string | null;
   completed_at: string | null;
   retry_count: number;
-  output: unknown;
   error: string | null;
+  session_id: number | null;
+  summary: string | null;
 }
 
 export interface WorkflowRunEntity {

@@ -198,21 +198,6 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   /**
-   * Get session output
-   * @param {String} id - Session ID
-   * @returns {String} Session output
-   */
-  async function getSessionOutput(id) {
-    try {
-      const response = await sessionApi.getSessionOutput(id)
-      return unwrap(response, 'Failed to get session output') || ''
-    } catch (e) {
-      error.value = e.message
-      return ''
-    }
-  }
-
-  /**
    * Update session in the list
    * @param {Object} session - Session to update
    */
@@ -271,7 +256,6 @@ export const useSessionStore = defineStore('session', () => {
     stopSession,
     sendInput,
     continueSession,
-    getSessionOutput,
     // Helpers
     setCurrentSession,
     clearSessions,
