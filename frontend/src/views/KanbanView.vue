@@ -363,16 +363,6 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="checkbox-label">
-              <input
-                type="checkbox"
-                v-model="taskForm.autoAssignWorkflow"
-              />
-              <span>{{ $t('task.autoAssignWorkflow') }}</span>
-            </label>
-            <p class="form-help">{{ $t('task.autoAssignWorkflowHelp') }}</p>
-          </div>
-          <div class="form-group">
             <label>{{ $t('task.iteration') }}</label>
             <IterationSelect
               v-model="taskForm.iteration_id"
@@ -1090,8 +1080,7 @@ const taskForm = reactive({
   status: 'TODO',
   priority: 'MEDIUM',
   assignee: '',
-  iteration_id: null,
-  autoAssignWorkflow: true
+  iteration_id: null
 })
 
 // Agent selector
@@ -1216,7 +1205,6 @@ const openTaskModal = (task = null) => {
     taskForm.priority = task.priority || 'MEDIUM'
     taskForm.assignee = task.assignee || ''
     taskForm.iteration_id = task.iteration_id || null
-    taskForm.autoAssignWorkflow = task.autoAssignWorkflow !== false
   } else {
     isEditing.value = false
     editingTaskId.value = null
@@ -1227,7 +1215,6 @@ const openTaskModal = (task = null) => {
     taskForm.priority = 'MEDIUM'
     taskForm.assignee = ''
     taskForm.iteration_id = null
-    taskForm.autoAssignWorkflow = true
   }
   showTaskModal.value = true
 }
