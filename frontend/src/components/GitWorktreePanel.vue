@@ -79,6 +79,13 @@
               >
                 <el-icon><Upload /></el-icon>
               </el-button>
+              <el-button
+                size="small"
+                type="success"
+                @click="openMergeDialog(row)"
+              >
+                <el-icon><Connection /></el-icon>
+              </el-button>
             </el-button-group>
           </template>
         </el-table-column>
@@ -174,6 +181,72 @@
       @close="commitDialogVisible = false"
       @committed="handleCommitted"
     />
+
+    <!-- Merge Dialog -->
+    <el-dialog
+      v-model="mergeDialogVisible"
+      :title="$t('git.mergeBranch', 'Merge Branch')"
+      width="500px"
+    >
+      <div class="merge-content">
+        <el-form label-width="auto">
+          <el-form-item :label="$t('git.sourceBranch', 'Source Branch')">
+            <el-tag type="info">{{ mergeSourceBranch }}</el-tag>
+          </el-form-item>
+          <el-form-item :label="$t('git.targetBranch', 'Target Branch')">
+            <el-select
+              v-model="mergeTargetBranch"
+              :placeholder="$t('git.selectTargetBranch', 'Select target branch')"
+              filterable
+              class="target-select"
+            >
+              <el-option
+                v-for="branch in mainBranches"
+                :key="branch.fullName"
+                :label="branch.name"
+                :value="branch.fullName"
+              >
+                <span>{{ branch.name }}</span>
+                <el-tag v-if="branch.isCurrent" size="small" type="success" class="current-tag">
+                  {{ $t('git.current', 'Current') }}
+                </el-tag>
+              </el-option>
+            </el-select>
+          </el-form-item>
+        </el-form>
+
+        <el-alert
+          v-if="mergeError"
+          :title="mergeError"
+          type="warning"
+          show-icon
+          :closable="false"
+          class="merge-error"
+        />
+
+        <div v-if="mergeConflicts.length > 0" class="merge-conflicts">
+          <el-alert
+            :title="$t('git.mergeConflict', 'Merge Conflict')"
+            type="warning"
+            :description="$t('git.mergeConflictHint', { count: mergeConflicts.length }, 'Conflicts in {count} file(s)')"
+            show-icon
+          />
+          <ul class="conflict-list">
+            <li v-for="file in mergeConflicts" :key="file">{{ file }}</li>
+          </ul>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="mergeDialogVisible = false">{{ $t('common.cancel', 'Cancel') }}</el-button>
+        <el-button
+          type="primary"
+          :disabled="!mergeTargetBranch || mergeLoading"
+          @click="handleMerge"
+        >
+          {{ mergeLoading ? $t('git.merging', 'Merging...') : $t('git.mergeBranch', 'Merge') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -181,14 +254,16 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { FolderOpened, Refresh, View, Document, Check, Upload } from '@element-plus/icons-vue'
+import { FolderOpened, Refresh, View, Document, Check, Upload, Connection } from '@element-plus/icons-vue'
 import {
   listWorktrees,
   getWorktreeStatus,
   pruneWorktrees,
   getStatus,
   getDiff,
-  push
+  push,
+  mergeBranch,
+  listBranches
 } from '../api/git'
 import CommitDialog from './CommitDialog.vue'
 import { useToast } from '../composables/ui/useToast'
@@ -210,9 +285,16 @@ const worktrees = ref([])
 const statusDialogVisible = ref(false)
 const diffDialogVisible = ref(false)
 const commitDialogVisible = ref(false)
+const mergeDialogVisible = ref(false)
 const currentStatus = ref(null)
 const currentDiff = ref(null)
 const selectedWorktree = ref(null)
+const mainBranches = ref([])
+const mergeSourceBranch = ref('')
+const mergeTargetBranch = ref('')
+const mergeLoading = ref(false)
+const mergeError = ref('')
+const mergeConflicts = ref([])
 
 const loadWorktrees = async () => {
   loading.value = true
@@ -298,6 +380,64 @@ const handlePush = async (worktree) => {
   }
 }
 
+const openMergeDialog = async (worktree) => {
+  selectedWorktree.value = worktree
+  mergeSourceBranch.value = worktree.branch
+  mergeTargetBranch.value = ''
+  mergeError.value = ''
+  mergeConflicts.value = []
+
+  // 加载分支列表
+  try {
+    const response = await listBranches(props.projectId)
+    if (response.success) {
+      // 过滤出主分支（main, master）和开发分支
+      mainBranches.value = response.data.filter(b => {
+        const name = b.name.toLowerCase()
+        return !b.isRemote && (name === 'main' || name === 'master' || name === 'develop' || name === 'dev')
+      })
+      // 如果没有找到主分支，显示所有本地分支
+      if (mainBranches.value.length === 0) {
+        mainBranches.value = response.data.filter(b => !b.isRemote && b.name !== worktree.branch)
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load branches:', e)
+  }
+
+  mergeDialogVisible.value = true
+}
+
+const handleMerge = async () => {
+  if (!mergeSourceBranch.value || !mergeTargetBranch.value) {
+    return
+  }
+
+  mergeLoading.value = true
+  mergeError.value = ''
+  mergeConflicts.value = []
+
+  try {
+    const response = await mergeBranch(props.projectId, mergeSourceBranch.value, mergeTargetBranch.value)
+
+    if (response.success) {
+      toast.success(t('git.mergeSuccess', 'Branch merged successfully'))
+      mergeDialogVisible.value = false
+      loadWorktrees()
+    } else if (response.data?.hasConflicts) {
+      mergeConflicts.value = response.data.conflicts || []
+      mergeError.value = t('git.mergeConflict', 'Merge conflicts detected')
+    } else {
+      toast.error(response.message || t('git.mergeFailed', 'Merge failed'))
+    }
+  } catch (e) {
+    console.error('Merge failed:', e)
+    toast.apiError(e, t('git.mergeFailed', 'Merge failed'))
+  } finally {
+    mergeLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadWorktrees()
 })
@@ -359,5 +499,37 @@ onMounted(() => {
   color: #d4d4d4;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.merge-content {
+  padding: 10px 0;
+}
+
+.target-select {
+  width: 100%;
+}
+
+.current-tag {
+  margin-left: 8px;
+}
+
+.merge-error {
+  margin-top: 16px;
+}
+
+.merge-conflicts {
+  margin-top: 16px;
+}
+
+.conflict-list {
+  margin: 12px 0 0 20px;
+  padding: 0;
+}
+
+.conflict-list li {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  color: #e6a23c;
+  margin: 4px 0;
 }
 </style>

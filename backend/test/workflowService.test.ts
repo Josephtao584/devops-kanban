@@ -2,19 +2,7 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
 import type { ExecutorProcessHandle } from '../src/types/executors.js';
-
-interface TemplateStep {
-  id: string;
-  name: string;
-  instructionPrompt: string;
-  agentId: number | null;
-}
-
-interface WorkflowTemplateRecord {
-  template_id: string;
-  name: string;
-  steps: TemplateStep[];
-}
+import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.js';
 
 interface AgentRecord {
   id: number;
@@ -28,120 +16,52 @@ interface AgentRecord {
   env: unknown;
 }
 
-const BASE_TEMPLATE_STEPS: TemplateStep[] = [
-  {
-    id: 'requirement-design',
-    name: '需求设计',
-    instructionPrompt: '先完成需求分析。',
-    agentId: 11,
-  },
-  {
-    id: 'code-development',
-    name: '代码开发',
-    instructionPrompt: '完成代码实现。',
-    agentId: 12,
-  },
-  {
-    id: 'testing',
-    name: '测试',
-    instructionPrompt: '执行必要验证。',
-    agentId: 13,
-  },
-  {
-    id: 'code-review',
-    name: '代码审查',
-    instructionPrompt: '完成代码审查。',
-    agentId: 14,
-  },
-];
-
-function buildTemplate(overrides: Partial<Record<string, Partial<TemplateStep>>> = {}): WorkflowTemplateRecord {
+function buildQuickFixTemplate(): WorkflowTemplate {
   return {
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
-    steps: BASE_TEMPLATE_STEPS.map((step) => ({
-      ...step,
-      ...(overrides[step.id] ?? {}),
-    })),
+    template_id: 'quick-fix-v1',
+    name: '快速修复工作流',
+    steps: [
+      {
+        id: 'triage',
+        name: '问题定位',
+        instructionPrompt: '先确认问题范围、触发条件和修复策略。',
+        agentId: 11,
+      },
+      {
+        id: 'fix',
+        name: '实施修复',
+        instructionPrompt: '根据定位结果完成最小改动修复。',
+        agentId: 12,
+      },
+      {
+        id: 'verify',
+        name: '回归验证',
+        instructionPrompt: '验证修复结果并确认没有引入明显回归。',
+        agentId: 13,
+      },
+    ],
   };
 }
 
-function buildTemplateWithSteps(steps: TemplateStep[]): WorkflowTemplateRecord {
+function buildReviewOnlyTemplate(): WorkflowTemplate {
   return {
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
-    steps,
+    template_id: 'review-only-v1',
+    name: '审查工作流',
+    steps: [
+      {
+        id: 'review',
+        name: '代码审查',
+        instructionPrompt: '审查现有改动并记录风险。',
+        agentId: 21,
+      },
+      {
+        id: 'report',
+        name: '输出结论',
+        instructionPrompt: '汇总结论并给出建议。',
+        agentId: 22,
+      },
+    ],
   };
-}
-
-function assertValidationError(error: unknown, expectedMessage: RegExp) {
-  assert.match((error as Error).message, expectedMessage);
-  assert.equal((error as Error & { statusCode?: number }).statusCode, 400);
-}
-
-function getBaseTemplateSteps(): TemplateStep[] {
-  return BASE_TEMPLATE_STEPS.map((step) => ({ ...step }));
-}
-
-function removeStep(stepId: string): TemplateStep[] {
-  return getBaseTemplateSteps().filter((step) => step.id !== stepId);
-}
-
-function duplicateStep(stepId: string): TemplateStep[] {
-  const steps = getBaseTemplateSteps();
-  const duplicate = steps.find((step) => step.id === stepId);
-  if (!duplicate) {
-    throw new Error(`Unknown step for duplication: ${stepId}`);
-  }
-  return [duplicate, ...steps];
-}
-
-function appendExtraStep(): TemplateStep[] {
-  return [
-    ...getBaseTemplateSteps(),
-    {
-      id: 'security-review',
-      name: '安全审查',
-      instructionPrompt: '补充审查。',
-      agentId: 99,
-    },
-  ];
-}
-
-function reorderSteps(): TemplateStep[] {
-  const steps = getBaseTemplateSteps();
-  return [steps[1]!, steps[0]!, steps[2]!, steps[3]!];
-}
-
-function assertNoRunCreated(harness: ReturnType<typeof createStartWorkflowHarness>) {
-  assert.equal(harness.createCalls.length, 0);
-  assert.equal(harness.taskUpdates.length, 0);
-}
-
-async function assertStartWorkflowValidationFailure(
-  harness: ReturnType<typeof createStartWorkflowHarness>,
-  expectedMessage: RegExp,
-) {
-  await assert.rejects(
-    () => harness.service.startWorkflow(1),
-    (error: unknown) => {
-      assertValidationError(error, expectedMessage);
-      return true;
-    },
-  );
-
-  assertNoRunCreated(harness);
-}
-
-async function assertStructuralDriftFailure(steps: TemplateStep[]) {
-  const harness = createStartWorkflowHarness({
-    template: buildTemplateWithSteps(steps),
-  });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Workflow template steps do not match the workflow definition/,
-  );
 }
 
 function buildAgent(id: number, overrides: Partial<AgentRecord> = {}): AgentRecord {
@@ -162,34 +82,77 @@ function buildAgent(id: number, overrides: Partial<AgentRecord> = {}): AgentReco
 function buildValidAgents() {
   return new Map<number, AgentRecord>([
     [11, buildAgent(11, { executorType: 'CLAUDE_CODE' })],
-    [12, buildAgent(12, { executorType: 'CODEX' })],
-    [13, buildAgent(13, { executorType: 'OPENCODE' })],
-    [14, buildAgent(14, { executorType: 'CLAUDE_CODE' })],
+    [12, buildAgent(12, { executorType: 'CLAUDE_CODE' })],
+    [13, buildAgent(13, { executorType: 'CLAUDE_CODE' })],
+    [21, buildAgent(21, { executorType: 'CLAUDE_CODE' })],
+    [22, buildAgent(22, { executorType: 'CLAUDE_CODE' })],
   ]);
 }
 
+function buildAgentsWithUnavailableDefaultExecutors() {
+  return new Map<number, AgentRecord>([
+    [11, buildAgent(11, { executorType: 'CLAUDE_CODE' })],
+    [12, buildAgent(12, { executorType: 'CODEX' })],
+    [13, buildAgent(13, { executorType: 'OPENCODE' })],
+    [21, buildAgent(21, { executorType: 'CLAUDE_CODE' })],
+    [22, buildAgent(22, { executorType: 'CODEX' })],
+  ]);
+}
+
+function assertValidationError(error: unknown, expectedMessage: RegExp) {
+  assert.match((error as Error).message, expectedMessage);
+  assert.equal((error as Error & { statusCode?: number }).statusCode, 400);
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
+
 function createStartWorkflowHarness({
-  template = buildTemplate(),
+  templates = [buildQuickFixTemplate(), buildReviewOnlyTemplate()],
+  selectedTemplateId = 'quick-fix-v1',
   agentRecords = buildValidAgents(),
   existingRun = null,
 }: {
-  template?: WorkflowTemplateRecord;
+  templates?: WorkflowTemplate[];
+  selectedTemplateId?: string;
   agentRecords?: Map<number, AgentRecord>;
   existingRun?: { status: string } | null;
 } = {}) {
   const createCalls: Array<Record<string, unknown>> = [];
+  const updateCalls: Array<Record<string, unknown>> = [];
+  const stepUpdates: Array<{ runId: number; stepId: string; updateData: Record<string, unknown> }> = [];
   const taskUpdates: Array<Record<string, unknown>> = [];
   const agentLookupIds: number[] = [];
-  let templateLoads = 0;
+  let templateListLoads = 0;
+  let templateLookupLoads = 0;
 
   const workflowRunRepo = {
     async findByTaskId(taskId: number) {
       assert.equal(taskId, 1);
       return existingRun;
     },
+    async findById(runId: number) {
+      return { id: runId, status: 'RUNNING' };
+    },
     async create(payload: Record<string, unknown>) {
       createCalls.push(payload);
       return { id: 42, ...payload };
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      updateCalls.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep(runId: number, stepId: string, updateData: Record<string, unknown>) {
+      stepUpdates.push({ runId, stepId, updateData });
+      return { id: runId, stepId, ...updateData };
     },
   };
 
@@ -219,9 +182,13 @@ function createStartWorkflowHarness({
   };
 
   const workflowTemplateService = {
-    async getTemplate() {
-      templateLoads += 1;
-      return template;
+    async getTemplates() {
+      templateListLoads += 1;
+      return templates;
+    },
+    async getTemplateById(id: string) {
+      templateLookupLoads += 1;
+      return templates.find((template) => template.template_id === id) ?? null;
     },
   };
 
@@ -247,36 +214,95 @@ function createStartWorkflowHarness({
   return {
     service,
     createCalls,
+    updateCalls,
+    stepUpdates,
     taskUpdates,
     agentLookupIds,
-    getTemplateLoads() {
-      return templateLoads;
+    getTemplateListLoads() {
+      return templateListLoads;
     },
+    getTemplateLookupLoads() {
+      return templateLookupLoads;
+    },
+    selectedTemplateId,
   };
 }
 
-test.test('startWorkflow creates a run when every bound step agent is valid and enabled', async () => {
+async function assertStartWorkflowValidationFailure(
+  harness: ReturnType<typeof createStartWorkflowHarness>,
+  expectedMessage: RegExp,
+) {
+  await assert.rejects(
+    () => harness.service.startWorkflow(1, harness.selectedTemplateId),
+    (error: unknown) => {
+      assertValidationError(error, expectedMessage);
+      return true;
+    },
+  );
+
+  assert.equal(harness.createCalls.length, 0);
+  assert.equal(harness.taskUpdates.length, 0);
+}
+
+test.test('startWorkflow creates a run from the selected template snapshot', async () => {
   const harness = createStartWorkflowHarness();
 
-  const run = await harness.service.startWorkflow(1);
+  const run = await harness.service.startWorkflow(1, 'quick-fix-v1');
 
   assert.equal(run.status, 'PENDING');
   assert.equal(harness.createCalls.length, 1);
   assert.equal(harness.taskUpdates.length, 1);
-  assert.deepEqual(harness.agentLookupIds, [11, 12, 13, 14]);
-  assert.equal(harness.getTemplateLoads(), 1);
+  assert.deepEqual(harness.agentLookupIds, [11, 12, 13]);
+  assert.equal(harness.getTemplateLookupLoads(), 1);
+  assert.equal(harness.getTemplateListLoads(), 0);
+
+  const createdRun = harness.createCalls[0]!;
+  assert.equal(createdRun.workflow_id, 'quick-fix-v1');
+  assert.equal(createdRun.workflow_template_id, 'quick-fix-v1');
+  assert.deepEqual((createdRun.steps as Array<{ step_id: string; name: string }>).map((step) => step.step_id), ['triage', 'fix', 'verify']);
+  assert.deepEqual((createdRun.workflow_template_snapshot as WorkflowTemplate).steps.map((step) => step.id), ['triage', 'fix', 'verify']);
+  assert.equal(harness.taskUpdates[0]?.workflow_run_id, 42);
 });
 
-test.test('startWorkflow rejects a template step with no assigned agent', async () => {
-  const harness = createStartWorkflowHarness({
-    template: buildTemplate({
-      'requirement-design': { agentId: null },
-    }),
-  });
+test.test('startWorkflow rejects an unknown selected template id before creating a run', async () => {
+  const harness = createStartWorkflowHarness({ selectedTemplateId: 'missing-template' });
+
+  await assert.rejects(
+    () => harness.service.startWorkflow(1, 'missing-template'),
+    /Workflow template not found/
+  );
+
+  assert.equal(harness.createCalls.length, 0);
+  assert.equal(harness.taskUpdates.length, 0);
+});
+
+test.test('startWorkflow rejects blank selected template ids instead of falling back to the default template', async () => {
+  for (const selectedTemplateId of ['', '   ']) {
+    const harness = createStartWorkflowHarness({ selectedTemplateId });
+
+    await assert.rejects(
+      () => harness.service.startWorkflow(1, selectedTemplateId),
+      (error: unknown) => {
+        assertValidationError(error, /Workflow template id must be a non-empty string/);
+        return true;
+      },
+    );
+
+    assert.equal(harness.getTemplateLookupLoads(), 0);
+    assert.equal(harness.getTemplateListLoads(), 0);
+    assert.equal(harness.createCalls.length, 0);
+    assert.equal(harness.taskUpdates.length, 0);
+  }
+});
+
+test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
+  const template = buildQuickFixTemplate();
+  template.steps[0]!.agentId = null;
+  const harness = createStartWorkflowHarness({ templates: [template], selectedTemplateId: 'quick-fix-v1' });
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" has no agent assigned/,
+    /Step "问题定位" has no agent assigned/
   );
 });
 
@@ -287,7 +313,7 @@ test.test('startWorkflow rejects a template step whose agent record is missing',
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 that was not found/,
+    /Step "问题定位" references agent 11 that was not found/
   );
 });
 
@@ -298,7 +324,7 @@ test.test('startWorkflow rejects a template step whose agent is disabled', async
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 that is disabled/,
+    /Step "问题定位" references agent 11 that is disabled/
   );
 });
 
@@ -309,8 +335,33 @@ test.test('startWorkflow rejects a template step whose agent executor type is un
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 with unsupported executor type: UNSUPPORTED_EXECUTOR/,
+    /Step "问题定位" references agent 11 with unsupported executor type: UNSUPPORTED_EXECUTOR/
   );
+});
+
+test.test('startWorkflow rejects a template step whose default executor exists in config but is unavailable at runtime', async () => {
+  const harness = createStartWorkflowHarness({
+    agentRecords: buildAgentsWithUnavailableDefaultExecutors(),
+  });
+
+  await assertStartWorkflowValidationFailure(
+    harness,
+    /Step "实施修复" references agent 12 with unavailable executor type: CODEX/
+  );
+  assert.deepEqual(harness.agentLookupIds, [11, 12]);
+});
+
+test.test('startWorkflow rejects review templates that reference unavailable default executors before run creation', async () => {
+  const harness = createStartWorkflowHarness({
+    selectedTemplateId: 'review-only-v1',
+    agentRecords: buildAgentsWithUnavailableDefaultExecutors(),
+  });
+
+  await assertStartWorkflowValidationFailure(
+    harness,
+    /Step "输出结论" references agent 22 with unavailable executor type: CODEX/
+  );
+  assert.deepEqual(harness.agentLookupIds, [21, 22]);
 });
 
 test.test('startWorkflow rejects a template step whose agent args config is invalid', async () => {
@@ -320,7 +371,7 @@ test.test('startWorkflow rejects a template step whose agent args config is inva
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: args must be an array of strings/,
+    /Step "问题定位" references agent 11 with invalid executor configuration: args must be an array of strings/
   );
 });
 
@@ -331,7 +382,7 @@ test.test('startWorkflow rejects a template step whose agent env config is inval
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: env must be a string map/,
+    /Step "问题定位" references agent 11 with invalid executor configuration: env must be a string map/
   );
 });
 
@@ -342,7 +393,7 @@ test.test('startWorkflow rejects a template step whose agent commandOverride is 
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: commandOverride must be null, undefined, or a non-empty string/,
+    /Step "问题定位" references agent 11 with invalid executor configuration: commandOverride must be null, undefined, or a non-empty string/
   );
 });
 
@@ -353,24 +404,89 @@ test.test('startWorkflow rejects a template step whose agent skills config is in
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: skills must be an array of strings/,
+    /Step "问题定位" references agent 11 with invalid executor configuration: skills must be an array of strings/
   );
 });
 
-test.test('startWorkflow rejects a template missing a required workflow step id', async () => {
-  await assertStructuralDriftFailure(removeStep('testing'));
-});
+test.test('executeWorkflow marks dynamic selected steps as running and completed from the persisted snapshot', async () => {
+  const workflowRunRepo = {
+    async update() {
+      return null;
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+  const taskRepo = {
+    async update() {
+      return null;
+    },
+  };
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
 
-test.test('startWorkflow rejects a template with a duplicate workflow step id', async () => {
-  await assertStructuralDriftFailure(duplicateStep('requirement-design'));
-});
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const stepUpdates: Array<{ stepId: string; updateData: Record<string, unknown> }> = [];
+  const taskUpdates: Array<Record<string, unknown>> = [];
 
-test.test('startWorkflow rejects a template with an extra workflow step id', async () => {
-  await assertStructuralDriftFailure(appendExtraStep());
-});
+  (service as WorkflowService & {
+    workflowRunRepo: typeof workflowRunRepo;
+    taskRepo: typeof taskRepo;
+    _runWorkflowTemplate: (args: { runId: number; task: Record<string, unknown>; templateSnapshot: WorkflowTemplate }) => Promise<{ status: string; result?: Record<string, unknown>; error?: string }>;
+  }).workflowRunRepo = {
+    async update(runId: number, updateData: Record<string, unknown>) {
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep(runId: number, stepId: string, updateData: Record<string, unknown>) {
+      stepUpdates.push({ stepId, updateData });
+      return { id: runId, stepId, ...updateData };
+    },
+  };
+  (service as WorkflowService & { taskRepo: typeof taskRepo }).taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+  (service as WorkflowService & {
+    _runWorkflowTemplate: (args: { runId: number; task: Record<string, unknown>; templateSnapshot: WorkflowTemplate }) => Promise<{ status: string; result?: Record<string, unknown>; error?: string }>;
+  })._runWorkflowTemplate = async ({ runId, templateSnapshot }) => {
+    for (const step of templateSnapshot.steps) {
+      await service.workflowRunRepo.updateStep(runId, step.id, {
+        status: 'RUNNING',
+        started_at: new Date().toISOString(),
+      });
+      await service.workflowRunRepo.update(runId, { current_step: step.id });
+      await service.workflowRunRepo.updateStep(runId, step.id, {
+        status: 'COMPLETED',
+        completed_at: new Date().toISOString(),
+        output: { summary: `${step.id}-done` },
+      });
+    }
 
-test.test('startWorkflow rejects a template with workflow steps in the wrong order', async () => {
-  await assertStructuralDriftFailure(reorderSteps());
+    return {
+      status: 'success',
+      result: { done: true },
+    };
+  };
+
+  await (service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+  })._executeWorkflow(42, {
+    id: 1,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  }, buildReviewOnlyTemplate());
+
+  assert.deepEqual(stepUpdates.map((entry) => entry.stepId), ['review', 'review', 'report', 'report']);
+  assert.ok(runUpdates.some((entry) => entry.current_step === 'review'));
+  assert.ok(runUpdates.some((entry) => entry.current_step === 'report'));
+  assert.ok(runUpdates.some((entry) => entry.status === 'COMPLETED'));
+  assert.ok(taskUpdates.some((entry) => entry.status === 'DONE'));
 });
 
 test.test('cancelWorkflow terminates the active process', async () => {
@@ -414,3 +530,405 @@ test.test('cancelWorkflow terminates the active process', async () => {
   assert.deepEqual(kills, ['SIGTERM']);
   assert.equal(result?.status, 'CANCELLED');
 });
+
+test.test('cancelWorkflow resets the task back to TODO so it can be restarted', async () => {
+  const taskUpdates: Array<Record<string, unknown>> = [];
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      return { id: runId, task_id: 55, status: 'RUNNING' };
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      return { id: runId, ...updateData };
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
+
+  const result = await service.cancelWorkflow(1);
+
+  assert.equal(result?.status, 'CANCELLED');
+  assert.ok(taskUpdates.some((entry) => entry.taskId === 55 && entry.status === 'TODO'));
+});
+
+test.test('executeWorkflow preserves cancellation requested before the execution context is installed', async () => {
+  const runningUpdate = createDeferred<void>();
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<Record<string, unknown>> = [];
+  let persistedStatus = 'PENDING';
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      return { id: runId, task_id: 105, status: persistedStatus };
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      if (updateData.status === 'RUNNING') {
+        await runningUpdate.promise;
+      }
+      if (typeof updateData.status === 'string') {
+        persistedStatus = updateData.status;
+      }
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
+
+  (service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<{ status: 'success'; result: Record<string, unknown> }>;
+  })._runWorkflowTemplate = async () => ({
+    status: 'success',
+    result: { summary: 'finished after early cancellation' },
+  });
+
+  const executionPromise = (service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+  })._executeWorkflow(13, {
+    id: 105,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  }, buildReviewOnlyTemplate());
+
+  const cancellationPromise = service.cancelWorkflow(13);
+  runningUpdate.resolve();
+
+  await cancellationPromise;
+  await executionPromise;
+
+  assert.equal(persistedStatus, 'CANCELLED');
+  assert.ok(runUpdates.some((entry) => entry.status === 'CANCELLED'));
+  assert.equal(runUpdates.some((entry) => entry.status === 'COMPLETED'), false);
+  assert.equal(taskUpdates.some((entry) => entry.status === 'DONE'), false);
+  assert.ok(taskUpdates.some((entry) => entry.taskId === 105 && entry.status === 'TODO'));
+});
+
+
+test.test('executeWorkflow keeps a cancelled run cancelled after in-flight success settles', async () => {
+  const deferredResult = createDeferred<{ status: 'success'; result: Record<string, unknown> }>();
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<Record<string, unknown>> = [];
+  let persistedStatus = 'RUNNING';
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      return { id: runId, status: persistedStatus };
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      if (typeof updateData.status === 'string') {
+        persistedStatus = updateData.status;
+      }
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
+
+  (service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<{ status: 'success'; result: Record<string, unknown> }>;
+  })._runWorkflowTemplate = async () => await deferredResult.promise;
+
+  const executionPromise = (service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+  })._executeWorkflow(7, {
+    id: 99,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  }, buildReviewOnlyTemplate());
+
+  await Promise.resolve();
+  await service.cancelWorkflow(7);
+
+  deferredResult.resolve({
+    status: 'success',
+    result: { summary: 'finished after cancellation' },
+  });
+
+  await executionPromise;
+
+  assert.equal(persistedStatus, 'CANCELLED');
+  assert.ok(runUpdates.some((entry) => entry.status === 'CANCELLED'));
+  assert.equal(runUpdates.some((entry) => entry.status === 'COMPLETED'), false);
+  assert.equal(taskUpdates.some((entry) => entry.status === 'DONE'), false);
+});
+
+test.test('executeWorkflow keeps a cancelled run cancelled after in-flight failure settles', async () => {
+  const deferredResult = createDeferred<{ status: 'failed'; error: string }>();
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<Record<string, unknown>> = [];
+  let persistedStatus = 'RUNNING';
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      return { id: runId, status: persistedStatus };
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      if (typeof updateData.status === 'string') {
+        persistedStatus = updateData.status;
+      }
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
+
+  (service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<{ status: 'failed'; error: string }>;
+  })._runWorkflowTemplate = async () => await deferredResult.promise;
+
+  const executionPromise = (service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+  })._executeWorkflow(8, {
+    id: 100,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  }, buildReviewOnlyTemplate());
+
+  await Promise.resolve();
+  await service.cancelWorkflow(8);
+
+  deferredResult.resolve({
+    status: 'failed',
+    error: 'step exploded after cancellation',
+  });
+
+  await executionPromise;
+
+  assert.equal(persistedStatus, 'CANCELLED');
+  assert.ok(runUpdates.some((entry) => entry.status === 'CANCELLED'));
+  assert.equal(runUpdates.some((entry) => entry.status === 'FAILED'), false);
+  assert.equal(taskUpdates.some((entry) => entry.status === 'DONE'), false);
+});
+
+test.test('executeWorkflow persists FAILED when workflow execution throws before context activation', async () => {
+  const runUpdates: Array<Record<string, unknown>> = [];
+
+  const workflowRunRepo = {
+    async update(runId: number, updateData: Record<string, unknown>) {
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: {} as never,
+  });
+
+  (service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<never>;
+  })._runWorkflowTemplate = async () => {
+    throw new Error('template exploded');
+  };
+
+  await assert.doesNotReject(async () => {
+    await (service as WorkflowService & {
+      _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+    })._executeWorkflow(9, {
+      id: 101,
+      title: 'Workflow task',
+      description: 'Implement the task',
+      execution_path: '/tmp/workspace',
+    }, buildReviewOnlyTemplate());
+  });
+
+  assert.ok(runUpdates.some((entry) => entry.status === 'RUNNING'));
+  assert.ok(runUpdates.some((entry) => entry.status === 'FAILED' && (entry.context as { error?: string }).error === 'template exploded'));
+});
+
+test.test('executeWorkflow does not dereference context when failure happens before context assignment', async () => {
+  const runUpdates: Array<Record<string, unknown>> = [];
+
+  const workflowRunRepo = {
+    async update(runId: number, updateData: Record<string, unknown>) {
+      runUpdates.push({ runId, ...updateData });
+      if (updateData.status === 'RUNNING') {
+        throw new Error('failed before context assignment');
+      }
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: {} as never,
+  });
+
+  await assert.doesNotReject(async () => {
+    await (service as WorkflowService & {
+      _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+    })._executeWorkflow(10, {
+      id: 102,
+      title: 'Workflow task',
+      description: 'Implement the task',
+      execution_path: '/tmp/workspace',
+    }, buildReviewOnlyTemplate());
+  });
+
+  assert.equal(runUpdates.length, 2);
+  assert.equal(runUpdates[0]?.status, 'RUNNING');
+  assert.ok(runUpdates.some((entry) => entry.status === 'FAILED' && (entry.context as { error?: string }).error === 'failed before context assignment'));
+});
+
+test.test('executeWorkflow resets the task back to TODO when a workflow result fails', async () => {
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<Record<string, unknown>> = [];
+
+  const workflowRunRepo = {
+    async update(runId: number, updateData: Record<string, unknown>) {
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
+
+  (service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<{ status: 'failed'; error: string }>;
+  })._runWorkflowTemplate = async () => ({
+    status: 'failed',
+    error: 'step exploded',
+  });
+
+  await (service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+  })._executeWorkflow(11, {
+    id: 103,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  }, buildReviewOnlyTemplate());
+
+  assert.ok(runUpdates.some((entry) => entry.status === 'FAILED' && (entry.context as { error?: string }).error === 'step exploded'));
+  assert.ok(taskUpdates.some((entry) => entry.taskId === 103 && entry.status === 'TODO'));
+});
+
+test.test('executeWorkflow resets the task back to TODO when workflow execution throws', async () => {
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<Record<string, unknown>> = [];
+
+  const workflowRunRepo = {
+    async update(runId: number, updateData: Record<string, unknown>) {
+      runUpdates.push({ runId, ...updateData });
+      return { id: runId, ...updateData };
+    },
+    async updateStep() {
+      return null;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, ...updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+  });
+
+  (service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<never>;
+  })._runWorkflowTemplate = async () => {
+    throw new Error('template exploded');
+  };
+
+  await assert.doesNotReject(async () => {
+    await (service as WorkflowService & {
+      _executeWorkflow: (runId: number, task: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => Promise<void>;
+    })._executeWorkflow(12, {
+      id: 104,
+      title: 'Workflow task',
+      description: 'Implement the task',
+      execution_path: '/tmp/workspace',
+    }, buildReviewOnlyTemplate());
+  });
+
+  assert.ok(runUpdates.some((entry) => entry.status === 'FAILED' && (entry.context as { error?: string }).error === 'template exploded'));
+  assert.ok(taskUpdates.some((entry) => entry.taskId === 104 && entry.status === 'TODO'));
+});
+
+
+
+
+
+
+
+
+
+

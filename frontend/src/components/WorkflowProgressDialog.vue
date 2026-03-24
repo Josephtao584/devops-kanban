@@ -74,12 +74,12 @@
           type="danger"
           size="small"
           @click="handleCancel"
-          :loading="cancelling"
+          :disabled="cancelling"
         >
-          取消工作流
+          {{ cancelling ? '取消中...' : '取消工作流' }}
         </el-button>
-        <el-button size="small" @click="fetchRun" :loading="loading">
-          刷新
+        <el-button size="small" @click="fetchRun" :disabled="loading">
+          {{ loading ? '刷新中...' : '刷新' }}
         </el-button>
       </div>
     </template>

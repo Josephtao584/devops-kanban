@@ -123,11 +123,10 @@
           <el-button @click="$emit('close')">取消</el-button>
           <el-button
             type="primary"
-            :loading="committing"
-            :disabled="selectedCount === 0 || !form.message.trim()"
+            :disabled="selectedCount === 0 || !form.message.trim() || committing"
             @click="handleCommit"
           >
-            提交 {{ selectedCount }} 个文件
+            {{ committing ? `提交中 ${selectedCount} 个文件...` : `提交 ${selectedCount} 个文件` }}
           </el-button>
         </div>
       </div>

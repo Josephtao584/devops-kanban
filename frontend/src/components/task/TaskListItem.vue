@@ -89,6 +89,19 @@
         <div v-if="task.description && !compact" class="task-description">
           {{ task.description }}
         </div>
+        <button
+          class="workflow-collapse-btn description-collapse-btn"
+          @click.stop="$emit('toggle-workflow', task.id)"
+          :title="workflowExpanded ? '收起 Workflow' : '展开 Workflow'"
+        >
+          <svg v-if="workflowExpanded" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M19 18l-6-6 6-6"></path>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -106,32 +119,13 @@
             @click.stop="refreshWorkflowRun"
             title="刷新状态"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'icon-spin': refreshLoading }">
-              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-            </svg>
-          </button>
-          <button
-            class="workflow-collapse-btn"
-            @click.stop="$emit('toggle-workflow', task.id)"
-            title="收起 Workflow"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 18l-6-6 6-6"></path>
-              <path d="M19 18l-6-6 6-6"></path>
-            </svg>
+            <span class="workflow-refresh-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              </svg>
+            </span>
           </button>
         </div>
-        <button
-          v-else
-          class="workflow-collapse-btn"
-          @click.stop="$emit('toggle-workflow', task.id)"
-          title="收起"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 18l-6-6 6-6"></path>
-            <path d="M19 18l-6-6 6-6"></path>
-          </svg>
-        </button>
 
         <div v-if="currentNode" class="workflow-section node-detail">
           <span class="node-detail-name">{{ currentNode.name }}</span>
@@ -153,7 +147,7 @@
         </div>
 
         <div class="workflow-section quick-actions">
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'start')">
+          <button v-if="!running" class="quick-action-btn" @click.stop="handleStartClick">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
@@ -180,21 +174,15 @@
             </svg>
             差异
           </button>
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'progress')">
+          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'merge')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="20" x2="12" y2="10"></line>
-              <line x1="18" y1="20" x2="18" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="16"></line>
+              <circle cx="12" cy="18" r="3"></circle>
+              <circle cx="6" cy="6" r="3"></circle>
+              <circle cx="18" cy="6" r="3"></circle>
+              <path d="M6 9v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V9"></path>
+              <line x1="12" cy="15" x2="12" y2="15"></line>
             </svg>
-            进度
-          </button>
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'help')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            帮助
+            合入
           </button>
         </div>
 
@@ -486,6 +474,12 @@ const handleNodeClick = (node) => {
   emit('workflow-action', { action: 'node-click', node, task: props.task })
 }
 
+// Handle start button click
+const handleStartClick = () => {
+  console.log('[TaskListItem] handleStartClick called, task:', props.task?.id, 'running:', props.running)
+  emit('workflow-action', 'start')
+}
+
 const openWorktreeDirectory = () => {
   if (props.task.worktree_status === 'created' && props.task.worktree_path) {
     // Copy path to clipboard and show message
@@ -636,8 +630,9 @@ const openWorktreeDirectory = () => {
 
 .task-title-left {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -669,6 +664,11 @@ const openWorktreeDirectory = () => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.task-description-row .workflow-collapse-btn {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .task-description {
@@ -1084,17 +1084,32 @@ const openWorktreeDirectory = () => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease;
   flex-shrink: 0;
+  transform: none !important;
+}
+
+.workflow-refresh-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transform: none !important;
+}
+
+.workflow-refresh-icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  animation: none !important;
+  transform: none !important;
 }
 
 .workflow-refresh-btn:hover {
   color: #6366f1;
   background: #eef2ff;
-}
-
-.workflow-refresh-btn .icon-spin {
-  animation: spin 1s linear infinite;
+  transform: none !important;
 }
 
 /* Loading animation */

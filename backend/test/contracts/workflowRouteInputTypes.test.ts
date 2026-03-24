@@ -6,7 +6,7 @@ import type { CreateSessionInput } from '../../src/types/dto/sessions.ts';
 import type { StartWorkflowBody } from '../../src/types/dto/workflows.ts';
 
 test.test('workflow and related route body types accept expected assignments', () => {
-  const workflowBody: StartWorkflowBody = { task_id: 1 };
+  const workflowBody: StartWorkflowBody = { task_id: 1, workflow_template_id: 'quick-fix-v1' };
   const sessionBody: CreateSessionInput = { task_id: 2 };
   const executionCreate: CreateExecutionInput = { session_id: 3 };
   const executionUpdate: UpdateExecutionInput = { status: 'RUNNING' };

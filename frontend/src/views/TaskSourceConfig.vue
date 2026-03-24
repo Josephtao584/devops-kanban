@@ -49,11 +49,11 @@
           </div>
 
           <div class="source-actions">
-            <el-button size="small" @click="previewAndSync(source)" :loading="taskSourceStore.syncing">
-              {{ $t('taskSource.sync') }}
+            <el-button size="small" @click="previewAndSync(source)" :disabled="taskSourceStore.syncing">
+              {{ taskSourceStore.syncing ? $t('taskSource.syncing', '同步中...') : $t('taskSource.sync') }}
             </el-button>
-            <el-button size="small" @click="testSource(source)" :loading="taskSourceStore.testing">
-              {{ $t('taskSource.test') }}
+            <el-button size="small" @click="testSource(source)" :disabled="taskSourceStore.testing">
+              {{ taskSourceStore.testing ? $t('taskSource.testing', '测试中...') : $t('taskSource.test') }}
             </el-button>
             <el-button size="small" @click="editSource(source)">
               {{ $t('taskSource.edit') }}
@@ -158,8 +158,8 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" @click="submitForm" :loading="submitting">
-            {{ $t('common.confirm') }}
+          <el-button type="primary" @click="submitForm" :disabled="submitting">
+            {{ submitting ? $t('common.submitting', '提交中...') : $t('common.confirm') }}
           </el-button>
         </div>
       </template>
@@ -172,33 +172,33 @@
       width="650px"
       class="sync-preview-dialog"
     >
-      <div v-if="syncPreviewTasks.length === 0 && !syncError" class="sync-preview-loading">
+      <div v-if="taskSourceStore.syncPreviewTasks.length === 0 && !taskSourceStore.syncError" class="sync-preview-loading">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>{{ $t('common.loading') }}</span>
       </div>
-      <div v-else-if="syncError" class="sync-preview-error">
-        {{ syncError }}
+      <div v-else-if="taskSourceStore.syncError" class="sync-preview-error">
+        {{ taskSourceStore.syncError }}
       </div>
       <div v-else>
         <div class="sync-preview-controls">
           <el-button size="small" @click="selectAllSyncTasks">{{ $t('taskSource.selectAll') }}</el-button>
           <el-button size="small" @click="deselectAllSyncTasks">{{ $t('taskSource.deselectAll') }}</el-button>
           <span class="selected-count">
-            {{ selectedSyncTasks.size }} / {{ syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected') }}
+            {{ taskSourceStore.selectedSyncTasks.size }} / {{ taskSourceStore.syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected') }}
           </span>
         </div>
         <div class="sync-preview-list">
           <div
-            v-for="task in syncPreviewTasks"
+            v-for="task in taskSourceStore.syncPreviewTasks"
             :key="task.external_id"
             class="sync-preview-item"
-            :class="{ selected: selectedSyncTasks.has(task.external_id), imported: task.imported }"
+            :class="{ selected: taskSourceStore.selectedSyncTasks.has(task.external_id), imported: task.imported }"
             @click="!task.imported && toggleSyncTask(task)"
           >
             <div class="item-checkbox">
               <input
                 type="checkbox"
-                :checked="selectedSyncTasks.has(task.external_id)"
+                :checked="taskSourceStore.selectedSyncTasks.has(task.external_id)"
                 :disabled="task.imported"
                 @click.stop="!task.imported && toggleSyncTask(task)"
               />
@@ -230,7 +230,7 @@
               </div>
             </div>
           </div>
-          <div v-if="syncPreviewTasks.length === 0" class="sync-preview-empty">
+          <div v-if="taskSourceStore.syncPreviewTasks.length === 0" class="sync-preview-empty">
             {{ $t('taskSource.noTasksToImport') }}
           </div>
         </div>
@@ -240,9 +240,9 @@
         <el-button
           type="primary"
           @click="confirmSyncImport"
-          :disabled="selectedSyncTasks.size === 0"
+          :disabled="taskSourceStore.selectedSyncTasks.size === 0"
         >
-          {{ $t('taskSource.confirmImport') }} ({{ selectedSyncTasks.size }})
+          {{ $t('taskSource.confirmImport') }} ({{ taskSourceStore.selectedSyncTasks.size }})
         </el-button>
       </template>
     </el-dialog>
@@ -273,14 +273,16 @@ import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
 import { useTaskStore } from '../stores/taskStore'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
+import { useToast } from '../composables/ui/useToast'
 
 const { t } = useI18n()
 const route = useRoute()
 const projectStore = useProjectStore()
 const taskSourceStore = useTaskSourceStore()
 const taskStore = useTaskStore()
+const toast = useToast()
 
 // localStorage key for project selection persistence
 const TASK_SOURCE_LAST_PROJECT_KEY = 'task-source-selected-project-id'
@@ -294,11 +296,6 @@ const formRef = ref(null)
 
 const testDialogVisible = ref(false)
 const testResult = ref(null)
-
-// Sync preview state
-const syncPreviewTasks = ref([])
-const selectedSyncTasks = ref(new Set())
-const syncError = ref(null)
 
 const formData = ref({
   name: '',
@@ -326,12 +323,9 @@ const formatDateTime = (dateStr) => {
 }
 
 const getTypeLabel = (type) => {
-  const typeConfig = taskSourceStore.availableTypes.find(t => t.key === type)
-  if (typeConfig) {
-    return typeConfig.name
-  }
   const translated = t(`taskSource.types.${type}`)
-  return translated === `taskSource.types.${type}` ? type : translated
+  const localizedLabel = translated === `taskSource.types.${type}` ? type : translated
+  return localizedLabel === type ? type : `${type} · ${localizedLabel}`
 }
 
 const getTypeIcon = (type) => {
@@ -460,10 +454,10 @@ const submitForm = async () => {
 
     if (isEditMode.value) {
       await taskSourceStore.updateTaskSource(formData.value.id, formData.value)
-      ElMessage.success(t('taskSource.updateSuccess'))
+      toast.success(t('taskSource.updateSuccess'))
     } else {
       await taskSourceStore.createTaskSource(formData.value)
-      ElMessage.success(t('taskSource.createSuccess'))
+      toast.success(t('taskSource.createSuccess'))
     }
 
     dialogVisible.value = false
@@ -488,7 +482,7 @@ const confirmDelete = (source) => {
   ).then(async () => {
     try {
       await taskSourceStore.deleteTaskSource(source.id)
-      ElMessage.success(t('taskSource.deleteSuccess'))
+      toast.success(t('taskSource.deleteSuccess'))
     } catch (e) {
       console.error('Failed to delete task source:', e)
     }
@@ -497,112 +491,47 @@ const confirmDelete = (source) => {
 
 // Preview and import tasks from a source
 const previewAndSync = async (source) => {
-  syncPreviewTasks.value = []
-  selectedSyncTasks.value.clear()
-  syncError.value = null
-
   try {
-    await taskSourceStore.previewSync(source.id)
-    if (taskSourceStore.previewItems && taskSourceStore.previewItems.length > 0) {
-      syncPreviewTasks.value = taskSourceStore.previewItems.map(item => ({
-        ...item,
-        sourceId: source.id,
-        sourceName: source.name
-      }))
+    const tasks = await taskSourceStore.openSyncPreviewForSource(source)
+    if (tasks.length === 0) {
+      taskSourceStore.closePreviewDialog()
     }
-
-    if (syncPreviewTasks.value.length === 0) {
-      ElMessage.info(t('taskSource.noTasksToImport'))
-      return
-    }
-
-    // Open store's preview dialog
-    taskSourceStore.showPreviewDialog = true
-
-    // Select all non-imported tasks by default
-    syncPreviewTasks.value.forEach(task => {
-      if (!task.imported) {
-        selectedSyncTasks.value.add(task.external_id)
-      }
-    })
   } catch (err) {
     console.error('Failed to sync task source:', err)
-    syncError.value = err.message
-    ElMessage.error(err.message)
   }
 }
 
-// Toggle task selection in preview
 const toggleSyncTask = (task) => {
-  if (selectedSyncTasks.value.has(task.external_id)) {
-    selectedSyncTasks.value.delete(task.external_id)
-  } else {
-    selectedSyncTasks.value.add(task.external_id)
-  }
+  taskSourceStore.toggleSyncTask(task)
 }
 
-// Select all tasks in preview
 const selectAllSyncTasks = () => {
-  syncPreviewTasks.value.forEach(task => {
-    if (!task.imported) {
-      selectedSyncTasks.value.add(task.external_id)
-    }
-  })
+  taskSourceStore.selectAllSyncTasks()
 }
 
-// Deselect all tasks in preview
 const deselectAllSyncTasks = () => {
-  selectedSyncTasks.value.clear()
+  taskSourceStore.deselectAllSyncTasks()
 }
 
-// Confirm import selected tasks
 const confirmSyncImport = async () => {
-  const tasksToImport = syncPreviewTasks.value.filter(task =>
-    selectedSyncTasks.value.has(task.external_id) && !task.imported
-  )
-
-  if (tasksToImport.length === 0) {
-    ElMessage.warning(t('taskSource.selectAtLeastOne'))
+  if (taskSourceStore.selectedSyncTasks.size === 0) {
     return
   }
 
   try {
-    // Group tasks by source
-    const tasksBySource = {}
-    for (const task of tasksToImport) {
-      if (!tasksBySource[task.sourceId]) {
-        tasksBySource[task.sourceId] = []
-      }
-      tasksBySource[task.sourceId].push(task)
-    }
-
-    // Import tasks for each source
-    let totalImported = 0
-    for (const [sourceId, items] of Object.entries(tasksBySource)) {
-      const result = await taskSourceStore.importSelectedIssues(
-        parseInt(sourceId),
-        items,
-        selectedProjectId.value
-      )
-      if (result) {
-        totalImported += result.created || 0
-      }
-    }
-
+    const totalImported = await taskSourceStore.importSelectedPreviewTasks(selectedProjectId.value)
     await taskStore.fetchTasks(selectedProjectId.value)
-    ElMessage.success(t('taskSource.importSuccess', { count: totalImported }))
-    closeSyncPreview()
+    if (totalImported > 0) {
+      toast.success(t('taskSource.importSuccess', { count: totalImported }))
+    }
   } catch (err) {
     console.error('Failed to import tasks:', err)
-    ElMessage.error(t('taskSource.importFailed'))
+    toast.error(t('taskSource.importFailed'))
   }
 }
 
-// Close preview dialog
 const closeSyncPreview = () => {
   taskSourceStore.closePreviewDialog()
-  syncPreviewTasks.value = []
-  selectedSyncTasks.value.clear()
 }
 
 const testSource = async (source) => {

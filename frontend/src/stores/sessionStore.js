@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useCrudStore } from '../composables/useCrudStore'
+import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import * as sessionApi from '../api/session'
 
 export const useSessionStore = defineStore('session', () => {
@@ -19,6 +20,16 @@ export const useSessionStore = defineStore('session', () => {
   // Session-specific state
   const activeSession = ref(null)
   const error = ref(null)
+  const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'Session request failed' })
+
+  const unwrap = (response, fallbackMessage) => {
+    try {
+      return apiError.unwrapResponse(response, fallbackMessage)
+    } catch (e) {
+      error.value = e.message
+      throw e
+    }
+  }
 
   // Getters
   const sessionsByTask = computed(() => {
@@ -50,10 +61,8 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const response = await sessionApi.getSessionsByTask(taskId, activeOnly)
-      if (response.success) {
-        crud.items.value = response.data || []
-        return crud.items.value
-      }
+      crud.items.value = unwrap(response, 'Failed to fetch sessions') || []
+      return crud.items.value
     } catch (e) {
       error.value = e.message
       throw e
@@ -72,10 +81,8 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const response = await sessionApi.getActiveSessionByTask(taskId)
-      if (response.success) {
-        activeSession.value = response.data
-        return response.data
-      }
+      activeSession.value = unwrap(response, 'Failed to fetch active session')
+      return activeSession.value
     } catch (e) {
       error.value = e.message
       throw e
@@ -95,9 +102,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const response = await sessionApi.getSessionHistory(taskId, includeOutput)
-      if (response.success) {
-        return response.data || []
-      }
+      return unwrap(response, 'Failed to fetch session history') || []
     } catch (e) {
       error.value = e.message
       throw e
@@ -116,14 +121,10 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const response = await sessionApi.startSession(id)
-      if (response.success) {
-        updateSessionInList(response.data)
-        crud.setCurrentItem(response.data)
-        return response.data
-      } else {
-        error.value = response.message
-        throw new Error(response.message)
-      }
+      const session = unwrap(response, 'Failed to start session')
+      updateSessionInList(session)
+      crud.setCurrentItem(session)
+      return session
     } catch (e) {
       error.value = e.message
       throw e
@@ -142,16 +143,12 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const response = await sessionApi.stopSession(id)
-      if (response.success) {
-        updateSessionInList(response.data)
-        if (activeSession.value?.id === id) {
-          activeSession.value = null
-        }
-        return response.data
-      } else {
-        error.value = response.message
-        throw new Error(response.message)
+      const session = unwrap(response, 'Failed to stop session')
+      updateSessionInList(session)
+      if (activeSession.value?.id === id) {
+        activeSession.value = null
       }
+      return session
     } catch (e) {
       error.value = e.message
       throw e
@@ -169,7 +166,8 @@ export const useSessionStore = defineStore('session', () => {
   async function sendInput(id, input) {
     try {
       const response = await sessionApi.sendSessionInput(id, input)
-      return response.success
+      unwrap(response, 'Failed to send session input')
+      return true
     } catch (e) {
       error.value = e.message
       throw e
@@ -187,14 +185,10 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const response = await sessionApi.continueSession(id, input)
-      if (response.success) {
-        updateSessionInList(response.data)
-        crud.setCurrentItem(response.data)
-        return response.data
-      } else {
-        error.value = response.message
-        throw new Error(response.message)
-      }
+      const session = unwrap(response, 'Failed to continue session')
+      updateSessionInList(session)
+      crud.setCurrentItem(session)
+      return session
     } catch (e) {
       error.value = e.message
       throw e
@@ -211,10 +205,7 @@ export const useSessionStore = defineStore('session', () => {
   async function getSessionOutput(id) {
     try {
       const response = await sessionApi.getSessionOutput(id)
-      if (response.success) {
-        return response.data
-      }
-      return ''
+      return unwrap(response, 'Failed to get session output') || ''
     } catch (e) {
       error.value = e.message
       return ''

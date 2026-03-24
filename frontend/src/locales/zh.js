@@ -230,7 +230,10 @@ export default {
     saveFailed: '保存工作流模板失败',
     missingAgent: '缺失成员 (#{id})',
     disabled: '已禁用',
-    agentFallbackName: '成员 #{id}'
+    agentFallbackName: '成员 #{id}',
+    selectDialogTitle: '选择工作流模板',
+    emptyState: '暂无可用的工作流模板',
+    stepCount: '{count} 个步骤'
   },
   agent: {
     title: '我的团队',
@@ -363,6 +366,7 @@ export default {
     worktree: '工作树',
     branches: '分支',
     branch: '分支',
+    path: '路径',
     taskId: '任务ID',
     commit: '提交',
     status: '状态',
@@ -409,6 +413,13 @@ export default {
     createBranch: '创建分支',
     deleteBranch: '删除分支',
     mergeBranch: '合并分支',
+    sourceBranch: '源分支',
+    targetBranch: '目标分支',
+    selectTargetBranch: '选择目标分支',
+    mergeSuccess: '分支合并成功',
+    mergeFailed: '合并失败',
+    mergeConflict: '合并冲突',
+    mergeConflictHint: '存在 {count} 个文件冲突',
     addRemote: '添加远程仓库',
     removeRemote: '删除远程仓库',
     push: '推送',

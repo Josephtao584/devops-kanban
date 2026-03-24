@@ -8,7 +8,7 @@ import { WorkflowService } from './workflow/workflowService.js';
 import { createWorktree, cleanupWorktree, isGitRepository, sanitizeName } from '../utils/git.js';
 
 import type { ProjectEntity } from '../types/entities.ts';
-import type { CreateTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
+import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 import type { TaskCreateRecord, TaskUpdateRecord } from '../types/persistence/tasks.js';
 
 interface WorktreeResult {
@@ -20,11 +20,18 @@ interface WorktreeResult {
 class TaskService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
+  workflowService: Pick<WorkflowService, 'startWorkflow'>;
   repoRootResolver: () => string;
 
-  constructor({ taskRepo, projectRepo, repoRootResolver }: { taskRepo?: TaskRepository; projectRepo?: ProjectRepository; repoRootResolver?: () => string } = {}) {
+  constructor({ taskRepo, projectRepo, workflowService, repoRootResolver }: {
+    taskRepo?: TaskRepository;
+    projectRepo?: ProjectRepository;
+    workflowService?: Pick<WorkflowService, 'startWorkflow'>;
+    repoRootResolver?: () => string;
+  } = {}) {
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
+    this.workflowService = workflowService || new WorkflowService();
     this.repoRootResolver = repoRootResolver || (() => process.cwd());
   }
 
@@ -166,7 +173,7 @@ class TaskService {
     return await this.taskRepo.update(taskId, { status });
   }
 
-  async startTask(taskId: number) {
+  async startTask(taskId: number, body?: StartTaskInput) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -174,16 +181,20 @@ class TaskService {
       throw error;
     }
 
-    if (task.status !== 'TODO') {
-      const error = new Error('只有待处理的任务可以启动') as Error & { statusCode?: number };
+    if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
+      const error = new Error('只有待处理或进行中的任务可以启动') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
 
     await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
 
-    const workflowService = new WorkflowService();
-    await workflowService.startWorkflow(taskId);
+    try {
+      await this.workflowService.startWorkflow(taskId, body?.workflow_template_id);
+    } catch (error) {
+      await this.taskRepo.update(taskId, { status: 'TODO' });
+      throw error;
+    }
 
     return await this.taskRepo.findById(taskId);
   }

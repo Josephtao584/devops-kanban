@@ -84,6 +84,10 @@
               <el-icon><Check /></el-icon>
               {{ $t('git.commit') }}
             </el-button>
+            <el-button size="small" type="success" @click="openMergeDialog">
+              <el-icon><Connection /></el-icon>
+              {{ $t('git.mergeBranch', 'Merge') }}
+            </el-button>
           </div>
         </div>
 
@@ -229,17 +233,83 @@
     @close="commitDialogVisible = false"
     @committed="handleCommitted"
   />
+
+  <!-- Merge Dialog -->
+  <el-dialog
+    v-model="mergeDialogVisible"
+    :title="$t('git.mergeBranch', 'Merge Branch')"
+    width="500px"
+  >
+    <div class="merge-content">
+      <el-form label-width="auto">
+        <el-form-item :label="$t('git.sourceBranch', 'Source Branch')">
+          <el-tag type="info">{{ mergeSourceBranch }}</el-tag>
+        </el-form-item>
+        <el-form-item :label="$t('git.targetBranch', 'Target Branch')">
+          <el-select
+            v-model="mergeTargetBranch"
+            :placeholder="$t('git.selectTargetBranch', 'Select target branch')"
+            filterable
+            class="target-select"
+          >
+            <el-option
+              v-for="branch in mainBranches"
+              :key="branch.fullName"
+              :label="branch.name"
+              :value="branch.fullName"
+            >
+              <span>{{ branch.name }}</span>
+              <el-tag v-if="branch.isCurrent" size="small" type="success" class="current-tag">
+                {{ $t('git.current', 'Current') }}
+              </el-tag>
+            </el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+
+      <el-alert
+        v-if="mergeError"
+        :title="mergeError"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="merge-error"
+      />
+
+      <div v-if="mergeConflicts.length > 0" class="merge-conflicts">
+        <el-alert
+          :title="$t('git.mergeConflict', 'Merge Conflict')"
+          type="warning"
+          :description="$t('git.mergeConflictHint', { count: mergeConflicts.length })"
+          show-icon
+        />
+        <ul class="conflict-list">
+          <li v-for="file in mergeConflicts" :key="file">{{ file }}</li>
+        </ul>
+      </div>
+    </div>
+    <template #footer>
+      <el-button @click="mergeDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+      <el-button
+        type="primary"
+        :disabled="!mergeTargetBranch || mergeLoading"
+        @click="handleMerge"
+      >
+        {{ mergeLoading ? $t('git.merging', 'Merging...') : $t('git.mergeBranch', 'Merge') }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Cpu, Document, Loading, Branch, Plus, Minus, Edit, QuestionFilled, View, Check } from '@element-plus/icons-vue'
+import { Cpu, Document, Loading, Branch, Plus, Minus, Edit, QuestionFilled, View, Check, Connection } from '@element-plus/icons-vue'
 import { createTask, updateTask, deleteTask } from '../api/task'
 import { getAgents } from '../api/agent'
 import { getActiveSessionByTask, getSessionHistory, createSession, deleteSession } from '../api/session'
-import { getStatus, getDiff } from '../api/git'
+import { getStatus, getDiff, mergeBranch, listBranches } from '../api/git'
 import ChatBox from './ChatBox.vue'
 import TaskForm from './task/TaskForm.vue'
 import TaskHistory from './task/TaskHistory.vue'
@@ -298,6 +368,13 @@ const diffDialogVisible = ref(false)
 const diffData = ref(null)
 const selectedDiffFile = ref('')
 const commitDialogVisible = ref(false)
+const mergeDialogVisible = ref(false)
+const mainBranches = ref([])
+const mergeSourceBranch = ref('')
+const mergeTargetBranch = ref('')
+const mergeLoading = ref(false)
+const mergeError = ref('')
+const mergeConflicts = ref([])
 
 const hasActiveSession = computed(() => {
   if (localSession.value) {
@@ -401,6 +478,64 @@ const openCommitDialog = () => {
 const handleCommitted = () => {
   loadGitStatus()
   toast.success(t('git.commitSuccess'))
+}
+
+const openMergeDialog = async () => {
+  if (!gitStatus.value?.branch) return
+
+  mergeSourceBranch.value = gitStatus.value.branch
+  mergeTargetBranch.value = ''
+  mergeError.value = ''
+  mergeConflicts.value = []
+
+  // 加载分支列表
+  try {
+    const response = await listBranches(props.projectId)
+    if (response.success) {
+      // 过滤出主分支（main, master, develop）
+      mainBranches.value = response.data.filter(b => {
+        const name = b.name.toLowerCase()
+        return !b.isRemote && (name === 'main' || name === 'master' || name === 'develop' || name === 'dev')
+      })
+      // 如果没有找到主分支，显示所有非当前分支的本地分支
+      if (mainBranches.value.length === 0) {
+        mainBranches.value = response.data.filter(b => !b.isRemote && b.name !== gitStatus.value.branch)
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load branches:', e)
+  }
+
+  mergeDialogVisible.value = true
+}
+
+const handleMerge = async () => {
+  if (!mergeSourceBranch.value || !mergeTargetBranch.value) {
+    return
+  }
+
+  mergeLoading.value = true
+  mergeError.value = ''
+  mergeConflicts.value = []
+
+  try {
+    const response = await mergeBranch(props.projectId, mergeSourceBranch.value, mergeTargetBranch.value)
+
+    if (response.success) {
+      toast.success(t('git.mergeSuccess', 'Branch merged successfully'))
+      mergeDialogVisible.value = false
+    } else if (response.data?.hasConflicts) {
+      mergeConflicts.value = response.data.conflicts || []
+      mergeError.value = t('git.mergeConflict', 'Merge conflicts detected')
+    } else {
+      toast.error(response.message || t('git.mergeFailed', 'Merge failed'))
+    }
+  } catch (e) {
+    console.error('Merge failed:', e)
+    toast.apiError(e, t('git.mergeFailed', 'Merge failed'))
+  } finally {
+    mergeLoading.value = false
+  }
 }
 
 onMounted(async () => {
@@ -752,5 +887,37 @@ const onSelectHistory = (session) => {
   .diff-file-list {
     width: 100%;
   }
+}
+
+.merge-content {
+  padding: 10px 0;
+}
+
+.target-select {
+  width: 100%;
+}
+
+.current-tag {
+  margin-left: 8px;
+}
+
+.merge-error {
+  margin-top: 16px;
+}
+
+.merge-conflicts {
+  margin-top: 16px;
+}
+
+.conflict-list {
+  margin: 12px 0 0 20px;
+  padding: 0;
+}
+
+.conflict-list li {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  color: #e6a23c;
+  margin: 4px 0;
 }
 </style>

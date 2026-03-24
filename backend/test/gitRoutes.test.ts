@@ -149,6 +149,30 @@ function seedRepositories(task: { worktreePath: string | null; worktreeBranch?: 
   fs.writeFileSync(path.join(storagePath, 'tasks.json'), JSON.stringify(tasks, null, 2));
 }
 
+async function getBranches(query = 'projectId=1') {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/git/branches?${query}`,
+  });
+
+  return {
+    response,
+    payload: response.json() as {
+      success: boolean;
+      message: string;
+      data: Array<{
+        fullName: string;
+        name: string;
+        isRemote: boolean;
+        isCurrent: boolean;
+        aheadCount: number;
+        behindCount: number;
+      }> | null;
+      error: unknown;
+    },
+  };
+}
+
 async function getDiff(query = 'projectId=1') {
   const response = await app.inject({
     method: 'GET',
@@ -158,6 +182,18 @@ async function getDiff(query = 'projectId=1') {
   return {
     response,
     payload: response.json() as RoutePayload,
+  };
+}
+
+async function postMerge(source: string, target: string, query = 'projectId=1') {
+  const response = await app.inject({
+    method: 'POST',
+    url: `/api/git/branches/${encodeURIComponent(source)}/merge/${encodeURIComponent(target)}?${query}`,
+  });
+
+  return {
+    response,
+    payload: response.json() as { success: boolean; message: string; data: unknown; error: unknown },
   };
 }
 
@@ -184,6 +220,15 @@ function getDiffText(payload: RoutePayload, filePath: string): string {
   }
   return diff;
 }
+
+serialTest('POST /api/git/branches/:source/merge/:target is not available in push-only workflow', async () => {
+  const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response } = await postMerge(fixture.branchName, 'master');
+
+  assert.equal(response.statusCode, 404);
+});
 
 serialTest('GET /api/git/worktrees/:taskId/diff returns tracked uncommitted diff against HEAD', async () => {
   const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
@@ -451,6 +496,23 @@ serialTest('GET /api/git/worktrees/:taskId/diff expands untracked directories in
   assert.match(getDiffText(payload, 'broken.txt/child.txt'), /^diff --git a\/broken.txt\/child.txt b\/broken.txt\/child.txt$/m);
   assert.match(getDiffText(payload, 'broken.txt/child.txt'), /^\+child$/m);
   assert.equal(payload.data!.files.some((entry) => entry.path === 'broken.txt/'), false);
+});
+
+serialTest('GET /api/git/branches includes task worktree branches from the repository that owns them', async () => {
+  const projectFixture = createGitFixture({ 'tracked.txt': 'project base\n' });
+  const worktreeFixture = createGitFixture({ 'tracked.txt': 'worktree base\n' });
+  seedRepositories({
+    worktreePath: worktreeFixture.worktreePath,
+    worktreeBranch: worktreeFixture.branchName,
+    projectPath: projectFixture.repoPath,
+  });
+
+  const { response, payload } = await getBranches();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.success, true);
+  assert.ok(payload.data);
+  assert.equal(payload.data.some((branch) => branch.fullName === worktreeFixture.branchName), true);
 });
 
 serialTest('GET /api/git/worktrees/:taskId/diff ignores source and target query parameters', async () => {
