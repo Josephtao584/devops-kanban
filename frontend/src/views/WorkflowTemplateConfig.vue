@@ -44,7 +44,7 @@
                   <el-option
                     v-for="agent in agents"
                     :key="agent.id"
-                    :label="formatAgentOption(agent)"
+                    :label="formatWorkflowAgentOption(agent)"
                     :value="agent.id"
                     :disabled="agent.enabled === false"
                   />
@@ -86,6 +86,14 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { getWorkflowTemplate, updateWorkflowTemplate } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
+import {
+  normalizeWorkflowTemplate,
+  formatAgentOption,
+  createAgentLookup,
+  isMissingAgent as checkMissingAgent,
+  isDisabledAgent as checkDisabledAgent,
+  formatBoundAgentState as formatAgentBindingState,
+} from '../components/workflow/templateEditorShared.js'
 
 const { t } = useI18n()
 
@@ -108,68 +116,13 @@ const getErrorMessage = (error, fallbackMessageKey) => {
   return error?.response?.data?.message || error?.message || t(fallbackMessageKey)
 }
 
-const normalizeStep = (step = {}) => ({
-  id: step.id ?? '',
-  name: step.name ?? '',
-  instructionPrompt: step.instructionPrompt ?? '',
-  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
-})
+const normalizeTemplate = (rawTemplate) => normalizeWorkflowTemplate(rawTemplate, null)
 
-const normalizeTemplate = (rawTemplate) => {
-  if (!rawTemplate) return null
-
-  return {
-    ...rawTemplate,
-    steps: Array.isArray(rawTemplate.steps) ? rawTemplate.steps.map(normalizeStep) : []
-  }
-}
-
-const formatExecutorType = (agent) => {
-  const executorType = agent?.executorType || agent?.type
-  if (!executorType) return ''
-
-  return executorType
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-const getAgentDisplayName = (agent) => {
-  return agent?.name || t('workflowTemplate.agentFallbackName', { id: agent?.id ?? '' })
-}
-
-const formatAgentOption = (agent) => {
-  const parts = [getAgentDisplayName(agent)]
-  const executorType = formatExecutorType(agent)
-
-  if (executorType) {
-    parts.push(`(${executorType})`)
-  }
-
-  if (agent?.enabled === false) {
-    parts.push(`(${t('workflowTemplate.disabled')})`)
-  }
-
-  return parts.join(' ')
-}
-
-const getAgentById = (agentId) => agents.value.find((agent) => agent.id === agentId) || null
-
-const isMissingAgent = (step) => {
-  if (typeof step?.agentId !== 'number') return false
-  return !getAgentById(step.agentId)
-}
-
-const isDisabledAgent = (step) => {
-  if (typeof step?.agentId !== 'number') return false
-  return getAgentById(step.agentId)?.enabled === false
-}
-
-const formatBoundAgentState = (step) => {
-  const agent = getAgentById(step?.agentId)
-  if (!agent) return ''
-  return `${getAgentDisplayName(agent)} (${t('workflowTemplate.disabled')})`
-}
+const getAgentById = (agentId) => createAgentLookup(agents.value)(agentId)
+const isMissingAgent = (step) => checkMissingAgent(step, getAgentById)
+const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
+const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
+const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 
 const buildSavePayload = (currentTemplate) => ({
   template_id: currentTemplate.template_id,
