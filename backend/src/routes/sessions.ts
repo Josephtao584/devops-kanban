@@ -204,6 +204,16 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
     }
   });
 
+  fastify.get<{ Params: IdParams }>('/sessions/:id/output', async (request, reply) => {
+    try {
+      return successResponse(await service.getOutput(parseNumber(request.params.id)));
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get session output'));
+    }
+  });
+
   fastify.delete<{ Params: IdParams }>('/sessions/:id', async (request, reply) => {
     try {
       await service.delete(parseNumber(request.params.id), broadcastToSession);

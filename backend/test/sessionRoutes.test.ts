@@ -29,6 +29,7 @@ function buildSessionServiceStub() {
     sendInput: [] as Array<{ sessionId: number; input: string }>,
     start: [] as number[],
     continue: [] as Array<{ sessionId: number; input: string }>,
+    getOutput: [] as number[],
   };
 
   const events: SessionEventListItem[] = [
@@ -76,6 +77,10 @@ function buildSessionServiceStub() {
       async sendInput(sessionId: number, input: string) {
         calls.sendInput.push({ sessionId, input });
         return true;
+      },
+      async getOutput(sessionId: number) {
+        calls.getOutput.push(sessionId);
+        return 'alpha\nbeta\n';
       },
       async delete() {
         return true;
@@ -127,14 +132,16 @@ test.test('GET /sessions/:id/events returns the standard success envelope and ma
   await app.close();
 });
 
-test.test('GET /sessions/:id/events returns 404 when the session does not exist', async () => {
+
+
+test.test('GET /sessions/:id/output returns 404 when the session does not exist', async () => {
   const { service } = buildSessionServiceStub();
-  service.listEvents = async () => {
+  service.getOutput = async () => {
     throw Object.assign(new Error('Session not found'), { statusCode: 404 });
   };
 
   const app = await buildApp(service);
-  const response = await app.inject({ method: 'GET', url: '/sessions/99/events' });
+  const response = await app.inject({ method: 'GET', url: '/sessions/99/output' });
   const payload = response.json() as { success: boolean; message: string };
 
   assert.equal(response.statusCode, 404);

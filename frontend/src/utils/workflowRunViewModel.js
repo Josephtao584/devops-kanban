@@ -62,6 +62,7 @@ export const toTimelineWorkflow = (run) => {
             completed_at: step.completed_at,
             error: step.error,
             output: step.output,
+            sessionId: step.session_id ?? null,
             role: snapshot?.role || '',
             agentId: snapshot?.agentId ?? null,
             duration: null

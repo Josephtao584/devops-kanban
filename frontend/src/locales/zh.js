@@ -379,6 +379,10 @@ export default {
     inputPlaceholder: '输入消息... (回车发送)',
     noSession: '无活动会话',
     noSessionHint: '选择一个代理并启动会话以开始聊天',
+    workflowNode: '工作流节点对话',
+    workflowNodeHint: '点击消息气泡查看详情',
+    noMessages: '暂无对话记录',
+    noMessagesHint: '当前节点还没有保存的会话内容',
     readyTitle: '准备就绪',
     readyHint: '点击"启动"开始对话',
     taskSummary: '简介'

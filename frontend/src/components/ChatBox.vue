@@ -84,7 +84,7 @@ import MessageList from './session/MessageList.vue'
 import MessageInput from './session/MessageInput.vue'
 import { useSessionManager } from '../composables/useSessionManager'
 import { useWebSocketConnection } from '../composables/useWebSocketConnection'
-import { getSessionOutput, getSessionHistory } from '../api/session'
+import { getSession, getSessionOutput, getSessionHistory } from '../api/session'
 import { useToast } from '../composables/ui/useToast'
 import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import { useMessageFilter } from '../composables/useMessageFilter'
@@ -116,6 +116,10 @@ const props = defineProps({
     default: null
   },
   initialSession: {
+    type: Object,
+    default: null
+  },
+  workflowNode: {
     type: Object,
     default: null
   },
@@ -165,11 +169,16 @@ const messages = ref([])
 const inputText = ref('')
 const messageListRef = ref(null)
 const isCollapsed = ref(false)
+const currentWorkflowNode = ref(null)
 
 // Watch defaultCollapsed prop to initialize state
 watch(() => props.defaultCollapsed, (val) => {
   isCollapsed.value = val
 }, { immediate: true })
+
+watch(() => props.workflowNode, (node) => {
+  currentWorkflowNode.value = node || null
+}, { immediate: true, deep: true })
 
 // Expose toggle method for external control
 const toggleCollapse = () => {
@@ -185,7 +194,6 @@ const setMessages = (newMessages, node = null) => {
     currentWorkflowNode.value = node
   }
 }
-const currentWorkflowNode = ref(null)
 
 // Helper methods for workflow node display
 const getAgentColor = (agentType) => agentConfig[agentType]?.color || '#6B7280'
@@ -371,6 +379,42 @@ const initializeSession = async (sessionData, isHistory = false) => {
   if (['RUNNING', 'IDLE'].includes(sessionData.status)) {
     setupWebSocket(sessionData.id)
   }
+}
+
+const resetSessionState = () => {
+  messages.value = []
+  resetFilter()
+  stopWaitingTimer()
+  if (session.value) {
+    disconnectWebSocket(session.value.id)
+    setSession(null)
+  }
+}
+
+const initializePreferredSession = async () => {
+  if (props.initialSession) {
+    await initializeSession(props.initialSession, true)
+    return props.initialSession
+  }
+
+  if (props.workflowNode?.sessionId) {
+    try {
+      const response = await getSession(props.workflowNode.sessionId)
+      const sessionData = apiError.unwrapResponse(response, 'Failed to load workflow session')
+      if (sessionData) {
+        await initializeSession(sessionData, true)
+        return sessionData
+      }
+    } catch (e) {
+      console.error('[ChatBox] Failed to load workflow session:', e)
+    }
+  }
+
+  const activeSession = await loadActiveSession()
+  if (!activeSession) {
+    await loadLastHistorySession()
+  }
+  return activeSession
 }
 
 const loadActiveSession = async () => {
@@ -699,14 +743,7 @@ onMounted(async () => {
     console.log('[ChatBox] Session already initialized, skipping')
     return
   }
-  if (props.initialSession) {
-    initializeSession(props.initialSession)
-  } else {
-    const activeSession = await loadActiveSession()
-    if (!activeSession) {
-      await loadLastHistorySession()
-    }
-  }
+  await initializePreferredSession()
 })
 
 onUnmounted(() => {
@@ -738,14 +775,23 @@ watch(() => props.agentId, async (newAgentId, oldAgentId) => {
 })
 
 // Watch for initialSession changes
-watch(() => props.initialSession, (newSession, oldSession) => {
+watch(() => props.initialSession, async (newSession, oldSession) => {
   if (isUnmounted.value) return
-  if (newSession) {
-    if (!oldSession || oldSession.id !== newSession.id || messages.value.length === 0) {
-      initializeSession(newSession, true)
-    }
+  if (!newSession) return
+  if (!oldSession || oldSession.id !== newSession.id || messages.value.length === 0) {
+    resetSessionState()
+    await initializeSession(newSession, true)
   }
 }, { deep: true })
+
+watch(() => props.workflowNode?.sessionId, async (newSessionId, oldSessionId) => {
+  if (isUnmounted.value) return
+  if (newSessionId === oldSessionId) return
+  if (!props.task) return
+
+  resetSessionState()
+  await initializePreferredSession()
+}, { immediate: false })
 
 // Watch for task changes
 watch(() => props.task, async (newTask, oldTask) => {
@@ -754,21 +800,8 @@ watch(() => props.task, async (newTask, oldTask) => {
   if (!newTask) return
 
   if (!oldTask || newTask.id !== oldTask.id) {
-    messages.value = []
-    resetFilter()
-    if (session.value) {
-      disconnectWebSocket(session.value.id)
-      setSession(null)
-    }
-
-    if (props.initialSession) {
-      initializeSession(props.initialSession, true)
-    } else {
-      const activeSession = await loadActiveSession()
-      if (!activeSession) {
-        await loadLastHistorySession()
-      }
-    }
+    resetSessionState()
+    await initializePreferredSession()
   }
 }, { deep: true })
 
