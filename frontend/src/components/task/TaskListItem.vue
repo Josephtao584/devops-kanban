@@ -145,7 +145,7 @@
         </div>
 
         <div class="workflow-section quick-actions">
-          <button v-if="!running" class="quick-action-btn" @click.stop="$emit('workflow-action', 'start')">
+          <button v-if="!running" class="quick-action-btn" @click.stop="handleStartClick">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
@@ -476,6 +476,12 @@ const workflowStatusText = computed(() => {
 // Handle node click
 const handleNodeClick = (node) => {
   emit('workflow-action', { action: 'node-click', node, task: props.task })
+}
+
+// Handle start button click
+const handleStartClick = () => {
+  console.log('[TaskListItem] handleStartClick called, task:', props.task?.id, 'running:', props.running)
+  emit('workflow-action', 'start')
 }
 
 const openWorktreeDirectory = () => {
