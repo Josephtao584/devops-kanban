@@ -242,6 +242,8 @@ export default {
     disabled: '已禁用',
     agentFallbackName: '成员 #{id}',
     selectDialogTitle: '选择工作流模板',
+    startEditorTitle: '启动前编辑工作流',
+    confirmStart: '确认并启动',
     emptyState: '暂无可用的工作流模板',
     stepCount: '{count} 个步骤'
   },

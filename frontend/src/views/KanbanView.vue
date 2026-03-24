@@ -461,6 +461,12 @@
       @confirm="handleWorkflowTemplateConfirm"
     />
 
+    <WorkflowStartEditorDialog
+      v-model="showWorkflowStartEditorDialog"
+      :draft-template="workflowStartDraftTemplate"
+      @confirm="handleWorkflowStartEditorConfirm"
+    />
+
     <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
       <div class="modal node-detail-modal">
@@ -629,6 +635,7 @@ import MergeDialog from '../components/MergeDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
+import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import IterationSelect from '../components/iteration/IterationSelect.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
@@ -639,6 +646,8 @@ import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
 import { analyzeTaskCategory } from '../mock/workflowAssignment'
 import { reorderTasks, startTask, deleteTask } from '../api/task.js'
+import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
+import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useToast } from '../composables/ui/useToast'
 import { useWorktree } from '../composables/useWorktree'
 
@@ -698,6 +707,9 @@ const showWorkflowTemplateDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const deleteWorktreeChecked = ref(false)
 const pendingDeleteTaskId = ref(null)
+const showWorkflowStartEditorDialog = ref(false)
+const workflowStartDraftTemplate = ref(null)
+const selectedWorkflowTemplateId = ref('')
 
 // Clear currentViewingNodeId when selected task becomes DONE
 watch(() => selectedTask.value?.status, (newStatus) => {
@@ -885,27 +897,34 @@ const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
 }
 
-const startSelectedTaskWithTemplate = async (workflowTemplateId, autoCreateWorktree = false) => {
+const startSelectedTaskWithTemplate = async (
+  workflowTemplateId,
+  workflowTemplateSnapshot,
+  autoCreateWorktree = false
+) => {
   if (!selectedTask.value) return
 
-  // If auto-create worktree is requested, create it first
-  if (autoCreateWorktree && selectedTask.value) {
+  if (autoCreateWorktree) {
     try {
       await handleWorktree(selectedTask.value)
     } catch (err) {
       console.error('Worktree 创建失败，阻止任务启动:', err)
-      return // Stop - don't start the task
+      return
     }
   }
 
   try {
     const response = await startTask(selectedTask.value.id, {
-      workflow_template_id: workflowTemplateId
+      workflow_template_id: workflowTemplateId,
+      workflow_template_snapshot: workflowTemplateSnapshot
     })
 
     if (response.success) {
       ElMessage.success('任务已启动')
       showWorkflowTemplateDialog.value = false
+      showWorkflowStartEditorDialog.value = false
+      workflowStartDraftTemplate.value = null
+      selectedWorkflowTemplateId.value = ''
 
       if (selectedProjectId.value) {
         await taskStore.fetchTasks(selectedProjectId.value)
@@ -924,7 +943,30 @@ const startSelectedTaskWithTemplate = async (workflowTemplateId, autoCreateWorkt
 }
 
 const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree }) => {
-  await startSelectedTaskWithTemplate(templateId, autoCreateWorktree)
+  try {
+    const response = await getWorkflowTemplateById(templateId)
+    if (!response?.success) {
+      ElMessage.error(response?.message || '加载工作流模板失败')
+      return
+    }
+
+    selectedWorkflowTemplateId.value = templateId
+    workflowStartDraftTemplate.value = normalizeWorkflowTemplate(response.data)
+    showWorkflowTemplateDialog.value = false
+    showWorkflowStartEditorDialog.value = true
+    workflowStartDraftTemplate.value.autoCreateWorktree = autoCreateWorktree
+  } catch (error) {
+    console.error('加载工作流模板失败:', error)
+    ElMessage.error('加载工作流模板失败')
+  }
+}
+
+const handleWorkflowStartEditorConfirm = async (draftTemplate) => {
+  await startSelectedTaskWithTemplate(
+    selectedWorkflowTemplateId.value,
+    normalizeWorkflowTemplate(draftTemplate),
+    Boolean(workflowStartDraftTemplate.value?.autoCreateWorktree)
+  )
 }
 
 // Handle workflow action from inline workflow panel
