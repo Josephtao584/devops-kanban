@@ -15,8 +15,11 @@ export interface CreateTaskInput {
   order?: number;
 }
 
+import type { WorkflowTemplateEntity } from '../entities.ts';
+
 export interface StartTaskInput {
   workflow_template_id?: string;
+  workflow_template_snapshot?: WorkflowTemplateEntity;
 }
 
 export interface UpdateTaskInput {

@@ -4,7 +4,7 @@ import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { executeWorkflowStep } from './workflowStepExecutor.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
-import { WorkflowTemplateService } from './workflowTemplateService.js';
+import { WorkflowTemplateService, normalizeTemplate } from './workflowTemplateService.js';
 import type { WorkflowTemplate } from './workflowTemplateService.js';
 import type { ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
@@ -188,7 +188,11 @@ class WorkflowService {
     this._activeRuns = new Map();
   }
 
-  async startWorkflow(taskId: number, workflowTemplateId?: string) {
+  async startWorkflow(taskId: number, workflowTemplateId?: string, workflowTemplateSnapshot?: WorkflowTemplate) {
+    if (workflowTemplateId !== undefined && (typeof workflowTemplateId !== 'string' || workflowTemplateId.trim().length === 0)) {
+      throw createValidationError('Workflow template id must be a non-empty string');
+    }
+
     const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -204,13 +208,13 @@ class WorkflowService {
       throw error;
     }
 
-    const template = await this._loadTemplate(workflowTemplateId);
+    const template = await this._loadTemplate(workflowTemplateId, workflowTemplateSnapshot);
     await this._validateTemplateAgents(template);
 
     const run = await this.workflowRunRepo.create({
       task_id: taskId,
       workflow_id: template.template_id,
-      workflow_template_id: template.template_id,
+      workflow_template_id: workflowTemplateId?.trim() || template.template_id,
       workflow_template_snapshot: template,
       status: 'PENDING',
       current_step: null,
@@ -228,12 +232,12 @@ class WorkflowService {
     return run;
   }
 
-  async _loadTemplate(templateId?: string): Promise<WorkflowTemplate> {
-    if (templateId !== undefined) {
-      if (typeof templateId !== 'string' || templateId.trim().length === 0) {
-        throw createValidationError('Workflow template id must be a non-empty string');
-      }
+  async _loadTemplate(templateId?: string, templateSnapshot?: WorkflowTemplate): Promise<WorkflowTemplate> {
+    if (templateSnapshot !== undefined) {
+      return normalizeTemplate(templateSnapshot);
+    }
 
+    if (templateId !== undefined) {
       const normalizedTemplateId = templateId.trim();
       const selectedTemplate = await this.workflowTemplateService.getTemplateById(normalizedTemplateId);
       if (!selectedTemplate) {

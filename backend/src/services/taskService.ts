@@ -190,7 +190,7 @@ class TaskService {
     await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
 
     try {
-      await this.workflowService.startWorkflow(taskId, body?.workflow_template_id);
+      await this.workflowService.startWorkflow(taskId, body?.workflow_template_id, body?.workflow_template_snapshot);
     } catch (error) {
       await this.taskRepo.update(taskId, { status: 'TODO' });
       throw error;

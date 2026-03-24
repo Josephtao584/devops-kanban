@@ -460,6 +460,12 @@
       @confirm="handleWorkflowTemplateConfirm"
     />
 
+    <WorkflowStartEditorDialog
+      v-model="showWorkflowStartEditorDialog"
+      :draft-template="workflowStartDraftTemplate"
+      @confirm="handleWorkflowStartEditorConfirm"
+    />
+
     <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
       <div class="modal node-detail-modal">
@@ -607,6 +613,7 @@ import MergeDialog from '../components/MergeDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
+import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import IterationSelect from '../components/iteration/IterationSelect.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
@@ -623,6 +630,8 @@ import {
   addNodeToWorkflow
 } from '../mock/workflowData'
 import { reorderTasks, startTask } from '../api/task.js'
+import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
+import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useToast } from '../composables/ui/useToast'
 import { useWorktree } from '../composables/useWorktree'
 
@@ -679,6 +688,9 @@ const expandedTaskId = ref(null)
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const showWorkflowTemplateDialog = ref(false)
+const showWorkflowStartEditorDialog = ref(false)
+const workflowStartDraftTemplate = ref(null)
+const selectedWorkflowTemplateId = ref('')
 
 // Clear currentViewingNodeId when selected task becomes DONE
 watch(() => selectedTask.value?.status, (newStatus) => {
@@ -868,12 +880,13 @@ const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
 }
 
-const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
+const startSelectedTaskWithTemplate = async (workflowTemplateId, workflowTemplateSnapshot) => {
   if (!selectedTask.value) return
 
   try {
     const response = await startTask(selectedTask.value.id, {
-      workflow_template_id: workflowTemplateId
+      workflow_template_id: workflowTemplateId,
+      workflow_template_snapshot: workflowTemplateSnapshot
     })
 
     if (response.success) {
@@ -882,6 +895,9 @@ const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
         await taskStore.fetchTasks(selectedProjectId.value)
       }
       showWorkflowTemplateDialog.value = false
+      showWorkflowStartEditorDialog.value = false
+      workflowStartDraftTemplate.value = null
+      selectedWorkflowTemplateId.value = ''
     } else {
       ElMessage.error(response.message || '启动失败')
     }
@@ -892,7 +908,25 @@ const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
 }
 
 const handleWorkflowTemplateConfirm = async (workflowTemplateId) => {
-  await startSelectedTaskWithTemplate(workflowTemplateId)
+  try {
+    const response = await getWorkflowTemplateById(workflowTemplateId)
+    if (!response?.success) {
+      ElMessage.error(response?.message || '加载工作流模板失败')
+      return
+    }
+
+    selectedWorkflowTemplateId.value = workflowTemplateId
+    workflowStartDraftTemplate.value = normalizeWorkflowTemplate(response.data)
+    showWorkflowTemplateDialog.value = false
+    showWorkflowStartEditorDialog.value = true
+  } catch (error) {
+    console.error('加载工作流模板失败:', error)
+    ElMessage.error('加载工作流模板失败')
+  }
+}
+
+const handleWorkflowStartEditorConfirm = async (draftTemplate) => {
+  await startSelectedTaskWithTemplate(selectedWorkflowTemplateId.value, normalizeWorkflowTemplate(draftTemplate))
 }
 
 // Handle workflow action from inline workflow panel
