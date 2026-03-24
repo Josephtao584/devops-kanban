@@ -1,8 +1,17 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
+import Fastify from 'fastify';
 
 import { workflowTemplateRoutes } from '../src/routes/workflowTemplate.js';
 import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.js';
+
+type WorkflowTemplateRouteService = {
+  getTemplates(): Promise<WorkflowTemplate[]>;
+  getTemplateById(id: string): Promise<WorkflowTemplate | null>;
+  createTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate>;
+  updateTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate>;
+  deleteTemplate(id: string): Promise<void>;
+};
 
 function buildQuickFixTemplate(): WorkflowTemplate {
   return {
@@ -52,83 +61,32 @@ function buildReviewOnlyTemplate(): WorkflowTemplate {
   };
 }
 
-function createFastifyStub(service: {
-  getTemplates(): Promise<WorkflowTemplate[]>;
-  getTemplateById(id: string): Promise<WorkflowTemplate | null>;
-  updateTemplate(template: WorkflowTemplate): Promise<WorkflowTemplate>;
-}) {
-  const routes = new Map<string, (request: { body?: unknown; params?: Record<string, string>; log: { error(): void } }, reply: { code(statusCode: number): unknown }) => Promise<unknown>>();
-  return {
-    get(path: string, handler: (request: { body?: unknown; params?: Record<string, string>; log: { error(): void } }, reply: { code(statusCode: number): unknown }) => Promise<unknown>) {
-      routes.set(`GET ${path}`, handler);
-    },
-    put(path: string, handler: (request: { body?: unknown; params?: Record<string, string>; log: { error(): void } }, reply: { code(statusCode: number): unknown }) => Promise<unknown>) {
-      routes.set(`PUT ${path}`, handler);
-    },
-    async inject({ method, url, payload }: { method: string; url: string; payload?: unknown }) {
-      const upperMethod = method.toUpperCase();
-      let matched: { handler: (request: { body?: unknown; params?: Record<string, string>; log: { error(): void } }, reply: { code(statusCode: number): unknown }) => Promise<unknown>; params: Record<string, string> } | null = null;
-
-      for (const [key, handler] of routes.entries()) {
-        const [registeredMethod, registeredPath] = key.split(' ');
-        if (registeredMethod !== upperMethod) {
-          continue;
-        }
-
-        if (registeredPath === url) {
-          matched = { handler, params: {} };
-          break;
-        }
-
-        if (registeredPath.includes('/:id')) {
-          const prefix = registeredPath.slice(0, registeredPath.indexOf('/:id'));
-          if (url.startsWith(prefix + '/')) {
-            matched = {
-              handler,
-              params: { id: url.slice(prefix.length + 1) },
-            };
-            break;
-          }
-        }
-      }
-
-      if (!matched) {
-        throw new Error(`Missing route handler for ${upperMethod} ${url}`);
-      }
-
-      const replyState = { statusCode: 200 };
-      const reply = {
-        code(statusCode: number) {
-          replyState.statusCode = statusCode;
-          return reply;
-        },
-      };
-      const result = await matched.handler({ body: payload, params: matched.params, log: { error() {} } }, reply);
-      return {
-        statusCode: replyState.statusCode,
-        json() {
-          return result;
-        },
-      };
-    },
-  };
+async function buildApp(service: WorkflowTemplateRouteService) {
+  const app = Fastify();
+  app.register(workflowTemplateRoutes, { service });
+  await app.ready();
+  return app;
 }
 
 test.test('GET /api/workflow-template returns the global template list', async () => {
   const templates = [buildQuickFixTemplate(), buildReviewOnlyTemplate()];
-  const service = {
+  const service: WorkflowTemplateRouteService = {
     async getTemplates() {
       return templates;
     },
     async getTemplateById(id: string) {
       return templates.find((template) => template.template_id === id) ?? null;
     },
+    async createTemplate(template: WorkflowTemplate) {
+      return template;
+    },
     async updateTemplate(template: WorkflowTemplate) {
       return template;
     },
+    async deleteTemplate() {
+    },
   };
-  const app = createFastifyStub(service);
-  await workflowTemplateRoutes(app as never, { service: service as never });
+  const app = await buildApp(service);
 
   const response = await app.inject({ method: 'GET', url: '/' });
   const payload = response.json() as {
@@ -140,23 +98,29 @@ test.test('GET /api/workflow-template returns the global template list', async (
   assert.equal(payload.success, true);
   assert.deepEqual(payload.data.map((template) => template.template_id), ['quick-fix-v1', 'review-only-v1']);
   assert.equal(payload.data[0]?.steps[0]?.name, '问题定位');
+
+  await app.close();
 });
 
 test.test('GET /api/workflow-template/:id returns template detail by id', async () => {
   const template = buildQuickFixTemplate();
-  const service = {
+  const service: WorkflowTemplateRouteService = {
     async getTemplates() {
       return [template];
     },
     async getTemplateById(id: string) {
       return id === template.template_id ? template : null;
     },
+    async createTemplate(created: WorkflowTemplate) {
+      return created;
+    },
     async updateTemplate(updated: WorkflowTemplate) {
       return updated;
     },
+    async deleteTemplate() {
+    },
   };
-  const app = createFastifyStub(service);
-  await workflowTemplateRoutes(app as never, { service: service as never });
+  const app = await buildApp(service);
 
   const response = await app.inject({ method: 'GET', url: '/quick-fix-v1' });
   const payload = response.json() as {
@@ -168,22 +132,28 @@ test.test('GET /api/workflow-template/:id returns template detail by id', async 
   assert.equal(payload.success, true);
   assert.equal(payload.data.template_id, 'quick-fix-v1');
   assert.deepEqual(payload.data.steps.map((step) => step.id), ['triage', 'fix', 'verify']);
+
+  await app.close();
 });
 
 test.test('GET /api/workflow-template/:id returns 404 when template is missing', async () => {
-  const service = {
+  const service: WorkflowTemplateRouteService = {
     async getTemplates() {
       return [];
     },
     async getTemplateById() {
       return null;
     },
+    async createTemplate(template: WorkflowTemplate) {
+      return template;
+    },
     async updateTemplate(template: WorkflowTemplate) {
       return template;
     },
+    async deleteTemplate() {
+    },
   };
-  const app = createFastifyStub(service);
-  await workflowTemplateRoutes(app as never, { service: service as never });
+  const app = await buildApp(service);
 
   const response = await app.inject({ method: 'GET', url: '/missing-template' });
   const payload = response.json() as { success: boolean; message: string };
@@ -191,24 +161,68 @@ test.test('GET /api/workflow-template/:id returns 404 when template is missing',
   assert.equal(response.statusCode, 404);
   assert.equal(payload.success, false);
   assert.match(payload.message, /Workflow template not found/);
+
+  await app.close();
+});
+
+test.test('POST /api/workflow-template creates a new workflow template', async () => {
+  let createdTemplate: WorkflowTemplate | null = null;
+  const service: WorkflowTemplateRouteService = {
+    async getTemplates() {
+      return [];
+    },
+    async getTemplateById() {
+      return null;
+    },
+    async createTemplate(template: WorkflowTemplate) {
+      createdTemplate = template;
+      return template;
+    },
+    async updateTemplate(template: WorkflowTemplate) {
+      return template;
+    },
+    async deleteTemplate() {
+    },
+  };
+  const app = await buildApp(service);
+
+  const payload = buildQuickFixTemplate();
+  const response = await app.inject({ method: 'POST', url: '/', payload });
+  const body = response.json() as {
+    success: boolean;
+    data: WorkflowTemplate;
+    message: string;
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.success, true);
+  assert.equal(body.message, 'Workflow template created');
+  assert.equal(body.data.template_id, 'quick-fix-v1');
+  assert.equal(createdTemplate?.steps[2]?.id, 'verify');
+
+  await app.close();
 });
 
 test.test('PUT /api/workflow-template updates a selected template with variable steps', async () => {
   let savedTemplate: WorkflowTemplate | null = null;
-  const service = {
+  const service: WorkflowTemplateRouteService = {
     async getTemplates() {
       return [buildQuickFixTemplate()];
     },
     async getTemplateById(id: string) {
       return id === 'quick-fix-v1' ? buildQuickFixTemplate() : null;
     },
+    async createTemplate(template: WorkflowTemplate) {
+      return template;
+    },
     async updateTemplate(template: WorkflowTemplate) {
       savedTemplate = template;
       return template;
     },
+    async deleteTemplate() {
+    },
   };
-  const app = createFastifyStub(service);
-  await workflowTemplateRoutes(app as never, { service: service as never });
+  const app = await buildApp(service);
 
   const payload: WorkflowTemplate = {
     template_id: 'quick-fix-v1',
@@ -239,4 +253,75 @@ test.test('PUT /api/workflow-template updates a selected template with variable 
   assert.equal(body.success, true);
   assert.deepEqual(body.data.steps.map((step) => step.id), ['investigate', 'implement']);
   assert.equal(savedTemplate?.steps[1]?.agentId, 9);
+
+  await app.close();
+});
+
+test.test('DELETE /api/workflow-template/:id deletes a custom workflow template', async () => {
+  let deletedTemplateId: string | null = null;
+  const service: WorkflowTemplateRouteService = {
+    async getTemplates() {
+      return [buildQuickFixTemplate()];
+    },
+    async getTemplateById(id: string) {
+      return id === 'quick-fix-v1' ? buildQuickFixTemplate() : null;
+    },
+    async createTemplate(template: WorkflowTemplate) {
+      return template;
+    },
+    async updateTemplate(template: WorkflowTemplate) {
+      return template;
+    },
+    async deleteTemplate(id: string) {
+      deletedTemplateId = id;
+    },
+  };
+  const app = await buildApp(service);
+
+  const response = await app.inject({ method: 'DELETE', url: '/quick-fix-v1' });
+  const body = response.json() as {
+    success: boolean;
+    data: null;
+    message: string;
+  };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.success, true);
+  assert.equal(body.message, 'Workflow template deleted');
+  assert.equal(deletedTemplateId, 'quick-fix-v1');
+
+  await app.close();
+});
+
+test.test('DELETE /api/workflow-template/:id returns 400 for built-in template deletion', async () => {
+  const service: WorkflowTemplateRouteService = {
+    async getTemplates() {
+      return [];
+    },
+    async getTemplateById() {
+      return null;
+    },
+    async createTemplate(template: WorkflowTemplate) {
+      return template;
+    },
+    async updateTemplate(template: WorkflowTemplate) {
+      return template;
+    },
+    async deleteTemplate() {
+      throw Object.assign(new Error('Cannot delete built-in workflow template: dev-workflow-v1'), { statusCode: 400 });
+    },
+  };
+  const app = await buildApp(service);
+
+  const response = await app.inject({ method: 'DELETE', url: '/dev-workflow-v1' });
+  const body = response.json() as {
+    success: boolean;
+    message: string;
+  };
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(body.success, false);
+  assert.equal(body.message, 'Cannot delete built-in workflow template: dev-workflow-v1');
+
+  await app.close();
 });
