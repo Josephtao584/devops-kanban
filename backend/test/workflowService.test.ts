@@ -1,6 +1,11 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
+import { WorkflowRunRepository } from '../src/repositories/workflowRunRepository.js';
+import type { StoredWorkflowRunEntity } from '../src/repositories/workflowRunRepository.js';
 import type { ExecutorProcessHandle } from '../src/types/executors.js';
 
 interface TemplateStep {
@@ -142,6 +147,75 @@ async function assertStructuralDriftFailure(steps: TemplateStep[]) {
     harness,
     /Workflow template steps do not match the workflow definition/,
   );
+}
+
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+function createTempStorageRoot() {
+  return fs.mkdtemp(path.join(os.tmpdir(), 'kanban-workflow-run-'));
+}
+
+class BlockingWorkflowRunRepository extends WorkflowRunRepository {
+  private nextSaveGate: {
+    entered: ReturnType<typeof createDeferred<void>>;
+    release: ReturnType<typeof createDeferred<void>>;
+  } | null = null;
+
+  constructor(storagePath: string) {
+    super({ storagePath });
+  }
+
+  blockNextSave() {
+    const entered = createDeferred<void>();
+    const release = createDeferred<void>();
+    this.nextSaveGate = { entered, release };
+    return {
+      waitUntilBlocked: entered.promise,
+      release: () => release.resolve(),
+    };
+  }
+
+  override async _saveAll(data: StoredWorkflowRunEntity[]) {
+    const gate = this.nextSaveGate;
+    if (gate) {
+      this.nextSaveGate = null;
+      gate.entered.resolve();
+      await gate.release.promise;
+    }
+
+    await super._saveAll(data);
+  }
+}
+
+async function createRunningWorkflowRun(repo: WorkflowRunRepository, taskId: number) {
+  return await repo.create({
+    task_id: taskId,
+    workflow_id: 'dev-workflow-v1',
+    status: 'RUNNING',
+    current_step: 'requirement-design',
+    steps: [
+      {
+        step_id: 'requirement-design',
+        name: '需求设计',
+        status: 'RUNNING',
+        started_at: '2026-03-23T00:00:00.000Z',
+        completed_at: null,
+        retry_count: 0,
+        session_id: null,
+        summary: null,
+        error: null,
+      },
+    ],
+    worktree_path: '/tmp/workspace',
+    branch: `task/${taskId}`,
+    context: {},
+  });
 }
 
 function buildAgent(id: number, overrides: Partial<AgentRecord> = {}): AgentRecord {
@@ -978,6 +1052,77 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
     { current_step: 'requirement-design' },
     { status: 'CANCELLED' },
   ]);
+});
+
+test.test('workflow run repository serializes run cancellation ahead of queued completion writes', async () => {
+  const storagePath = await createTempStorageRoot();
+
+  try {
+    const repo = new BlockingWorkflowRunRepository(storagePath);
+    const run = await createRunningWorkflowRun(repo, 1);
+
+    const blockedCompletionSave = repo.blockNextSave();
+    const completionUpdatePromise = repo.update(run.id, {
+      status: 'COMPLETED',
+      context: { summary: 'late success' },
+    });
+
+    await blockedCompletionSave.waitUntilBlocked;
+
+    const cancelUpdatePromise = repo.update(run.id, {
+      status: 'CANCELLED',
+    });
+    blockedCompletionSave.release();
+
+    const [completionResult, cancelResult] = await Promise.all([completionUpdatePromise, cancelUpdatePromise]);
+    const persistedRun = await repo.findById(run.id);
+
+    assert.equal(completionResult?.status, 'COMPLETED');
+    assert.equal(cancelResult?.status, 'CANCELLED');
+    assert.equal(persistedRun?.status, 'CANCELLED');
+    assert.deepEqual(persistedRun?.context, { summary: 'late success' });
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
+});
+
+test.test('workflow run repository serializes step cancellation ahead of queued step completion writes', async () => {
+  const storagePath = await createTempStorageRoot();
+
+  try {
+    const repo = new BlockingWorkflowRunRepository(storagePath);
+    const run = await createRunningWorkflowRun(repo, 2);
+
+    const blockedCompletionSave = repo.blockNextSave();
+    const completionUpdatePromise = repo.updateStep(run.id, 'requirement-design', {
+      status: 'COMPLETED',
+      completed_at: '2026-03-23T00:01:00.000Z',
+      summary: 'late success',
+      error: null,
+    });
+
+    await blockedCompletionSave.waitUntilBlocked;
+
+    const cancelUpdatePromise = repo.updateStep(run.id, 'requirement-design', {
+      status: 'CANCELLED',
+      completed_at: '2026-03-23T00:02:00.000Z',
+      error: 'Workflow cancelled',
+    });
+    blockedCompletionSave.release();
+
+    const [completionResult, cancelResult] = await Promise.all([completionUpdatePromise, cancelUpdatePromise]);
+    const persistedRun = await repo.findById(run.id);
+    const persistedStep = persistedRun?.steps[0];
+
+    assert.equal(completionResult?.steps[0]?.status, 'COMPLETED');
+    assert.equal(cancelResult?.steps[0]?.status, 'CANCELLED');
+    assert.equal(persistedStep?.status, 'CANCELLED');
+    assert.equal(persistedStep?.error, 'Workflow cancelled');
+    assert.equal(persistedStep?.summary, 'late success');
+    assert.equal(persistedStep?.completed_at, '2026-03-23T00:02:00.000Z');
+  } finally {
+    await fs.rm(storagePath, { recursive: true, force: true });
+  }
 });
 
 test.test('cancelWorkflow terminates the active process and finalizes the running step lifecycle', async () => {
