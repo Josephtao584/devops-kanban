@@ -581,6 +581,115 @@ function createActiveRunCancelHarness() {
   };
 }
 
+function createSuccessFinalizationRaceHarness() {
+  const run = {
+    id: 7,
+    task_id: 1,
+    workflow_id: 'dev-workflow-v1',
+    status: 'PENDING',
+    current_step: null,
+    steps: [
+      {
+        step_id: 'requirement-design',
+        name: '需求设计',
+        status: 'PENDING',
+        started_at: null,
+        completed_at: null,
+        retry_count: 0,
+        session_id: null,
+        summary: null,
+        error: null,
+      },
+    ],
+    worktree_path: '/tmp/workspace',
+    branch: 'task/1',
+    context: {},
+  };
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<{ taskId: number; updateData: Record<string, unknown> }> = [];
+  const blockedCompletionUpdate = createDeferred<void>();
+  const releaseCompletionUpdate = createDeferred<void>();
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      assert.equal(runId, 7);
+      return run;
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      assert.equal(runId, 7);
+      runUpdates.push(updateData);
+
+      if (updateData.status === 'COMPLETED') {
+        blockedCompletionUpdate.resolve();
+        await releaseCompletionUpdate.promise;
+        if (run.status === 'CANCELLED') {
+          return run;
+        }
+      }
+
+      Object.assign(run, updateData);
+      return run;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+    sessionRepo: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+      async findById() {
+        return null;
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    } as never,
+    sessionSegmentRepo: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+      async findLatestBySessionId() {
+        return null;
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    } as never,
+  });
+
+  (service as WorkflowService & {
+    _createWorkflowStream: () => Promise<{
+      fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
+      result: Promise<{ status: string; result?: Record<string, unknown> }>;
+    }>;
+  })._createWorkflowStream = async () => ({
+    fullStream: (async function* () {})(),
+    result: Promise.resolve({ status: 'success', result: { summary: 'ignored after cancel' } }),
+  });
+
+  return {
+    service,
+    run,
+    runUpdates,
+    taskUpdates,
+    waitUntilCompletionUpdate() {
+      return blockedCompletionUpdate.promise;
+    },
+    releaseCompletionUpdate() {
+      releaseCompletionUpdate.resolve();
+    },
+  };
+}
+
 function createExecuteWorkflowHarness() {
   const stepSessionHarness = createStepSessionHarness();
   const runUpdates: Array<Record<string, unknown>> = [];
@@ -995,7 +1104,7 @@ test.test('late workflow step result and error events do not override a cancelle
   assert.equal(harness.run.steps[0]?.completed_at, cancelledCompletedAt);
   assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
   assert.equal(harness.segments[0]?.status, 'CANCELLED');
-  assert.equal(harness.sessionUpdates.length, 1);
+  assert.equal(harness.sessionUpdates.length, 3);
   assert.equal(harness.segmentUpdates.length, 1);
 });
 
@@ -1052,6 +1161,68 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
     { current_step: 'requirement-design' },
     { status: 'CANCELLED' },
   ]);
+});
+
+
+
+test.test('executeWorkflow does not mark the task DONE when cancellation wins after success finalization begins', async () => {
+  const harness = createSuccessFinalizationRaceHarness();
+
+  const executionPromise = (harness.service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
+  })._executeWorkflow(7, {
+    id: 1,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  });
+
+  await harness.waitUntilCompletionUpdate();
+  await harness.service.cancelWorkflow(7);
+  harness.releaseCompletionUpdate();
+  await executionPromise;
+
+  assert.equal(harness.run.status, 'CANCELLED');
+  assert.deepEqual(harness.run.context, {});
+  assert.equal(harness.taskUpdates.length, 0);
+  assert.deepEqual(harness.runUpdates, [
+    { status: 'RUNNING' },
+    { status: 'COMPLETED', context: { summary: 'ignored after cancel' } },
+    { status: 'CANCELLED' },
+  ]);
+});
+
+test.test('late workflow step completion repairs session and segment state back to cancelled', async () => {
+  const harness = createStepSessionHarness();
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCancellation: (runId: number, stepId: string) => Promise<void>;
+  })._handleWorkflowStepCancellation(7, 'requirement-design');
+
+  harness.sessions.get(101)!.status = 'RUNNING';
+  harness.sessions.get(101)!.completed_at = null;
+  harness.segments[0]!.status = 'RUNNING';
+  harness.segments[0]!.completed_at = null;
+
+  const sessionUpdateCountBeforeLateCompletion = harness.sessionUpdates.length;
+  const segmentUpdateCountBeforeLateCompletion = harness.segmentUpdates.length;
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepCompletion(7, 'requirement-design', { summary: 'late success' });
+
+  assert.equal(harness.run.steps[0]?.status, 'CANCELLED');
+  assert.equal(harness.run.steps[0]?.summary, null);
+  assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
+  assert.equal(harness.segments[0]?.status, 'CANCELLED');
+  assert.equal(harness.sessionUpdates.length, sessionUpdateCountBeforeLateCompletion + 1);
+  assert.equal(harness.segmentUpdates.length, segmentUpdateCountBeforeLateCompletion + 1);
+  assert.equal(harness.sessionUpdates.at(-1)?.updateData.status, 'CANCELLED');
+  assert.equal(harness.segmentUpdates.at(-1)?.updateData.status, 'CANCELLED');
 });
 
 test.test('workflow run repository serializes run cancellation ahead of queued completion writes', async () => {
