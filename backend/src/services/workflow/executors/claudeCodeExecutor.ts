@@ -33,7 +33,10 @@ class ClaudeCodeExecutor implements Executor {
       await sink.appendStreamChunk(result.stderr, 'stderr');
     }
 
-    await sink.appendMessage(result.parsedResult.summary);
+    const summary = result.parsedResult.summary.trim();
+    if (summary && summary !== result.stdout.trim()) {
+      await sink.appendMessage(result.parsedResult.summary);
+    }
 
     return {
       exitCode: result.exitCode,
