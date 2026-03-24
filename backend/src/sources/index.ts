@@ -9,7 +9,7 @@ type AdapterConstructor = (new (source: TaskSourceLike) => TaskSourceAdapter) & 
 
 const adapters: Record<string, AdapterConstructor> = {};
 const DISCOVERY_DIR = path.dirname(fileURLToPath(import.meta.url));
-const IGNORED_FILES = new Set(['base.js', 'index.js']);
+const IGNORED_FILES = new Set(['base.js', 'index.js', 'base.ts', 'index.ts']);
 let loadPromise: Promise<void> | null = null;
 let adapterTypeConfigs: AdapterTypeDefinition[] | null = null;
 
@@ -51,7 +51,7 @@ async function loadLegacyAdapters() {
     loadPromise = (async () => {
       const files = await fs.readdir(DISCOVERY_DIR);
       const adapterFiles = files
-        .filter((file) => file.endsWith('.js'))
+        .filter((file) => file.endsWith('.js') || file.endsWith('.ts'))
         .filter((file) => !IGNORED_FILES.has(file))
         .sort();
 

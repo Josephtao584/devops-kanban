@@ -5,6 +5,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { TaskSourceService } from '../../src/services/taskSourceService.js';
+import { getAdapter } from '../../src/sources/index.js';
+import { InternalApiAdapter } from '../../src/sources/internalApi.js';
 import type {
   CreateTaskSourceInput,
   UpdateTaskSourceInput,
@@ -160,5 +162,124 @@ test.test('delete returns false when source not found', async () => {
     const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
     const result = await service.delete('99999');
     assert.equal(result, false);
+  });
+});
+
+test.test('previewSync uses INTERNAL_API adapter to return enriched preview tasks', async () => {
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+
+    const source = await service.create({
+      name: 'Internal Source',
+      type: 'INTERNAL_API',
+      project_id: 7,
+      config: {
+        baseUrl: 'https://internal.example',
+        listPath: '/tasks',
+        detailPath: '/tasks/{id}',
+        detailIdField: 'id',
+      },
+      enabled: true,
+    });
+
+    const originalRequest = InternalApiAdapter.prototype._request;
+    InternalApiAdapter.prototype._request = async function(pathValue: string) {
+      if (pathValue === '/tasks') {
+        return { data: [{ id: 'A-1', name: 'List title', status: 'open' }] };
+      }
+      if (pathValue === '/tasks/A-1') {
+        return {
+          data: {
+            id: 'A-1',
+            title: 'Detail title',
+            description: 'Detail body',
+            labels: ['platform'],
+            external_url: 'https://internal.example/tasks/A-1',
+            status: 'done',
+          },
+        };
+      }
+      throw new Error(`Unexpected path: ${pathValue}`);
+    };
+
+    try {
+      const preview = await service.previewSync(String(source.id));
+
+      assert.deepEqual(preview, [
+        {
+          external_id: 'A-1',
+          title: 'Detail title',
+          description: 'Detail body',
+          external_url: 'https://internal.example/tasks/A-1',
+          status: 'DONE',
+          labels: ['platform'],
+          created_at: null,
+          updated_at: null,
+          imported: false,
+        },
+      ]);
+    } finally {
+      InternalApiAdapter.prototype._request = originalRequest;
+    }
+
+    assert.ok(getAdapter('INTERNAL_API', source as never) instanceof InternalApiAdapter);
+
+  });
+});
+
+test.test('sync imports INTERNAL_API tasks with detail-enriched fields and deduplicates by external_id', async () => {
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+
+    const source = await service.create({
+      name: 'Internal Source',
+      type: 'INTERNAL_API',
+      project_id: 9,
+      config: {
+        baseUrl: 'https://internal.example',
+        listPath: '/tasks',
+        detailPath: '/tasks/{id}',
+        detailIdField: 'id',
+      },
+      enabled: true,
+    });
+
+    const originalRequest = InternalApiAdapter.prototype._request;
+    InternalApiAdapter.prototype._request = async function(pathValue: string) {
+      if (pathValue === '/tasks') {
+        return { data: [{ id: 'A-1', name: 'List title', status: 'open' }] };
+      }
+      if (pathValue === '/tasks/A-1') {
+        return {
+          data: {
+            id: 'A-1',
+            subject: 'Synced title',
+            content: 'Synced detail',
+            labels: [{ name: 'ops' }],
+            status: 'blocked',
+            external_url: 'https://internal.example/tasks/A-1',
+          },
+        };
+      }
+      throw new Error(`Unexpected path: ${pathValue}`);
+    };
+
+    try {
+      const firstSync = await service.sync(String(source.id));
+      const secondSync = await service.sync(String(source.id));
+
+      assert.equal(firstSync.length, 1);
+      assert.equal(secondSync.length, 1);
+      assert.equal(firstSync[0]?.external_id, 'A-1');
+      assert.equal(firstSync[0]?.title, 'Synced title');
+      assert.equal(firstSync[0]?.description, 'Synced detail');
+      assert.deepEqual(firstSync[0]?.labels, ['ops']);
+      assert.equal(firstSync[0]?.source, 'INTERNAL_API');
+      assert.equal(secondSync[0]?.id, firstSync[0]?.id);
+    } finally {
+      InternalApiAdapter.prototype._request = originalRequest;
+    }
+
+    assert.ok(getAdapter('INTERNAL_API', source as never) instanceof InternalApiAdapter);
   });
 });

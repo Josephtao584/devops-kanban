@@ -121,6 +121,47 @@ test.test('loadAdapterTypes reads default config file', async () => {
   assert.equal(result.every((typeDefinition) => typeof typeDefinition.key === 'string'), true);
 });
 
+test.test('loadAdapterTypes includes metadata-only INTERNAL_API definitions without request or mapping', async () => {
+  const result = await loadAdapterTypes();
+  const internalApi = result.find((typeDefinition) => typeDefinition.key === 'INTERNAL_API');
+
+  assert.deepEqual(internalApi, {
+    key: 'INTERNAL_API',
+    name: 'Internal API',
+    description: '从内部 API 同步任务（列表 + 详情两段拉取模板）',
+    configFields: {
+      baseUrl: {
+        type: 'string',
+        required: true,
+        description: 'Internal API base URL, for example https://internal.example.com',
+      },
+      token: {
+        type: 'string',
+        required: false,
+        description: 'Optional bearer token or API key',
+      },
+      listPath: {
+        type: 'string',
+        required: true,
+        description: 'Relative path for the list API, for example /api/tasks',
+      },
+      detailPath: {
+        type: 'string',
+        required: true,
+        description: 'Relative path template for the detail API, for example /api/tasks/{id}',
+      },
+      detailIdField: {
+        type: 'string',
+        required: false,
+        description: 'Field from the list item used to fill the detail path placeholder, defaults to id',
+        default: 'id',
+      },
+    },
+  });
+  assert.equal('request' in (internalApi ?? {}), false);
+  assert.equal('mapping' in (internalApi ?? {}), false);
+});
+
 test.test('substituteConfigPlaceholders resolves nested placeholders and preserves missing values', () => {
   assert.equal(
     substituteConfigPlaceholders('/repos/{repo}/issues/{filters.state}', {
