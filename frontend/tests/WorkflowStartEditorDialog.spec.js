@@ -40,7 +40,7 @@ const ElButtonStub = defineComponent({
       ...attrs,
       disabled: props.disabled,
       'data-type': props.type,
-      onClick: () => emit('click')
+      onClick: (event) => emit('click', event)
     }, slots.default?.())
   }
 })
@@ -161,7 +161,7 @@ describe('WorkflowStartEditorDialog', () => {
     vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
   })
 
-  it('renders workflow preview and focused step editor instead of nested edit dialogs', async () => {
+  it('renders workflow preview with a nested step details dialog trigger', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -175,13 +175,13 @@ describe('WorkflowStartEditorDialog', () => {
 
     expect(wrapper.find('.workflow-preview-section').exists()).toBe(true)
     expect(wrapper.findAll('.workflow-start-editor-step')).toHaveLength(2)
-    expect(wrapper.find('.step-editor-section').exists()).toBe(true)
-    expect(wrapper.find('.step-editor-card').exists()).toBe(true)
+    expect(wrapper.find('.step-editor-card').exists()).toBe(false)
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(1)
     expect(wrapper.find('.workflow-start-editor-step-name').text()).toBe('需求设计')
+    expect(wrapper.text()).toContain('详情')
   })
 
-  it('switches the focused step when a preview card is clicked', async () => {
+  it('switches the focused step when a preview card is clicked and opens its details dialog', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -193,13 +193,16 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    expect(wrapper.find('.step-editor-card__title').text()).toBe('需求设计')
     await wrapper.findAll('.workflow-start-editor-step')[1].trigger('click')
     await flushPromises()
+    await wrapper.findAll('button').filter((button) => button.text() === '详情')[1].trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(2)
     expect(wrapper.find('.step-editor-card__title').text()).toBe('代码开发')
   })
 
-  it('updates agent selection directly in the focused step editor', async () => {
+  it('updates agent selection in the nested step details dialog', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -209,16 +212,20 @@ describe('WorkflowStartEditorDialog', () => {
     })
 
     const wrapper = mountDialog()
+    await flushPromises()
+
+    await wrapper.findAll('button').filter((button) => button.text() === '详情')[0].trigger('click')
     await flushPromises()
 
     const select = wrapper.find('.el-select-stub')
     await select.setValue('2')
     await flushPromises()
 
-    expect(wrapper.find('.workflow-chip').text()).toContain('开发工程师 - 小李')
+    expect(wrapper.find('.step-editor-card .el-tag-stub').exists()).toBe(false)
+    expect(wrapper.findAll('.workflow-chip')[0].text()).toContain('开发工程师 - 小李')
   })
 
-  it('updates prompt directly in the focused step editor and includes it in the confirm payload', async () => {
+  it('updates prompt in the nested step details dialog and includes it in the confirm payload', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -230,11 +237,12 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
+    await wrapper.findAll('button').filter((button) => button.text() === '详情')[0].trigger('click')
+    await flushPromises()
+
     const textarea = wrapper.find('textarea')
     await textarea.setValue('更新后的提示词内容。')
     await flushPromises()
-
-    expect(wrapper.find('.workflow-start-editor-prompt-text').text()).toContain('更新后的提示词内容。')
 
     await wrapper.find('button[data-type="primary"]').trigger('click')
 
