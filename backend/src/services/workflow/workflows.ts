@@ -81,8 +81,10 @@ function buildDevWorkflow() {
     outputSchema: stepResultSchema,
     stateSchema: sharedStateSchema,
     execute: async ({ inputData, state }: { inputData: { taskId: number; taskTitle: string; taskDescription: string; worktreePath: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
+      const workflowContext = getWorkflowExecutionContext();
       return await executeWorkflowStep({
-        ...(getWorkflowExecutionContext() ? { context: getWorkflowExecutionContext() || undefined } : {}),
+        ...(workflowContext ? { context: workflowContext || undefined } : {}),
+        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
         stepId: 'requirement-design',
         ...buildStepExecutorInput({
           state,
@@ -99,8 +101,10 @@ function buildDevWorkflow() {
     outputSchema: stepResultSchema,
     stateSchema: sharedStateSchema,
     execute: async ({ inputData, state }: { inputData: { summary: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
+      const workflowContext = getWorkflowExecutionContext();
       return await executeWorkflowStep({
-        ...(getWorkflowExecutionContext() ? { context: getWorkflowExecutionContext() || undefined } : {}),
+        ...(workflowContext ? { context: workflowContext || undefined } : {}),
+        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
         stepId: 'code-development',
         ...buildStepExecutorInput({
           state,
@@ -117,8 +121,10 @@ function buildDevWorkflow() {
     outputSchema: stepResultSchema,
     stateSchema: sharedStateSchema,
     execute: async ({ inputData, state }: { inputData: { summary: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
+      const workflowContext = getWorkflowExecutionContext();
       return await executeWorkflowStep({
-        ...(getWorkflowExecutionContext() ? { context: getWorkflowExecutionContext() || undefined } : {}),
+        ...(workflowContext ? { context: workflowContext || undefined } : {}),
+        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
         stepId: 'testing',
         ...buildStepExecutorInput({
           state,
@@ -135,8 +141,10 @@ function buildDevWorkflow() {
     outputSchema: stepResultSchema,
     stateSchema: sharedStateSchema,
     execute: async ({ inputData, state }: { inputData: { summary: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
+      const workflowContext = getWorkflowExecutionContext();
       return await executeWorkflowStep({
-        ...(getWorkflowExecutionContext() ? { context: getWorkflowExecutionContext() || undefined } : {}),
+        ...(workflowContext ? { context: workflowContext || undefined } : {}),
+        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
         stepId: 'code-review',
         ...buildStepExecutorInput({
           state,

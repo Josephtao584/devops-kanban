@@ -14,22 +14,27 @@ type StoredEntity<TCreate extends object> = TCreate & BaseEntity;
 class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate extends object = Partial<TCreate>> {
   fileName: string;
   filepath: string;
+  initializationPromise: Promise<void>;
 
   constructor(fileName: string, { storagePath = STORAGE_PATH as string }: { storagePath?: string } = {}) {
     this.fileName = fileName;
     this.filepath = path.join(storagePath, fileName);
-    void this._ensureFileExists();
+    this.initializationPromise = this._ensureFileExists();
   }
 
   async _ensureFileExists() {
+    await fs.mkdir(path.dirname(this.filepath), { recursive: true });
     try {
-      await fs.access(this.filepath);
-    } catch {
-      await this._saveAll([]);
+      await fs.writeFile(this.filepath, '[]', { encoding: 'utf-8', flag: 'wx' });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
     }
   }
 
   async _loadAll(): Promise<T[]> {
+    await this.initializationPromise;
     try {
       const data = await fs.readFile(this.filepath, 'utf-8');
       return JSON.parse(data) as T[];
@@ -39,6 +44,7 @@ class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate exten
   }
 
   async _saveAll(data: T[]) {
+    await this.initializationPromise;
     await fs.mkdir(path.dirname(this.filepath), { recursive: true });
     await fs.writeFile(this.filepath, JSON.stringify(data, null, 2), 'utf-8');
   }
