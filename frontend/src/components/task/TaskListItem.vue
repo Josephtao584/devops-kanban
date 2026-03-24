@@ -89,6 +89,19 @@
         <div v-if="task.description && !compact" class="task-description">
           {{ task.description }}
         </div>
+        <button
+          class="workflow-collapse-btn description-collapse-btn"
+          @click.stop="$emit('toggle-workflow', task.id)"
+          :title="workflowExpanded ? '收起 Workflow' : '展开 Workflow'"
+        >
+          <svg v-if="workflowExpanded" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+            <path d="M19 18l-6-6 6-6"></path>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -110,28 +123,7 @@
               <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
             </svg>
           </button>
-          <button
-            class="workflow-collapse-btn"
-            @click.stop="$emit('toggle-workflow', task.id)"
-            title="收起 Workflow"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M15 18l-6-6 6-6"></path>
-              <path d="M19 18l-6-6 6-6"></path>
-            </svg>
-          </button>
         </div>
-        <button
-          v-else
-          class="workflow-collapse-btn"
-          @click.stop="$emit('toggle-workflow', task.id)"
-          title="收起"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 18l-6-6 6-6"></path>
-            <path d="M19 18l-6-6 6-6"></path>
-          </svg>
-        </button>
 
         <div v-if="currentNode" class="workflow-section node-detail">
           <span class="node-detail-name">{{ currentNode.name }}</span>
@@ -153,7 +145,7 @@
         </div>
 
         <div class="workflow-section quick-actions">
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'start')">
+          <button v-if="!running" class="quick-action-btn" @click.stop="$emit('workflow-action', 'start')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
@@ -636,8 +628,9 @@ const openWorktreeDirectory = () => {
 
 .task-title-left {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -669,6 +662,11 @@ const openWorktreeDirectory = () => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.task-description-row .workflow-collapse-btn {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .task-description {

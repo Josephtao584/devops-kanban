@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useCrudStore } from '../composables/useCrudStore'
+import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import * as taskApi from '../api/task'
 
 export const useTaskStore = defineStore('task', () => {
@@ -16,6 +17,16 @@ export const useTaskStore = defineStore('task', () => {
     // getTasks requires projectId parameter
     fetchAllParams: () => null  // Will be overridden in custom fetchTasks
   })
+
+  const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'Task request failed' })
+  const unwrap = (response, fallbackMessage) => {
+    try {
+      return apiError.unwrapResponse(response, fallbackMessage)
+    } catch (e) {
+      crud.error.value = e.message
+      throw e
+    }
+  }
 
   // Custom getters
   const tasksByStatus = computed(() => {
@@ -47,13 +58,8 @@ export const useTaskStore = defineStore('task', () => {
     crud.error.value = null
     try {
       const response = await taskApi.getTasks(projectId)
-      if (response.success) {
-        crud.items.value = response.data
-      }
+      crud.items.value = unwrap(response, 'Failed to fetch tasks') || []
       return response
-    } catch (e) {
-      crud.error.value = e.message
-      throw e
     } finally {
       crud.loading.value = false
     }
@@ -64,19 +70,15 @@ export const useTaskStore = defineStore('task', () => {
     crud.error.value = null
     try {
       const response = await taskApi.updateTaskStatus(id, status)
-      if (response.success) {
-        const index = crud.items.value.findIndex(t => t.id === id)
-        if (index !== -1) {
-          crud.items.value[index] = response.data
-        }
-        if (crud.currentItem.value?.id === id) {
-          crud.currentItem.value = response.data
-        }
+      const updatedTask = unwrap(response, 'Failed to update task status')
+      const index = crud.items.value.findIndex(t => t.id === id)
+      if (index !== -1) {
+        crud.items.value[index] = updatedTask
+      }
+      if (crud.currentItem.value?.id === id) {
+        crud.currentItem.value = updatedTask
       }
       return response
-    } catch (e) {
-      crud.error.value = e.message
-      throw e
     } finally {
       crud.loading.value = false
     }

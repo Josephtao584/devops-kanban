@@ -111,11 +111,11 @@ export const getStatus = (projectId, taskId) =>
   api.get(`/git/worktrees/${taskId}/status`, { params: { projectId } })
 
 /**
- * Get diff for a worktree
+ * Get uncommitted diff for a worktree
  */
-export const getDiff = (projectId, taskId, { source, target } = {}) =>
+export const getDiff = (projectId, taskId) =>
   api.get(`/git/worktrees/${taskId}/diff`, {
-    params: { projectId, source, target }
+    params: { projectId }
   })
 
 /**

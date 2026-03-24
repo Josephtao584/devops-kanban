@@ -649,7 +649,7 @@ const saveAgent = async () => {
     showToast(t('messages.saved', { name: t('agent.title') }))
   } catch (e) {
     console.error('Failed to save:', e)
-    showToast(t('messages.saveFailed', { name: t('agent.title') }), 'error')
+    showToast(e?.message || t('messages.saveFailed', { name: t('agent.title') }), 'error')
   } finally {
     saving.value = false
   }
@@ -692,7 +692,7 @@ const confirmDelete = async () => {
     }
     showToast(t('messages.deleted', { name: t('agent.title') }))
   } catch (e) {
-    showToast(t('messages.deleteFailed', { name: t('agent.title') }), 'error')
+    showToast(e?.message || t('messages.deleteFailed', { name: t('agent.title') }), 'error')
   }
 }
 

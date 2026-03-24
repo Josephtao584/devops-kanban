@@ -1,178 +1,174 @@
 import { ref } from 'vue'
 import { useSessionStore } from '../stores/sessionStore'
-import { ElMessage } from 'element-plus'
+import { useToast } from './ui/useToast'
 
-/**
- * Composable for managing session lifecycle
- * Uses sessionStore internally to eliminate duplicate code
- */
+const ACTIVE_SESSION_ERROR = 'No active session found'
+
 export function useSessionManager() {
   const sessionStore = useSessionStore()
+  const toast = useToast()
   const session = ref(null)
   const isStarting = ref(false)
   const isStopping = ref(false)
 
-  /**
-   * Create a new session for a task
-   */
+  const emitStatusChange = (onStatusChange) => {
+    if (onStatusChange && session.value) {
+      onStatusChange(session.value.status)
+    }
+  }
+
   async function createSession(taskId, agentId) {
     if (!agentId) {
       return null
     }
 
     if (session.value) {
-      console.log('[useSessionManager] Session already exists:', session.value.id)
       return session.value
     }
 
     try {
       const newSession = await sessionStore.createSession(taskId, agentId)
-      if (newSession) {
-        session.value = newSession
-        return session.value
-      }
-      return null
+      session.value = newSession
+      return session.value
     } catch (e) {
-      ElMessage.error(e.message || 'Failed to create session')
+      toast.error(e.message || 'Failed to create session')
       return null
     }
   }
 
-  /**
-   * Start an existing session
-   */
-  async function startSession(onStatusChange) {
+  async function deleteSession() {
     if (!session.value) return false
 
-    if (isStarting.value) {
-      console.warn('Session is already starting')
+    try {
+      const response = await sessionStore.deleteSession(session.value.id)
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to delete session')
+      }
+      session.value = null
+      return true
+    } catch (e) {
+      toast.error(e.message || 'Failed to delete session')
       return false
     }
+  }
+
+  async function startSession(onStatusChange) {
+    if (!session.value) return false
+    if (isStarting.value) return false
 
     isStarting.value = true
-
     try {
       const updatedSession = await sessionStore.startSession(session.value.id)
-      if (updatedSession) {
-        session.value = updatedSession
-        if (onStatusChange) {
-          onStatusChange(session.value.status)
-        }
-        return true
-      }
-      return false
+      session.value = updatedSession
+      emitStatusChange(onStatusChange)
+      return true
     } catch (e) {
-      ElMessage.error(e.message || 'Failed to start session')
+      toast.error(e.message || 'Failed to start session')
       return false
     } finally {
       isStarting.value = false
     }
   }
 
-  /**
-   * Stop the current session
-   */
   async function stopSession(onStatusChange, onStopped) {
     if (!session.value) return false
 
     isStopping.value = true
     try {
       const updatedSession = await sessionStore.stopSession(session.value.id)
-      if (updatedSession) {
-        session.value = updatedSession
-        if (onStatusChange) {
-          onStatusChange(session.value.status)
-        }
-        if (onStopped) {
-          onStopped()
-        }
-        return true
+      session.value = updatedSession
+      emitStatusChange(onStatusChange)
+      if (onStopped) {
+        onStopped()
       }
+      return true
     } catch (e) {
-      ElMessage.error('Failed to stop session')
+      toast.error(e.message || 'Failed to stop session')
+      return false
     } finally {
       isStopping.value = false
     }
-    return false
   }
 
-  /**
-   * Load active session for a task
-   */
   async function loadActiveSession(taskId) {
     try {
       const activeSession = await sessionStore.fetchActiveSession(taskId)
-      if (activeSession) {
-        session.value = activeSession
-        return activeSession
-      }
+      session.value = activeSession
+      return activeSession
     } catch (e) {
-      console.error('Failed to load active session:', e)
+      if (e?.message !== ACTIVE_SESSION_ERROR) {
+        console.error('Failed to load active session:', e)
+      }
+      return null
     }
-    return null
   }
 
-  /**
-   * Continue a stopped session with new input
-   */
   async function continueSession(input, onStatusChange) {
     if (!session.value) return false
 
     try {
       const updatedSession = await sessionStore.continueSession(session.value.id, input)
-      if (updatedSession) {
-        session.value = updatedSession
-        if (onStatusChange) {
-          onStatusChange(session.value.status)
-        }
-        return true
-      }
-      return false
+      session.value = updatedSession
+      emitStatusChange(onStatusChange)
+      return true
     } catch (e) {
-      ElMessage.error(e.message || 'Failed to continue session')
+      toast.error(e.message || 'Failed to continue session')
       return false
     }
   }
 
-  /**
-   * Refresh session data from server
-   */
+  async function sendInput(input) {
+    if (!session.value) return false
+
+    try {
+      return await sessionStore.sendInput(session.value.id, input)
+    } catch (e) {
+      toast.error(e.message || 'Failed to send session input')
+      return false
+    }
+  }
+
   async function refreshSession() {
     if (!session.value) return null
 
-    // Use sessionStore's startSession with existing id to get fresh data
-    // Actually, there's no direct refresh method in sessionStore
-    // Let's just return current session
-    return session.value
+    try {
+      const refreshedSession = await sessionStore.fetchSession(session.value.id)
+      session.value = refreshedSession
+      return refreshedSession
+    } catch (e) {
+      console.error('Failed to refresh session:', e)
+      return session.value
+    }
   }
 
-  /**
-   * Set session data directly
-   */
   function setSession(sessionData) {
     session.value = sessionData
   }
 
-  /**
-   * Clear session data
-   */
   function clearSession() {
     session.value = null
   }
 
+  function hasActiveSession() {
+    return ['CREATED', 'RUNNING', 'IDLE'].includes(session.value?.status)
+  }
+
   return {
-    // State
     session,
     isStarting,
     isStopping,
-    // Actions
     createSession,
+    deleteSession,
     startSession,
     stopSession,
     loadActiveSession,
     continueSession,
+    sendInput,
     refreshSession,
     setSession,
-    clearSession
+    clearSession,
+    hasActiveSession
   }
 }
+
+export default useSessionManager
