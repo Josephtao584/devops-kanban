@@ -134,7 +134,10 @@ const WorkflowTemplateSelectDialogStub = defineComponent({
       ? h('div', { class: 'workflow-template-select-dialog-stub' }, [
           h('button', {
             class: 'confirm-template-selection',
-            onClick: () => emit('confirm', { templateId: 'quick-fix-v1', autoCreateWorktree: false })
+            onClick: () => emit('confirm', {
+              templateId: 'quick-fix-v1',
+              autoCreateWorktree: false
+            })
           }, 'confirm quick-fix')
         ])
       : null

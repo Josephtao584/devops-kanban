@@ -146,14 +146,14 @@ async function assertStartWorkflowValidationFailure(
   assertNoRunCreated(harness);
 }
 
-async function assertStructuralDriftFailure(steps: TemplateStep[]) {
+async function assertTemplateValidationFailure(steps: TemplateStep[], expectedMessage: RegExp) {
   const harness = createStartWorkflowHarness({
     template: buildTemplateWithSteps(steps),
   });
 
   await assertStartWorkflowValidationFailure(
     harness,
-    /Workflow template steps do not match the workflow definition/,
+    expectedMessage,
   );
 }
 
@@ -1027,20 +1027,52 @@ test.test('startWorkflow rejects a template step whose agent skills config is in
   );
 });
 
-test.test('startWorkflow rejects a template missing a required workflow step id', async () => {
-  await assertStructuralDriftFailure(removeStep('testing'));
+test.test('startWorkflow accepts a template missing a previously built-in step id as long as agent bindings are valid', async () => {
+  const selectedTemplate = buildNamedTemplate('custom-missing-testing', removeStep('testing'));
+  const harness = createStartWorkflowHarness({
+    template: selectedTemplate,
+  });
+
+  await harness.service.startWorkflow(1, 'custom-missing-testing');
+
+  const createdRun = harness.createCalls[0];
+  assert.ok(createdRun);
+  assert.equal(createdRun.workflow_id, 'custom-missing-testing');
+  assert.equal(createdRun.workflow_template_id, 'custom-missing-testing');
+  assert.deepEqual(createdRun.workflow_template_snapshot, selectedTemplate);
 });
 
 test.test('startWorkflow rejects a template with a duplicate workflow step id', async () => {
-  await assertStructuralDriftFailure(duplicateStep('requirement-design'));
+  await assertTemplateValidationFailure(duplicateStep('requirement-design'), /Workflow template step ids must be unique/);
 });
 
-test.test('startWorkflow rejects a template with an extra workflow step id', async () => {
-  await assertStructuralDriftFailure(appendExtraStep());
+test.test('startWorkflow accepts a template with extra custom workflow steps', async () => {
+  const selectedTemplate = buildNamedTemplate('custom-extra-step', appendExtraStep());
+  const harness = createStartWorkflowHarness({
+    template: selectedTemplate,
+    agentRecords: new Map([...buildValidAgents(), [99, buildAgent(99, { executorType: 'CLAUDE_CODE' })]]),
+  });
+
+  await harness.service.startWorkflow(1, 'custom-extra-step');
+
+  const createdRun = harness.createCalls[0];
+  assert.ok(createdRun);
+  assert.equal(createdRun.workflow_id, 'custom-extra-step');
+  assert.deepEqual(createdRun.workflow_template_snapshot, selectedTemplate);
 });
 
-test.test('startWorkflow rejects a template with workflow steps in the wrong order', async () => {
-  await assertStructuralDriftFailure(reorderSteps());
+test.test('startWorkflow accepts a template with workflow steps in a custom order', async () => {
+  const selectedTemplate = buildNamedTemplate('custom-reordered', reorderSteps());
+  const harness = createStartWorkflowHarness({
+    template: selectedTemplate,
+  });
+
+  await harness.service.startWorkflow(1, 'custom-reordered');
+
+  const createdRun = harness.createCalls[0];
+  assert.ok(createdRun);
+  assert.equal(createdRun.workflow_id, 'custom-reordered');
+  assert.deepEqual(createdRun.workflow_template_snapshot, selectedTemplate);
 });
 
 
@@ -1250,8 +1282,10 @@ test.test('executeWorkflow stops before creating the stream when cancellation wi
 
   assert.equal(harness.run.status, 'CANCELLED');
   assert.deepEqual(harness.run.context, {});
-  assert.equal(harness.getCreateWorkflowStreamCalls(), 0);
-  assert.equal(harness.taskUpdates.length, 0);
+  assert.equal(harness.run.current_step, null);
+  assert.deepEqual(harness.taskUpdates, [
+    { taskId: 1, updateData: { status: 'TODO' } },
+  ]);
   assert.deepEqual(harness.runUpdates, [
     { status: 'RUNNING' },
     { status: 'CANCELLED' },
@@ -1308,23 +1342,16 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
   });
 
   (harness.service as WorkflowService & {
-    _createWorkflowStream: () => Promise<{
-      fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
-      result: Promise<{ status: string; result: Record<string, unknown> }>;
-    }>;
-  })._createWorkflowStream = async () => ({
-    fullStream: (async function* () {
-      yield {
-        type: 'workflow-step-start',
-        payload: { stepName: 'requirement-design' },
-      };
-      resolveStepStarted?.();
-    })(),
-    result: (async () => {
-      await resultResolved;
-      return { status: 'success', result: { summary: 'ignored after cancel' } };
-    })(),
-  });
+    _runWorkflowTemplate: (args: Record<string, unknown>) => Promise<{ status: string; result: Record<string, unknown> }>;
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._runWorkflowTemplate = async () => {
+    await (harness.service as WorkflowService & {
+      _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+    })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+    resolveStepStarted?.();
+    await resultResolved;
+    return { status: 'success', result: { summary: 'ignored after cancel' } };
+  };
 
   const executionPromise = (harness.service as WorkflowService & {
     _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
@@ -1343,7 +1370,9 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
   assert.equal(harness.run.steps[0]?.session_id, 101);
   assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
   assert.equal(harness.segments[0]?.status, 'CANCELLED');
-  assert.equal(harness.taskUpdates.length, 0);
+  assert.deepEqual(harness.taskUpdates, [
+    { taskId: 1, updateData: { status: 'TODO' } },
+  ]);
   assert.deepEqual(harness.runUpdates, [
     { status: 'RUNNING' },
     { current_step: 'requirement-design' },
@@ -1355,6 +1384,13 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
 
 test.test('executeWorkflow does not mark the task DONE when cancellation wins after success finalization begins', async () => {
   const harness = createSuccessFinalizationRaceHarness();
+
+  (harness.service as WorkflowService & {
+    _runWorkflowTemplate: () => Promise<{ status: string; result?: Record<string, unknown> }>;
+  })._runWorkflowTemplate = async () => ({
+    status: 'success',
+    result: { summary: 'ignored after cancel' },
+  });
 
   const executionPromise = (harness.service as WorkflowService & {
     _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
@@ -1372,10 +1408,12 @@ test.test('executeWorkflow does not mark the task DONE when cancellation wins af
 
   assert.equal(harness.run.status, 'CANCELLED');
   assert.deepEqual(harness.run.context, {});
-  assert.equal(harness.taskUpdates.length, 0);
+  assert.deepEqual(harness.taskUpdates, [
+    { taskId: 1, updateData: { status: 'TODO' } },
+  ]);
   assert.deepEqual(harness.runUpdates, [
     { status: 'RUNNING' },
-    { status: 'COMPLETED', context: { summary: 'ignored after cancel' } },
+    { status: 'COMPLETED', context: { summary: 'ignored after cancel' }, current_step: null },
     { status: 'CANCELLED' },
   ]);
 });
