@@ -86,4 +86,48 @@ describe('TaskSourceConfig', () => {
 
     expect(taskSourceStore.fetchTaskSources).toHaveBeenCalledWith('project-1')
   })
+
+  it('shows INTERNAL_API friendly labels and placeholders', async () => {
+    const taskSourceStore = useTaskSourceStore()
+    taskSourceStore.availableTypes = [
+      {
+        key: 'INTERNAL_API',
+        name: 'Internal API',
+        configFields: {
+          baseUrl: { type: 'string', required: true, description: 'base' },
+          token: { type: 'string', required: false, description: 'token' },
+          listPath: { type: 'string', required: true, description: 'list path' },
+          detailPath: { type: 'string', required: true, description: 'detail path' },
+          detailIdField: { type: 'string', required: false, description: 'detail field' }
+        }
+      }
+    ]
+
+    const wrapper = mountView()
+    await flushPromises()
+    wrapper.vm.formData.type = 'INTERNAL_API'
+
+    expect(wrapper.vm.getFieldLabel('baseUrl', {})).toBe('API 基础地址')
+    expect(wrapper.vm.getFieldLabel('listPath', {})).toBe('列表接口路径')
+    expect(wrapper.vm.getFieldLabel('detailPath', {})).toBe('详情接口路径模板')
+    expect(wrapper.vm.getFieldLabel('detailIdField', {})).toBe('详情ID字段')
+
+    expect(wrapper.vm.getFieldPlaceholder('baseUrl', {})).toBe('例如: https://internal.example.com')
+    expect(wrapper.vm.getFieldPlaceholder('token', {})).toBe('例如: Bearer xxx 或 ApiKey xxx')
+    expect(wrapper.vm.getFieldPlaceholder('listPath', {})).toBe('例如: /api/tasks')
+    expect(wrapper.vm.getFieldPlaceholder('detailPath', {})).toBe('例如: /api/tasks/{id}')
+    expect(wrapper.vm.getFieldPlaceholder('detailIdField', {})).toBe('例如: id 或 data.taskId')
+  })
+
+  it('keeps non-INTERNAL_API placeholders unchanged', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.vm.formData.type = 'GITHUB'
+    expect(wrapper.vm.getFieldPlaceholder('token', {})).toBe('ghp_xxx...')
+
+    wrapper.vm.formData.type = 'GITLAB'
+    expect(wrapper.vm.getFieldLabel('baseUrl', {})).toBe('API 地址')
+    expect(wrapper.vm.getFieldPlaceholder('baseUrl', {})).toBe('https://gitlab.com/api/v4')
+  })
 })

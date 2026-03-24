@@ -338,25 +338,50 @@ const getTypeIcon = (type) => {
 }
 
 const getFieldLabel = (key, field) => {
-  const labels = {
+  const selectedType = formData.value.type
+  const commonLabels = {
     repo: '仓库',
     token: '访问令牌',
     state: 'Issue 状态',
     labels: '标签筛选',
     baseUrl: 'API 地址'
   }
-  return labels[key] || field.description || key
+
+  if (selectedType === 'INTERNAL_API') {
+    const internalApiLabels = {
+      baseUrl: 'API 基础地址',
+      listPath: '列表接口路径',
+      detailPath: '详情接口路径模板',
+      detailIdField: '详情ID字段'
+    }
+    return internalApiLabels[key] || commonLabels[key] || field.description || key
+  }
+
+  return commonLabels[key] || field.description || key
 }
 
 const getFieldPlaceholder = (key, field) => {
-  const placeholders = {
+  const selectedType = formData.value.type
+  const commonPlaceholders = {
     repo: '例如: owner/repo',
     token: 'ghp_xxx...',
     state: '选择 Issue 状态',
     labels: '选择标签',
     baseUrl: 'https://gitlab.com/api/v4'
   }
-  return placeholders[key] || field.description || ''
+
+  if (selectedType === 'INTERNAL_API') {
+    const internalApiPlaceholders = {
+      baseUrl: '例如: https://internal.example.com',
+      token: '例如: Bearer xxx 或 ApiKey xxx',
+      listPath: '例如: /api/tasks',
+      detailPath: '例如: /api/tasks/{id}',
+      detailIdField: '例如: id 或 data.taskId'
+    }
+    return internalApiPlaceholders[key] || commonPlaceholders[key] || field.description || ''
+  }
+
+  return commonPlaceholders[key] || field.description || ''
 }
 
 const loadProjects = async () => {

@@ -96,6 +96,32 @@ adapterTypes:
         closed: DONE
       external_id: "toString"
 
+  - key: INTERNAL_API
+    name: Internal API
+    description: 从内部 API 同步任务（列表 + 详情两段拉取模板）
+    configFields:
+      baseUrl:
+        type: string
+        required: true
+        description: "Internal API base URL, for example https://internal.example.com"
+      token:
+        type: string
+        required: false
+        description: "Optional bearer token or API key"
+      listPath:
+        type: string
+        required: true
+        description: "Relative path for the list API, for example /api/tasks"
+      detailPath:
+        type: string
+        required: true
+        description: "Relative path template for the detail API, for example /api/tasks/{id}"
+      detailIdField:
+        type: string
+        required: false
+        description: "Field from the list item used to fill the detail path placeholder, defaults to id"
+        default: id
+
 # Future adapters can be added here, e.g.:
 #   - key: JIRA
 #     name: Jira Issues
