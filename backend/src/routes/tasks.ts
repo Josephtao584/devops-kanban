@@ -123,7 +123,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Params: IdParams; Body: StartTaskInput }>('/:id/start', async (request, reply) => {
     try {
-      const task = await taskService.startTask(parseNumber(request.params.id), request.body);
+      const task = await taskService.startTask(parseNumber(request.params.id), request.body as StartTaskInput);
       return successResponse(task, 'Task started successfully');
     } catch (error) {
       request.log.error(error);

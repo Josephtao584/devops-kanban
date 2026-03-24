@@ -11,6 +11,7 @@ import { useTaskStore } from '../src/stores/taskStore'
 import { useIterationStore } from '../src/stores/iterationStore'
 import { useTaskSourceStore } from '../src/stores/taskSourceStore'
 import { startTask } from '../src/api/task.js'
+import { getWorkflowTemplateById } from '../src/api/workflowTemplate.js'
 
 vi.mock('../src/api/task.js', async () => {
   const actual = await vi.importActual('../src/api/task.js')
@@ -38,6 +39,27 @@ vi.mock('../src/api/workflowTemplate.js', () => ({
         steps: []
       }
     ]
+  }),
+  getWorkflowTemplateById: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      template_id: 'quick-fix-v1',
+      name: '快速修复工作流',
+      steps: [
+        {
+          id: 'triage',
+          name: '问题定位',
+          instructionPrompt: '先确认问题范围。',
+          agentId: 11
+        },
+        {
+          id: 'fix',
+          name: '实施修复',
+          instructionPrompt: '完成最小修复。',
+          agentId: 12
+        }
+      ]
+    }
   })
 }))
 
@@ -114,6 +136,37 @@ const WorkflowTemplateSelectDialogStub = defineComponent({
             class: 'confirm-template-selection',
             onClick: () => emit('confirm', 'quick-fix-v1')
           }, 'confirm quick-fix')
+        ])
+      : null
+  }
+})
+
+const WorkflowStartEditorDialogStub = defineComponent({
+  name: 'WorkflowStartEditorDialog',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    draftTemplate: { type: Object, default: null }
+  },
+  emits: ['update:modelValue', 'confirm'],
+  setup(props, { emit }) {
+    return () => props.modelValue
+      ? h('div', { class: 'workflow-start-editor-dialog-stub' }, [
+          h('div', { class: 'draft-template-id' }, props.draftTemplate?.template_id || ''),
+          h('div', { class: 'workflow-step-flow-stub' }, props.draftTemplate?.steps?.map((step) => h('div', { class: 'workflow-step-card-stub' }, [
+            h('span', { class: 'workflow-step-name-stub' }, step.name),
+            h('span', { class: 'workflow-step-id-stub' }, step.id)
+          ])) || []),
+          h('button', {
+            class: 'confirm-workflow-edit',
+            onClick: () => emit('confirm', {
+              ...props.draftTemplate,
+              template_id: 'quick-fix-v1-custom',
+              steps: props.draftTemplate?.steps?.map((step, index) => ({
+                ...step,
+                instructionPrompt: index === 0 ? '先确认问题范围，并记录复现条件。' : step.instructionPrompt
+              })) || []
+            })
+          }, 'confirm workflow edit')
         ])
       : null
   }
@@ -235,6 +288,7 @@ function mountView() {
         TaskButlerChat: passthroughStub('TaskButlerChat'),
         ChatBox: passthroughStub('ChatBox'),
         WorkflowTemplateSelectDialog: WorkflowTemplateSelectDialogStub,
+        WorkflowStartEditorDialog: WorkflowStartEditorDialogStub,
         IterationSelect: IterationSelectStub,
         draggable: true,
         'el-dialog': ElDialogStub,
@@ -250,6 +304,9 @@ function mountView() {
 }
 
 describe('KanbanView workflow start entrypoint', () => {
+  beforeEach(() => {
+    getWorkflowTemplateById.mockClear()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
@@ -298,7 +355,29 @@ describe('KanbanView workflow start entrypoint', () => {
     expect(wrapper.find('.workflow-template-select-dialog-stub').exists()).toBe(true)
   })
 
-  it('starts the selected task with workflow_template_id after confirmation', async () => {
+  it('opens workflow edit after template selection before starting the task', async () => {
+    startTask.mockResolvedValue({ success: true })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-template-selection').trigger('click')
+    await flushPromises()
+
+    expect(getWorkflowTemplateById).toHaveBeenCalledWith('quick-fix-v1')
+    expect(startTask).not.toHaveBeenCalled()
+    expect(wrapper.find('.workflow-template-select-dialog-stub').exists()).toBe(false)
+    expect(wrapper.find('.workflow-start-editor-dialog-stub').exists()).toBe(true)
+    expect(wrapper.find('.draft-template-id').text()).toBe('quick-fix-v1')
+    expect(wrapper.find('.workflow-step-flow-stub').exists()).toBe(true)
+    expect(wrapper.findAll('.workflow-step-card-stub')).toHaveLength(2)
+    expect(wrapper.findAll('.workflow-step-name-stub')[0].text()).toBe('问题定位')
+  })
+
+  it('starts the selected task with workflow_template_id and edited workflow_template_snapshot after edit confirmation', async () => {
     startTask.mockResolvedValue({ success: true })
 
     const wrapper = mountView()
@@ -311,9 +390,29 @@ describe('KanbanView workflow start entrypoint', () => {
     await flushPromises()
     await wrapper.find('.confirm-template-selection').trigger('click')
     await flushPromises()
+    await wrapper.find('.confirm-workflow-edit').trigger('click')
+    await flushPromises()
 
     expect(startTask).toHaveBeenCalledWith(7, {
-      workflow_template_id: 'quick-fix-v1'
+      workflow_template_id: 'quick-fix-v1',
+      workflow_template_snapshot: {
+        template_id: 'quick-fix-v1-custom',
+        name: '快速修复工作流',
+        steps: [
+          {
+            id: 'triage',
+            name: '问题定位',
+            instructionPrompt: '先确认问题范围，并记录复现条件。',
+            agentId: 11
+          },
+          {
+            id: 'fix',
+            name: '实施修复',
+            instructionPrompt: '完成最小修复。',
+            agentId: 12
+          }
+        ]
+      }
     })
     expect(ElMessage.success).toHaveBeenCalledWith('任务已启动')
     expect(taskStore.fetchTasks).toHaveBeenCalledTimes(2)
