@@ -157,26 +157,73 @@ test.test('ExecutionEventSink normalizes raw executor events through append', as
     },
   });
 
-  await sink.append({ kind: 'tool_call', role: 'user', content: 'shell', payload: { arguments: { cwd: '/tmp/worktree' } } });
-  await sink.append({ kind: 'tool_result', role: 'assistant', content: 'shell', payload: { result: { exitCode: 0 } } });
-  await sink.append({ kind: 'status', role: 'assistant', content: 'ignored status', payload: { from: 'QUEUED', to: 'RUNNING' } });
+  await sink.append({ kind: 'tool_call', role: 'user', content: 'shell', payload: { arguments: { cwd: '/tmp/worktree' }, traceId: 'trace-1' } });
+  await sink.append({ kind: 'tool_result', role: 'assistant', content: 'shell', payload: { result: { exitCode: 0 }, traceId: 'trace-2' } });
+  await sink.append({ kind: 'status', role: 'assistant', content: 'ignored status', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } });
   await sink.append({ kind: 'artifact', role: 'system', content: 'design.md', payload: { artifact_type: 'file' } });
-  await sink.append({ kind: 'stream_chunk', role: 'user', content: 'stderr output', payload: { stream: 'stderr' } });
+  await sink.append({ kind: 'stream_chunk', role: 'user', content: 'stderr output', payload: { stream: 'stderr', source: 'pty' } });
   await sink.append({ kind: 'message', role: 'user', content: 'raw note' });
 
   assert.deepEqual(events, [
-    { kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'shell', arguments: { cwd: '/tmp/worktree' } } },
-    { kind: 'tool_result', role: 'tool', content: 'shell', payload: { tool_name: 'shell', result: { exitCode: 0 } } },
-    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+    { kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'shell', arguments: { cwd: '/tmp/worktree' }, traceId: 'trace-1' } },
+    { kind: 'tool_result', role: 'tool', content: 'shell', payload: { tool_name: 'shell', result: { exitCode: 0 }, traceId: 'trace-2' } },
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } },
     { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file' } },
-    { kind: 'stream_chunk', role: 'system', content: 'stderr output', payload: { stream: 'stderr' } },
+    { kind: 'stream_chunk', role: 'system', content: 'stderr output', payload: { stream: 'stderr', source: 'pty' } },
     { kind: 'message', role: 'user', content: 'raw note', payload: {} },
   ]);
 });
 
 
+test.test('ClaudeCodeExecutor suppresses duplicate summary events when parsed summary matches stdout', async () => {
+  const proc: ExecutorProcessHandle = {
+    kill() {
+      return true;
+    },
+  };
+  const events: WorkflowExecutionEvent[] = [];
+  const providerStates: ExecutorProviderState[] = [];
+  const executor = new ClaudeCodeExecutor({
+    runner: {
+      async runStep() {
+        return {
+          exitCode: 0,
+          stdout: 'same content\n',
+          stderr: 'stderr chunk',
+          parsedResult: { summary: 'same content' },
+          proc,
+        };
+      },
+    } as never,
+  });
 
-test.test('ClaudeCodeExecutor emits canonical stream chunks before the parsed summary', async () => {
+  const result = await executor.execute({
+    prompt: 'prompt body',
+    worktreePath: sharedState.worktreePath,
+    executorConfig: { type: 'CLAUDE_CODE' },
+    async onEvent(event) {
+      events.push(event);
+    },
+    async onProviderState(providerState) {
+      providerStates.push(providerState);
+    },
+  });
+
+  assert.deepEqual(events, [
+    { kind: 'stream_chunk', role: 'assistant', content: 'same content\n', payload: { stream: 'stdout' } },
+    { kind: 'stream_chunk', role: 'system', content: 'stderr chunk', payload: { stream: 'stderr' } },
+  ]);
+  assert.deepEqual(providerStates, []);
+  assert.deepEqual(result, {
+    exitCode: 0,
+    stdout: 'same content\n',
+    stderr: 'stderr chunk',
+    proc,
+    rawResult: { summary: 'same content' },
+  });
+});
+
+test.test('ClaudeCodeExecutor emits parsed summary when it differs from stdout', async () => {
   const proc: ExecutorProcessHandle = {
     kill() {
       return true;
@@ -225,15 +272,15 @@ test.test('ClaudeCodeExecutor emits canonical stream chunks before the parsed su
   });
 });
 
-test.test('executor adapters emit only canonical session event kinds for raw textual streams', async () => {
+test.test('executor adapters emit sink-normalized canonical session events for raw textual streams', async () => {
   const codexEvents: WorkflowExecutionEvent[] = [];
   const codexExecutor = new CodexExecutor({
     runImpl: async () => ({
       summary: 'codex summary',
       events: [
         { kind: 'message', role: 'assistant', content: 'planning', payload: { phase: 'plan' } },
-        { kind: 'stdout', role: 'assistant', content: 'raw stdout chunk' },
-        { kind: 'stderr', role: 'system', content: 'raw stderr chunk' },
+        { kind: 'stdout', role: 'assistant', content: 'raw stdout chunk', payload: { source: 'pty' } },
+        { kind: 'stderr', role: 'system', content: 'raw stderr chunk', payload: { source: 'pty' } },
       ],
     } as ExecutorRawResult),
   });
@@ -249,15 +296,15 @@ test.test('executor adapters emit only canonical session event kinds for raw tex
 
   assert.deepEqual(codexEvents, [
     { kind: 'message', role: 'assistant', content: 'planning', payload: { phase: 'plan' } },
-    { kind: 'stream_chunk', role: 'assistant', content: 'raw stdout chunk', payload: { stream: 'stdout' } },
-    { kind: 'stream_chunk', role: 'system', content: 'raw stderr chunk', payload: { stream: 'stderr' } },
+    { kind: 'stream_chunk', role: 'assistant', content: 'raw stdout chunk', payload: { stream: 'stdout', source: 'pty' } },
+    { kind: 'stream_chunk', role: 'system', content: 'raw stderr chunk', payload: { stream: 'stderr', source: 'pty' } },
   ]);
   assert.deepEqual(codexResult.rawResult, {
     summary: 'codex summary',
     events: [
       { kind: 'message', role: 'assistant', content: 'planning', payload: { phase: 'plan' } },
-      { kind: 'stream_chunk', role: 'assistant', content: 'raw stdout chunk', payload: { stream: 'stdout' } },
-      { kind: 'stream_chunk', role: 'system', content: 'raw stderr chunk', payload: { stream: 'stderr' } },
+      { kind: 'stream_chunk', role: 'assistant', content: 'raw stdout chunk', payload: { stream: 'stdout', source: 'pty' } },
+      { kind: 'stream_chunk', role: 'system', content: 'raw stderr chunk', payload: { stream: 'stderr', source: 'pty' } },
     ],
   });
 
@@ -266,7 +313,7 @@ test.test('executor adapters emit only canonical session event kinds for raw tex
     runImpl: async () => ({
       summary: 'opencode summary',
       events: [
-        { kind: 'status', role: 'system', content: 'ignored', payload: { from: 'QUEUED', to: 'RUNNING' } },
+        { kind: 'status', role: 'system', content: 'ignored', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } },
         { kind: 'stderr', role: 'assistant', content: 'raw tool stderr', payload: { source: 'pty' } },
       ],
     } as ExecutorRawResult),
@@ -282,19 +329,19 @@ test.test('executor adapters emit only canonical session event kinds for raw tex
   });
 
   assert.deepEqual(openCodeEvents, [
-    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } },
     { kind: 'stream_chunk', role: 'system', content: 'raw tool stderr', payload: { stream: 'stderr', source: 'pty' } },
   ]);
   assert.deepEqual(openCodeResult.rawResult, {
     summary: 'opencode summary',
     events: [
-      { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+      { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } },
       { kind: 'stream_chunk', role: 'system', content: 'raw tool stderr', payload: { stream: 'stderr', source: 'pty' } },
     ],
   });
 });
 
-test.test('executeWorkflowStep forwards events through the canonical sink helper surface', async () => {
+test.test('executeWorkflowStep forwards executor events through the sink canonicalization path', async () => {
   const proc: ExecutorProcessHandle = {
     kill() {
       return true;
@@ -335,12 +382,12 @@ test.test('executeWorkflowStep forwards events through the canonical sink helper
           });
           onSpawn?.(proc);
           await onEvent?.({ kind: 'message', role: 'assistant', content: 'drafted design', payload: {} });
-          await onEvent?.({ kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'npm test', arguments: { cwd: '/tmp/worktree' } } });
-          await onEvent?.({ kind: 'tool_result', role: 'tool', content: 'shell', payload: { tool_name: 'npm test', result: { exitCode: 0 } } });
-          await onEvent?.({ kind: 'status', role: 'system', content: 'step started', payload: { from: 'QUEUED', to: 'RUNNING' } });
-          await onEvent?.({ kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file', ref: '/tmp/design.md' } });
-          await onEvent?.({ kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } });
-          await onEvent?.({ kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP' } });
+          await onEvent?.({ kind: 'tool_call', role: 'user', content: 'shell', payload: { arguments: { cwd: '/tmp/worktree' }, traceId: 'trace-1' } });
+          await onEvent?.({ kind: 'tool_result', role: 'assistant', content: 'shell', payload: { result: { exitCode: 0 }, traceId: 'trace-2' } });
+          await onEvent?.({ kind: 'status', role: 'assistant', content: 'step started', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } });
+          await onEvent?.({ kind: 'artifact', role: 'system', content: 'design.md', payload: { artifact_type: 'file', ref: '/tmp/design.md' } });
+          await onEvent?.({ kind: 'stream_chunk', role: 'user', content: 'partial output', payload: { stream: 'stdout', source: 'pty' } });
+          await onEvent?.({ kind: 'error', role: 'assistant', content: 'step failed', payload: { code: 'E_STEP', traceId: 'trace-4' } });
           await onProviderState?.({
             providerSessionId: 'provider-session-1',
             resumeToken: 'resume-token-1',
@@ -370,12 +417,12 @@ test.test('executeWorkflowStep forwards events through the canonical sink helper
   assert.equal(context.proc, proc);
   assert.deepEqual(events, [
     { kind: 'message', role: 'assistant', content: 'drafted design', payload: {} },
-    { kind: 'tool_call', role: 'assistant', content: 'npm test', payload: { tool_name: 'npm test', arguments: { cwd: '/tmp/worktree' } } },
-    { kind: 'tool_result', role: 'tool', content: 'npm test', payload: { tool_name: 'npm test', result: { exitCode: 0 } } },
-    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING' } },
+    { kind: 'tool_call', role: 'assistant', content: 'shell', payload: { tool_name: 'shell', arguments: { cwd: '/tmp/worktree' }, traceId: 'trace-1' } },
+    { kind: 'tool_result', role: 'tool', content: 'shell', payload: { tool_name: 'shell', result: { exitCode: 0 }, traceId: 'trace-2' } },
+    { kind: 'status', role: 'system', content: 'QUEUED -> RUNNING', payload: { from: 'QUEUED', to: 'RUNNING', traceId: 'trace-3' } },
     { kind: 'artifact', role: 'assistant', content: 'design.md', payload: { artifact_type: 'file', ref: '/tmp/design.md' } },
-    { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout' } },
-    { kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP' } },
+    { kind: 'stream_chunk', role: 'assistant', content: 'partial output', payload: { stream: 'stdout', source: 'pty' } },
+    { kind: 'error', role: 'system', content: 'step failed', payload: { code: 'E_STEP', traceId: 'trace-4' } },
   ]);
   assert.deepEqual(providerStates, [
     {
