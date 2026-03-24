@@ -470,6 +470,7 @@ export default {
     createBranch: '创建分支',
     deleteBranch: '删除分支',
     mergeBranch: '合并分支',
+    merging: '合并中...',
     sourceBranch: '源分支',
     targetBranch: '目标分支',
     selectTargetBranch: '选择目标分支',
