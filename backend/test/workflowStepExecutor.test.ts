@@ -341,6 +341,35 @@ test.test('executor adapters emit sink-normalized canonical session events for r
   });
 });
 
+test.test('executor adapters drop raw events when normalization yields no canonical events', async () => {
+  const codexEvents: WorkflowExecutionEvent[] = [];
+  const codexExecutor = new CodexExecutor({
+    runImpl: async () => ({
+      summary: 'codex summary',
+      events: [
+        { kind: 'unknown', role: 'assistant', content: 'ignored event' },
+        { kind: 'stdout', role: 'assistant' },
+        { kind: 'message', role: 'assistant', content: 1 },
+      ],
+    } as unknown as ExecutorRawResult),
+  });
+
+  const codexResult = await codexExecutor.execute({
+    prompt: 'prompt body',
+    worktreePath: sharedState.worktreePath,
+    executorConfig: { type: 'CODEX' },
+    async onEvent(event) {
+      codexEvents.push(event);
+    },
+  });
+
+  assert.deepEqual(codexEvents, []);
+  assert.deepEqual(codexResult.rawResult, {
+    summary: 'codex summary',
+    events: [],
+  });
+});
+
 test.test('executeWorkflowStep forwards executor events through the sink canonicalization path', async () => {
   const proc: ExecutorProcessHandle = {
     kill() {
