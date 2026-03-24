@@ -4,18 +4,12 @@ import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SessionRepository } from '../../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import { getDevWorkflow, buildWorkflowSharedState } from './workflows.js';
+import { executeWorkflowStep } from './workflowStepExecutor.js';
 import { runWithWorkflowExecutionContext } from './workflowExecutionContext.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
-import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity, WorkflowTemplateEntity } from '../../types/entities.ts';
+import type { WorkflowTemplate } from './workflowTemplateService.js';
+import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity } from '../../types/entities.ts';
 import type { ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
-
-const STEP_DEFINITIONS = [
-  { step_id: 'requirement-design', name: '需求设计' },
-  { step_id: 'code-development', name: '代码开发' },
-  { step_id: 'testing', name: '测试' },
-  { step_id: 'code-review', name: '代码审查' },
-] as const;
 
 interface WorkflowTaskRecord {
   id: number;
@@ -30,20 +24,6 @@ interface WorkflowExecutionContext {
   cancelled?: boolean;
   proc?: ExecutorProcessHandle | null;
   worktreePath?: string;
-  templateSnapshot?: WorkflowTemplateEntity | null;
-}
-
-interface WorkflowTemplateStepBinding {
-  id: string;
-  name: string;
-  instructionPrompt: string;
-  agentId: number | null;
-}
-
-interface WorkflowTemplateRecord {
-  template_id: string;
-  name: string;
-  steps: WorkflowTemplateStepBinding[];
 }
 
 interface WorkflowAgentRecord {
@@ -62,27 +42,55 @@ interface ActiveRunContext {
   context?: WorkflowExecutionContext;
 }
 
-interface WorkflowStreamEvent {
-  type: string;
-  payload?: {
-    stepName?: string;
-    result?: Record<string, unknown>;
-    error?: string;
-  };
-}
-
 interface WorkflowRunResult {
-  status: string;
+  status: 'success' | 'failed' | 'cancelled';
   result?: Record<string, unknown>;
   error?: string;
 }
 
-interface WorkflowStreamHandle {
-  fullStream: AsyncIterable<WorkflowStreamEvent>;
-  result: Promise<WorkflowRunResult>;
+interface RunWorkflowTemplateArgs {
+  runId: number;
+  task: WorkflowTaskRecord & { execution_path: string };
+  templateSnapshot: WorkflowTemplate;
+  context?: WorkflowExecutionContext;
 }
 
 const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
+const DEFAULT_RUNTIME_AVAILABLE_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE'];
+
+function isDefaultRuntimeAvailableExecutorType(value: ExecutorType) {
+  return DEFAULT_RUNTIME_AVAILABLE_EXECUTOR_TYPES.includes(value);
+}
+
+function createUnavailableExecutorValidationMessage(stepName: string, agentId: number, executorType: ExecutorType) {
+  return `Step "${stepName}" references agent ${agentId} with unavailable executor type: ${executorType}`;
+}
+
+function createWorkflowContextError(message: string) {
+  return { error: message };
+}
+
+function isContextCancelled(context?: WorkflowExecutionContext) {
+  return context?.cancelled === true;
+}
+
+function assertExecutorAvailableInDefaultRuntime(stepName: string, agent: WorkflowAgentRecord) {
+  if (isSupportedExecutorType(agent.executorType) && !isDefaultRuntimeAvailableExecutorType(agent.executorType)) {
+    throw createValidationError(createUnavailableExecutorValidationMessage(stepName, agent.id, agent.executorType));
+  }
+}
+
+function getWorkflowCancelledContext(resultError?: string) {
+  return createWorkflowContextError(resultError || 'Workflow cancelled');
+}
+
+function getWorkflowFailedContext(resultError?: string) {
+  return createWorkflowContextError(resultError || 'Workflow failed');
+}
+
+function getWorkflowErrorContext(errorMessage: string) {
+  return createWorkflowContextError(errorMessage);
+}
 
 function createValidationError(message: string) {
   return Object.assign(new Error(message), { statusCode: 400 });
@@ -112,6 +120,46 @@ function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null 
   return null;
 }
 
+function toStepState(template: WorkflowTemplate) {
+  return template.steps.map((step) => ({
+    step_id: step.id,
+    name: step.name,
+    status: 'PENDING',
+    started_at: null,
+    completed_at: null,
+    retry_count: 0,
+    session_id: null,
+    summary: null,
+    error: null,
+  }));
+}
+
+function normalizeStepResult(result: unknown): Record<string, unknown> {
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    return result as Record<string, unknown>;
+  }
+
+  return {
+    summary: typeof result === 'string' ? result : JSON.stringify(result ?? null),
+  };
+}
+
+function buildWorkflowSharedState({
+  taskTitle,
+  taskDescription,
+  worktreePath,
+}: {
+  taskTitle: string;
+  taskDescription: string;
+  worktreePath: string;
+}) {
+  return {
+    taskTitle,
+    taskDescription,
+    worktreePath,
+  };
+}
+
 class WorkflowService {
   workflowRunRepo: WorkflowRunRepository;
   taskRepo: TaskRepository;
@@ -122,6 +170,14 @@ class WorkflowService {
   sessionSegmentRepo: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
   _activeRuns: Map<number, ActiveRunContext>;
   _stepAttemptSegmentIds: Map<string, number | null>;
+
+  async _resetTaskToTodo(taskId: number) {
+    if (typeof this.taskRepo.update !== 'function' || !Number.isFinite(taskId) || taskId <= 0) {
+      return;
+    }
+
+    await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
+  }
 
   constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, sessionRepo, sessionSegmentRepo }: {
     workflowRunRepo?: WorkflowRunRepository;
@@ -152,7 +208,7 @@ class WorkflowService {
     }
 
     const executionPath = await this._resolveExecutionPath(task);
-    const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
+    const existing = await this.workflowRunRepo.findByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
       const error = new Error('Task already has an active workflow run') as Error & { statusCode?: number };
       error.statusCode = 409;
@@ -162,71 +218,53 @@ class WorkflowService {
     const template = await this._loadTemplate(workflowTemplateId);
     await this._validateTemplateAgents(template);
 
-    const steps: WorkflowStepEntity[] = STEP_DEFINITIONS.map((def) => ({
-      step_id: def.step_id,
-      name: def.name,
-      status: 'PENDING',
-      started_at: null,
-      completed_at: null,
-      retry_count: 0,
-      session_id: null,
-      summary: null,
-      error: null,
-    }));
-
     const run = await this.workflowRunRepo.create({
       task_id: taskId,
       workflow_id: template.template_id,
       workflow_template_id: template.template_id,
-      workflow_template_snapshot: {
-        template_id: template.template_id,
-        name: template.name,
-        steps: template.steps.map((step) => ({ ...step })),
-      },
+      workflow_template_snapshot: template,
       status: 'PENDING',
       current_step: null,
-      steps,
+      steps: toStepState(template),
       worktree_path: executionPath,
       branch: task.worktree_branch || `task/${taskId}`,
       context: {},
     });
 
-    this._activeRuns.set(run.id, this._createActiveRunContext(executionPath, run.workflow_template_snapshot as WorkflowTemplateEntity));
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
-    this._executeWorkflow(run.id, { ...task, execution_path: executionPath }).catch((err) => {
+    this._executeWorkflow(run.id, { ...task, execution_path: executionPath }, template).catch((err) => {
       console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
     });
 
     return run;
   }
 
-  async _loadTemplate(templateId?: string) {
+  async _loadTemplate(templateId?: string): Promise<WorkflowTemplate> {
     if (templateId !== undefined) {
       if (typeof templateId !== 'string' || templateId.trim().length === 0) {
         throw createValidationError('Workflow template id must be a non-empty string');
       }
 
-      const selectedTemplate = await this.workflowTemplateService.getTemplateById(templateId.trim());
+      const normalizedTemplateId = templateId.trim();
+      const selectedTemplate = await this.workflowTemplateService.getTemplateById(normalizedTemplateId);
       if (!selectedTemplate) {
-        throw createValidationError(`Workflow template not found: ${templateId.trim()}`);
+        throw createValidationError(`Workflow template not found: ${normalizedTemplateId}`);
       }
-      return selectedTemplate as WorkflowTemplateRecord;
+      return selectedTemplate;
     }
 
-    return await this.workflowTemplateService.getTemplate() as WorkflowTemplateRecord;
+    if (typeof this.workflowTemplateService.getTemplate === 'function') {
+      return await this.workflowTemplateService.getTemplate();
+    }
+
+    const defaultTemplate = await this.workflowTemplateService.getTemplateById('dev-workflow-v1');
+    if (!defaultTemplate) {
+      throw createValidationError('Workflow template not found: dev-workflow-v1');
+    }
+    return defaultTemplate;
   }
 
-  async _validateTemplateAgents(template: WorkflowTemplateRecord) {
-    const expectedStepIds = STEP_DEFINITIONS.map((step) => step.step_id);
-    const actualStepIds = template.steps.map((step) => step.id);
-    const hasExpectedStructure = actualStepIds.length === expectedStepIds.length
-      && new Set(actualStepIds).size === expectedStepIds.length
-      && expectedStepIds.every((stepId, index) => actualStepIds[index] === stepId);
-
-    if (!hasExpectedStructure) {
-      throw createValidationError('Workflow template steps do not match the workflow definition');
-    }
-
+  async _validateTemplateAgents(template: WorkflowTemplate) {
     for (const step of template.steps) {
       if (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
@@ -244,6 +282,8 @@ class WorkflowService {
       if (!isSupportedExecutorType(agent.executorType)) {
         throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with unsupported executor type: ${String(agent.executorType)}`);
       }
+
+      assertExecutorAvailableInDefaultRuntime(step.name, agent);
 
       const invalidConfigReason = getInvalidAgentConfigReason(agent);
       if (invalidConfigReason) {
@@ -275,21 +315,20 @@ class WorkflowService {
     });
   }
 
-  private _createActiveRunContext(worktreePath?: string, templateSnapshot?: WorkflowTemplateEntity | null): ActiveRunContext {
-    const context: WorkflowExecutionContext = {
-      cancelled: false,
-      proc: null,
-      worktreePath,
-      templateSnapshot: templateSnapshot ?? null,
-    };
+  private _getStepAttemptSegmentKey(runId: number, stepId: string) {
+    return `${runId}:${stepId}`;
+  }
 
-    return {
-      cancel: () => {
-        context.cancelled = true;
-      },
-      proc: null,
-      context,
-    };
+  private _getStepAttemptSegmentId(runId: number, stepId: string) {
+    return this._stepAttemptSegmentIds.get(this._getStepAttemptSegmentKey(runId, stepId)) ?? null;
+  }
+
+  private _rememberStepAttemptSegmentId(runId: number, stepId: string, segmentId: number | null) {
+    this._stepAttemptSegmentIds.set(this._getStepAttemptSegmentKey(runId, stepId), segmentId);
+  }
+
+  private _clearStepAttemptSegmentId(runId: number, stepId: string) {
+    this._stepAttemptSegmentIds.delete(this._getStepAttemptSegmentKey(runId, stepId));
   }
 
   private async _getRunStep(runId: number, stepId: string) {
@@ -298,7 +337,7 @@ class WorkflowService {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const step = run.steps.find((candidate) => candidate.step_id === stepId) || null;
+    const step = (run.steps || []).find((candidate) => candidate.step_id === stepId) as WorkflowStepEntity | null;
     if (!step) {
       throw new Error(`Workflow step not found: ${stepId}`);
     }
@@ -312,11 +351,12 @@ class WorkflowService {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const template = run.workflow_template_snapshot ?? await this._loadTemplate(run.workflow_template_id ?? undefined);
+    const template = (run.workflow_template_snapshot as WorkflowTemplate | null) ?? await this._loadTemplate(run.workflow_template_id ?? undefined);
     const stepBinding = template.steps.find((candidate) => candidate.id === stepId) || null;
     if (!stepBinding) {
       throw new Error(`Workflow template step not found: ${stepId}`);
     }
+
     return stepBinding;
   }
 
@@ -376,34 +416,6 @@ class WorkflowService {
     return segment;
   }
 
-  private _getStepAttemptSegmentKey(runId: number, stepId: string) {
-    return `${runId}:${stepId}`;
-  }
-
-  private _getStepAttemptSegmentId(runId: number, stepId: string) {
-    return this._stepAttemptSegmentIds.get(this._getStepAttemptSegmentKey(runId, stepId)) ?? null;
-  }
-
-  private _rememberStepAttemptSegmentId(runId: number, stepId: string, segmentId: number | null) {
-    this._stepAttemptSegmentIds.set(this._getStepAttemptSegmentKey(runId, stepId), segmentId);
-  }
-
-  private _clearStepAttemptSegmentId(runId: number, stepId: string) {
-    this._stepAttemptSegmentIds.delete(this._getStepAttemptSegmentKey(runId, stepId));
-  }
-
-  private async _clearStepAttemptSegmentIfLatest(runId: number, stepId: string, sessionId: number) {
-    const attemptSegmentId = this._getStepAttemptSegmentId(runId, stepId);
-    if (!attemptSegmentId) {
-      return;
-    }
-
-    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
-    if (latestSegment?.id === attemptSegmentId) {
-      this._clearStepAttemptSegmentId(runId, stepId);
-    }
-  }
-
   private async _getCurrentAttemptSegment(runId: number, stepId: string, sessionId: number) {
     const attemptSegmentId = this._getStepAttemptSegmentId(runId, stepId);
     if (!attemptSegmentId) {
@@ -416,6 +428,20 @@ class WorkflowService {
     }
 
     return latestSegment;
+  }
+
+  private async _isWorkflowRunCancelled(runId: number) {
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    return run?.status === 'CANCELLED';
+  }
+
+  private async _isWorkflowStepCancelled(runId: number, stepId: string) {
+    const { run, step } = await this._getRunStep(runId, stepId);
+    return run.status === 'CANCELLED' || step.status === 'CANCELLED';
+  }
+
+  private async _shouldSkipWorkflowSuccessFinalization(runId: number, context: WorkflowExecutionContext) {
+    return context.cancelled === true || await this._isWorkflowRunCancelled(runId);
   }
 
   private async _finalizeCancelledStepStart(
@@ -636,120 +662,176 @@ class WorkflowService {
     await this._handleWorkflowStepFailure(runId, step.step_id, errorMessage || 'Workflow failed');
   }
 
-  private async _isWorkflowRunCancelled(runId: number) {
-    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
-    return run?.status === 'CANCELLED';
-  }
-
-  private async _isWorkflowStepCancelled(runId: number, stepId: string) {
-    const { run, step } = await this._getRunStep(runId, stepId);
-    return run.status === 'CANCELLED' || step.status === 'CANCELLED';
-  }
-
-  private async _shouldSkipWorkflowSuccessFinalization(runId: number, context: WorkflowExecutionContext) {
-    return context.cancelled === true || await this._isWorkflowRunCancelled(runId);
-  }
-
-  async _createWorkflowStream(
-    context: WorkflowExecutionContext,
-    inputData: Record<string, unknown>,
-    initialState: Record<string, unknown>,
-  ) {
-    const workflow = getDevWorkflow();
-    const mastraRun = await workflow.createRun();
-    return await runWithWorkflowExecutionContext(context, async () => mastraRun.stream({ inputData, initialState })) as WorkflowStreamHandle;
-  }
-
-  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }) {
-    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
-    const activeRun = this._activeRuns.get(runId) || this._createActiveRunContext(task.execution_path, run?.workflow_template_snapshot ?? null);
-    this._activeRuns.set(runId, activeRun);
-
-    const context = activeRun.context || {
-      cancelled: false,
-      proc: null,
+  async _runWorkflowTemplate({ runId, task, templateSnapshot, context }: RunWorkflowTemplateArgs): Promise<WorkflowRunResult> {
+    const state = this._buildInitialWorkflowState(task);
+    let inputData: Record<string, unknown> = {
+      taskId: task.id,
+      taskTitle: task.title || 'Untitled Task',
+      taskDescription: task.description || '',
       worktreePath: task.execution_path,
-      templateSnapshot: run?.workflow_template_snapshot ?? null,
     };
-    context.worktreePath = task.execution_path;
-    if (context.templateSnapshot == null) {
-      context.templateSnapshot = run?.workflow_template_snapshot ?? null;
+    let previousStepId: string | null = null;
+
+    for (const step of templateSnapshot.steps) {
+      if (context?.cancelled || await this._isWorkflowRunCancelled(runId).catch(() => false)) {
+        await this._handleWorkflowStepCancellation(runId, step.id).catch(() => {});
+        return {
+          status: 'cancelled',
+          error: 'Workflow cancelled',
+        };
+      }
+
+      await this._handleWorkflowStepStart(runId, step.id, task);
+
+      try {
+        const stepResult = await runWithWorkflowExecutionContext(context || {}, async () => await executeWorkflowStep({
+          ...(context ? { context } : {}),
+          stepId: step.id,
+          templateSnapshot,
+          worktreePath: task.execution_path,
+          state,
+          inputData,
+          upstreamStepIds: previousStepId ? [previousStepId] : [],
+        }));
+
+        const normalizedResult = normalizeStepResult(stepResult);
+        if (context) {
+          const activeRun = this._activeRuns.get(runId);
+          if (activeRun) {
+            activeRun.proc = context.proc ?? null;
+          }
+        }
+
+        if (await this._isWorkflowStepCancelled(runId, step.id).catch(() => false)) {
+          await this._handleWorkflowStepCancellation(runId, step.id).catch(() => {});
+          return {
+            status: 'cancelled',
+            error: 'Workflow cancelled',
+          };
+        }
+
+        await this._handleWorkflowStepCompletion(runId, step.id, normalizedResult);
+        inputData = normalizedResult;
+        previousStepId = step.id;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        if (context?.cancelled || await this._isWorkflowRunCancelled(runId).catch(() => false) || await this._isWorkflowStepCancelled(runId, step.id).catch(() => false)) {
+          await this._handleWorkflowStepCancellation(runId, step.id).catch(() => {});
+          return {
+            status: 'cancelled',
+            error: 'Workflow cancelled',
+          };
+        }
+
+        await this._handleWorkflowStepFailure(runId, step.id, message).catch(() => {});
+        return {
+          status: 'failed',
+          error: message,
+        };
+      }
     }
-    activeRun.context = context;
-    activeRun.cancel = () => {
-      context.cancelled = true;
+
+    return {
+      status: 'success',
+      result: inputData,
     };
+  }
+
+  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, templateSnapshot?: WorkflowTemplate) {
+    let context: WorkflowExecutionContext | undefined;
+    let cancellationRequested = false;
+    const requestCancellation = () => {
+      cancellationRequested = true;
+      if (context) {
+        context.cancelled = true;
+      }
+    };
+
+    this._activeRuns.set(runId, {
+      cancel: requestCancellation,
+    });
 
     try {
-      if (context.cancelled) {
-        return;
-      }
-
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
-      if (context.cancelled || await this._isWorkflowRunCancelled(runId)) {
-        return;
-      }
-      const inputData = {
-        taskId: task.id,
-        taskTitle: task.title || 'Untitled Task',
-        taskDescription: task.description || '',
+
+      context = {
+        cancelled: cancellationRequested,
+        proc: null,
         worktreePath: task.execution_path,
       };
-      const initialState = this._buildInitialWorkflowState(task);
 
-      const stream = await this._createWorkflowStream(context, inputData, initialState);
+      this._activeRuns.set(runId, {
+        cancel: requestCancellation,
+        proc: null,
+        context,
+      });
 
-      for await (const event of stream.fullStream) {
-        if (event.type === 'workflow-step-start' && event.payload?.stepName) {
-          await this._handleWorkflowStepStart(runId, event.payload.stepName, task);
-        }
+      const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+      const effectiveTemplate = templateSnapshot ?? (run?.workflow_template_snapshot as WorkflowTemplate | null) ?? await this._loadTemplate(run?.workflow_template_id ?? undefined);
 
-        if (event.type === 'workflow-step-result' && event.payload?.stepName) {
-          const stepId = event.payload.stepName;
-          const currentActiveRun = this._activeRuns.get(runId);
-          if (currentActiveRun && currentActiveRun.context?.proc) {
-            currentActiveRun.proc = currentActiveRun.context.proc;
-          }
-          await this._handleWorkflowStepCompletion(runId, stepId, event.payload.result || {});
-        }
+      const result = await this._runWorkflowTemplate({
+        runId,
+        task,
+        templateSnapshot: effectiveTemplate,
+        context,
+      });
 
-        if (event.type === 'workflow-step-error' && event.payload?.stepName) {
-          await this._handleWorkflowStepFailure(runId, event.payload.stepName, event.payload.error || 'Step failed');
-        }
+      if (cancellationRequested || isContextCancelled(context) || result.status === 'cancelled' || await this._isWorkflowRunCancelled(runId).catch(() => false)) {
+        await this.workflowRunRepo.update(runId, {
+          status: 'CANCELLED',
+          context: getWorkflowCancelledContext(result.error),
+          current_step: null,
+        });
+        await this._resetTaskToTodo(task.id);
+        return;
       }
 
-      const result = await stream.result;
       if (result.status === 'success') {
         if (await this._shouldSkipWorkflowSuccessFinalization(runId, context)) {
           return;
         }
+
         await this.workflowRunRepo.update(runId, {
           status: 'COMPLETED',
           context: result.result || {},
+          current_step: null,
         });
+
         if (await this._shouldSkipWorkflowSuccessFinalization(runId, context)) {
           return;
         }
+
         await this.taskRepo.update(task.id, { status: 'DONE' });
-      } else {
-        if (await this._isWorkflowRunCancelled(runId)) {
-          return;
-        }
-        await this._finalizeRunningStepAfterUnexpectedError(runId, result.error || 'Workflow failed');
-        await this.workflowRunRepo.update(runId, {
-          status: 'FAILED',
-          context: { error: result.error || 'Workflow failed' },
-        });
-      }
-    } catch (err) {
-      if (await this._isWorkflowRunCancelled(runId).catch(() => false)) {
         return;
       }
-      await this._finalizeRunningStepAfterUnexpectedError(runId, (err as Error).message).catch(() => {});
+
       await this.workflowRunRepo.update(runId, {
         status: 'FAILED',
-        context: { error: (err as Error).message },
+        context: getWorkflowFailedContext(result.error),
+        current_step: null,
+      });
+      await this._resetTaskToTodo(task.id);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+
+      if (cancellationRequested || isContextCancelled(context) || await this._isWorkflowRunCancelled(runId).catch(() => false)) {
+        await this.workflowRunRepo.update(runId, {
+          status: 'CANCELLED',
+          context: getWorkflowCancelledContext(errorMessage),
+          current_step: null,
+        }).catch(() => {});
+        await this._resetTaskToTodo(task.id);
+        return;
+      }
+
+      await this._finalizeRunningStepAfterUnexpectedError(runId, errorMessage).catch(() => {});
+      await this.workflowRunRepo.update(runId, {
+        status: 'FAILED',
+        context: getWorkflowErrorContext(errorMessage),
+        current_step: null,
       }).catch(() => {});
+      await this._resetTaskToTodo(task.id);
     } finally {
       this._activeRuns.delete(runId);
     }
@@ -768,7 +850,7 @@ class WorkflowService {
   }
 
   async cancelWorkflow(runId: number) {
-    const run = await this.workflowRunRepo.findById(runId);
+    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
     if (!run) {
       const error = new Error('Workflow run not found') as Error & { statusCode?: number };
       error.statusCode = 404;
@@ -793,10 +875,12 @@ class WorkflowService {
       : null) || run.steps.find((candidate) => candidate.status === 'RUNNING');
 
     if (runningStep) {
-      await this._handleWorkflowStepCancellation(runId, runningStep.step_id);
+      await this._handleWorkflowStepCancellation(runId, runningStep.step_id).catch(() => {});
     }
 
-    return await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
+    const updatedRun = await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
+    await this._resetTaskToTodo((run as { task_id?: number }).task_id ?? 0);
+    return updatedRun;
   }
 }
 
