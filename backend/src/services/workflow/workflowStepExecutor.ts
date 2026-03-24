@@ -1,19 +1,32 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import type { AgentEntity } from '../../repositories/agentRepository.js';
+import type {
+  ExecutorConfig,
+  ExecutorExecutionResult,
+  ExecutorProcessHandle,
+  ExecutorProviderState,
+  ExecutorType,
+  WorkflowExecutionEvent,
+} from '../../types/executors.js';
+import type { WorkflowTemplateEntity } from '../../types/entities.ts';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
+import { ExecutionEventSink } from './executionEventSink.js';
 import { adaptStepResult } from './stepResultAdapter.js';
+import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
-import type { WorkflowTemplate } from './workflowTemplateService.js';
-import type { ExecutorConfig, ExecutorExecutionResult, ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
+const defaultTemplateService = new WorkflowTemplateService();
 const defaultAgentRepo = new AgentRepository();
 
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
-  templateSnapshot?: WorkflowTemplate;
+  templateSnapshot?: WorkflowTemplateEntity;
+  templateService?: WorkflowTemplateService;
   agentRepo?: Pick<AgentRepository, 'findById'>;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
+  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+  onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   stepId: string;
   worktreePath: string;
   state: {
@@ -62,19 +75,19 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
 export async function executeWorkflowStep({
   registry = defaultRegistry,
   templateSnapshot,
+  templateService = defaultTemplateService,
   agentRepo = defaultAgentRepo,
   context,
+  onEvent,
+  onProviderState,
   stepId,
   worktreePath,
   state,
   inputData,
   upstreamStepIds = [],
 }: ExecuteWorkflowStepInput) {
-  if (!templateSnapshot) {
-    throw new Error('Workflow template snapshot is required for step execution');
-  }
-
-  const step = templateSnapshot.steps.find((item: { id: string }) => item.id === stepId);
+  const template = templateSnapshot ?? await templateService.getTemplate();
+  const step = template.steps.find((item: { id: string }) => item.id === stepId);
 
   if (!step) {
     throw new Error(`Workflow template step not found: ${stepId}`);
@@ -99,8 +112,8 @@ export async function executeWorkflowStep({
     state,
     inputData,
     upstreamStepIds,
-    agent,
   });
+  const sink = new ExecutionEventSink({ onEvent, onProviderState });
 
   const executor = registry.getExecutor(executorConfig.type);
   const execution: ExecutorExecutionResult = await executor.execute({
@@ -111,6 +124,12 @@ export async function executeWorkflowStep({
       if (context) {
         context.proc = proc;
       }
+    },
+    onEvent: async (event) => {
+      await sink.append(event);
+    },
+    onProviderState: async (providerState) => {
+      await sink.appendProviderState(providerState);
     },
   });
 

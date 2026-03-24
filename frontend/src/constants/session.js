@@ -7,7 +7,9 @@ export const SESSION_STATUS = {
   IDLE: 'IDLE',
   STOPPED: 'STOPPED',
   ERROR: 'ERROR',
-  COMPLETED: 'COMPLETED'
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED'
 }
 
 /**
@@ -33,7 +35,9 @@ export const SESSION_INPUT_STATUSES = [
 export const SESSION_TERMINAL_STATUSES = [
   SESSION_STATUS.STOPPED,
   SESSION_STATUS.ERROR,
-  SESSION_STATUS.COMPLETED
+  SESSION_STATUS.COMPLETED,
+  SESSION_STATUS.FAILED,
+  SESSION_STATUS.CANCELLED
 ]
 
 /**
@@ -79,7 +83,9 @@ export function getSessionStatusClass(status) {
     [SESSION_STATUS.STOPPED]: 'status-stopped',
     [SESSION_STATUS.ERROR]: 'status-error',
     [SESSION_STATUS.CREATED]: 'status-created',
-    [SESSION_STATUS.COMPLETED]: 'status-completed'
+    [SESSION_STATUS.COMPLETED]: 'status-completed',
+    [SESSION_STATUS.FAILED]: 'status-failed',
+    [SESSION_STATUS.CANCELLED]: 'status-cancelled'
   }
   return statusMap[status] || 'status-unknown'
 }
