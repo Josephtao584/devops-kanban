@@ -56,10 +56,18 @@ interface RunWorkflowTemplateArgs {
 }
 
 const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
-const DEFAULT_RUNTIME_AVAILABLE_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE'];
 
-function isDefaultRuntimeAvailableExecutorType(value: ExecutorType) {
-  return DEFAULT_RUNTIME_AVAILABLE_EXECUTOR_TYPES.includes(value);
+function hasDuplicateWorkflowStepIds(template: WorkflowTemplate) {
+  const actualStepIds = template.steps.map((step) => step.id);
+  return new Set(actualStepIds).size !== actualStepIds.length;
+}
+
+function createDuplicateWorkflowStepIdValidationError() {
+  return createValidationError('Workflow template step ids must be unique');
+}
+
+function createWorkflowTemplateStepCountValidationError() {
+  return createValidationError('Workflow template must include at least two steps');
 }
 
 function createUnavailableExecutorValidationMessage(stepName: string, agentId: number, executorType: ExecutorType) {
@@ -72,12 +80,6 @@ function createWorkflowContextError(message: string) {
 
 function isContextCancelled(context?: WorkflowExecutionContext) {
   return context?.cancelled === true;
-}
-
-function assertExecutorAvailableInDefaultRuntime(stepName: string, agent: WorkflowAgentRecord) {
-  if (isSupportedExecutorType(agent.executorType) && !isDefaultRuntimeAvailableExecutorType(agent.executorType)) {
-    throw createValidationError(createUnavailableExecutorValidationMessage(stepName, agent.id, agent.executorType));
-  }
 }
 
 function getWorkflowCancelledContext(resultError?: string) {
@@ -212,7 +214,7 @@ class WorkflowService {
     }
 
     const executionPath = await this._resolveExecutionPath(task);
-    const existing = await this.workflowRunRepo.findByTaskId(taskId);
+    const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
       const error = new Error('Task already has an active workflow run') as Error & { statusCode?: number };
       error.statusCode = 409;
@@ -269,6 +271,14 @@ class WorkflowService {
   }
 
   async _validateTemplateAgents(template: WorkflowTemplate) {
+    if (!Array.isArray(template.steps) || template.steps.length < 2) {
+      throw createWorkflowTemplateStepCountValidationError();
+    }
+
+    if (hasDuplicateWorkflowStepIds(template)) {
+      throw createDuplicateWorkflowStepIdValidationError();
+    }
+
     for (const step of template.steps) {
       if (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
@@ -286,8 +296,6 @@ class WorkflowService {
       if (!isSupportedExecutorType(agent.executorType)) {
         throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with unsupported executor type: ${String(agent.executorType)}`);
       }
-
-      assertExecutorAvailableInDefaultRuntime(step.name, agent);
 
       const invalidConfigReason = getInvalidAgentConfigReason(agent);
       if (invalidConfigReason) {
@@ -781,13 +789,14 @@ class WorkflowService {
         context,
       });
 
-      if (cancellationRequested || isContextCancelled(context) || result.status === 'cancelled' || await this._isWorkflowRunCancelled(runId).catch(() => false)) {
-        await this.workflowRunRepo.update(runId, {
-          status: 'CANCELLED',
-          context: getWorkflowCancelledContext(result.error),
-          current_step: null,
-        });
-        await this._resetTaskToTodo(task.id);
+      const runAlreadyCancelled = await this._isWorkflowRunCancelled(runId).catch(() => false);
+      if (cancellationRequested || isContextCancelled(context) || result.status === 'cancelled' || runAlreadyCancelled) {
+        if (!runAlreadyCancelled) {
+          await this.workflowRunRepo.update(runId, {
+            status: 'CANCELLED',
+          });
+          await this._resetTaskToTodo(task.id);
+        }
         return;
       }
 
@@ -819,13 +828,14 @@ class WorkflowService {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      if (cancellationRequested || isContextCancelled(context) || await this._isWorkflowRunCancelled(runId).catch(() => false)) {
-        await this.workflowRunRepo.update(runId, {
-          status: 'CANCELLED',
-          context: getWorkflowCancelledContext(errorMessage),
-          current_step: null,
-        }).catch(() => {});
-        await this._resetTaskToTodo(task.id);
+      const runAlreadyCancelled = await this._isWorkflowRunCancelled(runId).catch(() => false);
+      if (cancellationRequested || isContextCancelled(context) || runAlreadyCancelled) {
+        if (!runAlreadyCancelled) {
+          await this.workflowRunRepo.update(runId, {
+            status: 'CANCELLED',
+          }).catch(() => {});
+          await this._resetTaskToTodo(task.id);
+        }
         return;
       }
 
