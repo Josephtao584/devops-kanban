@@ -9,23 +9,28 @@ interface StoredTaskSourceEntity extends TaskSourceEntity, BaseEntity {}
 class TaskSourceRepository {
   fileName: string;
   filepath: string;
+  storagePath: string;
+  initPromise: Promise<void>;
 
-  constructor() {
+  constructor(storagePath: string = TASK_SOURCE_DATA_PATH as string) {
     this.fileName = 'task_sources.json';
-    this.filepath = path.join(TASK_SOURCE_DATA_PATH as string, this.fileName);
-    void this._ensureFileExists();
+    this.storagePath = storagePath;
+    this.filepath = path.join(this.storagePath, this.fileName);
+    this.initPromise = this._ensureFileExists();
   }
+
 
   async _ensureFileExists() {
     try {
       await fs.access(this.filepath);
     } catch {
-      await fs.mkdir(TASK_SOURCE_DATA_PATH as string, { recursive: true });
+      await fs.mkdir(this.storagePath, { recursive: true });
       await this._saveAll([]);
     }
   }
 
   async _loadAll(): Promise<StoredTaskSourceEntity[]> {
+    await this.initPromise;
     try {
       const data = await fs.readFile(this.filepath, 'utf-8');
       return JSON.parse(data) as StoredTaskSourceEntity[];

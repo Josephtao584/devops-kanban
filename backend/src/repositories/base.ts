@@ -14,11 +14,12 @@ type StoredEntity<TCreate extends object> = TCreate & BaseEntity;
 class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate extends object = Partial<TCreate>> {
   fileName: string;
   filepath: string;
+  initPromise: Promise<void>;
 
   constructor(fileName: string, { storagePath = STORAGE_PATH as string }: { storagePath?: string } = {}) {
     this.fileName = fileName;
     this.filepath = path.join(storagePath, fileName);
-    void this._ensureFileExists();
+    this.initPromise = this._ensureFileExists();
   }
 
   async _ensureFileExists() {
@@ -30,6 +31,7 @@ class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate exten
   }
 
   async _loadAll(): Promise<T[]> {
+    await this.initPromise;
     try {
       const data = await fs.readFile(this.filepath, 'utf-8');
       return JSON.parse(data) as T[];

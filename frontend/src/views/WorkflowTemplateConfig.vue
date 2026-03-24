@@ -40,7 +40,7 @@
               :disabled="creating || !template || !createTemplateId.trim() || !createTemplateName.trim()"
               @click="handleCreateTemplate"
             >
-              {{ creating ? $t('common.loading') : $t('common.create') }}
+              {{ creating ? $t('common.loading') : $t('workflowTemplate.createTemplate') }}
             </el-button>
           </div>
 
@@ -59,7 +59,6 @@
               @click="selectTemplate(item.template_id)"
             >
               <span class="template-list-item__name">{{ item.name }}</span>
-              <span class="template-list-item__id">{{ item.template_id }}</span>
             </button>
           </div>
         </template>
@@ -83,43 +82,114 @@
               </div>
               <div class="meta-row meta-row--stacked">
                 <span class="meta-label">{{ $t('workflowTemplate.name') }}</span>
-                <el-input v-model="template.name" data-testid="template-name-input" />
+                <div class="template-name-row">
+                  <el-input v-model="template.name" data-testid="template-name-input" />
+                  <div class="editor-actions editor-actions--template">
+                    <el-button
+                      data-testid="delete-template-button"
+                      :disabled="(!canDeleteSelected && !isDraftTemplate) || deleting || saving"
+                      @click="handleDeleteTemplate"
+                    >
+                      {{ deleting ? $t('common.loading') : $t('common.delete') }}
+                    </el-button>
+                    <el-button
+                      data-testid="save-template-button"
+                      type="primary"
+                      :disabled="saving || deleting"
+                      @click="saveTemplate"
+                    >
+                      {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
+                    </el-button>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="editor-actions">
-              <el-button
-                data-testid="delete-template-button"
-                :disabled="!canDeleteSelected || deleting || saving"
-                @click="handleDeleteTemplate"
-              >
-                {{ deleting ? $t('common.loading') : $t('common.delete') }}
-              </el-button>
-              <el-button
-                data-testid="save-template-button"
-                type="primary"
-                :disabled="saving || deleting"
-                @click="saveTemplate"
-              >
-                {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
+          <section class="workflow-preview-section">
+            <div class="section-heading-row">
+              <div class="section-heading">{{ $t('workflowTemplate.workflowPreview') }}</div>
+              <el-button type="primary" plain @click="addStep">
+                {{ $t('workflowTemplate.addStep') }}
               </el-button>
             </div>
+            <div class="workflow-preview-shell">
+              <div class="workflow-preview-track">
+                <template v-for="(step, index) in previewSteps" :key="step.localKey">
+                  <div v-if="index > 0" class="workflow-connector" aria-hidden="true"></div>
+                  <button
+                    type="button"
+                    class="workflow-step-card"
+                    :class="{
+                      'is-selected': selectedStepIndex === index,
+                      'has-warning': step.hasWarning
+                    }"
+                    @click="selectStep(index)"
+                  >
+                    <div class="workflow-step-card__top">
+                      <span class="workflow-step-card__order">{{ index + 1 }}</span>
+                    </div>
+
+                    <div class="workflow-step-card__name">{{ step.name || $t('workflowTemplate.newStepDefaultName') }}</div>
+
+                    <div class="workflow-step-card__meta">
+                      <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </section>
+
+          <div v-if="stepValidationHint" class="step-validation-hint">
+            {{ stepValidationHint }}
           </div>
 
-          <div v-if="!canDeleteSelected" class="default-template-hint">
-            {{ $t('workflowTemplate.defaultTemplateHint') }}
-          </div>
-          <div v-if="agentsLoadFailed" class="agent-load-hint">
-            {{ $t('workflowTemplate.loadAgentsFailed') }}
-          </div>
+          <section class="step-editor-section">
+            <div class="section-heading-row">
+              <div class="section-heading">{{ $t('workflowTemplate.stepEditor') }}</div>
+              <el-button
+                v-if="selectedStep"
+                text
+                type="danger"
+                :disabled="!canDeleteStep"
+                @click="confirmRemoveStep(selectedStepIndex)"
+              >
+                {{ $t('workflowTemplate.deleteStep') }}
+              </el-button>
+            </div>
 
-          <el-table :data="template.steps" border stripe>
-            <el-table-column prop="name" :label="$t('workflowTemplate.stepName')" min-width="160" />
-            <el-table-column prop="id" :label="$t('workflowTemplate.stepId')" min-width="180" />
-            <el-table-column :label="$t('workflowTemplate.executor')" min-width="280">
-              <template #default="scope">
-                <div class="agent-binding-cell">
-                  <el-select v-model="scope.row.agentId" clearable style="width: 100%">
+            <div v-if="selectedStep" class="step-editor-card">
+              <div class="step-editor-card__header">
+                <div>
+                  <div class="step-editor-card__title">{{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}</div>
+                </div>
+              </div>
+
+              <div class="step-editor-state-row">
+                <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
+                  {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}
+                </el-tag>
+                <el-tag v-else-if="isDisabledAgent(selectedStep)" type="warning">
+                  {{ formatBoundAgentState(selectedStep) }}
+                </el-tag>
+                <el-tag v-else-if="typeof selectedStep.agentId !== 'number'" type="info">
+                  {{ $t('workflowTemplate.unassignedAgent') }}
+                </el-tag>
+              </div>
+
+              <div class="step-editor-grid">
+                <div class="editor-field">
+                  <label>{{ $t('workflowTemplate.stepName') }}</label>
+                  <el-input
+                    v-model="selectedStep.name"
+                    :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+                  />
+                </div>
+
+                <div class="editor-field editor-field--full">
+                  <label>{{ $t('workflowTemplate.executor') }}</label>
+                  <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
                     <el-option
                       v-for="agent in agents"
                       :key="agent.id"
@@ -128,32 +198,23 @@
                       :disabled="agent.enabled === false"
                     />
                   </el-select>
-
-                  <div v-if="agentsLoaded" class="binding-state-row">
-                    <el-tag v-if="isMissingAgent(scope.row)" type="danger">
-                      {{ $t('workflowTemplate.missingAgent', { id: scope.row.agentId }) }}
-                    </el-tag>
-                    <el-tag v-else-if="isDisabledAgent(scope.row)" type="warning">
-                      {{ formatBoundAgentState(scope.row) }}
-                    </el-tag>
-                  </div>
                 </div>
-              </template>
-            </el-table-column>
-            <el-table-column :label="$t('workflowTemplate.instructionPrompt')" min-width="420">
-              <template #default="scope">
-                <div class="prompt-editor">
+
+                <div class="editor-field editor-field--full">
+                  <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
                   <el-input
-                    v-model="scope.row.instructionPrompt"
+                    v-model="selectedStep.instructionPrompt"
                     type="textarea"
-                    :rows="4"
+                    :rows="6"
                     resize="vertical"
                     :placeholder="$t('workflowTemplate.instructionPromptHint')"
                   />
                 </div>
-              </template>
-            </el-table-column>
-          </el-table>
+              </div>
+            </div>
+
+            <div v-else class="state-block compact">{{ $t('workflowTemplate.selectStepHint') }}</div>
+          </section>
         </template>
 
         <template v-else>
@@ -178,6 +239,7 @@ import {
 import { getAgents } from '../api/agent'
 import {
   normalizeWorkflowTemplate,
+  getAgentDisplayName,
   formatAgentOption,
   createAgentLookup,
   isMissingAgent as checkMissingAgent,
@@ -186,6 +248,7 @@ import {
 } from '../components/workflow/templateEditorShared.js'
 
 const DEFAULT_TEMPLATE_ID = 'dev-workflow-v1'
+const MIN_TEMPLATE_STEPS = 2
 
 const { t } = useI18n()
 
@@ -196,9 +259,10 @@ const deleting = ref(false)
 const loadError = ref('')
 const templates = ref([])
 const selectedTemplateId = ref('')
-const template = ref(null)
 const createTemplateId = ref('')
 const createTemplateName = ref('')
+const selectedStepIndex = ref(0)
+const template = ref(null)
 const agents = ref([])
 const agentsLoaded = ref(false)
 const agentsLoadFailed = ref(false)
@@ -207,6 +271,23 @@ let latestTemplateDetailRequestToken = 0
 
 const canDeleteSelected = computed(() => {
   return Boolean(template.value?.template_id) && template.value.template_id !== DEFAULT_TEMPLATE_ID
+})
+
+const isDraftTemplate = computed(() => Boolean(template.value?.isDraft))
+
+const canDeleteStep = computed(() => {
+  return (template.value?.steps?.length || 0) > MIN_TEMPLATE_STEPS
+})
+
+const selectedStep = computed(() => {
+  return template.value?.steps?.[selectedStepIndex.value] || null
+})
+
+const stepValidationHint = computed(() => {
+  if (!canDeleteStep.value) {
+    return t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS })
+  }
+  return ''
 })
 
 const getApiData = (response, fallbackMessageKey) => {
@@ -221,28 +302,220 @@ const getErrorMessage = (error, fallbackMessageKey) => {
   return error?.response?.data?.message || error?.message || t(fallbackMessageKey)
 }
 
-const normalizeTemplate = (rawTemplate) => normalizeWorkflowTemplate(rawTemplate, null)
+const normalizeStep = (step = {}) => ({
+  id: typeof step.id === 'string' ? step.id : '',
+  name: typeof step.name === 'string' ? step.name : '',
+  instructionPrompt: typeof step.instructionPrompt === 'string' ? step.instructionPrompt : '',
+  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
+})
+
+const sanitizeStep = (step = {}) => ({
+  id: (step.id || '').trim(),
+  name: (step.name || '').trim(),
+  instructionPrompt: (step.instructionPrompt || '').trim(),
+  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
+})
+
+const slugifyStepName = (value = '') => {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return normalized
+}
+
+const createGeneratedStepId = (step, index, usedIds) => {
+  const base = slugifyStepName(step.name) || `step-${index + 1}`
+  let candidate = base
+  let suffix = 2
+
+  while (usedIds.has(candidate)) {
+    candidate = `${base}-${suffix}`
+    suffix += 1
+  }
+
+  usedIds.add(candidate)
+  return candidate
+}
+
+const normalizeTemplate = (rawTemplate) => {
+  if (!rawTemplate) return null
+
+  return {
+    ...normalizeWorkflowTemplate(rawTemplate, null),
+    isDraft: rawTemplate.isDraft === true,
+    steps: Array.isArray(rawTemplate.steps) ? rawTemplate.steps.map(normalizeStep) : []
+  }
+}
+
+const getAgentLabel = (agent) => getAgentDisplayName(agent, t)
 
 const getAgentById = (agentId) => createAgentLookup(agents.value)(agentId)
-const isMissingAgent = (step) => checkMissingAgent(step, getAgentById)
+const isMissingAgent = (step) => {
+  if (!agentsLoaded.value || agentsLoadFailed.value) return false
+  return checkMissingAgent(step, getAgentById)
+}
 const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
 const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
 const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 
 const buildStepsPayload = (steps = []) => {
-  return steps.map((step) => ({
-    id: step.id,
-    name: step.name,
-    instructionPrompt: step.instructionPrompt ?? '',
-    agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
-  }))
+  const usedIds = new Set()
+
+  return steps.map((step, index) => {
+    const normalizedStep = sanitizeStep(step)
+    const generatedId = normalizedStep.id || createGeneratedStepId(normalizedStep, index, usedIds)
+    usedIds.add(generatedId)
+    return {
+      id: generatedId,
+      name: normalizedStep.name,
+      instructionPrompt: normalizedStep.instructionPrompt,
+      agentId: normalizedStep.agentId
+    }
+  })
 }
 
 const buildSavePayload = (currentTemplate) => ({
   template_id: currentTemplate.template_id,
-  name: currentTemplate.name,
+  name: currentTemplate.name?.trim?.() || '',
   steps: buildStepsPayload(currentTemplate.steps || [])
 })
+
+const createDraftTemplate = () => ({
+  template_id: `draft-${Date.now()}`,
+  name: t('workflowTemplate.newTemplateDefaultName'),
+  isDraft: true,
+  steps: (template.value?.steps || []).map(step => normalizeStep(step))
+})
+
+const previewSteps = computed(() => {
+  return (template.value?.steps || []).map((step, index) => {
+    const sanitized = sanitizeStep(step)
+    let agentSummary = t('workflowTemplate.unassignedAgent')
+    let agentStateClass = 'workflow-chip--info'
+
+    if (typeof sanitized.agentId === 'number') {
+      if (isMissingAgent(sanitized)) {
+        agentSummary = t('workflowTemplate.missingAgent', { id: sanitized.agentId })
+        agentStateClass = 'workflow-chip--danger'
+      } else if (isDisabledAgent(sanitized)) {
+        agentSummary = formatBoundAgentState(sanitized)
+        agentStateClass = 'workflow-chip--warning'
+      } else {
+        agentSummary = getAgentLabel(getAgentById(sanitized.agentId))
+        agentStateClass = 'workflow-chip--success'
+      }
+    }
+
+    return {
+      ...sanitized,
+      localKey: `${index}-${step.id || 'empty'}`,
+      agentSummary,
+      agentStateClass,
+      hasWarning: isMissingAgent(sanitized) || isDisabledAgent(sanitized) || !sanitized.instructionPrompt
+    }
+  })
+})
+
+const syncSelectedStepIndex = () => {
+  const stepCount = template.value?.steps?.length || 0
+  if (stepCount === 0) {
+    selectedStepIndex.value = 0
+    return
+  }
+  if (selectedStepIndex.value >= stepCount) {
+    selectedStepIndex.value = stepCount - 1
+  }
+}
+
+const selectStep = (index) => {
+  selectedStepIndex.value = index
+}
+
+const addStep = () => {
+  if (!template.value) return
+  template.value.steps = [
+    ...(template.value.steps || []),
+    {
+      id: '',
+      name: t('workflowTemplate.newStepDefaultName'),
+      instructionPrompt: '',
+      agentId: null
+    }
+  ]
+  selectedStepIndex.value = template.value.steps.length - 1
+}
+
+const removeStep = (index) => {
+  if (!template.value) return
+  if (!canDeleteStep.value) {
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS }))
+    return
+  }
+
+  template.value.steps = template.value.steps.filter((_, stepIndex) => stepIndex !== index)
+  if (selectedStepIndex.value > index) {
+    selectedStepIndex.value -= 1
+  } else if (selectedStepIndex.value === index) {
+    selectedStepIndex.value = Math.max(0, index - 1)
+  }
+  syncSelectedStepIndex()
+}
+
+const confirmRemoveStep = async (index) => {
+  if (!template.value) return
+  if (!canDeleteStep.value) {
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS }))
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      t('workflowTemplate.deleteStepConfirm'),
+      t('workflowTemplate.deleteStepConfirmTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+    removeStep(index)
+  } catch {
+    // user cancelled
+  }
+}
+
+const validateTemplateBeforeSave = (currentTemplate) => {
+  if (!currentTemplate?.name?.trim()) {
+    return t('workflowTemplate.templateNameRequired')
+  }
+
+  const steps = buildStepsPayload(currentTemplate.steps || [])
+  if (steps.length < MIN_TEMPLATE_STEPS) {
+    return t('workflowTemplate.minimumStepsHint', { count: MIN_TEMPLATE_STEPS })
+  }
+
+  const seenIds = new Set()
+  for (const step of steps) {
+    if (!step.name) {
+      return t('workflowTemplate.stepNameRequired')
+    }
+    if (seenIds.has(step.id)) {
+      return t('workflowTemplate.stepIdUnique')
+    }
+    seenIds.add(step.id)
+    if (typeof step.agentId !== 'number') {
+      return t('workflowTemplate.stepAgentRequired')
+    }
+    if (!step.instructionPrompt) {
+      return t('workflowTemplate.stepPromptRequired')
+    }
+  }
+
+  return ''
+}
 
 const resolvePreferredTemplateId = (availableTemplates, preferredId) => {
   if (preferredId && availableTemplates.some((item) => item.template_id === preferredId)) {
@@ -271,12 +544,39 @@ const upsertTemplateSummary = (updatedTemplate) => {
   templates.value = nextTemplates
 }
 
+const replaceDraftTemplate = (draftTemplateId, savedTemplate) => {
+  const normalized = normalizeTemplate(savedTemplate)
+  if (!normalized) return
+
+  const index = templates.value.findIndex((item) => item.template_id === draftTemplateId)
+  if (index === -1) {
+    templates.value = [...templates.value, normalized]
+    return
+  }
+
+  const nextTemplates = [...templates.value]
+  nextTemplates.splice(index, 1, normalized)
+  templates.value = nextTemplates
+}
+
+const addDraftTemplate = (draftTemplate) => {
+  templates.value = [...templates.value, draftTemplate]
+  selectedTemplateId.value = draftTemplate.template_id
+  template.value = draftTemplate
+  selectedStepIndex.value = 0
+}
+
+const removeTemplateFromList = (templateId) => {
+  templates.value = templates.value.filter((item) => item.template_id !== templateId)
+}
+
 const loadTemplateDetail = async (templateId, options = {}) => {
   const { allowStale = false } = options
 
   if (!templateId) {
     selectedTemplateId.value = ''
     template.value = null
+    selectedStepIndex.value = 0
     return null
   }
 
@@ -292,6 +592,7 @@ const loadTemplateDetail = async (templateId, options = {}) => {
 
   selectedTemplateId.value = loadedTemplate.template_id
   template.value = loadedTemplate
+  selectedStepIndex.value = 0
   upsertTemplateSummary(loadedTemplate)
   return loadedTemplate
 }
@@ -305,6 +606,7 @@ const loadTemplateList = async (preferredId = DEFAULT_TEMPLATE_ID) => {
   if (!nextTemplateId) {
     selectedTemplateId.value = ''
     template.value = null
+    selectedStepIndex.value = 0
     return
   }
 
@@ -348,12 +650,14 @@ const selectTemplateLocally = (templateId) => {
   if (!preferredTemplateId) {
     selectedTemplateId.value = ''
     template.value = null
+    selectedStepIndex.value = 0
     return null
   }
 
   const summary = templates.value.find((item) => item.template_id === preferredTemplateId) || null
   selectedTemplateId.value = preferredTemplateId
   template.value = summary ? normalizeTemplate(summary) : null
+  selectedStepIndex.value = 0
   return preferredTemplateId
 }
 
@@ -380,25 +684,22 @@ const refreshTemplateList = async (preferredId) => {
   }
 }
 
-const finalizeTemplateCreation = async (createdTemplate) => {
-  upsertTemplateSummary(createdTemplate)
-  createTemplateId.value = ''
-  createTemplateName.value = ''
-  selectTemplateLocally(createdTemplate.template_id)
-  ElMessage.success(t('workflowTemplate.createSuccess'))
-  await handleFollowUpDetailLoad(createdTemplate.template_id)
-}
-
 const finalizeTemplateDeletion = async (deletedTemplateId) => {
   removeTemplateLocally(deletedTemplateId)
   ElMessage.success(t('workflowTemplate.deleteSuccess'))
   await refreshTemplateList(DEFAULT_TEMPLATE_ID)
 }
 
+const finalizeDraftDeletion = (deletedTemplateId) => {
+  removeTemplateFromList(deletedTemplateId)
+  selectTemplateLocally(DEFAULT_TEMPLATE_ID)
+}
+
 const finalizeTemplateSave = (savedTemplate) => {
   template.value = savedTemplate
+  selectedStepIndex.value = Math.min(selectedStepIndex.value, Math.max((savedTemplate.steps?.length || 1) - 1, 0))
   upsertTemplateSummary(savedTemplate)
-  ElMessage.success(t('workflowTemplate.saveSuccess'))
+  ElMessage.success(t(isDraftTemplate.value ? 'workflowTemplate.createSuccess' : 'workflowTemplate.saveSuccess'))
 }
 
 const handleActionFailure = (error, fallbackMessageKey) => {
@@ -418,8 +719,25 @@ const loadPage = async () => {
   }
 }
 
+const generateTemplateId = () => {
+  const requestedId = createTemplateId.value.trim()
+  if (requestedId) return requestedId
+
+  const existingIds = new Set(templates.value.filter(item => !item.isDraft).map((item) => item.template_id))
+  let index = templates.value.length + 1
+  let candidate = `template-${index}`
+
+  while (existingIds.has(candidate)) {
+    index += 1
+    candidate = `template-${index}`
+  }
+
+  return candidate
+}
+
 const handleCreateTemplate = async () => {
   if (!template.value) return
+  if (!createTemplateId.value.trim() || !createTemplateName.value.trim()) return
 
   creating.value = true
   try {
@@ -431,7 +749,12 @@ const handleCreateTemplate = async () => {
 
     const response = await createWorkflowTemplate(payload)
     const createdTemplate = normalizeTemplate(getApiData(response, 'workflowTemplate.createFailed'))
-    await finalizeTemplateCreation(createdTemplate)
+    upsertTemplateSummary(createdTemplate)
+    createTemplateId.value = ''
+    createTemplateName.value = ''
+    selectTemplateLocally(createdTemplate.template_id)
+    ElMessage.success(t('workflowTemplate.createSuccess'))
+    await handleFollowUpDetailLoad(createdTemplate.template_id)
   } catch (error) {
     handleActionFailure(error, 'workflowTemplate.createFailed')
   } finally {
@@ -442,25 +765,45 @@ const handleCreateTemplate = async () => {
 const saveTemplate = async () => {
   if (!template.value) return
 
+  const validationMessage = validateTemplateBeforeSave(template.value)
+  if (validationMessage) {
+    ElMessage.warning(validationMessage)
+    return
+  }
+
   saving.value = true
   try {
-    const payload = buildSavePayload(template.value)
-    const response = await updateWorkflowTemplate(payload)
-    const savedTemplate = normalizeTemplate(getApiData(response, 'workflowTemplate.saveFailed'))
+    const originalTemplateId = template.value.template_id
+    const payload = buildSavePayload({
+      ...template.value,
+      template_id: isDraftTemplate.value ? generateTemplateId() : template.value.template_id
+    })
+    const response = isDraftTemplate.value
+      ? await createWorkflowTemplate(payload)
+      : await updateWorkflowTemplate(payload)
+    const savedTemplate = normalizeTemplate(getApiData(response, isDraftTemplate.value ? 'workflowTemplate.createFailed' : 'workflowTemplate.saveFailed'))
+
+    if (isDraftTemplate.value) {
+      replaceDraftTemplate(originalTemplateId, savedTemplate)
+    }
     finalizeTemplateSave(savedTemplate)
   } catch (error) {
-    handleActionFailure(error, 'workflowTemplate.saveFailed')
+    handleActionFailure(error, isDraftTemplate.value ? 'workflowTemplate.createFailed' : 'workflowTemplate.saveFailed')
   } finally {
     saving.value = false
   }
 }
 
 const handleDeleteTemplate = async () => {
-  if (!canDeleteSelected.value || !template.value) return
+  if ((!canDeleteSelected.value && !isDraftTemplate.value) || !template.value) return
 
   deleting.value = true
   try {
     const deletedTemplateId = template.value.template_id
+    if (isDraftTemplate.value) {
+      finalizeDraftDeletion(deletedTemplateId)
+      return
+    }
     await deleteWorkflowTemplate(deletedTemplateId)
     await finalizeTemplateDeletion(deletedTemplateId)
   } catch (error) {
@@ -540,6 +883,12 @@ onMounted(() => {
   background: #fff;
   text-align: left;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.template-list-item:hover {
+  border-color: #93c5fd;
+  transform: translateY(-1px);
 }
 
 .template-list-item.is-active {
@@ -552,17 +901,8 @@ onMounted(() => {
   color: #222;
 }
 
-.template-list-item__id {
-  color: #666;
-  font-size: 12px;
-}
-
 .editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .editor-actions {
@@ -570,10 +910,21 @@ onMounted(() => {
   gap: 12px;
 }
 
+.editor-actions--template {
+  flex-shrink: 0;
+}
+
 .template-meta {
   display: grid;
   gap: 12px;
   flex: 1;
+}
+
+.template-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }
 
 .meta-row {
@@ -592,36 +943,236 @@ onMounted(() => {
   min-width: 96px;
 }
 
-.meta-value {
-  color: #222;
-  font-weight: 500;
-}
-
-.default-template-hint,
-.agent-load-hint {
+.step-validation-hint {
   margin-bottom: 16px;
   color: #666;
   font-size: 13px;
 }
 
-.agent-binding-cell {
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.workflow-preview-section {
+  margin-bottom: 20px;
+}
+
+.workflow-preview-shell {
+  overflow-x: auto;
+  padding: 12px 4px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+}
+
+.workflow-preview-track {
+  display: flex;
+  align-items: stretch;
+  min-width: max-content;
+  padding: 8px;
+}
+
+.workflow-connector {
+  position: relative;
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.workflow-connector::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 16px;
+  top: 50%;
+  height: 2px;
+  background: #94a3b8;
+  transform: translateY(-50%);
+}
+
+.workflow-connector::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 8px solid #94a3b8;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transform: translateY(-50%);
+}
+
+.workflow-step-card {
+  width: 250px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.workflow-step-card:hover {
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
+}
+
+.workflow-step-card.is-selected {
+  border-color: #3b82f6;
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.workflow-step-card.has-warning {
+  border-color: #fbbf24;
+}
+
+.workflow-step-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.workflow-step-card__order {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflow-step-card__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.workflow-step-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflow-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.workflow-chip--info {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.workflow-chip--success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.workflow-chip--warning {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.workflow-chip--danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.step-editor-section {
+  margin-top: 8px;
+}
+
+.step-editor-card {
+  border-radius: 16px;
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  padding: 20px;
+}
+
+.step-editor-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.step-editor-card__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.step-editor-state-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.step-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.editor-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.binding-state-row {
-  min-height: 24px;
+.editor-field--full {
+  grid-column: 1 / -1;
 }
 
-.prompt-editor {
-  width: 100%;
+.editor-field label {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .state-block {
   padding: 32px;
   text-align: center;
   color: #666;
+}
+
+.state-block.compact {
+  padding: 24px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
 }
 
 .state-block.error {
@@ -632,5 +1183,27 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   padding-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .template-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .template-name-row,
+  .section-heading-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .step-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-field--full {
+    grid-column: auto;
+  }
 }
 </style>

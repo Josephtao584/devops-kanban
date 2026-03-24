@@ -4,104 +4,124 @@
       <div class="template-meta">
         <div class="meta-row">
           <span class="meta-label">{{ $t('workflowTemplate.templateId') }}</span>
-          <span class="meta-value">{{ draftTemplate.template_id }}</span>
+          <span class="meta-value">{{ localTemplate.template_id }}</span>
         </div>
         <div class="meta-row">
           <span class="meta-label">{{ $t('workflowTemplate.name') }}</span>
-          <span class="meta-value">{{ draftTemplate.name }}</span>
+          <span class="meta-value">{{ localTemplate.name }}</span>
         </div>
       </div>
 
-      <div class="workflow-start-editor-flow">
-        <template v-for="(step, index) in localTemplate.steps" :key="step.id">
-          <div class="workflow-start-editor-step" :class="stepStateClass(step)">
-            <div class="workflow-start-editor-step-header">
-              <span class="workflow-start-editor-step-dot"></span>
-              <div class="workflow-start-editor-step-title-group">
-                <span class="workflow-start-editor-step-name">{{ step.name }}</span>
-                <span class="workflow-start-editor-step-id">{{ step.id }}</span>
+      <section class="workflow-preview-section">
+        <div class="section-heading-row">
+          <div class="section-heading">{{ $t('workflowTemplate.workflowPreview') }}</div>
+        </div>
+        <div class="workflow-preview-shell">
+          <div class="workflow-preview-track">
+            <template v-for="(step, index) in previewSteps" :key="step.localKey">
+              <div v-if="index > 0" class="workflow-connector" aria-hidden="true"></div>
+              <button
+                type="button"
+                class="workflow-step-card workflow-start-editor-step"
+                :class="{
+                  'is-selected': selectedStepIndex === index,
+                  'has-warning': step.hasWarning,
+                  'state-missing': step.stateClass === 'state-missing',
+                  'state-disabled': step.stateClass === 'state-disabled'
+                }"
+                @click="selectStep(index)"
+              >
+                <div class="workflow-step-card__top">
+                  <span class="workflow-step-card__order">{{ index + 1 }}</span>
+                </div>
+
+                <div class="workflow-step-card__name workflow-start-editor-step-name">
+                  {{ step.name || $t('workflowTemplate.newStepDefaultName') }}
+                </div>
+                <div class="workflow-start-editor-step-id">{{ step.id }}</div>
+
+                <div class="workflow-step-card__meta workflow-start-editor-step-summary">
+                  <span class="workflow-chip" :class="step.agentStateClass">
+                    {{ step.agentSummary }}
+                  </span>
+                  <span class="workflow-start-editor-prompt-text">
+                    {{ step.promptSummary }}
+                  </span>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <section class="step-editor-section">
+        <div class="section-heading-row">
+          <div class="section-heading">{{ $t('workflowTemplate.stepEditor') }}</div>
+        </div>
+
+        <div v-if="selectedStep" class="step-editor-card">
+          <div class="step-editor-card__header">
+            <div>
+              <div class="step-editor-card__title">
+                {{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}
               </div>
-            </div>
-
-            <div class="workflow-start-editor-step-summary">
-              <div class="workflow-start-editor-summary-block">
-                <span class="workflow-start-editor-summary-label">{{ $t('workflowTemplate.executor') }}</span>
-                <span class="workflow-start-editor-summary-value">{{ getRoleSummary(step) }}</span>
-              </div>
-
-              <div class="workflow-start-editor-summary-block">
-                <span class="workflow-start-editor-summary-label">{{ $t('workflowTemplate.instructionPrompt') }}</span>
-                <span class="workflow-start-editor-summary-value workflow-start-editor-prompt-text">{{ getPromptSummary(step) }}</span>
-              </div>
-            </div>
-
-            <div v-if="agentsLoaded" class="binding-state-row">
-              <el-tag v-if="isMissingAgent(step)" type="danger">
-                {{ $t('workflowTemplate.missingAgent', { id: step.agentId }) }}
-              </el-tag>
-              <el-tag v-else-if="isDisabledAgent(step)" type="warning">
-                {{ formatBoundAgentState(step) }}
-              </el-tag>
-            </div>
-
-            <div class="workflow-start-editor-actions">
-              <el-button class="workflow-start-editor-edit-role" size="small" @click="openRoleDialog(index)">
-                编辑角色
-              </el-button>
-              <el-button class="workflow-start-editor-edit-prompt" size="small" @click="openPromptDialog(index)">
-                编辑提示词
-              </el-button>
             </div>
           </div>
 
-          <div v-if="index < localTemplate.steps.length - 1" class="workflow-start-editor-connector">→</div>
-        </template>
-      </div>
+          <div class="step-editor-state-row binding-state-row">
+            <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
+              {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}
+            </el-tag>
+            <el-tag v-else-if="isDisabledAgent(selectedStep)" type="warning">
+              {{ formatBoundAgentState(selectedStep) }}
+            </el-tag>
+            <el-tag v-else-if="typeof selectedStep.agentId !== 'number'" type="info">
+              {{ $t('workflowTemplate.unassignedAgent') }}
+            </el-tag>
+          </div>
+
+          <div class="step-editor-grid">
+            <div class="editor-field">
+              <label>{{ $t('workflowTemplate.stepName') }}</label>
+              <el-input
+                v-model="selectedStep.name"
+                :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+              />
+            </div>
+
+            <div class="editor-field editor-field--full">
+              <label>{{ $t('workflowTemplate.executor') }}</label>
+              <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
+                <el-option
+                  v-for="agent in agents"
+                  :key="agent.id"
+                  :label="formatWorkflowAgentOption(agent)"
+                  :value="agent.id"
+                  :disabled="agent.enabled === false"
+                />
+              </el-select>
+            </div>
+
+            <div class="editor-field editor-field--full">
+              <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+              <el-input
+                v-model="selectedStep.instructionPrompt"
+                type="textarea"
+                :rows="6"
+                resize="vertical"
+                :placeholder="$t('workflowTemplate.instructionPromptHint')"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="state-block compact">{{ $t('workflowTemplate.selectStepHint') }}</div>
+      </section>
     </template>
 
     <template #footer>
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
       <el-button type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
-    </template>
-  </el-dialog>
-
-  <el-dialog :model-value="editingRoleIndex !== null" title="编辑角色" width="420px" @close="closeRoleDialog">
-    <template v-if="editingRoleStep">
-      <div class="workflow-start-editor-inline-editor">
-        <div class="workflow-start-editor-inline-label">{{ editingRoleStep.name }}</div>
-        <el-select v-model="editingRoleAgentId" clearable style="width: 100%">
-          <el-option
-            v-for="agent in agents"
-            :key="agent.id"
-            :label="formatWorkflowAgentOption(agent)"
-            :value="agent.id"
-            :disabled="agent.enabled === false"
-          />
-        </el-select>
-      </div>
-    </template>
-    <template #footer>
-      <el-button @click="closeRoleDialog">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" @click="applyRoleDialog">{{ $t('common.confirm') }}</el-button>
-    </template>
-  </el-dialog>
-
-  <el-dialog :model-value="editingPromptIndex !== null" title="编辑提示词" width="640px" @close="closePromptDialog">
-    <template v-if="editingPromptStep">
-      <div class="workflow-start-editor-inline-editor">
-        <div class="workflow-start-editor-inline-label">{{ editingPromptStep.name }}</div>
-        <el-input
-          v-model="editingPromptValue"
-          type="textarea"
-          :rows="8"
-          resize="vertical"
-          :placeholder="$t('workflowTemplate.instructionPromptHint')"
-        />
-      </div>
-    </template>
-    <template #footer>
-      <el-button @click="closePromptDialog">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" @click="applyPromptDialog">{{ $t('common.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -113,6 +133,7 @@ import { ElMessage } from 'element-plus'
 import { getAgents } from '../../api/agent.js'
 import {
   normalizeWorkflowTemplate,
+  getAgentDisplayName,
   formatAgentOption,
   createAgentLookup,
   isMissingAgent as checkMissingAgent,
@@ -131,15 +152,13 @@ const { t } = useI18n()
 const agents = ref([])
 const agentsLoaded = ref(false)
 const localTemplate = ref({ template_id: '', name: '', steps: [] })
-const editingRoleIndex = ref(null)
-const editingRoleAgentId = ref(null)
-const editingPromptIndex = ref(null)
-const editingPromptValue = ref('')
+const selectedStepIndex = ref(0)
 
 const normalizeTemplate = (rawTemplate) => normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
 
 watch(() => props.draftTemplate, (value) => {
   localTemplate.value = normalizeTemplate(value)
+  selectedStepIndex.value = 0
 }, { immediate: true })
 
 watch(() => props.modelValue, async (visible) => {
@@ -166,68 +185,49 @@ const isMissingAgent = (step) => checkMissingAgent(step, getAgentById)
 const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
 const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
-
-const stepStateClass = (step) => {
-  if (isMissingAgent(step)) return 'state-missing'
-  if (isDisabledAgent(step)) return 'state-disabled'
-  return 'state-ready'
-}
-
-const getRoleSummary = (step) => {
-  if (isMissingAgent(step) || isDisabledAgent(step)) {
-    return formatBoundAgentState(step) || t('common.none')
-  }
-
-  const agent = getAgentById(step.agentId)
-  return agent ? formatWorkflowAgentOption(agent) : t('common.none')
-}
+const selectedStep = computed(() => localTemplate.value.steps[selectedStepIndex.value] || null)
 
 const getPromptSummary = (step) => {
-  const text = String(step.instructionPrompt || '').trim()
-  if (!text) return t('common.none')
+  const text = String(step?.instructionPrompt || '').trim()
+  if (!text) return t('workflowTemplate.promptPreviewEmpty')
   return text.length > 48 ? `${text.slice(0, 48)}...` : text
 }
 
-const editingRoleStep = computed(() => (
-  editingRoleIndex.value === null ? null : localTemplate.value.steps[editingRoleIndex.value] || null
-))
+const previewSteps = computed(() => {
+  return (localTemplate.value.steps || []).map((step, index) => {
+    let agentSummary = t('workflowTemplate.unassignedAgent')
+    let agentStateClass = 'workflow-chip--info'
+    let stateClass = 'state-ready'
 
-const editingPromptStep = computed(() => (
-  editingPromptIndex.value === null ? null : localTemplate.value.steps[editingPromptIndex.value] || null
-))
+    if (typeof step.agentId === 'number') {
+      if (isMissingAgent(step)) {
+        agentSummary = t('workflowTemplate.missingAgent', { id: step.agentId })
+        agentStateClass = 'workflow-chip--danger'
+        stateClass = 'state-missing'
+      } else if (isDisabledAgent(step)) {
+        agentSummary = formatBoundAgentState(step)
+        agentStateClass = 'workflow-chip--warning'
+        stateClass = 'state-disabled'
+      } else {
+        agentSummary = getAgentDisplayName(getAgentById(step.agentId), t)
+        agentStateClass = 'workflow-chip--success'
+      }
+    }
 
-const openRoleDialog = (index) => {
-  editingRoleIndex.value = index
-  editingRoleAgentId.value = localTemplate.value.steps[index]?.agentId ?? null
-}
+    return {
+      ...step,
+      localKey: `${index}-${step.id || 'empty'}`,
+      agentSummary,
+      agentStateClass,
+      stateClass,
+      promptSummary: getPromptSummary(step),
+      hasWarning: isMissingAgent(step) || isDisabledAgent(step) || !String(step.instructionPrompt || '').trim()
+    }
+  })
+})
 
-const closeRoleDialog = () => {
-  editingRoleIndex.value = null
-  editingRoleAgentId.value = null
-}
-
-const applyRoleDialog = () => {
-  if (editingRoleIndex.value !== null) {
-    localTemplate.value.steps[editingRoleIndex.value].agentId = editingRoleAgentId.value
-  }
-  closeRoleDialog()
-}
-
-const openPromptDialog = (index) => {
-  editingPromptIndex.value = index
-  editingPromptValue.value = localTemplate.value.steps[index]?.instructionPrompt ?? ''
-}
-
-const closePromptDialog = () => {
-  editingPromptIndex.value = null
-  editingPromptValue.value = ''
-}
-
-const applyPromptDialog = () => {
-  if (editingPromptIndex.value !== null) {
-    localTemplate.value.steps[editingPromptIndex.value].instructionPrompt = editingPromptValue.value
-  }
-  closePromptDialog()
+const selectStep = (index) => {
+  selectedStepIndex.value = index
 }
 
 const canConfirm = computed(() => (
@@ -265,68 +265,137 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
   font-weight: 500;
 }
 
-.workflow-start-editor-flow {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
-  gap: 16px;
-  align-items: start;
-}
-
-.workflow-start-editor-step {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  min-height: 220px;
-}
-
-.workflow-start-editor-step.state-ready {
-  border-left: 4px solid #94a3b8;
-}
-
-.workflow-start-editor-step.state-missing {
-  border-left: 4px solid #ef4444;
-}
-
-.workflow-start-editor-step.state-disabled {
-  border-left: 4px solid #f59e0b;
-}
-
-.workflow-start-editor-step-header {
+.section-heading-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.workflow-start-editor-step-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #94a3b8;
+.section-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.workflow-preview-section {
+  margin-bottom: 20px;
+}
+
+.workflow-preview-shell {
+  overflow-x: auto;
+  padding: 12px 4px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+}
+
+.workflow-preview-track {
+  display: flex;
+  align-items: stretch;
+  min-width: max-content;
+  padding: 8px;
+}
+
+.workflow-connector {
+  position: relative;
+  width: 52px;
   flex-shrink: 0;
 }
 
-.state-missing .workflow-start-editor-step-dot {
-  background: #ef4444;
+.workflow-connector::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 16px;
+  top: 50%;
+  height: 2px;
+  background: #94a3b8;
+  transform: translateY(-50%);
 }
 
-.state-disabled .workflow-start-editor-step-dot {
-  background: #f59e0b;
+.workflow-connector::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 8px solid #94a3b8;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transform: translateY(-50%);
 }
 
-.workflow-start-editor-step-title-group {
+.workflow-start-editor-step {
+  width: 250px;
+  min-height: 160px;
+}
+
+.workflow-step-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.workflow-start-editor-step-name {
-  font-weight: 600;
-  color: #334155;
+.workflow-step-card:hover {
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
+}
+
+.workflow-step-card.is-selected {
+  border-color: #3b82f6;
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.workflow-step-card.has-warning {
+  border-color: #fbbf24;
+}
+
+.workflow-step-card.state-missing {
+  border-color: #ef4444;
+}
+
+.workflow-step-card.state-disabled {
+  border-color: #f59e0b;
+}
+
+.workflow-step-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.workflow-step-card__order {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflow-step-card__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .workflow-start-editor-step-id {
@@ -334,73 +403,127 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
   color: #64748b;
 }
 
-.workflow-start-editor-step-summary {
+.workflow-step-card__meta {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-.workflow-start-editor-summary-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.workflow-start-editor-summary-label {
+.workflow-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
   font-size: 12px;
-  color: #64748b;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.workflow-start-editor-summary-value {
-  font-size: 13px;
-  color: #334155;
-  line-height: 1.5;
+.workflow-chip--info {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.workflow-chip--success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.workflow-chip--warning {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.workflow-chip--danger {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .workflow-start-editor-prompt-text {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.binding-state-row {
+.step-editor-section {
+  margin-top: 8px;
+}
+
+.step-editor-card {
+  border-radius: 16px;
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  padding: 20px;
+}
+
+.step-editor-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.step-editor-card__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.step-editor-state-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 16px;
+}
+
+.binding-state-row {
   min-height: 24px;
 }
 
-.workflow-start-editor-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: auto;
+.step-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
-.workflow-start-editor-connector {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #cbd5e1;
-  font-size: 18px;
-  font-weight: 300;
-}
-
-.workflow-start-editor-inline-editor {
+.editor-field {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
-.workflow-start-editor-inline-label {
+.editor-field--full {
+  grid-column: 1 / -1;
+}
+
+.editor-field label {
+  color: #475569;
+  font-size: 13px;
   font-weight: 600;
-  color: #334155;
 }
 
-@media (max-width: 1200px) {
-  .workflow-start-editor-flow {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
+.state-block.compact {
+  padding: 24px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  text-align: center;
+  color: #666;
+}
+
+@media (max-width: 900px) {
+  .step-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-field--full {
+    grid-column: auto;
   }
 }
 </style>
