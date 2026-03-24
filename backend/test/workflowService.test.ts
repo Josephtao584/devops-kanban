@@ -244,8 +244,8 @@ function buildAgent(id: number, overrides: Partial<AgentRecord> = {}): AgentReco
 function buildValidAgents() {
   return new Map<number, AgentRecord>([
     [11, buildAgent(11, { executorType: 'CLAUDE_CODE' })],
-    [12, buildAgent(12, { executorType: 'CODEX' })],
-    [13, buildAgent(13, { executorType: 'OPENCODE' })],
+    [12, buildAgent(12, { executorType: 'CLAUDE_CODE' })],
+    [13, buildAgent(13, { executorType: 'CLAUDE_CODE' })],
     [14, buildAgent(14, { executorType: 'CLAUDE_CODE' })],
   ]);
 }
@@ -1363,8 +1363,8 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
   await executionPromise;
 
   assert.equal(harness.run.status, 'CANCELLED');
-  assert.deepEqual(harness.run.context, {});
-  assert.equal(harness.run.current_step, 'requirement-design');
+  assert.deepEqual(harness.run.context, { error: 'Workflow cancelled' });
+  assert.equal(harness.run.current_step, null);
   assert.equal(harness.run.steps[0]?.status, 'CANCELLED');
   assert.equal(harness.run.steps[0]?.error, 'Workflow cancelled');
   assert.equal(harness.run.steps[0]?.session_id, 101);

@@ -265,6 +265,8 @@ export default {
     stepPromptRequired: '阶段提示词不能为空',
     workflowPreview: '工作流预览',
     stepEditor: '阶段编辑器',
+    stepDetailsTitle: '阶段详情',
+    viewDetails: '详情',
     selectedStep: '当前选中第 {index} 阶段',
     unassignedAgent: '未分配成员',
     promptPreviewEmpty: '请为当前阶段补充提示词',
