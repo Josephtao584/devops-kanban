@@ -117,7 +117,8 @@ export function normalizeExecutorRawResult(rawResult: ExecutorRawResult | undefi
   }
 
   const events = normalizeExecutorEvents(rawResult);
-  if (events.length === 0) {
+  const hasRawEvents = Array.isArray((rawResult as ExecutorRawResultWithEvents).events);
+  if (!hasRawEvents) {
     return rawResult;
   }
 
