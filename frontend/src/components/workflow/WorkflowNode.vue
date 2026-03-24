@@ -81,7 +81,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { nodeStatusConfig } from '@/mock/workflowData'
+import { nodeStatusConfig } from '@/constants/workflowPresentation'
 import {
   Back, Warning, Document, VideoPause, Timer
 } from '@element-plus/icons-vue'

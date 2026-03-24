@@ -8,45 +8,16 @@ export function useWorkflowManager({
   selectedTask,
   selectedProjectId,
   showWorkflowDialog,
-  getWorkflowByTask,
-  getWorkflowByProject,
   t
 }) {
   const selectedNodeId = ref(null)
-  const selectedNode = computed(() => {
-    if (!selectedNodeId.value || !currentWorkflow.value) {
-      return null
-    }
-    return findNodeById(currentWorkflow.value, selectedNodeId.value)
-  })
+  const selectedNode = ref(null)
   const showNodeDialog = ref(false)
   const workflowVersion = ref(0)
-  const currentWorkflow = computed(() => {
-    if (selectedProjectId.value) {
-      return getWorkflowByProject(selectedProjectId.value)
-    }
-    return null
-  })
 
   // Session manager
   const { createSession, startSession, setSession, clearSession } = useSessionManager()
 
-  /**
-   * Find node by ID in workflow
-   */
-  function findNodeById(workflow, nodeId) {
-    if (!workflow || !workflow.stages) {
-      return null
-    }
-    for (const stage of workflow.stages) {
-      for (const node of stage.nodes) {
-        if (node.id === nodeId) {
-          return node
-        }
-      }
-    }
-    return null
-  }
 
   /**
    * Handle node selection
@@ -105,19 +76,6 @@ export function useWorkflowManager({
       return
     }
 
-    // Get or create workflow
-    let workflow = getWorkflowByTask(selectedTask.value.id)
-    if (!workflow) {
-      workflow = getWorkflowByProject(selectedProjectId.value)
-    }
-
-    if (!workflow) {
-      console.warn('No workflow found for task')
-      return
-    }
-
-    // Create session for the task
-    // This would typically use an agent adapter
     console.log('Starting workflow for task:', selectedTask.value)
   }
 
@@ -126,7 +84,6 @@ export function useWorkflowManager({
     selectedNode,
     showNodeDialog,
     workflowVersion,
-    currentWorkflow,
     onNodeSelect,
     onNodeViewDetails,
     handleButlerControl,

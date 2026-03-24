@@ -203,7 +203,10 @@ class TaskService {
     return (await this.taskRepo.findById(taskId)) !== null;
   }
 
-  async delete(taskId: number) {
+  async delete(taskId: number, deleteWorktree: boolean = false) {
+    if (deleteWorktree) {
+      await this.deleteWorktree(taskId);
+    }
     return await this.taskRepo.delete(taskId);
   }
 

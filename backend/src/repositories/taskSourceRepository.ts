@@ -112,6 +112,14 @@ class TaskSourceRepository {
     const source = await this.findById(sourceId);
     return source !== null;
   }
+
+  async deleteByProject(projectId: number): Promise<number> {
+    const data = await this._loadAll();
+    const initialLength = data.length;
+    const filtered = data.filter((item) => item.project_id !== projectId);
+    await this._saveAll(filtered);
+    return initialLength - filtered.length;
+  }
 }
 
 export { TaskSourceRepository };

@@ -89,7 +89,7 @@ import { useToast } from '../composables/ui/useToast'
 import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import { useMessageFilter } from '../composables/useMessageFilter'
 import { parseOutputToMessages } from '../utils/messageParser'
-import { agentConfig } from '@/mock/workflowData'
+import { agentConfig } from '@/constants/workflowPresentation'
 
 // Dev mode flag for template
 const isDev = import.meta.env.DEV

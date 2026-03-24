@@ -82,6 +82,7 @@ export default {
     deleteConfirm: '确定要删除此任务吗？',
     deleteConfirmMessage: '确定要删除此任务吗？此操作无法撤销。',
     deleteConfirmTitle: '删除任务',
+    deleteWorktreeCheckbox: '同时删除关联的 worktree',
     noTasks: '暂无任务',
     addTask: '+ 添加任务',
     noTodoTasks: '暂无待处理任务',

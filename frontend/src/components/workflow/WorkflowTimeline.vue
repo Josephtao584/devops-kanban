@@ -186,7 +186,8 @@ import { computed, ref, watch, onMounted, nextTick, onUnmounted, onBeforeUnmount
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'
-import { nodeStatusConfig, getWorkflowProgress, getAllNodes } from '@/mock/workflowData'
+import { nodeStatusConfig } from '@/constants/workflowPresentation'
+import { getWorkflowProgress, getAllNodes } from '@/utils/workflowRunViewModel'
 
 const props = defineProps({
   workflow: {

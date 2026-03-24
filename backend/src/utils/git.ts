@@ -33,10 +33,29 @@ export function createWorktree(taskId: number, taskTitle: string, projectName: s
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
-    execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    });
+
+    // Check if branch already exists
+    let branchExists = false;
+    try {
+      execSync(`git rev-parse --verify refs/heads/${branchName}`, { cwd: repoPath, stdio: 'pipe' });
+      branchExists = true;
+    } catch {
+      branchExists = false;
+    }
+
+    if (branchExists) {
+      // Branch exists, just add worktree without creating branch
+      execSync(`git worktree add "${worktreePath}" "${branchName}"`, {
+        cwd: repoPath,
+        encoding: 'utf-8',
+      });
+    } else {
+      // Branch doesn't exist, create it with worktree
+      execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
+        cwd: repoPath,
+        encoding: 'utf-8',
+      });
+    }
     return worktreePath;
   } catch (error) {
     const execError = error as Error & { stderr?: string };

@@ -105,9 +105,10 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams; Querystring: { deleteWorktree?: boolean } }>('/:id', async (request, reply) => {
     try {
-      const deleted = await taskService.delete(parseNumber(request.params.id));
+      const { deleteWorktree } = request.query;
+      const deleted = await taskService.delete(parseNumber(request.params.id), deleteWorktree);
       if (!deleted) {
         reply.code(404);
         return errorResponse('Task not found');

@@ -80,6 +80,14 @@ class IterationRepository extends BaseRepository<IterationEntity, IterationCreat
     const iteration = await this.findById(iterationId);
     return iteration !== null;
   }
+
+  async deleteByProject(projectId: number): Promise<number> {
+    const data = await this._loadAll();
+    const initialLength = data.length;
+    const filtered = data.filter((item) => item.project_id !== projectId);
+    await this._saveAll(filtered);
+    return initialLength - filtered.length;
+  }
 }
 
 export { IterationRepository };

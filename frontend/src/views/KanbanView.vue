@@ -91,7 +91,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @add-task="openTaskModal()"
             @worktree-update="handleWorktreeUpdate"
             @sync="handleSyncTaskSources"
@@ -112,7 +112,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
@@ -131,7 +131,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
@@ -150,7 +150,7 @@
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
-            @delete-task="deleteTask"
+            @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
@@ -168,7 +168,7 @@
           :currentNodeId="currentViewingNodeId"
           @select-task="selectTask"
           @edit-task="openTaskModal"
-          @delete-task="deleteTask"
+          @delete-task="onDeleteTask"
           @update:status-filter="listStatusFilter = $event"
           @add-task="openTaskModal()"
           @reorder-tasks="handleReorderTasks"
@@ -404,6 +404,7 @@
     <WorkflowTimelineDialog
       v-model="showWorkflowDialog"
       :task-id="selectedTask?.id"
+      :workflow-run-id="selectedTask?.workflow_run_id"
       @select-node="onNodeSelect"
       @view-details="onNodeViewDetails"
       @start-workflow="onStartWorkflow"
@@ -581,13 +582,34 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete Task Confirmation Dialog -->
+  <el-dialog
+    v-model="showDeleteConfirm"
+    :title="t('task.deleteConfirmTitle')"
+    width="400px"
+    :close-on-click-modal="false"
+  >
+    <div class="delete-confirm-content">
+      <p>{{ t('task.deleteConfirmMessage') }}</p>
+      <el-checkbox v-model="deleteWorktreeChecked" class="delete-worktree-checkbox">
+        {{ t('task.deleteWorktreeCheckbox') }}
+      </el-checkbox>
+    </div>
+    <template #footer>
+      <el-button @click="showDeleteConfirm = false">{{ t('common.cancel') }}</el-button>
+      <el-button type="danger" :loading="loading.saving" @click="confirmDeleteTask">
+        {{ t('common.delete') }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
   OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
@@ -616,13 +638,7 @@ import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
 import { analyzeTaskCategory } from '../mock/workflowAssignment'
-import {
-  getWorkflowByProject,
-  getWorkflowByTask,
-  getOrCreateWorkflowForProject,
-  addNodeToWorkflow
-} from '../mock/workflowData'
-import { reorderTasks, startTask } from '../api/task.js'
+import { reorderTasks, startTask, deleteTask } from '../api/task.js'
 import { useToast } from '../composables/ui/useToast'
 import { useWorktree } from '../composables/useWorktree'
 
@@ -679,6 +695,9 @@ const expandedTaskId = ref(null)
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const showWorkflowTemplateDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const deleteWorktreeChecked = ref(false)
+const pendingDeleteTaskId = ref(null)
 
 // Clear currentViewingNodeId when selected task becomes DONE
 watch(() => selectedTask.value?.status, (newStatus) => {
@@ -716,8 +735,6 @@ const {
   selectedTask,
   selectedProjectId,
   showWorkflowDialog,
-  getWorkflowByTask,
-  getWorkflowByProject,
   t
 })
 
@@ -871,6 +888,16 @@ const handleToggleWorkflow = (taskId) => {
 const startSelectedTaskWithTemplate = async (workflowTemplateId, autoCreateWorktree = false) => {
   if (!selectedTask.value) return
 
+  // If auto-create worktree is requested, create it first
+  if (autoCreateWorktree && selectedTask.value) {
+    try {
+      await handleWorktree(selectedTask.value)
+    } catch (err) {
+      console.error('Worktree 创建失败，阻止任务启动:', err)
+      return // Stop - don't start the task
+    }
+  }
+
   try {
     const response = await startTask(selectedTask.value.id, {
       workflow_template_id: workflowTemplateId
@@ -878,14 +905,14 @@ const startSelectedTaskWithTemplate = async (workflowTemplateId, autoCreateWorkt
 
     if (response.success) {
       ElMessage.success('任务已启动')
-      if (selectedProjectId.value) {
-        await taskStore.fetchTasks(selectedProjectId.value)
-      }
       showWorkflowTemplateDialog.value = false
 
-      // Auto-create worktree if requested
-      if (autoCreateWorktree && selectedTask.value) {
-        await handleWorktree(selectedTask.value)
+      if (selectedProjectId.value) {
+        await taskStore.fetchTasks(selectedProjectId.value)
+        const updated = taskStore.tasks.find(t => t.id === selectedTask.value?.id)
+        if (updated) {
+          selectedTask.value = updated
+        }
       }
     } else {
       ElMessage.error(response.message || '启动失败')
@@ -959,28 +986,6 @@ const handleWorkflowAction = (payload) => {
     isChatCollapsed.value = false
     loadActiveSession()
   }
-}
-
-// Get current node from workflow for a task
-const getCurrentNode = (task, expandedTaskId) => {
-  if (!task.workflow) return null
-  // Find current in-progress node
-  for (const stage of task.workflow.stages || []) {
-    for (const node of stage.nodes || []) {
-      if (node.status === 'IN_PROGRESS') {
-        return node
-      }
-    }
-  }
-  // If no in-progress node, return first pending node
-  for (const stage of task.workflow.stages || []) {
-    for (const node of stage.nodes || []) {
-      if (node.status === 'PENDING' || node.status === 'TODO') {
-        return node
-      }
-    }
-  }
-  return null
 }
 
 // Computed - tasks and projects
@@ -1261,24 +1266,21 @@ const handleIterationSubmit = async (formData) => {
 }
 
 // Delete task
-const deleteTask = async (taskId) => {
-  try {
-    await ElMessageBox.confirm(
-      t('task.deleteConfirmMessage'),
-      t('task.deleteConfirmTitle'),
-      {
-        confirmButtonText: t('common.delete'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning'
-      }
-    )
-  } catch {
-    return
-  }
+const onDeleteTask = async (taskId) => {
+  pendingDeleteTaskId.value = taskId
+  deleteWorktreeChecked.value = false
+  showDeleteConfirm.value = true
+}
 
+const confirmDeleteTask = async () => {
+  const taskId = pendingDeleteTaskId.value
+  if (!taskId) return
+
+  showDeleteConfirm.value = false
   loading.saving = true
   try {
-    await taskStore.deleteTask(taskId)
+    await deleteTask(taskId, deleteWorktreeChecked.value)
+    await taskStore.fetchTasks(selectedProjectId.value)
     if (selectedTask.value?.id === taskId) {
       selectedTask.value = null
     }
@@ -1289,6 +1291,7 @@ const deleteTask = async (taskId) => {
     ElMessage.error(t('task.deleteFailed'))
   } finally {
     loading.saving = false
+    pendingDeleteTaskId.value = null
   }
 }
 
@@ -2989,5 +2992,18 @@ onUnmounted(() => {
   border-color: #6366f1;
   color: #6366f1;
   background: #eef2ff;
+}
+
+.delete-confirm-content {
+  padding: 10px 0;
+}
+
+.delete-confirm-content p {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+
+.delete-worktree-checkbox {
+  color: var(--text-secondary);
 }
 </style>

@@ -127,6 +127,11 @@
           </button>
         </div>
 
+        <div v-else class="workflow-section workflow-empty-state">
+          <span class="workflow-empty-title">{{ $t('workflow.noWorkflow') }}</span>
+          <span class="workflow-empty-hint">可先创建 worktree，或直接启动任务后生成 workflow。</span>
+        </div>
+
         <div v-if="currentNode" class="workflow-section node-detail">
           <span class="node-detail-name">{{ currentNode.name }}</span>
           <span class="node-detail-status" :class="'status-' + currentNode.status?.toLowerCase()">
@@ -212,8 +217,13 @@ import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
-import { getWorkflowProgress, getWorkflowByTask } from '../../mock/workflowData'
 import { getWorkflowRun } from '../../api/workflow'
+import {
+  toTimelineWorkflow,
+  getWorkflowProgress,
+  getCurrentWorkflowNode,
+  getWorkflowDisplayStatus
+} from '../../utils/workflowRunViewModel'
 import InlineWorkflowPanel from '../workflow/InlineWorkflowPanel.vue'
 import PriorityBadge from '../common/PriorityBadge.vue'
 
@@ -342,54 +352,24 @@ const workflowWorktreeStatusText = computed(() => {
 })
 const statusClass = computed(() => getStatusClass(props.task.status))
 
-// Workflow data - either from prop or computed from task
+// Workflow data - only from real backend workflow run data or explicit prop
 const workflowData = computed(() => {
   if (props.workflow) return props.workflow
-  // Use real workflow run data if available
-  if (realWorkflowRun.value) {
-    // Transform real workflow run steps to stages format (one step = one stage)
-    const steps = realWorkflowRun.value.steps || []
-    return {
-      stages: steps.map((step, index) => ({
-        id: step.step_id,
-        name: step.name,
-        order: index,
-        nodes: [{
-          id: step.step_id,
-          name: step.name,
-          status: step.status,
-          started_at: step.started_at,
-          completed_at: step.completed_at,
-        }]
-      }))
-    }
-  }
-  if (props.task?.id) {
-    return getWorkflowByTask(props.task.id)
-  }
+  if (realWorkflowRun.value) return toTimelineWorkflow(realWorkflowRun.value)
   return null
 })
 
 // Current node - from prop or computed from currentNodeId
 const currentNode = computed(() => {
-  // If task is DONE, don't show current node
   if (props.task?.status === 'DONE') return null
-
   if (props.currentNode) return props.currentNode
-  if (!workflowData.value?.stages) return null
-  // If we have real workflow run data, use current_step
-  if (realWorkflowRun.value?.current_step) {
-    for (const stage of workflowData.value.stages) {
-      const node = stage.nodes?.find(n => n.id === realWorkflowRun.value.current_step)
-      if (node) return node
-    }
+  if (realWorkflowRun.value && workflowData.value) {
+    return getCurrentWorkflowNode(realWorkflowRun.value, workflowData.value)
   }
-  // Fallback to currentNodeId prop
-  if (props.currentNodeId) {
-    for (const stage of workflowData.value.stages) {
-      const node = stage.nodes?.find(n => n.id === props.currentNodeId)
-      if (node) return node
-    }
+  if (!workflowData.value?.stages || !props.currentNodeId) return null
+  for (const stage of workflowData.value.stages) {
+    const node = stage.nodes?.find(n => n.id === props.currentNodeId)
+    if (node) return node
   }
   return null
 })
@@ -431,31 +411,20 @@ const getStatusText = (status) => {
 
 // Workflow status computation
 const workflowStatus = computed(() => {
-  // Use real workflow run data from API if available
   if (realWorkflowRun.value) {
-    const status = realWorkflowRun.value.status
-    if (status === 'RUNNING' || status === 'PENDING') return 'running'
-    if (status === 'COMPLETED') return 'done'
-    if (status === 'FAILED') return 'failed'
-    if (status === 'CANCELLED') return 'paused'
+    return getWorkflowDisplayStatus(realWorkflowRun.value)
   }
   if (!workflowData.value) {
-    // If task has workflow_run_id but no mock data, show as running
-    if (props.task?.workflow_run_id) return 'running'
-    return 'pending'
+    return props.task?.workflow_run_id ? 'running' : 'pending'
   }
   const { completed, total } = workflowProgress.value
-  if (completed === 0) return 'pending' // 待启动
-  if (completed === total) return 'done' // 完成
-  // 检查是否有失败的节点
+  if (completed === 0) return 'pending'
+  if (completed === total) return 'done'
   for (const stage of workflowData.value.stages) {
     if (stage.nodes?.some(n => n.status === 'FAILED')) return 'failed'
-  }
-  // 检查是否有进行中的节点
-  for (const stage of workflowData.value.stages) {
     if (stage.nodes?.some(n => n.status === 'IN_PROGRESS')) return 'running'
   }
-  return 'paused' // 暂停
+  return 'paused'
 })
 
 const workflowStatusText = computed(() => {
@@ -823,6 +792,23 @@ const openWorktreeDirectory = () => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.workflow-empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workflow-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.workflow-empty-hint {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .workflow-status {
