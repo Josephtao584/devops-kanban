@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :model-value="modelValue" :title="$t('workflowTemplate.startEditorTitle')" width="960px" @close="handleCancel">
+  <el-dialog :model-value="modelValue" :title="$t('workflowTemplate.startEditorTitle')" width="1280px" @close="handleCancel">
     <template v-if="draftTemplate">
       <div class="template-meta">
         <div class="meta-row">
@@ -23,40 +23,34 @@
               </div>
             </div>
 
-            <div class="workflow-start-editor-step-body">
-              <div class="workflow-start-editor-field">
-                <span class="workflow-start-editor-field-label">{{ $t('workflowTemplate.executor') }}</span>
-                <div class="agent-binding-cell">
-                  <el-select v-model="step.agentId" clearable style="width: 100%">
-                    <el-option
-                      v-for="agent in agents"
-                      :key="agent.id"
-                      :label="formatWorkflowAgentOption(agent)"
-                      :value="agent.id"
-                      :disabled="agent.enabled === false"
-                    />
-                  </el-select>
-                  <div v-if="agentsLoaded" class="binding-state-row">
-                    <el-tag v-if="isMissingAgent(step)" type="danger">
-                      {{ $t('workflowTemplate.missingAgent', { id: step.agentId }) }}
-                    </el-tag>
-                    <el-tag v-else-if="isDisabledAgent(step)" type="warning">
-                      {{ formatBoundAgentState(step) }}
-                    </el-tag>
-                  </div>
-                </div>
+            <div class="workflow-start-editor-step-summary">
+              <div class="workflow-start-editor-summary-block">
+                <span class="workflow-start-editor-summary-label">{{ $t('workflowTemplate.executor') }}</span>
+                <span class="workflow-start-editor-summary-value">{{ getRoleSummary(step) }}</span>
               </div>
 
-              <div class="workflow-start-editor-field">
-                <span class="workflow-start-editor-field-label">{{ $t('workflowTemplate.instructionPrompt') }}</span>
-                <el-input
-                  v-model="step.instructionPrompt"
-                  type="textarea"
-                  :rows="4"
-                  resize="vertical"
-                  :placeholder="$t('workflowTemplate.instructionPromptHint')"
-                />
+              <div class="workflow-start-editor-summary-block">
+                <span class="workflow-start-editor-summary-label">{{ $t('workflowTemplate.instructionPrompt') }}</span>
+                <span class="workflow-start-editor-summary-value workflow-start-editor-prompt-text">{{ getPromptSummary(step) }}</span>
               </div>
+            </div>
+
+            <div v-if="agentsLoaded" class="binding-state-row">
+              <el-tag v-if="isMissingAgent(step)" type="danger">
+                {{ $t('workflowTemplate.missingAgent', { id: step.agentId }) }}
+              </el-tag>
+              <el-tag v-else-if="isDisabledAgent(step)" type="warning">
+                {{ formatBoundAgentState(step) }}
+              </el-tag>
+            </div>
+
+            <div class="workflow-start-editor-actions">
+              <el-button class="workflow-start-editor-edit-role" size="small" @click="openRoleDialog(index)">
+                编辑角色
+              </el-button>
+              <el-button class="workflow-start-editor-edit-prompt" size="small" @click="openPromptDialog(index)">
+                编辑提示词
+              </el-button>
             </div>
           </div>
 
@@ -68,6 +62,46 @@
     <template #footer>
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
       <el-button type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog :model-value="editingRoleIndex !== null" title="编辑角色" width="420px" @close="closeRoleDialog">
+    <template v-if="editingRoleStep">
+      <div class="workflow-start-editor-inline-editor">
+        <div class="workflow-start-editor-inline-label">{{ editingRoleStep.name }}</div>
+        <el-select v-model="editingRoleAgentId" clearable style="width: 100%">
+          <el-option
+            v-for="agent in agents"
+            :key="agent.id"
+            :label="formatWorkflowAgentOption(agent)"
+            :value="agent.id"
+            :disabled="agent.enabled === false"
+          />
+        </el-select>
+      </div>
+    </template>
+    <template #footer>
+      <el-button @click="closeRoleDialog">{{ $t('common.cancel') }}</el-button>
+      <el-button type="primary" @click="applyRoleDialog">{{ $t('common.confirm') }}</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog :model-value="editingPromptIndex !== null" title="编辑提示词" width="640px" @close="closePromptDialog">
+    <template v-if="editingPromptStep">
+      <div class="workflow-start-editor-inline-editor">
+        <div class="workflow-start-editor-inline-label">{{ editingPromptStep.name }}</div>
+        <el-input
+          v-model="editingPromptValue"
+          type="textarea"
+          :rows="8"
+          resize="vertical"
+          :placeholder="$t('workflowTemplate.instructionPromptHint')"
+        />
+      </div>
+    </template>
+    <template #footer>
+      <el-button @click="closePromptDialog">{{ $t('common.cancel') }}</el-button>
+      <el-button type="primary" @click="applyPromptDialog">{{ $t('common.confirm') }}</el-button>
     </template>
   </el-dialog>
 </template>
@@ -97,6 +131,10 @@ const { t } = useI18n()
 const agents = ref([])
 const agentsLoaded = ref(false)
 const localTemplate = ref({ template_id: '', name: '', steps: [] })
+const editingRoleIndex = ref(null)
+const editingRoleAgentId = ref(null)
+const editingPromptIndex = ref(null)
+const editingPromptValue = ref('')
 
 const normalizeTemplate = (rawTemplate) => normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
 
@@ -108,9 +146,9 @@ watch(() => props.modelValue, async (visible) => {
   if (visible) {
     await loadAgents()
   }
-})
+}, { immediate: true })
 
-const loadAgents = async () => {
+async function loadAgents () {
   agentsLoaded.value = false
   try {
     const response = await getAgents()
@@ -133,6 +171,63 @@ const stepStateClass = (step) => {
   if (isMissingAgent(step)) return 'state-missing'
   if (isDisabledAgent(step)) return 'state-disabled'
   return 'state-ready'
+}
+
+const getRoleSummary = (step) => {
+  if (isMissingAgent(step) || isDisabledAgent(step)) {
+    return formatBoundAgentState(step) || t('common.none')
+  }
+
+  const agent = getAgentById(step.agentId)
+  return agent ? formatWorkflowAgentOption(agent) : t('common.none')
+}
+
+const getPromptSummary = (step) => {
+  const text = String(step.instructionPrompt || '').trim()
+  if (!text) return t('common.none')
+  return text.length > 48 ? `${text.slice(0, 48)}...` : text
+}
+
+const editingRoleStep = computed(() => (
+  editingRoleIndex.value === null ? null : localTemplate.value.steps[editingRoleIndex.value] || null
+))
+
+const editingPromptStep = computed(() => (
+  editingPromptIndex.value === null ? null : localTemplate.value.steps[editingPromptIndex.value] || null
+))
+
+const openRoleDialog = (index) => {
+  editingRoleIndex.value = index
+  editingRoleAgentId.value = localTemplate.value.steps[index]?.agentId ?? null
+}
+
+const closeRoleDialog = () => {
+  editingRoleIndex.value = null
+  editingRoleAgentId.value = null
+}
+
+const applyRoleDialog = () => {
+  if (editingRoleIndex.value !== null) {
+    localTemplate.value.steps[editingRoleIndex.value].agentId = editingRoleAgentId.value
+  }
+  closeRoleDialog()
+}
+
+const openPromptDialog = (index) => {
+  editingPromptIndex.value = index
+  editingPromptValue.value = localTemplate.value.steps[index]?.instructionPrompt ?? ''
+}
+
+const closePromptDialog = () => {
+  editingPromptIndex.value = null
+  editingPromptValue.value = ''
+}
+
+const applyPromptDialog = () => {
+  if (editingPromptIndex.value !== null) {
+    localTemplate.value.steps[editingPromptIndex.value].instructionPrompt = editingPromptValue.value
+  }
+  closePromptDialog()
 }
 
 const canConfirm = computed(() => (
@@ -171,25 +266,22 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 }
 
 .workflow-start-editor-flow {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
   gap: 16px;
-  flex-wrap: wrap;
-  overflow-x: auto;
-  padding: 8px 0;
+  align-items: start;
 }
 
 .workflow-start-editor-step {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-width: 280px;
-  max-width: 320px;
   padding: 16px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  min-height: 220px;
 }
 
 .workflow-start-editor-step.state-ready {
@@ -242,42 +334,73 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
   color: #64748b;
 }
 
-.workflow-start-editor-step-body {
+.workflow-start-editor-step-summary {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.workflow-start-editor-field {
+.workflow-start-editor-summary-block {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.workflow-start-editor-field-label {
+.workflow-start-editor-summary-label {
   font-size: 12px;
   color: #64748b;
   font-weight: 600;
 }
 
-.agent-binding-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.workflow-start-editor-summary-value {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.workflow-start-editor-prompt-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .binding-state-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-height: 24px;
+}
+
+.workflow-start-editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
 }
 
 .workflow-start-editor-connector {
   display: flex;
   align-items: center;
-  align-self: center;
+  justify-content: center;
   color: #cbd5e1;
   font-size: 18px;
   font-weight: 300;
+}
+
+.workflow-start-editor-inline-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workflow-start-editor-inline-label {
+  font-weight: 600;
+  color: #334155;
+}
+
+@media (max-width: 1200px) {
+  .workflow-start-editor-flow {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
 }
 </style>
