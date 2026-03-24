@@ -183,6 +183,7 @@ class WorkflowService {
     });
 
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
+    this._activeRuns.set(run.id, this._createActiveRunContext(executionPath));
     this._executeWorkflow(run.id, { ...task, execution_path: executionPath }).catch((err) => {
       console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
     });
@@ -251,6 +252,22 @@ class WorkflowService {
       taskDescription: task.description || '',
       worktreePath: task.execution_path,
     });
+  }
+
+  private _createActiveRunContext(worktreePath?: string): ActiveRunContext {
+    const context: WorkflowExecutionContext = {
+      cancelled: false,
+      proc: null,
+      worktreePath,
+    };
+
+    return {
+      cancel: () => {
+        context.cancelled = true;
+      },
+      proc: null,
+      context,
+    };
   }
 
   private async _getRunStep(runId: number, stepId: string) {
@@ -368,7 +385,11 @@ class WorkflowService {
     stepUpdate: Partial<Pick<WorkflowStepEntity, 'summary' | 'error'>>,
   ) {
     const completedAt = new Date().toISOString();
-    const { step } = await this._getRunStep(runId, stepId);
+    const { run, step } = await this._getRunStep(runId, stepId);
+
+    if (step.status === 'CANCELLED' || run.status === 'CANCELLED') {
+      return;
+    }
 
     await this.workflowRunRepo.updateStep(runId, stepId, {
       status,
@@ -445,12 +466,29 @@ class WorkflowService {
   }
 
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }) {
-    this._activeRuns.set(runId, {
-      cancel: () => {},
-    });
+    const activeRun = this._activeRuns.get(runId) || this._createActiveRunContext(task.execution_path);
+    this._activeRuns.set(runId, activeRun);
+
+    const context = activeRun.context || {
+      cancelled: false,
+      proc: null,
+      worktreePath: task.execution_path,
+    };
+    context.worktreePath = task.execution_path;
+    activeRun.context = context;
+    activeRun.cancel = () => {
+      context.cancelled = true;
+    };
 
     try {
+      if (context.cancelled) {
+        return;
+      }
+
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
+      if (context.cancelled || await this._isWorkflowRunCancelled(runId)) {
+        return;
+      }
       const inputData = {
         taskId: task.id,
         taskTitle: task.title || 'Untitled Task',
@@ -458,20 +496,6 @@ class WorkflowService {
         worktreePath: task.execution_path,
       };
       const initialState = this._buildInitialWorkflowState(task);
-
-      const context: WorkflowExecutionContext = {
-        cancelled: false,
-        proc: null,
-        worktreePath: inputData.worktreePath,
-      };
-
-      this._activeRuns.set(runId, {
-        cancel: () => {
-          context.cancelled = true;
-        },
-        proc: null,
-        context,
-      });
 
       const stream = await this._createWorkflowStream(context, inputData, initialState);
 
@@ -482,9 +506,9 @@ class WorkflowService {
 
         if (event.type === 'workflow-step-result' && event.payload?.stepName) {
           const stepId = event.payload.stepName;
-          const activeRun = this._activeRuns.get(runId);
-          if (activeRun && activeRun.context?.proc) {
-            activeRun.proc = activeRun.context.proc;
+          const currentActiveRun = this._activeRuns.get(runId);
+          if (currentActiveRun && currentActiveRun.context?.proc) {
+            currentActiveRun.proc = currentActiveRun.context.proc;
           }
           await this._handleWorkflowStepCompletion(runId, stepId, event.payload.result || {});
         }

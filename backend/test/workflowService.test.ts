@@ -402,6 +402,111 @@ function createStepSessionHarness() {
   };
 }
 
+function createActiveRunCancelHarness() {
+  const run = {
+    id: 7,
+    task_id: 1,
+    workflow_id: 'dev-workflow-v1',
+    status: 'PENDING',
+    current_step: null,
+    steps: [
+      {
+        step_id: 'requirement-design',
+        name: '需求设计',
+        status: 'PENDING',
+        started_at: null,
+        completed_at: null,
+        retry_count: 0,
+        session_id: null,
+        summary: null,
+        error: null,
+      },
+    ],
+    worktree_path: '/tmp/workspace',
+    branch: 'task/1',
+    context: {},
+  };
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const taskUpdates: Array<{ taskId: number; updateData: Record<string, unknown> }> = [];
+  let createWorkflowStreamCalls = 0;
+
+  const workflowRunRepo = {
+    async findById(runId: number) {
+      assert.equal(runId, 7);
+      return run;
+    },
+    async update(runId: number, updateData: Record<string, unknown>) {
+      assert.equal(runId, 7);
+      runUpdates.push(updateData);
+      Object.assign(run, updateData);
+      return run;
+    },
+    async updateStep(runId: number, stepId: string, updateData: Record<string, unknown>) {
+      assert.equal(runId, 7);
+      assert.equal(stepId, 'requirement-design');
+      Object.assign(run.steps[0]!, updateData);
+      return run;
+    },
+  };
+
+  const taskRepo = {
+    async update(taskId: number, updateData: Record<string, unknown>) {
+      taskUpdates.push({ taskId, updateData });
+      return { id: taskId, ...updateData };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: workflowRunRepo as never,
+    taskRepo: taskRepo as never,
+    sessionRepo: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+      async findById() {
+        return null;
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    } as never,
+    sessionSegmentRepo: {
+      async create() {
+        throw new Error('create should not be called');
+      },
+      async findLatestBySessionId() {
+        return null;
+      },
+      async update() {
+        throw new Error('update should not be called');
+      },
+    } as never,
+  });
+
+  (service as WorkflowService & {
+    _createWorkflowStream: () => Promise<{
+      fullStream: AsyncIterable<{ type: string; payload?: { stepName?: string } }>;
+      result: Promise<{ status: string; result?: Record<string, unknown> }>;
+    }>;
+  })._createWorkflowStream = async () => {
+    createWorkflowStreamCalls += 1;
+    return {
+      fullStream: (async function* () {})(),
+      result: Promise.resolve({ status: 'success', result: { summary: 'should not persist' } }),
+    };
+  };
+
+  return {
+    service,
+    run,
+    runUpdates,
+    taskUpdates,
+    getCreateWorkflowStreamCalls() {
+      return createWorkflowStreamCalls;
+    },
+  };
+}
+
 function createExecuteWorkflowHarness() {
   const stepSessionHarness = createStepSessionHarness();
   const runUpdates: Array<Record<string, unknown>> = [];
@@ -753,6 +858,73 @@ test.test('executeWorkflow finalizes the active step session when the stream thr
 });
 
 
+test.test('executeWorkflow stops before creating the stream when cancellation wins during startup', async () => {
+  const harness = createActiveRunCancelHarness();
+
+  harness.service._activeRuns.set(7, {
+    cancel: () => {},
+  });
+
+  const executionPromise = (harness.service as WorkflowService & {
+    _executeWorkflow: (runId: number, task: Record<string, unknown>) => Promise<void>;
+  })._executeWorkflow(7, {
+    id: 1,
+    title: 'Workflow task',
+    description: 'Implement the task',
+    execution_path: '/tmp/workspace',
+  });
+
+  await harness.service.cancelWorkflow(7);
+  await executionPromise;
+
+  assert.equal(harness.run.status, 'CANCELLED');
+  assert.deepEqual(harness.run.context, {});
+  assert.equal(harness.getCreateWorkflowStreamCalls(), 0);
+  assert.equal(harness.taskUpdates.length, 0);
+  assert.deepEqual(harness.runUpdates, [
+    { status: 'RUNNING' },
+    { status: 'CANCELLED' },
+  ]);
+});
+
+
+
+test.test('late workflow step result and error events do not override a cancelled step lifecycle', async () => {
+  const harness = createStepSessionHarness();
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepStart: (runId: number, stepId: string, task: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepStart(7, 'requirement-design', harness.task);
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCancellation: (runId: number, stepId: string) => Promise<void>;
+  })._handleWorkflowStepCancellation(7, 'requirement-design');
+
+  harness.run.status = 'CANCELLED';
+
+  const cancelledCompletedAt = harness.run.steps[0]?.completed_at;
+  assert.equal(harness.run.steps[0]?.status, 'CANCELLED');
+  assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
+  assert.equal(harness.segments[0]?.status, 'CANCELLED');
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
+  })._handleWorkflowStepCompletion(7, 'requirement-design', { summary: 'late success' });
+
+  await (harness.service as WorkflowService & {
+    _handleWorkflowStepFailure: (runId: number, stepId: string, errorMessage: string) => Promise<void>;
+  })._handleWorkflowStepFailure(7, 'requirement-design', 'late failure');
+
+  assert.equal(harness.run.steps[0]?.status, 'CANCELLED');
+  assert.equal(harness.run.steps[0]?.summary, null);
+  assert.equal(harness.run.steps[0]?.error, 'Workflow cancelled');
+  assert.equal(harness.run.steps[0]?.completed_at, cancelledCompletedAt);
+  assert.equal(harness.sessions.get(101)?.status, 'CANCELLED');
+  assert.equal(harness.segments[0]?.status, 'CANCELLED');
+  assert.equal(harness.sessionUpdates.length, 1);
+  assert.equal(harness.segmentUpdates.length, 1);
+});
+
 test.test('executeWorkflow preserves CANCELLED when stream.result resolves success after user cancellation', async () => {
   const harness = createExecuteWorkflowHarness();
   let releaseResult: (() => void) | null = null;
@@ -807,7 +979,6 @@ test.test('executeWorkflow preserves CANCELLED when stream.result resolves succe
     { status: 'CANCELLED' },
   ]);
 });
-
 
 test.test('cancelWorkflow terminates the active process and finalizes the running step lifecycle', async () => {
   const kills: string[] = [];
