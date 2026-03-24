@@ -24,23 +24,13 @@
           <div class="sidebar-section-title">{{ $t('workflowTemplate.templateListTitle') }}</div>
 
           <div class="create-template-form">
-            <el-input
-              v-model="createTemplateId"
-              data-testid="create-template-id-input"
-              :placeholder="$t('workflowTemplate.newTemplateId')"
-            />
-            <el-input
-              v-model="createTemplateName"
-              data-testid="create-template-name-input"
-              :placeholder="$t('workflowTemplate.newTemplateName')"
-            />
             <el-button
               data-testid="create-template-button"
               type="primary"
-              :disabled="creating || !template || !createTemplateId.trim() || !createTemplateName.trim()"
+              :disabled="!template"
               @click="handleCreateTemplate"
             >
-              {{ creating ? $t('common.loading') : $t('workflowTemplate.createTemplate') }}
+              {{ $t('workflowTemplate.createTemplate') }}
             </el-button>
           </div>
 
@@ -254,13 +244,10 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const saving = ref(false)
-const creating = ref(false)
 const deleting = ref(false)
 const loadError = ref('')
 const templates = ref([])
 const selectedTemplateId = ref('')
-const createTemplateId = ref('')
-const createTemplateName = ref('')
 const selectedStepIndex = ref(0)
 const template = ref(null)
 const agents = ref([])
@@ -720,9 +707,6 @@ const loadPage = async () => {
 }
 
 const generateTemplateId = () => {
-  const requestedId = createTemplateId.value.trim()
-  if (requestedId) return requestedId
-
   const existingIds = new Set(templates.value.filter(item => !item.isDraft).map((item) => item.template_id))
   let index = templates.value.length + 1
   let candidate = `template-${index}`
@@ -735,31 +719,10 @@ const generateTemplateId = () => {
   return candidate
 }
 
-const handleCreateTemplate = async () => {
+const handleCreateTemplate = () => {
   if (!template.value) return
-  if (!createTemplateId.value.trim() || !createTemplateName.value.trim()) return
 
-  creating.value = true
-  try {
-    const payload = {
-      template_id: createTemplateId.value.trim(),
-      name: createTemplateName.value.trim(),
-      steps: buildStepsPayload(template.value.steps || [])
-    }
-
-    const response = await createWorkflowTemplate(payload)
-    const createdTemplate = normalizeTemplate(getApiData(response, 'workflowTemplate.createFailed'))
-    upsertTemplateSummary(createdTemplate)
-    createTemplateId.value = ''
-    createTemplateName.value = ''
-    selectTemplateLocally(createdTemplate.template_id)
-    ElMessage.success(t('workflowTemplate.createSuccess'))
-    await handleFollowUpDetailLoad(createdTemplate.template_id)
-  } catch (error) {
-    handleActionFailure(error, 'workflowTemplate.createFailed')
-  } finally {
-    creating.value = false
-  }
+  addDraftTemplate(createDraftTemplate())
 }
 
 const saveTemplate = async () => {

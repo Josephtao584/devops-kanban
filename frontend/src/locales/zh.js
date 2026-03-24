@@ -222,7 +222,7 @@ export default {
     templateId: '模板 ID',
     name: '模板名称',
     createTemplate: '新建模板',
-    newTemplateDefaultName: '新工作流模板',
+    newTemplateDefaultName: '新建模版',
     defaultTemplateHint: '默认模板可编辑，但不能删除。',
     stepName: '步骤名称',
     stepId: '步骤 ID',
