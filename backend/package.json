@@ -30,6 +30,7 @@
     "cross-spawn": "^7.0.6",
     "dotenv": "^16.4.5",
     "fastify": "^4.26.2",
+    "iconv-lite": "^0.7.2",
     "pino": "^8.19.0",
     "pino-pretty": "^11.0.0",
     "uuid": "^9.0.1",
@@ -39,7 +40,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
-    "tsx": "^4.19.4",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.3"
   }
 }

@@ -436,6 +436,16 @@
       @close="showCommitDialog = false"
     />
 
+    <!-- Merge Dialog -->
+    <MergeDialog
+      v-if="showMergeDialog"
+      :project-id="mergeDialogData.projectId"
+      :task-id="mergeDialogData.taskId"
+      :source-branch="mergeDialogData.worktreeBranch"
+      @close="showMergeDialog = false"
+      @merged="handleMerged"
+    />
+
     <!-- Iteration Form Dialog -->
     <IterationForm
       v-model="showIterationModal"
@@ -458,7 +468,7 @@
             <el-icon class="header-icon"><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon>
             <div>
               <h2>{{ selectedNode.name }}</h2>
-              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} �?{{ selectedNode.agentName }}</span>
+              <span class="node-subtitle"><el-icon><component :is="getNodeRoleIcon(selectedNode.role)" /></el-icon> {{ selectedNode.role }} · {{ selectedNode.agentName }}</span>
             </div>
           </div>
           <button class="modal-close" @click="showNodeDialog = false">&times;</button>
@@ -474,7 +484,7 @@
                     <path d="M12 16v-4"></path>
                     <path d="M12 8h.01"></path>
                   </svg>
-                  状�?
+                  状态
                 </span>
                 <span class="info-value status-badge" :class="'status-' + selectedNode.status?.toLowerCase()">
                   <span class="status-dot"></span>
@@ -524,7 +534,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
               </svg>
-              �?{{ selectedNode.agentName }} 对话
+              与 {{ selectedNode.agentName }} 对话
             </h3>
             <div class="node-chat-container">
               <ChatBox
@@ -545,7 +555,7 @@
                 <polyline points="16 18 22 12 16 6"></polyline>
                 <polyline points="8 6 2 12 8 18"></polyline>
               </svg>
-              子节点完成情�?
+              子节点完成情况
             </h3>
             <div class="child-nodes-list">
               <div v-for="child in selectedNode.childNodes" :key="child.id" class="child-node-item" :class="'status-' + child.status?.toLowerCase()">
@@ -593,6 +603,7 @@ import ChatBox from '../components/ChatBox.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
 import DiffSelectDialog from '../components/DiffSelectDialog.vue'
 import CommitDialog from '../components/CommitDialog.vue'
+import MergeDialog from '../components/MergeDialog.vue'
 import WorkflowTimelineDialog from '../components/WorkflowTimelineDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
@@ -646,6 +657,12 @@ const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
 const showProgressDialog = ref(false)
+const showDiffDialog = ref(false)
+const diffDialogData = ref(null)
+const showCommitDialog = ref(false)
+const commitDialogData = ref(null)
+const showMergeDialog = ref(false)
+const mergeDialogData = ref(null)
 const showIterationModal = ref(false)
 const editingIteration = ref(null)
 const creatingIteration = ref(false)
@@ -821,6 +838,21 @@ const handleShowCommit = (data) => {
   showCommitDialog.value = true
 }
 
+// Handle show merge dialog
+const openMergeDialog = (data) => {
+  mergeDialogData.value = data
+  showMergeDialog.value = true
+}
+
+// Handle merged event
+const handleMerged = () => {
+  // Refresh task data after merge
+  if (selectedProjectId.value) {
+    taskStore.fetchTasks(selectedProjectId.value)
+  }
+  toast.success(t('git.mergeSuccess', '合并成功'))
+}
+
 // Handle delete worktree from butler header
 const handleDeleteWorktree = async (task) => {
   const updatedTask = await handleWorktree(task, async () => {
@@ -904,6 +936,14 @@ const handleWorkflowAction = (payload) => {
       }
     } else if (action === 'help') {
       // Help will be shown in chat
+    } else if (action === 'merge') {
+      if (selectedTask.value) {
+        openMergeDialog({
+          taskId: selectedTask.value.id,
+          projectId: selectedTask.value.project_id,
+          worktreeBranch: selectedTask.value.worktree_branch
+        })
+      }
     }
   } else if (payload && payload.action === 'node-click') {
     selectedTask.value = payload.task || null

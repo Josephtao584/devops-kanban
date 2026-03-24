@@ -5,8 +5,8 @@
         <h1>{{ $t('workflowTemplate.title') }}</h1>
         <p class="page-description">{{ $t('workflowTemplate.description') }}</p>
       </div>
-      <el-button type="primary" :loading="saving" :disabled="loading || !template" @click="saveTemplate">
-        {{ $t('common.save') }}
+      <el-button type="primary" :disabled="loading || !template || saving" @click="saveTemplate">
+        {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
       </el-button>
     </div>
 

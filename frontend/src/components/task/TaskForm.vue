@@ -85,8 +85,8 @@
     </el-form-item>
 
     <el-form-item>
-      <el-button type="primary" @click="handleSubmit" :loading="loading">
-        {{ isNew ? $t('task.create') : $t('task.save') }}
+      <el-button type="primary" @click="handleSubmit" :disabled="loading">
+        {{ loading ? (isNew ? $t('task.creating', '创建中...') : $t('common.saving', '保存中...')) : (isNew ? $t('task.create') : $t('task.save')) }}
       </el-button>
       <el-button @click="$emit('cancel')">{{ $t('common.cancel') }}</el-button>
     </el-form-item>

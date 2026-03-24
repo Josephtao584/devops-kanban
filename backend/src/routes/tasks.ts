@@ -1,18 +1,22 @@
 import type { FastifyPluginAsync } from 'fastify';
+import * as fs from 'node:fs';
 
-import { buildWorktreeDiff } from './git.js';
+import { buildWorktreeDiff, buildBranchDiff } from './git.js';
+import { isGitRepository } from '../utils/git.js';
 import { TaskService } from '../services/taskService.js';
+import { ProjectRepository } from '../repositories/projectRepository.js';
 import type { CreateTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
+const taskService = new TaskService();
+const projectRepo = new ProjectRepository();
+
 type QueryWithTaskFilters = ProjectIdQuery & { iteration_id?: string };
 type StatusBody = { status?: string };
 type ReorderRequestBody = { updates?: Array<{ id?: number; order?: number }> };
-
-const taskService = new TaskService();
 
 export const taskRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: QueryWithTaskFilters }>('/', async (request) => {
@@ -190,6 +194,8 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: IdParams; Querystring: ProjectIdQuery & { source?: string; target?: string } }>('/:id/worktree/diff', async (request, reply) => {
     try {
       const taskId = parseNumber(request.params.id);
+      const { source, target, project_id } = request.query;
+      const projectId = project_id ? parseNumber(project_id) : 0;
 
       const task = await taskService.getById(taskId);
       if (!task) {
@@ -197,6 +203,39 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
+      // If source and target are provided, compare branches
+      if (source && target && projectId) {
+        if (task.worktree_path && fs.existsSync(task.worktree_path) && isGitRepository(task.worktree_path)) {
+          const result = buildBranchDiff(task.worktree_path, source, target);
+          return successResponse(result);
+        }
+
+        const project = await projectRepo.findById(projectId);
+        if (!project) {
+          reply.code(404);
+          return errorResponse('Project not found');
+        }
+
+        let repoPath = '';
+        if (project.local_path && fs.existsSync(project.local_path)) {
+          if (!isGitRepository(project.local_path)) {
+            reply.code(400);
+            return errorResponse('Project local_path is not a valid git repository');
+          }
+          repoPath = project.local_path;
+        } else if (project.git_url) {
+          reply.code(400);
+          return errorResponse('Cannot compare branches: no local repository');
+        } else {
+          reply.code(400);
+          return errorResponse('Project has no git repository configured');
+        }
+
+        const result = buildBranchDiff(repoPath, source, target);
+        return successResponse(result);
+      }
+
+      // Fallback: return uncommitted changes in worktree
       if (!task.worktree_path) {
         reply.code(400);
         return errorResponse('Task has no worktree');
