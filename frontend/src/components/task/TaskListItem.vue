@@ -152,7 +152,7 @@
         </div>
 
         <div class="workflow-section quick-actions">
-          <button v-if="!running" class="quick-action-btn" @click.stop="handleStartClick">
+          <button class="quick-action-btn" :disabled="!canStartTask" @click.stop="handleStartClick">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
@@ -353,6 +353,7 @@ const worktreeClass = computed(() => getWorktreeClass(props.task))
 const worktreeTooltip = computed(() => getWorktreeTooltip(props.task))
 const workflowWorktreeStatusText = computed(() => getWorktreeStatusText(props.task))
 const statusClass = computed(() => getStatusClass(props.task.status))
+const canStartTask = computed(() => !props.running && props.task?.status !== 'DONE')
 
 // Workflow data - only from real backend workflow run data or explicit prop
 const workflowData = computed(() => {
@@ -447,6 +448,7 @@ const handleNodeClick = (node) => {
 
 // Handle start button click
 const handleStartClick = () => {
+  if (!canStartTask.value) return
   console.log('[TaskListItem] handleStartClick called, task:', props.task?.id, 'running:', props.running)
   emit('workflow-action', { action: 'start', task: props.task })
 }
@@ -1069,10 +1071,15 @@ const openWorktreeDirectory = () => {
   transition: all 0.2s ease;
 }
 
-.quick-actions .quick-action-btn:hover {
+.quick-actions .quick-action-btn:hover:not(:disabled) {
   background: #6366f1;
   border-color: #6366f1;
   color: #fff;
+}
+
+.quick-actions .quick-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .workflow-collapse-btn {
