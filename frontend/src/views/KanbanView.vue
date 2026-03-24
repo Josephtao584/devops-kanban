@@ -868,7 +868,7 @@ const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
 }
 
-const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
+const startSelectedTaskWithTemplate = async (workflowTemplateId, autoCreateWorktree = false) => {
   if (!selectedTask.value) return
 
   try {
@@ -882,6 +882,11 @@ const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
         await taskStore.fetchTasks(selectedProjectId.value)
       }
       showWorkflowTemplateDialog.value = false
+
+      // Auto-create worktree if requested
+      if (autoCreateWorktree && selectedTask.value) {
+        await handleWorktree(selectedTask.value)
+      }
     } else {
       ElMessage.error(response.message || '启动失败')
     }
@@ -891,8 +896,8 @@ const startSelectedTaskWithTemplate = async (workflowTemplateId) => {
   }
 }
 
-const handleWorkflowTemplateConfirm = async (workflowTemplateId) => {
-  await startSelectedTaskWithTemplate(workflowTemplateId)
+const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree }) => {
+  await startSelectedTaskWithTemplate(templateId, autoCreateWorktree)
 }
 
 // Handle workflow action from inline workflow panel
