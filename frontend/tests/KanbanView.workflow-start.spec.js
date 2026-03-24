@@ -152,6 +152,10 @@ const WorkflowStartEditorDialogStub = defineComponent({
     return () => props.modelValue
       ? h('div', { class: 'workflow-start-editor-dialog-stub' }, [
           h('div', { class: 'draft-template-id' }, props.draftTemplate?.template_id || ''),
+          h('div', { class: 'workflow-step-flow-stub' }, props.draftTemplate?.steps?.map((step) => h('div', { class: 'workflow-step-card-stub' }, [
+            h('span', { class: 'workflow-step-name-stub' }, step.name),
+            h('span', { class: 'workflow-step-id-stub' }, step.id)
+          ])) || []),
           h('button', {
             class: 'confirm-workflow-edit',
             onClick: () => emit('confirm', {
@@ -368,6 +372,9 @@ describe('KanbanView workflow start entrypoint', () => {
     expect(wrapper.find('.workflow-template-select-dialog-stub').exists()).toBe(false)
     expect(wrapper.find('.workflow-start-editor-dialog-stub').exists()).toBe(true)
     expect(wrapper.find('.draft-template-id').text()).toBe('quick-fix-v1')
+    expect(wrapper.find('.workflow-step-flow-stub').exists()).toBe(true)
+    expect(wrapper.findAll('.workflow-step-card-stub')).toHaveLength(2)
+    expect(wrapper.findAll('.workflow-step-name-stub')[0].text()).toBe('问题定位')
   })
 
   it('starts the selected task with workflow_template_id and edited workflow_template_snapshot after edit confirmation', async () => {
