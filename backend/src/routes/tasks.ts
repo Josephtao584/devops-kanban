@@ -5,7 +5,7 @@ import { buildWorktreeDiff, buildBranchDiff } from './git.js';
 import { isGitRepository } from '../utils/git.js';
 import { TaskService } from '../services/taskService.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
-import type { CreateTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
+import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
@@ -121,9 +121,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: IdParams }>('/:id/start', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body: StartTaskInput }>('/:id/start', async (request, reply) => {
     try {
-      const task = await taskService.startTask(parseNumber(request.params.id));
+      const task = await taskService.startTask(parseNumber(request.params.id), request.body);
       return successResponse(task, 'Task started successfully');
     } catch (error) {
       request.log.error(error);
