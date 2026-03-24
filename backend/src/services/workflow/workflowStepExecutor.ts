@@ -99,6 +99,7 @@ export async function executeWorkflowStep({
     state,
     inputData,
     upstreamStepIds,
+    agent,
   });
 
   const executor = registry.getExecutor(executorConfig.type);
