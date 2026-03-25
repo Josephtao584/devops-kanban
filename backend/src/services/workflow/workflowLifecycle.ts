@@ -336,7 +336,10 @@ class WorkflowLifecycle {
 
     if (await this._isWorkflowStepCancelled(runId, stepId)) {
       await this._finalizeCancelledStepStart(runId, stepId, startedAt, session, attemptSegment);
+      return;
     }
+
+    return { sessionId: session.id, segmentId: attemptSegment.id };
   }
 
   async onStepComplete(runId: number, stepId: string, result: Record<string, unknown>) {

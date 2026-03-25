@@ -521,26 +521,6 @@
             <p class="rejected-reason-text">{{ selectedNode.rejectedReason }}</p>
           </div>
 
-          <div class="info-card chat-card">
-            <h3 class="info-card-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              与 {{ selectedNode.agentName }} 对话
-            </h3>
-            <div class="node-chat-container">
-              <ChatBox
-                ref="nodeChatBoxRef"
-                :task="selectedTask"
-                :agent-id="selectedNode.agentId || selectedAgentId"
-                :initial-session="null"
-                :default-collapsed="false"
-                @session-created="onNodeSessionCreated"
-                @request-agent-select="() => {}"
-              />
-            </div>
-          </div>
-
           <div v-if="selectedNode.isParent && selectedNode.childNodes" class="info-card">
             <h3 class="info-card-title">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -610,7 +590,6 @@ import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useIterationStore } from '../stores/iterationStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
-import { getActiveSessionByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
 import StepSessionPanel from '../components/workflow/StepSessionPanel.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
@@ -682,8 +661,6 @@ const editingTaskId = ref(null)
 const activeSession = ref(null)
 const chatBoxRef = ref(null)
 const butlerChatRef = ref(null)
-const nodeChatBoxRef = ref(null)
-const stepChatBoxRef = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
 const currentViewingNodeId = ref(null)
@@ -1011,7 +988,6 @@ const handleWorkflowAction = (payload) => {
     currentViewingNodeId.value = payload.node?.id || null
     currentViewingNode.value = payload.node || null
     isChatCollapsed.value = false
-    loadActiveSession()
   }
 }
 
@@ -1179,7 +1155,6 @@ const selectTask = (task) => {
   currentViewingNode.value = null
   // Auto expand workflow when task is selected
   expandedTaskId.value = task.id
-  loadActiveSession()
 }
 
 // Task modal
@@ -1414,23 +1389,6 @@ const handleRequestAgentSelect = (task) => {
   console.log('handleRequestAgentSelect called, task:', task?.id, 'projectId:', selectedProjectId.value)
   pendingTask.value = task
   showAgentSelector.value = true
-}
-
-const loadActiveSession = async () => {
-  if (!selectedTask.value) return
-  // Store task ID before async operation to prevent stale reference
-  const taskId = selectedTask.value.id
-  try {
-    const response = await getActiveSessionByTask(taskId)
-    if (response.success && response.data) {
-      activeSession.value = response.data
-    } else {
-      activeSession.value = null
-    }
-  } catch (error) {
-    console.error('Failed to load active session:', error)
-    activeSession.value = null
-  }
 }
 
 // Lifecycle

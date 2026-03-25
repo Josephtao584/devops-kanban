@@ -4,7 +4,7 @@ import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SessionRepository } from '../../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import { buildWorkflowFromTemplate } from './workflows.js';
+import {buildWorkflowFromTemplate, getWorkflowFromWorkflowId} from './workflows.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import type { WorkflowTemplate } from './workflowTemplateService.js';
@@ -54,7 +54,6 @@ class WorkflowService {
   sessionRepo: SessionRepository;
   sessionSegmentRepo: SessionSegmentRepository;
   lifecycle: WorkflowLifecycle;
-  _activeRuns: Map<number, { run: any }>;
 
   async _resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
@@ -84,7 +83,6 @@ class WorkflowService {
       sessionSegmentRepo: this.sessionSegmentRepo,
       workflowTemplateService: this.workflowTemplateService,
     });
-    this._activeRuns = new Map();
   }
 
   async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
@@ -115,7 +113,6 @@ class WorkflowService {
 
     const run = await this.workflowRunRepo.create({
       task_id: taskId,
-      workflow_id: template.template_id,
       workflow_template_id: workflowTemplateId?.trim() || template.template_id,
       workflow_template_snapshot: template,
       status: 'PENDING',
@@ -144,7 +141,7 @@ class WorkflowService {
 
   async _validateTemplateAgents(template: WorkflowTemplate) {
     for (const step of template.steps) {
-      if (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId)) {
+      if (!Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
       }
 
@@ -178,19 +175,17 @@ class WorkflowService {
     throw error;
   }
 
-  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, templateSnapshot: WorkflowTemplate) {
+  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplate) {
     try {
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 
-      const workflow = buildWorkflowFromTemplate(templateSnapshot, {
+      const workflow = buildWorkflowFromTemplate(workflowTemplate, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
-        lifecycle: this.lifecycle,
-        templateSnapshot,
+        lifecycle: this.lifecycle
       });
 
       const run = await workflow.createRun({ runId: String(runId) });
-      this._activeRuns.set(runId, { run });
 
       const output = run.stream({
         inputData: {
@@ -246,7 +241,6 @@ class WorkflowService {
       }).catch(() => {});
       await this._resetTaskToTodo(task.id);
     } finally {
-      this._activeRuns.delete(runId);
     }
   }
 
@@ -276,19 +270,9 @@ class WorkflowService {
       throw error;
     }
 
-    // Cancel via in-memory run reference (sends AbortSignal to running step)
-    const activeRun = this._activeRuns.get(runId);
-    if (activeRun?.run) {
-      await activeRun.run.cancel();
-    } else {
-      // Fallback: reconstruct from storage (handles edge cases where
-      // _activeRuns entry was cleaned up but run is still marked RUNNING)
-      const template = run.workflow_template_snapshot
-        ?? await this._loadTemplate(run.workflow_template_id);
-      const workflow = buildWorkflowFromTemplate(template);
-      const reconstructedRun = await workflow.createRun({ runId: String(runId) });
-      await reconstructedRun.cancel();
-    }
+    const workflow = getWorkflowFromWorkflowId(run.workflow_template_id);
+    const reconstructedRun = await workflow.createRun({ runId: String(runId) });
+    await reconstructedRun.cancel();
 
     // Finalize running step
     const runningStep = (run.current_step

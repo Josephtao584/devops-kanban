@@ -54,18 +54,6 @@ class WorkflowTemplateRepository {
     }
   }
 
-  async hasLegacyStorage(): Promise<boolean> {
-    try {
-      await fs.access(this.legacyFilePath);
-      return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
-        return false;
-      }
-
-      throw this._wrapReadError('Failed to access legacy workflow template storage', error);
-    }
-  }
 
   async saveAll(templates: WorkflowTemplateEntity[]): Promise<WorkflowTemplateEntity[]> {
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });

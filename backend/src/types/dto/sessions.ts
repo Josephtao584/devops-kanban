@@ -6,7 +6,7 @@ export interface CreateSessionInput {
 }
 
 export interface ContinueSessionBody {
-  input?: string;
+  input: string;
 }
 
 export interface SessionListItem {
