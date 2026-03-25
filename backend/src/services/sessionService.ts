@@ -409,53 +409,52 @@ class SessionService {
       throw error;
     }
 
-    if (session.executor_type !== 'CLAUDE_CODE') {
-      const error = new Error('Only CLAUDE_CODE executor supports continue') as Error & { statusCode?: number };
+    if (!session.executor_type) {
+      const error = new Error('Session has no executor type') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
 
     const worktreePath = this._requireLaunchableWorktree(session);
     const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
+
+    const { AgentExecutorRegistry } = await import('./workflow/agentExecutorRegistry.js');
+    const registry = new AgentExecutorRegistry();
+    const executor = registry.getExecutor(session.executor_type);
+
+    if (!executor.continue) {
+      const error = new Error(`Executor ${session.executor_type} does not support continue`) as Error & { statusCode?: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
     const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
 
     try {
-      const { ClaudeStepRunner } = await import('./workflow/executors/claudeStepRunner.js');
-      const runner = new ClaudeStepRunner();
-
-      const args = ['--output-format=stream-json', '--verbose'];
-      if (latestSegment?.provider_session_id) {
-        args.push('--session-id', latestSegment.provider_session_id);
-      }
-
       await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
 
-      const result = await runner.runStep({
+      const result = await executor.continue({
         prompt: input,
         worktreePath,
-        executorConfig: { args },
-      });
-
-      const lines = result.stdout.split('\n');
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const json = JSON.parse(line);
-          if (json.type === 'system' && json.session_id) {
+        providerSessionId: latestSegment?.provider_session_id,
+        onEvent: async (event) => {
+          await this.sessionEventRepo.append({
+            session_id: sessionId,
+            segment_id: segment.id,
+            kind: event.kind,
+            role: event.role,
+            content: event.content,
+            payload: event.payload || {},
+          });
+        },
+        onProviderState: async (providerState) => {
+          if (providerState.providerSessionId) {
             await this.sessionSegmentRepo.update(segment.id, {
-              provider_session_id: json.session_id,
+              provider_session_id: providerState.providerSessionId,
             });
           }
-        } catch {}
-        await this.sessionEventRepo.append({
-          session_id: sessionId,
-          segment_id: segment.id,
-          kind: 'stream_chunk',
-          role: 'system',
-          content: line,
-          payload: {},
-        });
-      }
+        },
+      });
 
       await this._markSegmentComplete(segment.id, result.exitCode === 0 ? 'COMPLETED' : 'ERROR');
       await this.sessionRepo.update(sessionId, {
