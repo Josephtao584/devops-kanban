@@ -102,15 +102,26 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 - Declare full interfaces when types are reused
 - Keep type definitions clear and self-contained
 
+**Avoid unnecessary type assertions** - Do not use `as` type assertions unless absolutely necessary:
+- Trust TypeScript's type inference
+- Remove redundant `as Type | null` assertions on repository calls
+- Use `const error: any = new Error()` when adding custom properties like `statusCode`
+- Only use `as` when TypeScript cannot infer the correct type
+
 **Examples:**
 ```typescript
 // ❌ Avoid
 agentRepo: Pick<AgentRepository, 'findById'>;
 stepUpdate: Partial<Pick<WorkflowStepEntity, 'summary' | 'error'>>;
+const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
+const error = new Error('Not found') as Error & { statusCode?: number };
 
 // ✅ Prefer
 agentRepo: AgentRepository;
 stepUpdate: { summary?: string | null; error?: string | null };
+const task = await this.taskRepo.findById(taskId);
+const error: any = new Error('Not found');
+error.statusCode = 404;
 ```
 
 ## Common Issues
