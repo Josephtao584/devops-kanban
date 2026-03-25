@@ -1,8 +1,8 @@
-import type { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
-import type { AgentRepository } from '../../repositories/agentRepository.js';
-import type { SessionRepository } from '../../repositories/sessionRepository.js';
-import type { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import type { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
+import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
+import { AgentRepository } from '../../repositories/agentRepository.js';
+import { SessionRepository } from '../../repositories/sessionRepository.js';
+import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
+import { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
 import type { WorkflowTemplateService } from './workflowTemplateService.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
 import type { WorkflowExecutionEvent } from '../../types/executors.js';
@@ -25,18 +25,18 @@ class WorkflowLifecycle {
     sessionEventRepo,
     workflowTemplateService,
   }: {
-    workflowRunRepo: WorkflowRunRepository;
-    agentRepo: AgentRepository;
-    sessionRepo: SessionRepository;
-    sessionSegmentRepo: SessionSegmentRepository;
-    sessionEventRepo: SessionEventRepository;
+    workflowRunRepo?: WorkflowRunRepository;
+    agentRepo?: AgentRepository;
+    sessionRepo?: SessionRepository;
+    sessionSegmentRepo?: SessionSegmentRepository;
+    sessionEventRepo?: SessionEventRepository;
     workflowTemplateService?: WorkflowTemplateService;
-  }) {
-    this.workflowRunRepo = workflowRunRepo;
-    this.agentRepo = agentRepo;
-    this.sessionRepo = sessionRepo;
-    this.sessionSegmentRepo = sessionSegmentRepo;
-    this.sessionEventRepo = sessionEventRepo;
+  } = {}) {
+    this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
+    this.agentRepo = agentRepo || new AgentRepository();
+    this.sessionRepo = sessionRepo || new SessionRepository();
+    this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
+    this.sessionEventRepo = sessionEventRepo || new SessionEventRepository();
     if (workflowTemplateService) {
       this.workflowTemplateService = workflowTemplateService;
     }
