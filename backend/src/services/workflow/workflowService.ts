@@ -147,8 +147,8 @@ class WorkflowService {
     this._activeRuns = new Map();
   }
 
-  async startWorkflow(taskId: number, workflowTemplateId?: string, workflowTemplateSnapshot?: WorkflowTemplate) {
-    if (workflowTemplateId !== undefined && (typeof workflowTemplateId !== 'string' || workflowTemplateId.trim().length === 0)) {
+  async startWorkflow(taskId: number, workflowTemplateId?: string) {
+    if (workflowTemplateId !== undefined && (workflowTemplateId.trim().length === 0)) {
       throw createValidationError('Workflow template id must be a non-empty string');
     }
 
@@ -167,7 +167,7 @@ class WorkflowService {
       throw error;
     }
 
-    const template = await this._loadTemplate(workflowTemplateId, workflowTemplateSnapshot);
+    const template = await this._loadTemplate(workflowTemplateId);
     await this._validateTemplateAgents(template);
 
     const run = await this.workflowRunRepo.create({
@@ -191,11 +191,7 @@ class WorkflowService {
     return run;
   }
 
-  async _loadTemplate(templateId?: string, templateSnapshot?: WorkflowTemplate): Promise<WorkflowTemplate> {
-    if (templateSnapshot !== undefined) {
-      return normalizeTemplate(templateSnapshot);
-    }
-
+  async _loadTemplate(templateId?: string): Promise<WorkflowTemplate> {
     if (templateId !== undefined) {
       const normalizedTemplateId = templateId.trim();
       const selectedTemplate = await this.workflowTemplateService.getTemplateById(normalizedTemplateId);
