@@ -42,7 +42,7 @@ export function getMastra() {
 
 interface BuildWorkflowOptions {
   runId: number;
-  task: { id: number; execution_path: string };
+  task: { id: number; project_id: number; execution_path: string };
   lifecycle: WorkflowLifecycle;
   templateSnapshot: WorkflowTemplate;
 }
@@ -53,7 +53,7 @@ export function buildWorkflowFromTemplate(
 ) {
   const steps = template.steps.map((templateStep, index) => {
     const isFirst = index === 0;
-    const previousStepId = index > 0 ? template.steps[index - 1].id : null;
+    const previousStepId = index > 0 ? template.steps[index - 1]?.id : null;
 
     return createStep({
       id: templateStep.id,
@@ -76,7 +76,8 @@ export function buildWorkflowFromTemplate(
         });
 
         if (abortSignal?.aborted) {
-          return abort();
+          abort();
+          return { summary: '' };
         }
 
         return result;
@@ -92,7 +93,7 @@ export function buildWorkflowFromTemplate(
   });
 
   for (const step of steps) {
-    workflow = workflow.then(step);
+    workflow = workflow.then(step) as any;
   }
 
   workflow.commit();
