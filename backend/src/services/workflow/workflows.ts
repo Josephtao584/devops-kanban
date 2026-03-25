@@ -87,6 +87,7 @@ export function buildWorkflowFromTemplate(
           runId: options.runId,
           sessionId,
           segmentId,
+          onEvent: options.lifecycle.createEventHandler(sessionId, segmentId),
           onProviderState: async (providerState) => {
             if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
               await options.lifecycle.sessionSegmentRepo.update(segmentId, {

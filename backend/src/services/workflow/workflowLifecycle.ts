@@ -2,8 +2,10 @@ import type { WorkflowRunRepository } from '../../repositories/workflowRunReposi
 import type { AgentRepository } from '../../repositories/agentRepository.js';
 import type { SessionRepository } from '../../repositories/sessionRepository.js';
 import type { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
+import type { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
 import type { WorkflowTemplateService } from './workflowTemplateService.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
+import type { WorkflowExecutionEvent } from '../../types/executors.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 
 class WorkflowLifecycle {
@@ -11,6 +13,7 @@ class WorkflowLifecycle {
   agentRepo: AgentRepository;
   sessionRepo: SessionRepository;
   sessionSegmentRepo: SessionSegmentRepository;
+  sessionEventRepo: SessionEventRepository;
   workflowTemplateService?: WorkflowTemplateService;
   _stepAttemptSegmentIds: Map<string, number | null>;
 
@@ -19,18 +22,21 @@ class WorkflowLifecycle {
     agentRepo,
     sessionRepo,
     sessionSegmentRepo,
+    sessionEventRepo,
     workflowTemplateService,
   }: {
     workflowRunRepo: WorkflowRunRepository;
     agentRepo: AgentRepository;
     sessionRepo: SessionRepository;
     sessionSegmentRepo: SessionSegmentRepository;
+    sessionEventRepo: SessionEventRepository;
     workflowTemplateService?: WorkflowTemplateService;
   }) {
     this.workflowRunRepo = workflowRunRepo;
     this.agentRepo = agentRepo;
     this.sessionRepo = sessionRepo;
     this.sessionSegmentRepo = sessionSegmentRepo;
+    this.sessionEventRepo = sessionEventRepo;
     if (workflowTemplateService) {
       this.workflowTemplateService = workflowTemplateService;
     }
@@ -378,6 +384,24 @@ class WorkflowLifecycle {
     }
 
     await this.onStepError(runId, step.step_id, errorMessage || 'Workflow failed');
+  }
+
+  createEventHandler(sessionId: number, segmentId: number) {
+    return async (event: WorkflowExecutionEvent) => {
+      console.log(`[WorkflowLifecycle] Persisting event: kind=${event.kind}, sessionId=${sessionId}, segmentId=${segmentId}`);
+      try {
+        await this.sessionEventRepo.append({
+          session_id: sessionId,
+          segment_id: segmentId,
+          kind: event.kind,
+          role: event.role,
+          content: event.content,
+          payload: event.payload || {},
+        });
+      } catch (error) {
+        console.error(`[WorkflowLifecycle] Failed to persist event:`, error);
+      }
+    };
   }
 }
 
