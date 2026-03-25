@@ -624,7 +624,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { h, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -854,7 +854,10 @@ const confirmSyncImport = async () => {
   }
 
   try {
-    const totalImported = await taskSourceStore.importSelectedPreviewTasks(selectedProjectId.value)
+    const totalImported = await taskSourceStore.importSelectedPreviewTasks(
+      selectedProjectId.value,
+      selectedIterationId.value
+    )
     await taskStore.fetchTasks(selectedProjectId.value)
     if (totalImported > 0) {
       toast.success(t('taskSource.importSuccess', { count: totalImported }))
@@ -1296,14 +1299,25 @@ const handleEditIteration = (iteration) => {
 }
 
 const handleDeleteIteration = async (iteration) => {
+  let deleteTasks = false
+
   try {
     await ElMessageBox.confirm(
-      t('iteration.deleteConfirmMessage', { name: iteration.name }),
+      h('div', { class: 'iteration-delete-confirm' }, [
+        h('p', t('iteration.deleteConfirmMessage', { name: iteration.name })),
+        h('el-checkbox', {
+          modelValue: deleteTasks,
+          'onUpdate:modelValue': (value) => {
+            deleteTasks = value
+          }
+        }, () => t('iteration.deleteTasksCheckbox'))
+      ]),
       t('iteration.deleteConfirmTitle'),
       {
         type: 'warning',
         confirmButtonText: t('common.delete'),
-        cancelButtonText: t('common.cancel')
+        cancelButtonText: t('common.cancel'),
+        dangerouslyUseHTMLString: false
       }
     )
   } catch {
@@ -1313,7 +1327,7 @@ const handleDeleteIteration = async (iteration) => {
   let deleted = false
 
   try {
-    const response = await iterationStore.deleteIteration(iteration.id)
+    const response = await iterationStore.deleteIteration(iteration.id, { deleteTasks })
     if (!response?.success) {
       throw new Error(response?.message || response?.error || t('iteration.deleteFailed'))
     }
