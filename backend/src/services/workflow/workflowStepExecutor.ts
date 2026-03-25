@@ -36,6 +36,7 @@ interface ExecuteWorkflowStepInput {
   };
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
+  abortSignal?: AbortSignal | undefined;
 }
 
 function isExecutorType(value: unknown): value is ExecutorType {
@@ -80,6 +81,7 @@ export async function executeWorkflowStep({
   context,
   onEvent,
   onProviderState,
+  abortSignal,
   stepId,
   worktreePath,
   state,
@@ -115,11 +117,18 @@ export async function executeWorkflowStep({
   });
   const sink = new ExecutionEventSink({ onEvent, onProviderState });
 
+  if (abortSignal && context) {
+    abortSignal.addEventListener('abort', () => {
+      context?.proc?.kill?.('SIGTERM');
+    }, { once: true });
+  }
+
   const executor = registry.getExecutor(executorConfig.type);
   const execution: ExecutorExecutionResult = await executor.execute({
     prompt,
     worktreePath,
     executorConfig,
+    abortSignal,
     onSpawn: (proc) => {
       if (context) {
         context.proc = proc;

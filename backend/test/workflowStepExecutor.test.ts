@@ -647,3 +647,45 @@ test.test('executeWorkflowStep fails when the persisted agent skills config is i
   );
 });
 
+test.test('passes abortSignal to executor', async () => {
+  const proc: ExecutorProcessHandle = {
+    kill() {
+      return true;
+    },
+  };
+  const context: { proc?: ExecutorProcessHandle | null } = {};
+  const abortController = new AbortController();
+  let receivedAbortSignal: AbortSignal | undefined;
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent();
+    },
+  };
+  const registry = {
+    getExecutor(type: keyof ExecutorMap) {
+      assert.equal(type, 'CODEX');
+      return {
+        async execute(input: ExecutorExecutionInput) {
+          receivedAbortSignal = input.abortSignal;
+          const rawResult: ExecutorRawResult = { summary: 'ok' };
+          return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
+        },
+      };
+    },
+  };
+
+  const result = await executeWorkflowStep({
+    templateService: templateService as never,
+    agentRepo: agentRepo as never,
+    registry: registry as never,
+    context,
+    abortSignal: abortController.signal,
+    ...createInputOverrides(),
+  });
+
+  assert.equal(receivedAbortSignal, abortController.signal);
+  assert.deepEqual(result, { summary: 'ok' });
+});
+
