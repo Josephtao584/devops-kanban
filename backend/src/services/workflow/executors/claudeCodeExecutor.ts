@@ -22,27 +22,16 @@ class ClaudeCodeExecutor implements Executor {
       worktreePath,
       ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
-    });
-
-    const lines = result.stdout.split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const json = JSON.parse(line);
-        if (json.type === 'system' && json.session_id && onProviderState) {
-          await onProviderState({ providerSessionId: json.session_id });
+      ...(onEvent || onProviderState ? { onEvent: async (event) => {
+        if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
+          await onProviderState({ providerSessionId: event.payload.session_id as string });
         }
-      } catch {}
-      await onEvent?.(buildEvent('stream_chunk', 'assistant', line, { stream: 'stdout' }));
-    }
+        await onEvent?.(event);
+      }} : {}),
+    });
 
     if (result.stderr) {
       await onEvent?.(buildEvent('stream_chunk', 'system', result.stderr, { stream: 'stderr' }));
-    }
-
-    const summary = result.parsedResult.summary.trim();
-    if (summary && summary !== result.stdout.trim()) {
-      await onEvent?.(buildEvent('message', 'assistant', summary));
     }
 
     return {
@@ -74,27 +63,16 @@ class ClaudeCodeExecutor implements Executor {
       executorConfig: { args },
       ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
-    });
-
-    const lines = result.stdout.split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const json = JSON.parse(line);
-        if (json.type === 'system' && json.session_id && onProviderState) {
-          await onProviderState({ providerSessionId: json.session_id });
+      ...(onEvent || onProviderState ? { onEvent: async (event) => {
+        if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
+          await onProviderState({ providerSessionId: event.payload.session_id as string });
         }
-      } catch {}
-      await onEvent?.(buildEvent('stream_chunk', 'assistant', line, { stream: 'stdout' }));
-    }
+        await onEvent?.(event);
+      }} : {}),
+    });
 
     if (result.stderr) {
       await onEvent?.(buildEvent('stream_chunk', 'system', result.stderr, { stream: 'stderr' }));
-    }
-
-    const summary = result.parsedResult.summary.trim();
-    if (summary && summary !== result.stdout.trim()) {
-      await onEvent?.(buildEvent('message', 'assistant', summary));
     }
 
     return {
