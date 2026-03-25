@@ -37,7 +37,7 @@
                   <el-icon v-else-if="file.status === 'deleted'"><Delete /></el-icon>
                   <el-icon v-else><Document /></el-icon>
                 </span>
-                <span class="file-path" :title="file.path">{{ file.path.split('/').pop() }}</span>
+                <span class="file-path" :title="file.path">{{ file.path.replace(/\/+$/, '').split('/').pop() || file.path }}</span>
               </div>
               <el-tag
                 v-if="file.status === 'untracked'"
