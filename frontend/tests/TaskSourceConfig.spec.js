@@ -86,4 +86,8 @@ describe('TaskSourceConfig', () => {
 
     expect(taskSourceStore.fetchTaskSources).toHaveBeenCalledWith('project-1')
   })
+
+  it('defines the taskSource.testing locale key', () => {
+    expect(i18n.global.t('taskSource.testing')).toBe('测试中...')
+  })
 })

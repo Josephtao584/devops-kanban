@@ -894,7 +894,7 @@ const startSelectedTaskWithTemplate = async (
 ) => {
   if (!selectedTask.value) return
 
-  if (autoCreateWorktree) {
+  if (autoCreateWorktree && selectedTask.value.worktree_status !== 'created') {
     try {
       await handleWorktree(selectedTask.value)
     } catch (err) {
