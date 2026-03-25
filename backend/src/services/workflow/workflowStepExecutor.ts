@@ -37,6 +37,9 @@ interface ExecuteWorkflowStepInput {
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
   abortSignal?: AbortSignal | undefined;
+  runId?: number;
+  sessionId?: number | null;
+  segmentId?: number | null;
 }
 
 function isExecutorType(value: unknown): value is ExecutorType {

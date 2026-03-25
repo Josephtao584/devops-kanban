@@ -21,6 +21,21 @@ class ClaudeCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
+      onStreamChunk: async (content, stream) => {
+        if (stream === 'stderr') {
+          await sink.appendStreamChunk(content, 'stderr');
+          return;
+        }
+        try {
+          const json = JSON.parse(content.trim());
+          if (json.type === 'system' && json.session_id && onProviderState) {
+            await onProviderState({ providerSessionId: json.session_id });
+          }
+          await sink.appendStreamChunk(content, 'stdout');
+        } catch {
+          await sink.appendStreamChunk(content, 'stdout');
+        }
+      },
       ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
     });
