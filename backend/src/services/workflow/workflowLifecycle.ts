@@ -154,13 +154,7 @@ class WorkflowLifecycle {
 
     return latestSegment;
   }
-
-  private async _isWorkflowRunCancelled(runId: number) {
-    const run = await this.workflowRunRepo.findById(runId);
-    return run?.status === 'CANCELLED';
-  }
-
-  private async _isWorkflowStepCancelled(runId: number, stepId: string) {
+    private async _isWorkflowStepCancelled(runId: number, stepId: string) {
     const { run, step } = await this._getRunStep(runId, stepId);
     return run.status === 'CANCELLED' || step.status === 'CANCELLED';
   }

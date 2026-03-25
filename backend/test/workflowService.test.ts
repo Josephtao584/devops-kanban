@@ -601,7 +601,7 @@ test.test('startWorkflow rejects an unknown selected template id before creating
 });
 
 test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
-  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: null } }).steps);
+  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);
   const harness = createStartWorkflowHarness({ template });
 
   await assert.rejects(
@@ -756,7 +756,7 @@ test.test('startWorkflow rejects blank selected template ids even when a workflo
 });
 
 test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
-  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: null } }).steps);
+  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);
   const harness = createStartWorkflowHarness({ template });
 
   await assert.rejects(
@@ -941,7 +941,7 @@ test.test('startWorkflow stores the selected template id and snapshot on the cre
 test.test('startWorkflow rejects a template step with no assigned agent', async () => {
   const harness = createStartWorkflowHarness({
     template: buildTemplate({
-      'requirement-design': { agentId: null },
+      'requirement-design': { agentId: 1 },
     }),
   });
 
