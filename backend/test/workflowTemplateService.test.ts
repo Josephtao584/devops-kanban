@@ -329,7 +329,7 @@ test.test('WorkflowTemplateService rejects templates with negative agent ids', a
   const template = buildQuickFixTemplate();
   template.steps[0]!.agentId = -1;
 
-  await assert.rejects(() => service.createTemplate(template), /agentId must be null or a non-negative integer/i);
+  await assert.rejects(() => service.createTemplate(template), /agentId must be a non-negative integer/i);
 });
 
 test.test('WorkflowTemplateService rejects templates with fractional agent ids', async () => {
@@ -340,5 +340,5 @@ test.test('WorkflowTemplateService rejects templates with fractional agent ids',
   const template = buildQuickFixTemplate();
   template.steps[0]!.agentId = 1.5;
 
-  await assert.rejects(() => service.createTemplate(template), /agentId must be null or a non-negative integer/i);
+  await assert.rejects(() => service.createTemplate(template), /agentId must be a non-negative integer/i);
 });

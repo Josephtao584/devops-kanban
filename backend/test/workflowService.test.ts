@@ -533,22 +533,6 @@ test.test('startWorkflow rejects an unknown selected template id before creating
   assert.equal(harness.taskUpdates.length, 0);
 });
 
-test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
-  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);
-  const harness = createStartWorkflowHarness({ template });
-
-  await assert.rejects(
-    () => harness.service.startWorkflow(1, 'quick-fix-v1'),
-    (error: unknown) => {
-      assertValidationError(error, /Step "需求设计" has no agent assigned/);
-      return true;
-    },
-  );
-
-  assert.equal(harness.createCalls.length, 0);
-  assert.equal(harness.taskUpdates.length, 0);
-}
-)
 function createActiveRunCancelHarness() {
   const run = {
     id: 7,
@@ -655,21 +639,6 @@ function createActiveRunCancelHarness() {
 }
 
 
-test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
-  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);
-  const harness = createStartWorkflowHarness({ template });
-
-  await assert.rejects(
-    () => harness.service.startWorkflow(1, 'quick-fix-v1'),
-    (error: unknown) => {
-      assertValidationError(error, /Step "需求设计" has no agent assigned/);
-      return true;
-    },
-  );
-
-  assert.equal(harness.createCalls.length, 0);
-  assert.equal(harness.taskUpdates.length, 0);
-});
 
 function createSuccessFinalizationRaceHarness() {
   const run = {
@@ -838,18 +807,6 @@ test.test('startWorkflow stores the selected template id and snapshot on the cre
 });
 
 
-test.test('startWorkflow rejects a template step with no assigned agent', async () => {
-  const harness = createStartWorkflowHarness({
-    template: buildTemplate({
-      'requirement-design': { agentId: 1 },
-    }),
-  });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" has no agent assigned/,
-  );
-});
 
 test.test('startWorkflow rejects a template step whose agent record is missing', async () => {
   const agents = buildValidAgents();

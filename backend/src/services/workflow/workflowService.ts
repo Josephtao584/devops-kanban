@@ -28,7 +28,7 @@ function createValidationError(message: string) {
 }
 
 function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null {
-  if (!Array.isArray(agent.skills) || agent.skills.some(() => false)) {
+  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
     return 'skills must be an array of strings';
   }
 
