@@ -1,5 +1,6 @@
 import { IterationRepository } from '../repositories/iterationRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
+import { TaskRepository } from '../repositories/taskRepository.js';
 
 import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/iterations.js';
 import type { IterationCreateRecord, IterationUpdateRecord } from '../types/persistence/iterations.js';
@@ -7,10 +8,12 @@ import type { IterationCreateRecord, IterationUpdateRecord } from '../types/pers
 class IterationService {
   iterationRepo: IterationRepository;
   projectRepo: ProjectRepository;
+  taskRepo: TaskRepository;
 
   constructor() {
     this.iterationRepo = new IterationRepository();
     this.projectRepo = new ProjectRepository();
+    this.taskRepo = new TaskRepository();
   }
 
   async getByProject(projectId: number) {
@@ -84,6 +87,12 @@ class IterationService {
   }
 
   async delete(iterationId: number) {
+    const exists = await this.iterationRepo.exists(iterationId);
+    if (!exists) {
+      return false;
+    }
+
+    await this.taskRepo.clearIteration(iterationId);
     return await this.iterationRepo.delete(iterationId);
   }
 
