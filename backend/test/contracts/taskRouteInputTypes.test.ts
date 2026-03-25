@@ -6,10 +6,11 @@ import type {
   StartTaskInput,
   UpdateTaskInput,
 } from '../../src/types/dto/tasks.ts';
-import type { WorkflowTemplate } from '../../src/services/workflow/workflowTemplateService.ts';
+import type { WorkflowTemplateEntity } from '../../src/types/entities.ts';
 
-function buildWorkflowTemplateSnapshot(): WorkflowTemplate {
+function buildWorkflowTemplateSnapshot(): WorkflowTemplateEntity {
   return {
+    id: 1,
     template_id: 'quick-fix-v1-custom',
     name: '快速修复工作流（任务定制）',
     steps: [
@@ -26,6 +27,8 @@ function buildWorkflowTemplateSnapshot(): WorkflowTemplate {
         agentId: 12,
       },
     ],
+    created_at: '2026-03-22T00:00:00.000Z',
+    updated_at: '2026-03-22T00:00:00.000Z',
   };
 }
 
@@ -53,6 +56,7 @@ test.test('task route and service DTOs accept explicit create, start, and update
   };
 
   const snapshotOnlyStartInput: StartTaskInput = {
+    workflow_template_id: 'quick-fix-v1-custom',
     workflow_template_snapshot: workflowTemplateSnapshot,
   };
 
@@ -60,7 +64,7 @@ test.test('task route and service DTOs accept explicit create, start, and update
 
   const snapshotOnlyTemplateId = snapshotOnlyStartInput.workflow_template_snapshot?.template_id;
 
-  const typedSnapshot: WorkflowTemplate = startInput.workflow_template_snapshot!;
+  const typedSnapshot: WorkflowTemplateEntity = startInput.workflow_template_snapshot!;
 
   const updateInput: UpdateTaskInput = {
     title: 'Split route module safely',

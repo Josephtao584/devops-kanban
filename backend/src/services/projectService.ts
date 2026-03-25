@@ -4,7 +4,6 @@ import { IterationRepository } from '../repositories/iterationRepository.js';
 import { TaskSourceRepository } from '../repositories/taskSourceRepository.js';
 
 import type { CreateProjectInput, UpdateProjectInput } from '../types/dto/projects.js';
-import type { ProjectCreateRecord, ProjectUpdateRecord } from '../types/persistence/projects.js';
 
 class ProjectService {
   projectRepo: ProjectRepository;

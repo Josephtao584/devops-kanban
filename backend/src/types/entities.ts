@@ -3,9 +3,9 @@ import type { ExecutorType } from './executors.ts';
 export interface ProjectEntity {
   id: number;
   name: string;
-  description?: string;
-  git_url?: string | null;
-  local_path?: string | null;
+  description: string | undefined;
+  git_url: string | undefined;
+  local_path: string | undefined;
   created_at: string;
   updated_at: string;
 }
@@ -13,7 +13,7 @@ export interface ProjectEntity {
 export interface TaskEntity {
   id: number;
   title: string;
-  description?: string;
+  description: string | undefined;
   project_id: number;
   status: string;
   priority: string;
@@ -152,10 +152,10 @@ export interface IterationEntity {
   id: number;
   project_id: number;
   name: string;
-  goal?: string;
+  goal: string | undefined;
   status: string;
-  start_date?: string;
-  end_date?: string;
+  start_date: string | undefined;
+  end_date: string | undefined;
   created_at: string;
   updated_at: string;
 }

@@ -94,7 +94,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
         reply.code(400);
         return errorResponse('Status is required');
       }
-      const updated = await iterationService.updateStatus(parseNumber(request.params.id), status);
+      const updated = await iterationService.update(parseNumber(request.params.id), {status});
       if (!updated) {
         reply.code(404);
         return errorResponse('Iteration not found');

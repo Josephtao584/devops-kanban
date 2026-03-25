@@ -1,5 +1,4 @@
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { parseDocument } from 'yaml';
 import { TASK_SOURCE_CONFIG_PATH } from './index.js';
 

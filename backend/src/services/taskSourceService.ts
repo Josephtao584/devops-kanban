@@ -145,7 +145,10 @@ class TaskSourceService {
       } else {
         const newTask = await this.taskRepository.create({
           ...taskData,
+          description: taskData.description ?? undefined,
           project_id: projectId,
+          status: 'TODO',
+          priority: 'MEDIUM',
           source: source.type,
         });
         createdTasks.push(newTask);
