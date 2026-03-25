@@ -409,29 +409,62 @@ class SessionService {
       throw error;
     }
 
+    if (session.executor_type !== 'CLAUDE_CODE') {
+      const error = new Error('Only CLAUDE_CODE executor supports continue') as Error & { statusCode?: number };
+      error.statusCode = 400;
+      throw error;
+    }
+
     const worktreePath = this._requireLaunchableWorktree(session);
     const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
     const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
+
     try {
-      const args = ['-y', '@anthropic-ai/claude-code'];
+      const { ClaudeStepRunner } = await import('./workflow/executors/claudeStepRunner.js');
+      const runner = new ClaudeStepRunner();
+
+      const args = ['--output-format=stream-json', '--verbose'];
       if (latestSegment?.provider_session_id) {
         args.push('--session-id', latestSegment.provider_session_id);
-      } else {
-        args.push('--resume');
       }
-      args.push('--prompt', input);
 
-      const proc = this._spawnClaudeCode(
-        worktreePath,
-        args,
-        sessionId,
-        'resume',
-      );
       await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
-      this.runningProcesses.set(sessionId, proc);
-      this._readProcessOutput(sessionId, segment.id, proc, broadcastFn);
+
+      const result = await runner.runStep({
+        prompt: input,
+        worktreePath,
+        executorConfig: { args },
+      });
+
+      const lines = result.stdout.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const json = JSON.parse(line);
+          if (json.type === 'system' && json.session_id) {
+            await this.sessionSegmentRepo.update(segment.id, {
+              provider_session_id: json.session_id,
+            });
+          }
+        } catch {}
+        await this.sessionEventRepo.append({
+          session_id: sessionId,
+          segment_id: segment.id,
+          kind: 'stream_chunk',
+          role: 'system',
+          content: line,
+          payload: {},
+        });
+      }
+
+      await this._markSegmentComplete(segment.id, result.exitCode === 0 ? 'COMPLETED' : 'ERROR');
+      await this.sessionRepo.update(sessionId, {
+        status: 'STOPPED',
+        completed_at: new Date().toISOString(),
+      });
     } catch (error) {
       await this._markSegmentComplete(segment.id, 'ERROR');
+      await this.sessionRepo.update(sessionId, { status: 'STOPPED' });
       throw error;
     }
 
