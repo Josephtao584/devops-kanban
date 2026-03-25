@@ -57,7 +57,9 @@ class WorkflowLifecycle {
     this.agentRepo = agentRepo;
     this.sessionRepo = sessionRepo;
     this.sessionSegmentRepo = sessionSegmentRepo;
-    this.workflowTemplateService = workflowTemplateService;
+    if (workflowTemplateService) {
+      this.workflowTemplateService = workflowTemplateService;
+    }
     this._stepAttemptSegmentIds = new Map();
   }
 
