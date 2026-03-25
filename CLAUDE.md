@@ -53,6 +53,23 @@ DevOps Kanban board for managing projects/tasks with AI agent execution in isola
 
 **WebSocket** (`/ws`): Session-based real-time communication. Clients subscribe to session channels for streaming process output from AI agent executions. Uses `@fastify/websocket` plugin.
 
+### Workflow System (Mastra-based)
+
+**Architecture**: WorkflowService → Mastra Workflow Engine → WorkflowLifecycle → Executors
+
+- `src/services/workflow/workflows.ts` - Dynamic workflow factory using Mastra. Builds workflows from templates at runtime.
+- `src/services/workflow/workflowService.ts` - Orchestrates workflow execution, manages workflow runs, handles cancellation.
+- `src/services/workflow/workflowLifecycle.ts` - Manages workflow step lifecycle (onStepStart, onStepComplete, onStepError, onStepCancel). Coordinates sessions and segments.
+- `src/services/workflow/workflowTemplateService.ts` - Manages workflow templates (CRUD operations, built-in templates).
+- `src/services/workflow/executors/` - Executor implementations (ClaudeCodeExecutor, CodexExecutor, OpenCodeExecutor).
+- `src/repositories/workflowRunRepository.ts` - **Critical**: Uses `_serializeMutation` queue for all mutations (create/update/updateStep) to prevent race conditions.
+
+**Key Concepts:**
+- Workflows are built dynamically from templates using Mastra's `createWorkflow` and `createStep`
+- Each step execution triggers lifecycle hooks (start → complete/error/cancel)
+- WorkflowRunRepository serializes all mutations to prevent race conditions when steps execute rapidly
+- Mastra stores workflow state in `data/mastra.db` (LibSQL)
+
 ### Frontend (`frontend/src/`) - Vue 3 + Vite 5 + Element Plus + Pinia
 
 **Routes:**
