@@ -12,7 +12,6 @@ class ClaudeCodeExecutor implements Executor {
   async execute({
     prompt,
     worktreePath,
-    executorConfig,
     onSpawn,
     onEvent,
     onProviderState,
