@@ -173,51 +173,21 @@
     </template>
   </el-dialog>
 
-  <!-- Diff Dialog -->
   <el-dialog
     v-model="diffDialogVisible"
     :title="$t('git.diff', 'Code Changes')"
-    width="80%"
+    width="90%"
     top="5vh"
   >
-    <template v-if="diffData?.files?.length">
-      <div class="diff-stats">
-        <el-tag type="success">
-          <el-icon><Plus /></el-icon>
-          {{ totalDiffAdditions }} additions
-        </el-tag>
-        <el-tag type="danger">
-          <el-icon><Minus /></el-icon>
-          {{ totalDiffDeletions }} deletions
-        </el-tag>
-        <el-tag type="info">
-          {{ diffData.files.length }} files changed
-        </el-tag>
-      </div>
-
-      <div class="diff-dialog-content">
-        <div class="diff-file-list">
-          <div
-            v-for="file in diffData.files"
-            :key="file.path"
-            :class="['diff-file-item', { active: selectedDiffFile === file.path }]"
-            @click="selectedDiffFile = file.path"
-          >
-            <div class="diff-file-path">{{ file.path }}</div>
-            <div class="diff-file-meta">
-              <span>{{ file.status }}</span>
-              <span v-if="file.additions || file.deletions">+{{ file.additions }} -{{ file.deletions }}</span>
-            </div>
-          </div>
-        </div>
-
-        <el-scrollbar height="60vh" class="diff-preview-scroll">
-          <pre class="diff-content">{{ selectedDiffContent }}</pre>
-        </el-scrollbar>
-      </div>
-    </template>
-
-    <el-empty v-else :description="$t('git.noChanges')" :image-size="60" />
+    <GitDiffViewer
+      :file-items="taskDetailFileItems"
+      :diffs-by-path="diffData?.diffs || {}"
+      :loading="diffLoading"
+      :selected-file-path="selectedDiffFile"
+      :selectable="false"
+      :title="$t('git.diff', 'Code Changes')"
+      @update:selected-file-path="selectedDiffFile = $event"
+    />
 
     <template #footer>
       <el-button @click="diffDialogVisible = false">{{ $t('common.close') }}</el-button>
@@ -314,6 +284,7 @@ import ChatBox from './ChatBox.vue'
 import TaskForm from './task/TaskForm.vue'
 import TaskHistory from './task/TaskHistory.vue'
 import CommitDialog from './CommitDialog.vue'
+import GitDiffViewer from './GitDiffViewer.vue'
 import { useToast } from '../composables/ui/useToast'
 
 const { t } = useI18n()
@@ -366,6 +337,7 @@ const gitStatus = ref(null)
 const hasWorktree = ref(false)
 const diffDialogVisible = ref(false)
 const diffData = ref(null)
+const diffLoading = ref(false)
 const selectedDiffFile = ref('')
 const commitDialogVisible = ref(false)
 const mergeDialogVisible = ref(false)
@@ -384,19 +356,15 @@ const hasActiveSession = computed(() => {
   return false
 })
 
-const totalDiffAdditions = computed(() => {
-  if (!diffData.value?.files) return 0
-  return diffData.value.files.reduce((sum, file) => sum + (file.additions || 0), 0)
-})
-
-const totalDiffDeletions = computed(() => {
-  if (!diffData.value?.files) return 0
-  return diffData.value.files.reduce((sum, file) => sum + (file.deletions || 0), 0)
-})
-
-const selectedDiffContent = computed(() => {
-  if (!diffData.value?.diffs || !selectedDiffFile.value) return ''
-  return diffData.value.diffs[selectedDiffFile.value] || ''
+const taskDetailFileItems = computed(() => {
+  const files = diffData.value?.files || []
+  return files.map(file => ({
+    path: file.path,
+    displayName: file.path.replace(/\/+$/, '').split('/').pop() || file.path,
+    status: ['modified', 'added', 'deleted', 'untracked'].includes(file.status) ? file.status : 'modified',
+    additions: file.additions || 0,
+    deletions: file.deletions || 0
+  }))
 })
 
 watch(() => props.task, (newTask, oldTask) => {
@@ -457,17 +425,28 @@ const loadGitStatus = async () => {
 
 const showDiffDialog = async () => {
   if (!props.task?.id) return
+
+  diffData.value = null
+  selectedDiffFile.value = ''
+  diffDialogVisible.value = true
+  diffLoading.value = true
+
   try {
     const response = await getDiff(props.projectId, props.task.id)
     if (response.success && response.data) {
       diffData.value = response.data
       selectedDiffFile.value = response.data.files?.[0]?.path || ''
-      diffDialogVisible.value = true
     } else {
+      diffData.value = null
+      selectedDiffFile.value = ''
       toast.error(response.message || t('git.diffFailed'))
     }
   } catch (e) {
+    diffData.value = null
+    selectedDiffFile.value = ''
     toast.apiError(e, t('git.diffFailed'))
+  } finally {
+    diffLoading.value = false
   }
 }
 
@@ -809,84 +788,6 @@ const onSelectHistory = (session) => {
   gap: 8px;
   margin-top: 12px;
   justify-content: flex-end;
-}
-
-/* Diff Styles */
-.diff-stats {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.diff-dialog-content {
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-}
-
-.diff-file-list {
-  width: 240px;
-  flex-shrink: 0;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--el-bg-color);
-}
-
-.diff-file-item {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  cursor: pointer;
-}
-
-.diff-file-item:last-child {
-  border-bottom: none;
-}
-
-.diff-file-item.active {
-  background: var(--el-color-primary-light-9);
-}
-
-.diff-file-path {
-  font-size: 12px;
-  font-family: monospace;
-  word-break: break-all;
-}
-
-.diff-file-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-}
-
-.diff-preview-scroll {
-  flex: 1;
-}
-
-.diff-content {
-  margin: 0;
-  padding: 16px;
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  background: #1e1e1e;
-  color: #d4d4d4;
-  border-radius: 8px;
-}
-
-@media (max-width: 900px) {
-  .diff-dialog-content {
-    flex-direction: column;
-  }
-
-  .diff-file-list {
-    width: 100%;
-  }
 }
 
 .merge-content {
