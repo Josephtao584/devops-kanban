@@ -2,7 +2,7 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
-import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.ts';
+import type { WorkflowTemplateEntity } from '../src/types/entities.ts';
 
 function buildTask(overrides: Record<string, unknown> = {}) {
   return {
@@ -16,8 +16,9 @@ function buildTask(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function buildTemplate(templateId: string, stepIds: string[], agentIds: number[] = [11, 12]): WorkflowTemplate {
+function buildTemplate(templateId: string, stepIds: string[], agentIds: number[] = [11, 12]): WorkflowTemplateEntity {
   return {
+    id: 1,
     template_id: templateId,
     name: `Template ${templateId}`,
     steps: stepIds.map((stepId, index) => ({
@@ -26,6 +27,8 @@ function buildTemplate(templateId: string, stepIds: string[], agentIds: number[]
       instructionPrompt: `Prompt ${index + 1}`,
       agentId: agentIds[index] ?? agentIds[agentIds.length - 1] ?? 11,
     })),
+    created_at: '2026-03-22T00:00:00.000Z',
+    updated_at: '2026-03-22T00:00:00.000Z',
   };
 }
 
@@ -36,7 +39,7 @@ test.test('startWorkflow prefers workflow_template_snapshot over stored template
   const createdRuns: Array<Record<string, unknown>> = [];
   const templateLookupCalls: string[] = [];
   const taskUpdates: Array<Record<string, unknown>> = [];
-  const executeCalls: Array<{ runId: number; task: Record<string, unknown>; templateSnapshot: WorkflowTemplate }> = [];
+  const executeCalls: Array<{ runId: number; task: Record<string, unknown>; templateSnapshot: WorkflowTemplateEntity }> = [];
 
   const service = new WorkflowService({
     taskRepo: {
@@ -73,7 +76,7 @@ test.test('startWorkflow prefers workflow_template_snapshot over stored template
     } as never,
   });
 
-  service._executeWorkflow = (async (runId: number, runTask: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => {
+  service._executeWorkflow = (async (runId: number, runTask: Record<string, unknown>, templateSnapshot: WorkflowTemplateEntity) => {
     executeCalls.push({ runId, task: runTask, templateSnapshot });
   }) as never;
 
@@ -105,7 +108,7 @@ test.test('startWorkflow falls back to stored template when snapshot is absent',
   const storedTemplate = buildTemplate('stored-template', ['stored-a', 'stored-b']);
   const templateLookupCalls: string[] = [];
   const createdRuns: Array<Record<string, unknown>> = [];
-  const executeCalls: Array<WorkflowTemplate> = [];
+  const executeCalls: Array<WorkflowTemplateEntity> = [];
 
   const service = new WorkflowService({
     taskRepo: {
@@ -139,7 +142,7 @@ test.test('startWorkflow falls back to stored template when snapshot is absent',
     } as never,
   });
 
-  service._executeWorkflow = (async (_runId: number, _runTask: Record<string, unknown>, templateSnapshot: WorkflowTemplate) => {
+  service._executeWorkflow = (async (_runId: number, _runTask: Record<string, unknown>, templateSnapshot: WorkflowTemplateEntity) => {
     executeCalls.push(templateSnapshot);
   }) as never;
 

@@ -113,6 +113,7 @@ function createLifecycleHarness({
   const segments: Array<Record<string, unknown> & { id: number; session_id: number }> = [];
   const stepUpdates: Array<{ stepId: string; updateData: Record<string, unknown> }> = [];
   const runUpdates: Array<Record<string, unknown>> = [];
+  const eventAppends: Array<Record<string, unknown>> = [];
   let nextSessionId = 101;
   let nextSegmentId = 201;
 
@@ -204,6 +205,11 @@ function createLifecycleHarness({
     agentRepo: agentRepo as never,
     sessionRepo: sessionRepo as never,
     sessionSegmentRepo: sessionSegmentRepo as never,
+    sessionEventRepo: {
+      async append(event: Record<string, unknown>) {
+        eventAppends.push(event);
+      },
+    } as never,
   });
 
   return {
