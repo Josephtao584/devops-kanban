@@ -57,7 +57,7 @@ test.test('TaskService.startTask starts workflow without template id when body i
   const startWorkflowCalls: Array<{ taskId: number; workflowTemplateId?: string }> = [];
   const workflowService = {
     async startWorkflow(taskId: number, workflowTemplateId?: string) {
-      startWorkflowCalls.push(workflowTemplateId !== undefined ? { taskId, workflowTemplateId } : { taskId });
+      startWorkflowCalls.push({ taskId, workflowTemplateId });
       return { id: 99, task_id: taskId };
     },
   };
@@ -186,7 +186,7 @@ test.test('TaskService.startTask can pass a nullish workflow template body throu
   const startWorkflowCalls: Array<{ taskId: number; workflowTemplateId?: string }> = [];
   const workflowService = {
     async startWorkflow(taskId: number, workflowTemplateId?: string) {
-      startWorkflowCalls.push(workflowTemplateId !== undefined ? { taskId, workflowTemplateId } : { taskId });
+      startWorkflowCalls.push({ taskId, workflowTemplateId });
       return null;
     },
   };
