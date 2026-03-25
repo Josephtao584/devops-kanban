@@ -30,14 +30,14 @@
         <div class="diff-stats">
           <el-tag type="success">
             <el-icon><Plus /></el-icon>
-            {{ totalAdditions }} additions
+            +{{ totalAdditions }}
           </el-tag>
           <el-tag type="danger">
             <el-icon><Minus /></el-icon>
-            {{ totalDeletions }} deletions
+            -{{ totalDeletions }}
           </el-tag>
           <el-tag type="info">
-            {{ diffData.files.length }} files changed
+            {{ diffData.files.length }} 个文件变更
           </el-tag>
         </div>
 

@@ -30,6 +30,42 @@ export const createEmptyWorkflowStep = (defaultName = '') => ({
   agentId: null
 })
 
+export const insertWorkflowStep = (steps = [], targetIndex, position = 'after', step = createEmptyWorkflowStep()) => {
+  const normalizedSteps = Array.isArray(steps) ? [...steps] : []
+  const baseIndex = Math.max(0, Math.min(targetIndex, normalizedSteps.length - 1))
+  const insertIndex = position === 'before' ? baseIndex : baseIndex + 1
+  normalizedSteps.splice(insertIndex, 0, step)
+  return {
+    steps: normalizedSteps,
+    insertedIndex: insertIndex
+  }
+}
+
+export const removeWorkflowStep = (steps = [], targetIndex, options = {}) => {
+  const { minSteps = MIN_WORKFLOW_TEMPLATE_STEPS } = options
+  const normalizedSteps = Array.isArray(steps) ? [...steps] : []
+
+  if (normalizedSteps.length <= minSteps) {
+    return {
+      steps: normalizedSteps,
+      removed: false
+    }
+  }
+
+  normalizedSteps.splice(targetIndex, 1)
+  return {
+    steps: normalizedSteps,
+    removed: true
+  }
+}
+
+export const resolveSelectedStepIndexAfterRemoval = (selectedIndex, removedIndex, nextLength) => {
+  if (nextLength <= 0) return 0
+  if (selectedIndex > removedIndex) return selectedIndex - 1
+  if (selectedIndex === removedIndex) return Math.max(0, Math.min(removedIndex - 1, nextLength - 1))
+  return Math.min(selectedIndex, nextLength - 1)
+}
+
 const slugifyWorkflowStepName = (value = '') => {
   return value
     .trim()

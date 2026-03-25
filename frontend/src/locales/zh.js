@@ -252,6 +252,8 @@ export default {
     emptyState: '暂无可用的工作流模板',
     stepCount: '{count} 个步骤',
     addStep: '添加阶段',
+    insertStepBefore: '前插阶段',
+    insertStepAfter: '后插阶段',
     deleteStep: '删除阶段',
     deleteStepConfirmTitle: '删除阶段',
     deleteStepConfirm: '确定要删除当前阶段吗？此操作不会立即保存到后端，点击保存后才会生效。',

@@ -40,7 +40,6 @@
                 <div class="workflow-step-card__name workflow-start-editor-step-name">
                   {{ step.name || $t('workflowTemplate.newStepDefaultName') }}
                 </div>
-                <div class="workflow-start-editor-step-id">{{ step.id }}</div>
 
                 <div class="workflow-step-card__meta workflow-start-editor-step-summary">
                   <span class="workflow-chip" :class="step.agentStateClass">
@@ -49,9 +48,58 @@
                 </div>
 
                 <div class="workflow-step-card__actions">
-                  <el-button size="small" @click.stop="openStepDetails(index)">
-                    {{ $t('workflowTemplate.viewDetails') }}
-                  </el-button>
+                  <div class="workflow-step-card__action-row">
+                    <el-tooltip :content="$t('workflowTemplate.insertStepBefore')" placement="top">
+                      <el-button
+                        data-testid="insert-step-before-button"
+                        class="workflow-step-card__icon-button"
+                        size="small"
+                        :aria-label="$t('workflowTemplate.insertStepBefore')"
+                        :title="$t('workflowTemplate.insertStepBefore')"
+                        @click.stop="insertStep(index, 'before')"
+                      >
+                        <el-icon><Back /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip :content="$t('workflowTemplate.insertStepAfter')" placement="top">
+                      <el-button
+                        data-testid="insert-step-after-button"
+                        class="workflow-step-card__icon-button"
+                        size="small"
+                        :aria-label="$t('workflowTemplate.insertStepAfter')"
+                        :title="$t('workflowTemplate.insertStepAfter')"
+                        @click.stop="insertStep(index, 'after')"
+                      >
+                        <el-icon><Right /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip :content="$t('workflowTemplate.deleteStep')" placement="top">
+                      <el-button
+                        data-testid="delete-step-button"
+                        class="workflow-step-card__icon-button"
+                        size="small"
+                        type="danger"
+                        :disabled="!canDeleteStep"
+                        :aria-label="$t('workflowTemplate.deleteStep')"
+                        :title="$t('workflowTemplate.deleteStep')"
+                        @click.stop="confirmRemoveStep(index)"
+                      >
+                        <el-icon><Delete /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip :content="$t('workflowTemplate.viewDetails')" placement="top">
+                      <el-button
+                        data-testid="open-step-details-button"
+                        class="workflow-step-card__icon-button"
+                        size="small"
+                        :aria-label="$t('workflowTemplate.viewDetails')"
+                        :title="$t('workflowTemplate.viewDetails')"
+                        @click.stop="openStepDetails(index)"
+                      >
+                        <el-icon><MoreFilled /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                  </div>
                 </div>
               </div>
             </template>
@@ -79,15 +127,6 @@
               {{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}
             </div>
           </div>
-          <el-button
-            data-testid="delete-step-button"
-            text
-            type="danger"
-            :disabled="!canDeleteStep"
-            @click="confirmRemoveStep(selectedStepIndex)"
-          >
-            {{ $t('workflowTemplate.deleteStep') }}
-          </el-button>
         </div>
 
         <div class="step-editor-state-row binding-state-row">
@@ -148,13 +187,16 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, MoreFilled, Back, Right } from '@element-plus/icons-vue'
 import { getAgents } from '../../api/agent.js'
 import {
-  MIN_WORKFLOW_TEMPLATE_STEPS,
   normalizeWorkflowStep,
   normalizeWorkflowTemplate,
   sanitizeWorkflowStep,
   createEmptyWorkflowStep,
+  insertWorkflowStep,
+  removeWorkflowStep,
+  resolveSelectedStepIndexAfterRemoval,
   buildWorkflowTemplatePayload,
   validateWorkflowTemplatePayload,
   getAgentDisplayName,
@@ -164,6 +206,8 @@ import {
   isDisabledAgent as checkDisabledAgent,
   formatBoundAgentState as formatAgentBindingState,
 } from './templateEditorShared.js'
+
+const MIN_START_EDITOR_STEPS = 1
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -220,7 +264,7 @@ const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
 const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
 const selectedStep = computed(() => localTemplate.value.steps[selectedStepIndex.value] || null)
-const canDeleteStep = computed(() => (localTemplate.value.steps?.length || 0) > MIN_WORKFLOW_TEMPLATE_STEPS)
+const canDeleteStep = computed(() => (localTemplate.value.steps?.length || 0) > MIN_START_EDITOR_STEPS)
 
 const previewSteps = computed(() => {
   return (localTemplate.value.steps || []).map((step, index) => {
@@ -240,7 +284,7 @@ const previewSteps = computed(() => {
         stateClass = 'state-disabled'
       } else {
         agentSummary = getAgentDisplayName(getAgentById(sanitized.agentId), t)
-        agentStateClass = 'workflow-chip--success'
+        agentStateClass = 'workflow-chip--neutral'
       }
     }
 
@@ -278,25 +322,36 @@ const addStep = () => {
   selectedStepIndex.value = localTemplate.value.steps.length - 1
 }
 
+const insertStep = (index, position) => {
+  const { steps, insertedIndex } = insertWorkflowStep(
+    localTemplate.value.steps || [],
+    index,
+    position,
+    createEmptyWorkflowStep(t('workflowTemplate.newStepDefaultName'))
+  )
+  localTemplate.value.steps = steps
+  selectedStepIndex.value = insertedIndex
+  showStepDetailsDialog.value = true
+}
+
 const removeStep = (index) => {
-  if (!canDeleteStep.value) {
-    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
+  const { steps, removed } = removeWorkflowStep(localTemplate.value.steps || [], index, {
+    minSteps: MIN_START_EDITOR_STEPS
+  })
+
+  if (!removed) {
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_START_EDITOR_STEPS }))
     return
   }
 
-  localTemplate.value.steps = localTemplate.value.steps.filter((_, stepIndex) => stepIndex !== index)
-  if (selectedStepIndex.value > index) {
-    selectedStepIndex.value -= 1
-  } else if (selectedStepIndex.value === index) {
-    selectedStepIndex.value = Math.max(0, index - 1)
-  }
+  localTemplate.value.steps = steps
+  selectedStepIndex.value = resolveSelectedStepIndexAfterRemoval(selectedStepIndex.value, index, steps.length)
   syncSelectedStepIndex()
-  showStepDetailsDialog.value = false
 }
 
 const confirmRemoveStep = async (index) => {
   if (!canDeleteStep.value) {
-    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
+    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_START_EDITOR_STEPS }))
     return
   }
 
@@ -329,7 +384,8 @@ const validationMessage = computed(() => validateWorkflowTemplatePayload(localTe
   requireTemplateName: false,
   requireExistingEnabledAgent: true,
   isMissingAgent,
-  isDisabledAgent
+  isDisabledAgent,
+  minSteps: MIN_START_EDITOR_STEPS
 }))
 
 const canConfirm = computed(() => !validationMessage.value)
@@ -426,8 +482,8 @@ const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTe
 }
 
 .workflow-start-editor-step {
-  width: 210px;
-  min-height: 132px;
+  width: 236px;
+  min-height: 176px;
 }
 
 .workflow-step-card {
@@ -508,27 +564,52 @@ const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTe
 
 .workflow-step-card__actions {
   display: flex;
-  justify-content: flex-end;
+  margin-top: auto;
 }
 
-.workflow-chip {
+.workflow-step-card__action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.workflow-step-card__action-row :deep(.el-tooltip) {
   display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
 }
 
-.workflow-chip--info {
-  background: #e2e8f0;
-  color: #475569;
+.workflow-step-card__action-row :deep(.el-button) {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  margin-left: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.workflow-step-card__action-row :deep(.el-button .el-icon) {
+  font-size: 14px;
+}
+
+.workflow-step-card__icon-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+.workflow-step-card__action-row :deep(.el-button.is-danger) {
+  --el-button-hover-text-color: var(--el-color-danger);
 }
 
 .workflow-chip--success {
   background: #dcfce7;
   color: #15803d;
+}
+
+.workflow-chip--neutral {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .workflow-chip--warning {
