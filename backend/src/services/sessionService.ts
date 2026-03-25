@@ -419,8 +419,9 @@ class SessionService {
     const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
 
     const { AgentExecutorRegistry } = await import('./workflow/agentExecutorRegistry.js');
+    const { ExecutorType } = await import('../types/executors.js');
     const registry = new AgentExecutorRegistry();
-    const executor = registry.getExecutor(session.executor_type);
+    const executor = registry.getExecutor(session.executor_type as ExecutorType);
 
     if (!executor.continue) {
       const error = new Error(`Executor ${session.executor_type} does not support continue`) as Error & { statusCode?: number };
@@ -436,7 +437,7 @@ class SessionService {
       const result = await executor.continue({
         prompt: input,
         worktreePath,
-        providerSessionId: latestSegment?.provider_session_id || undefined,
+        ...(latestSegment?.provider_session_id ? { providerSessionId: latestSegment.provider_session_id } : {}),
         onEvent: async (event) => {
           await this.sessionEventRepo.append({
             session_id: sessionId,
