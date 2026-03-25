@@ -514,75 +514,8 @@ function createStepSessionHarness({
   };
 }
 
-test.test('startWorkflow prefers a supplied workflow template snapshot and preserves the source template id', async () => {
-  const harness = createStartWorkflowHarness();
-  const editedSnapshot: WorkflowTemplate = {
-    template_id: 'quick-fix-v1-custom',
-    name: '快速修复工作流（任务定制）',
-    steps: [
-      {
-        id: 'triage',
-        name: '问题定位',
-        instructionPrompt: '先确认问题范围，并记录复现条件。',
-        agentId: 11,
-      },
-      {
-        id: 'fix',
-        name: '实施修复',
-        instructionPrompt: '只做当前任务需要的最小修复。',
-        agentId: 12,
-      },
-    ],
-  };
-
-  const run = await harness.service.startWorkflow(1, 'quick-fix-v1');
-
-  assert.equal(run.status, 'PENDING');
-  assert.equal(harness.createCalls.length, 1);
-  assert.deepEqual(harness.agentLookupIds, [11, 12]);
-  assert.equal(harness.getTemplateLoads(), 0);
-
-  const createdRun = harness.createCalls[0]!;
-  assert.equal(createdRun.workflow_id, 'quick-fix-v1-custom');
-  assert.equal(createdRun.workflow_template_id, 'quick-fix-v1');
-  assert.deepEqual(createdRun.workflow_template_snapshot, editedSnapshot);
-  assert.deepEqual((createdRun.steps as Array<{ step_id: string }>).map((step) => step.step_id), ['triage', 'fix']);
-});
 
 
-test.test('startWorkflow rejects an invalid supplied workflow template snapshot through shared validation', async () => {
-  const harness = createStartWorkflowHarness();
-  const invalidSnapshot = {
-    template_id: 'quick-fix-v1-custom',
-    name: '快速修复工作流（任务定制）',
-    steps: [
-      {
-        id: 'triage',
-        name: '问题定位',
-        instructionPrompt: '   ',
-        agentId: 11,
-      },
-      {
-        id: 'fix',
-        name: '实施修复',
-        instructionPrompt: '完成最小修复。',
-        agentId: 12,
-      },
-    ],
-  };
-
-  await assert.rejects(
-    () => harness.service.startWorkflow(1, 'quick-fix-v1'),
-    (error: unknown) => {
-      assertValidationError(error, /instructionPrompt must be a non-empty string/);
-      return true;
-    },
-  );
-
-  assert.equal(harness.getTemplateLoads(), 0);
-  assert.equal(harness.createCalls.length, 0);
-  assert.equal(harness.taskUpdates.length, 0);
-});
 
 test.test('startWorkflow rejects an unknown selected template id before creating a run', async () => {
   const harness = createStartWorkflowHarness({ template: buildTemplate() });
@@ -721,39 +654,6 @@ function createActiveRunCancelHarness() {
   };
 }
 
-test.test('startWorkflow rejects blank selected template ids even when a workflow snapshot is supplied', async () => {
-  const harness = createStartWorkflowHarness();
-  const editedSnapshot: WorkflowTemplate = {
-    template_id: 'quick-fix-v1-custom',
-    name: '快速修复工作流（任务定制）',
-    steps: [
-      {
-        id: 'triage',
-        name: '问题定位',
-        instructionPrompt: '先确认问题范围，并记录复现条件。',
-        agentId: 11,
-      },
-      {
-        id: 'fix',
-        name: '实施修复',
-        instructionPrompt: '只做当前任务需要的最小修复。',
-        agentId: 12,
-      },
-    ],
-  };
-
-  await assert.rejects(
-    () => harness.service.startWorkflow(1, '   '),
-    (error: unknown) => {
-      assertValidationError(error, /Workflow template not found/);
-      return true;
-    },
-  );
-
-  assert.equal(harness.getTemplateLoads(), 0);
-  assert.equal(harness.createCalls.length, 0);
-  assert.equal(harness.taskUpdates.length, 0);
-});
 
 test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
   const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);

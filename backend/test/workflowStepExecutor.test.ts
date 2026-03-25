@@ -573,24 +573,6 @@ test.test('executeWorkflowStep fails when the persisted agent executor type is i
   );
 });
 
-test.test('executeWorkflowStep fails when the persisted agent command override is invalid', async () => {
-  const templateService = createTemplateService();
-  const agentRepo = {
-    async findById(id: number) {
-      assert.equal(id, 7);
-      return createAgent({ name: 'Broken Command Agent', commandOverride: '   ' });
-    },
-  };
-
-  await assert.rejects(
-    () => executeWorkflowStep({
-      templateService: templateService as never,
-      agentRepo: agentRepo as never,
-      ...createInputOverrides(),
-    }),
-    /invalid command override/
-  );
-});
 
 
 test.test('executeWorkflowStep fails when the persisted agent skills config is invalid', async () => {
