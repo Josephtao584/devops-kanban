@@ -436,7 +436,7 @@ class SessionService {
       const result = await executor.continue({
         prompt: input,
         worktreePath,
-        providerSessionId: latestSegment?.provider_session_id ?? null,
+        providerSessionId: latestSegment?.provider_session_id || undefined,
         onEvent: async (event) => {
           await this.sessionEventRepo.append({
             session_id: sessionId,

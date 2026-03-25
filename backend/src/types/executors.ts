@@ -44,7 +44,7 @@ export interface ExecutorExecutionInput {
 export interface ExecutorContinueInput {
   prompt: string;
   worktreePath: string;
-  providerSessionId?: string | null;
+  providerSessionId?: string;
   executorConfig?: ExecutorConfig | undefined;
   onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
