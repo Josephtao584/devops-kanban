@@ -1,14 +1,23 @@
 import { normalizeExecutorRawResult, normalizeExecutorEvents } from '../stepResultAdapter.js';
-import type { Executor, ExecutorExecutionInput, ExecutorExecutionResult, ExecutorRawResult } from '../../../types/executors.js';
+import type { Executor, ExecutorContinueInput,
+    ExecutorExecutionInput,
+    ExecutorExecutionResult,
+    ExecutorRawResult
+} from '../../../types/executors.js';
 
 type ExecutorRunImpl = (input: ExecutorExecutionInput) => Promise<ExecutorRawResult> | ExecutorRawResult;
 
 class OpenCodeExecutor implements Executor {
-  runImpl: ExecutorRunImpl | undefined;
+    runImpl: ExecutorRunImpl | undefined;
 
-  constructor({ runImpl }: { runImpl?: ExecutorRunImpl } = {}) {
-    this.runImpl = runImpl;
-  }
+    constructor({runImpl}: { runImpl?: ExecutorRunImpl } = {}) {
+        this.runImpl = runImpl;
+    }
+
+    continue(input: ExecutorContinueInput): Promise<ExecutorExecutionResult> {
+        console.log(input)
+        throw new Error("Method not implemented.");
+    }
 
   async execute(input: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     if (!this.runImpl) {

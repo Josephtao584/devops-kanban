@@ -522,25 +522,6 @@
           </div>
 
           <div class="info-card chat-card">
-            <h3 class="info-card-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              与 {{ selectedNode.agentName }} 对话
-            </h3>
-            <div class="node-chat-container">
-              <ChatBox
-                ref="nodeChatBoxRef"
-                :task="selectedTask"
-                :agent-id="selectedNode.agentId || selectedAgentId"
-                :initial-session="null"
-                :default-collapsed="false"
-                @session-created="onNodeSessionCreated"
-                @request-agent-select="() => {}"
-              />
-            </div>
-          </div>
-
           <div v-if="selectedNode.isParent && selectedNode.childNodes" class="info-card">
             <h3 class="info-card-title">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -682,8 +663,6 @@ const editingTaskId = ref(null)
 const activeSession = ref(null)
 const chatBoxRef = ref(null)
 const butlerChatRef = ref(null)
-const nodeChatBoxRef = ref(null)
-const stepChatBoxRef = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
 const currentViewingNodeId = ref(null)

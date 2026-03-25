@@ -87,7 +87,6 @@ export interface WorkflowStepEntity {
 export interface WorkflowRunEntity {
   id: number;
   task_id: number;
-  workflow_id: string;
   workflow_template_id: string;
   workflow_template_snapshot?: WorkflowTemplateEntity | null;
   status: string;

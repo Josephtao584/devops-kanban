@@ -16,12 +16,11 @@ import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
-const defaultTemplateService = new WorkflowTemplateService();
 const defaultAgentRepo = new AgentRepository();
 
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
-  templateSnapshot?: WorkflowTemplateEntity;
+  workflowTemplate: WorkflowTemplateEntity;
   templateService?: WorkflowTemplateService;
   agentRepo?: AgentRepository;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
@@ -37,7 +36,7 @@ interface ExecuteWorkflowStepInput {
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
   abortSignal?: AbortSignal | undefined;
-  runId?: number;
+  runId: number;
   sessionId?: number | null;
   segmentId?: number | null;
 }
@@ -63,8 +62,7 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
 
 export async function executeWorkflowStep({
   registry = defaultRegistry,
-  templateSnapshot,
-  templateService = defaultTemplateService,
+  workflowTemplate,
   agentRepo = defaultAgentRepo,
   context,
   onEvent,
@@ -76,8 +74,7 @@ export async function executeWorkflowStep({
   inputData,
   upstreamStepIds = [],
 }: ExecuteWorkflowStepInput) {
-  const template = templateSnapshot ?? await templateService.getTemplate();
-  const step = template.steps.find((item: { id: string }) => item.id === stepId);
+  const step = workflowTemplate.steps.find((item: { id: string }) => item.id === stepId);
 
   if (!step) {
     throw new Error(`Workflow template step not found: ${stepId}`);
