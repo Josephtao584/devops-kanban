@@ -48,6 +48,16 @@ type RoutePayload = {
   error: unknown;
 };
 
+type ChangesRoutePayload = {
+  success: boolean;
+  message: string;
+  data: Array<{
+    path: string;
+    status: 'modified' | 'added' | 'deleted' | 'untracked';
+  }> | null;
+  error: unknown;
+};
+
 type GitFixture = {
   rootPath: string;
   repoPath: string;
@@ -182,6 +192,18 @@ async function getDiff(query = 'projectId=1') {
   return {
     response,
     payload: response.json() as RoutePayload,
+  };
+}
+
+async function getChanges(query = 'projectId=1') {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/git/worktrees/1/changes?${query}`,
+  });
+
+  return {
+    response,
+    payload: response.json() as ChangesRoutePayload,
   };
 }
 
@@ -393,6 +415,41 @@ serialTest('GET /api/git/worktrees/:taskId/diff returns tracked deleted files as
   assert.equal(file.status, 'deleted');
   assert.match(getDiffText(payload, 'tracked.txt'), /^deleted file mode /m);
   assert.match(getDiffText(payload, 'tracked.txt'), /^-base$/m);
+});
+
+serialTest('GET /api/git/worktrees/:taskId/diff expands untracked directories into file entries with diffs', async () => {
+  const fixture = createGitFixture();
+  writeFile(fixture.worktreePath, 'notes/todo.txt', 'hello\nworld\n');
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await getDiff();
+  const file = getFile(payload, 'notes/todo.txt');
+  const diff = getDiffText(payload, 'notes/todo.txt');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(file.status, 'untracked');
+  assert.equal(file.additions, 2);
+  assert.equal(file.deletions, 0);
+  assert.match(diff, /^diff --git a\/notes\/todo.txt b\/notes\/todo.txt$/m);
+  assert.match(diff, /^\+hello$/m);
+  assert.match(diff, /^\+world$/m);
+});
+
+serialTest('GET /api/git/worktrees/:taskId/changes expands untracked directories into file entries that match diff keys', async () => {
+  const fixture = createGitFixture();
+  writeFile(fixture.worktreePath, 'notes/todo.txt', 'hello\nworld\n');
+  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+
+  const { response, payload } = await getChanges();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.success, true);
+  assert.deepEqual(payload.data, [
+    {
+      path: 'notes/todo.txt',
+      status: 'untracked',
+    },
+  ]);
 });
 
 serialTest('GET /api/git/worktrees/:taskId/diff combines staged and unstaged tracked changes relative to HEAD', async () => {

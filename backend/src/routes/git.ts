@@ -526,49 +526,15 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return successResponse([]);
       }
 
-      // Get all changes: modified, new (untracked), deleted
-      // Note: Not using -z flag because it causes encoding issues with Chinese filenames on Windows
-      const statusOutput = execSync('git status --porcelain', {
+      const statusOutput = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
         cwd: task.worktree_path,
         encoding: 'utf-8',
       });
 
-      const changes: Array<{
-        path: string;
-        status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
-      }> = [];
-
-      for (const line of statusOutput.trim().split('\n')) {
-        if (!line.trim()) continue;
-
-        // Parse git status --porcelain format
-        // XY filename
-        // X = index status, Y = working tree status
-        const match = line.match(/^(\?\?|\s\w|\w\s|\w{2})\s+(.+)$/);
-        if (match) {
-          const [, statusCode, filePath] = match;
-          if (!statusCode || !filePath) continue;
-
-          let status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' = 'modified';
-
-          if (statusCode === '??') {
-            status = 'untracked';
-          } else if (statusCode === 'M' || statusCode === 'MM') {
-            status = 'modified';
-          } else if (statusCode === 'A' || statusCode === 'AM') {
-            status = 'added';
-          } else if (statusCode === 'D') {
-            status = 'deleted';
-          } else if (statusCode === 'R') {
-            status = 'renamed';
-          }
-
-          changes.push({
-            path: filePath.trim(),
-            status,
-          });
-        }
-      }
+      const changes = parsePorcelainStatus(statusOutput).map((file) => ({
+        path: file.path,
+        status: file.status,
+      }));
 
       return successResponse(changes);
     } catch (error) {
