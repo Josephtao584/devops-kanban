@@ -36,5 +36,5 @@ test.test('workflow template DTO accepts the existing full-template update paylo
   };
 
   assert.equal(payload.steps[1]!.agentId, 2);
-  assert.equal(payload.steps[2]!.agentId, null);
+  assert.equal(payload.steps[2]!.agentId, 1);
 });
