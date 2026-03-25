@@ -7,7 +7,7 @@ import {
   getAvailableTypes,
   registerAdapter,
 } from '../../src/sources/index.js';
-import { TaskSourceAdapter } from '../../src/sources/base.js';
+import { TaskSourceAdapter, UniversalAdapter } from '../../src/sources/base.js';
 import type { ImportedTask } from '../../src/types/sources.ts';
 
 test.test('source registry exposes built-in adapters with metadata', () => {
@@ -23,6 +23,34 @@ test.test('source registry exposes built-in adapters with metadata', () => {
     description: 'Issue state filter: open, closed, or all',
     default: 'open',
   });
+});
+
+test.test('INTERNAL_API appears in available types and metadata-only config does not force UniversalAdapter', () => {
+  class InternalApiAdapter extends TaskSourceAdapter {
+    static override type = 'INTERNAL_API';
+
+    override async fetch(): Promise<ImportedTask[]> { return []; }
+    override async testConnection(): Promise<boolean> { return true; }
+    override convertToTask(item: unknown): ImportedTask { return item as ImportedTask; }
+  }
+
+  registerAdapter(InternalApiAdapter);
+
+  const types = getAvailableTypes();
+  assert.equal(types.INTERNAL_API?.name, 'Internal API');
+  assert.equal('request' in (types.INTERNAL_API ?? {}), false);
+  assert.equal('mapping' in (types.INTERNAL_API ?? {}), false);
+
+  const adapter = getAdapter('INTERNAL_API', {
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/tasks',
+    },
+  });
+
+  assert.ok(adapter instanceof InternalApiAdapter);
+  assert.equal(adapter instanceof UniversalAdapter, false);
 });
 
 test.test('getAdapter returns discovered gitlab adapter instance', () => {
