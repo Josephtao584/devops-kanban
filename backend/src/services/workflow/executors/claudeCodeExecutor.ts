@@ -1,6 +1,6 @@
 import { ClaudeStepRunner } from './claudeStepRunner.js';
-import { ExecutionEventSink } from '../executionEventSink.js';
 import type { Executor, ExecutorExecutionInput, ExecutorContinueInput, ExecutorExecutionResult } from '../../../types/executors.js';
+import { buildEvent } from '../../../types/executors.js';
 
 class ClaudeCodeExecutor implements Executor {
   runner: ClaudeStepRunner;
@@ -17,7 +17,6 @@ class ClaudeCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
-    const sink = new ExecutionEventSink({ onEvent, onProviderState });
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
@@ -34,16 +33,16 @@ class ClaudeCodeExecutor implements Executor {
           await onProviderState({ providerSessionId: json.session_id });
         }
       } catch {}
-      await sink.appendStreamChunk(line, 'stdout');
+      await onEvent?.(buildEvent('stream_chunk', 'assistant', line, { stream: 'stdout' }));
     }
 
     if (result.stderr) {
-      await sink.appendStreamChunk(result.stderr, 'stderr');
+      await onEvent?.(buildEvent('stream_chunk', 'system', result.stderr, { stream: 'stderr' }));
     }
 
     const summary = result.parsedResult.summary.trim();
     if (summary && summary !== result.stdout.trim()) {
-      await sink.appendMessage(result.parsedResult.summary);
+      await onEvent?.(buildEvent('message', 'assistant', summary));
     }
 
     return {
@@ -64,7 +63,6 @@ class ClaudeCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
   }: ExecutorContinueInput): Promise<ExecutorExecutionResult> {
-    const sink = new ExecutionEventSink({ onEvent, onProviderState });
     const args = ['--output-format=stream-json', '--verbose'];
     if (providerSessionId) {
       args.push('--session-id', providerSessionId);
@@ -87,16 +85,16 @@ class ClaudeCodeExecutor implements Executor {
           await onProviderState({ providerSessionId: json.session_id });
         }
       } catch {}
-      await sink.appendStreamChunk(line, 'stdout');
+      await onEvent?.(buildEvent('stream_chunk', 'assistant', line, { stream: 'stdout' }));
     }
 
     if (result.stderr) {
-      await sink.appendStreamChunk(result.stderr, 'stderr');
+      await onEvent?.(buildEvent('stream_chunk', 'system', result.stderr, { stream: 'stderr' }));
     }
 
     const summary = result.parsedResult.summary.trim();
     if (summary && summary !== result.stdout.trim()) {
-      await sink.appendMessage(result.parsedResult.summary);
+      await onEvent?.(buildEvent('message', 'assistant', summary));
     }
 
     return {

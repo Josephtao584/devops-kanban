@@ -66,3 +66,12 @@ export interface Executor {
 }
 
 export type ExecutorMap = Record<ExecutorType, Executor>;
+
+export function buildEvent(
+  kind: WorkflowExecutionEventKind,
+  role: WorkflowExecutionEventRole,
+  content: string,
+  payload: Record<string, unknown> = {}
+): WorkflowExecutionEvent {
+  return { kind, role, content, payload };
+}
