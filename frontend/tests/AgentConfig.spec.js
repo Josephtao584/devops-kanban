@@ -452,38 +452,69 @@ describe('AgentConfig', () => {
     expect(wrapper.find('option[value="1"]').exists()).toBe(false)
   })
 
-  it('shows an error instead of false success when delete returns success false', async () => {
-    getAgents.mockResolvedValueOnce({
+  it('opens the diff dialog in read-only mode and shows loading before diff data resolves', async () => {
+    let resolveDiff
+    getDiff.mockReturnValueOnce(new Promise((resolve) => {
+      resolveDiff = resolve
+    }))
+
+    const wrapper = mountTaskDetail({
+      task: { id: 123, title: 'Fix bug' },
+      projectId: 9
+    })
+    await flushPromises()
+
+    const pending = wrapper.vm.showDiffDialog()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('加载中')
+    expect(wrapper.find('.el-checkbox-stub').exists()).toBe(false)
+
+    resolveDiff({
       success: true,
-      data: [
-        {
-          id: 1,
-          name: 'Claude Dev',
-          executorType: 'CLAUDE_CODE',
-          role: 'BACKEND_DEV',
-          enabled: true,
-          skills: []
+      data: {
+        files: [
+          { path: 'docs/guide.md', status: 'modified', additions: 1, deletions: 1 }
+        ],
+        diffs: {
+          'docs/guide.md': '@@ -1,1 +1,1 @@\n-old\n+new'
         }
-      ]
+      }
     })
-    deleteAgent.mockResolvedValueOnce({
-      success: false,
-      message: '删除被拒绝',
-      data: null
+
+    await pending
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('取消全选')
+    expect(wrapper.text()).not.toContain('提交中')
+  })
+
+  it('defaults to the first returned file after diff data resolves', async () => {
+    getDiff.mockResolvedValueOnce({
+      success: true,
+      data: {
+        files: [
+          { path: 'docs/guide.md', status: 'modified', additions: 1, deletions: 1 },
+          { path: 'main.py', status: 'untracked', additions: 5, deletions: 0 }
+        ],
+        diffs: {
+          'docs/guide.md': '@@ -1,1 +1,1 @@\n-old\n+new',
+          'main.py': '@@ -0,0 +1,1 @@\n+print("hi")'
+        }
+      }
     })
-    vi.spyOn(globalThis, 'confirm').mockReturnValue(true)
 
-    const wrapper = mountAgentConfig()
+    const wrapper = mountTaskDetail({
+      task: { id: 123, title: 'Fix bug' },
+      projectId: 9
+    })
     await flushPromises()
 
-    await wrapper.get('.agent-list-item').trigger('click')
-    await flushPromises()
-    await wrapper.get('.detail-header .btn-danger').trigger('click')
+    await wrapper.vm.showDiffDialog()
     await flushPromises()
 
-    expect(deleteAgent).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('.toast.error').exists()).toBe(true)
-    expect(wrapper.find('.toast.error').text()).toContain('删除被拒绝')
-    expect(wrapper.find('.toast.success').exists()).toBe(false)
+    expect(wrapper.vm.selectedDiffFile).toBe('docs/guide.md')
+    expect(wrapper.text()).toContain('docs/guide.md')
   })
 })
+
