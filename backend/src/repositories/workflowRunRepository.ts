@@ -62,6 +62,11 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
     return data.filter((item) => item.task_id === taskId);
   }
 
+  override async findById(entityId: number): Promise<StoredWorkflowRunEntity | null> {
+    await this.mutationQueue;
+    return await super.findById(entityId);
+  }
+
   override async create(entityData: CreateWorkflowRunRecord): Promise<StoredWorkflowRunEntity> {
     return await this._serializeMutation(async () => {
       const data = await this._loadAll();
