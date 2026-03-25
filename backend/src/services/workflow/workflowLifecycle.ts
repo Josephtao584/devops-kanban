@@ -80,12 +80,12 @@ class WorkflowLifecycle {
   }
 
   private async _getRunStep(runId: number, stepId: string) {
-    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const step = (run.steps || []).find((candidate) => candidate.step_id === stepId) as WorkflowStepEntity | null;
+    const step = (run.steps || []).find((candidate) => candidate.step_id === stepId);
     if (!step) {
       throw new Error(`Workflow step not found: ${stepId}`);
     }
@@ -94,12 +94,12 @@ class WorkflowLifecycle {
   }
 
   private async _getTemplateStepBinding(runId: number, stepId: string) {
-    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const template = (run.workflow_template_snapshot as WorkflowTemplate | null) ?? (this.workflowTemplateService ? await this.workflowTemplateService.getTemplateById(run.workflow_template_id ?? 'dev-workflow-v1') : null);
+    const template = run.workflow_template_snapshot ?? (this.workflowTemplateService ? await this.workflowTemplateService.getTemplateById(run.workflow_template_id ?? 'dev-workflow-v1') : null);
     if (!template) {
       throw new Error(`Workflow template not found for run: ${runId}`);
     }
@@ -121,7 +121,7 @@ class WorkflowLifecycle {
       throw new Error(`Workflow template step ${stepId} has no bound agent`);
     }
 
-    const agent = await this.agentRepo.findById(stepBinding.agentId) as WorkflowAgentRecord | null;
+    const agent = await this.agentRepo.findById(stepBinding.agentId);
     if (!agent || !isSupportedExecutorType(agent.executorType)) {
       throw new Error(`Workflow step ${stepId} has no valid bound agent`);
     }
@@ -151,7 +151,7 @@ class WorkflowLifecycle {
     const segment = await this.sessionSegmentRepo.create({
       session_id: session.id,
       status: 'RUNNING',
-      executor_type: (session.executor_type || 'CLAUDE_CODE') as SessionSegmentEntity['executor_type'],
+      executor_type: session.executor_type || 'CLAUDE_CODE',
       agent_id: session.agent_id ?? null,
       provider_session_id: null,
       resume_token: null,
@@ -182,7 +182,7 @@ class WorkflowLifecycle {
   }
 
   private async _isWorkflowRunCancelled(runId: number) {
-    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    const run = await this.workflowRunRepo.findById(runId);
     return run?.status === 'CANCELLED';
   }
 
@@ -317,7 +317,7 @@ class WorkflowLifecycle {
     const startedAt = new Date().toISOString();
     const { step } = await this._getRunStep(runId, stepId);
 
-    let session = step.session_id ? await this.sessionRepo.findById(step.session_id) as SessionEntity | null : null;
+    let session = step.session_id ? await this.sessionRepo.findById(step.session_id) : null;
     const latestSegment = session ? await this.sessionSegmentRepo.findLatestBySessionId(session.id) : null;
 
     if (!session) {
@@ -327,7 +327,7 @@ class WorkflowLifecycle {
         status: 'RUNNING',
         completed_at: null,
       });
-      session = await this.sessionRepo.findById(session.id) as SessionEntity | null;
+      session = await this.sessionRepo.findById(session.id);
       if (!session) {
         throw new Error(`Workflow step session not found after update: ${stepId}`);
       }
