@@ -54,22 +54,22 @@ adapterTypes:
       external_id: "toString"
       labels: "arrayMap(name)"
 
-  - key: GITLAB
-    name: GitLab Issues
-    description: 从 GitLab Issues 同步任务
+  - key: CODEHUB
+    name: CodeHub Issues
+    description: 从 CodeHub Issues 同步任务
     configFields:
       project_id:
         type: string
         required: true
-        description: "Project ID from GitLab"
+        description: "Project ID from CodeHub"
       token:
         type: string
         required: false
-        description: "GitLab Personal Access Token"
+        description: "CodeHub Personal Access Token"
       baseUrl:
         type: string
         required: false
-        description: "GitLab API base URL"
+        description: "CodeHub API base URL"
         default: "https://git.com/api/v4"
     request:
       baseUrl: "{baseUrl}"

@@ -29,12 +29,10 @@
       <div v-else class="diff-container">
         <div class="diff-stats">
           <el-tag type="success">
-            <el-icon><Plus /></el-icon>
-            +{{ totalAdditions }}
+            {{ totalAdditions > 0 ? `+${totalAdditions}` : totalAdditions }}
           </el-tag>
           <el-tag type="danger">
-            <el-icon><Minus /></el-icon>
-            -{{ totalDeletions }}
+            {{ totalDeletions > 0 ? `-${totalDeletions}` : totalDeletions }}
           </el-tag>
           <el-tag type="info">
             {{ diffData.files.length }} 个文件变更
@@ -107,7 +105,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Right, Plus, Minus } from '@element-plus/icons-vue'
+import { Right } from '@element-plus/icons-vue'
 import { getDiff } from '../api/git'
 
 const props = defineProps({
@@ -315,13 +313,19 @@ const loadDiff = async () => {
 
 .diff-stats {
   display: flex;
+  align-items: center;
   gap: 10px;
   padding: 12px 16px;
   background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
   border-bottom: 1px solid var(--border-color);
+  flex-wrap: nowrap;
 }
 
 .diff-stats .el-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
   border-radius: 6px;
   font-weight: 500;
   padding: 4px 10px;

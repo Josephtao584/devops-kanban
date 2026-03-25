@@ -367,7 +367,7 @@ const getFieldPlaceholder = (key, field) => {
     token: 'ghp_xxx...',
     state: '选择 Issue 状态',
     labels: '选择标签',
-    baseUrl: 'https://gitlab.com/api/v4'
+    baseUrl: 'https://codehub.huawei.com/api/v4'
   }
 
   if (selectedType === 'INTERNAL_API') {
