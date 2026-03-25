@@ -8,6 +8,7 @@ import { successResponse, errorResponse } from '../utils/response.js';
 import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
 
 type StatusBody = { status?: string };
+type DeleteIterationQuery = { delete_tasks?: string };
 
 const iterationService = new IterationService();
 
@@ -107,9 +108,10 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.delete<{ Params: IdParams }>('/:id', async (request, reply) => {
+  fastify.delete<{ Params: IdParams; Querystring: DeleteIterationQuery }>('/:id', async (request, reply) => {
     try {
-      const deleted = await iterationService.delete(parseNumber(request.params.id));
+      const deleteTasks = request.query.delete_tasks === 'true';
+      const deleted = await iterationService.delete(parseNumber(request.params.id), deleteTasks);
       if (!deleted) {
         reply.code(404);
         return errorResponse('Iteration not found');

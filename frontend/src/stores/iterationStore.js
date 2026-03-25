@@ -69,6 +69,25 @@ export const useIterationStore = defineStore('iteration', () => {
     }
   }
 
+  async function deleteIteration(id, options = {}) {
+    crud.loading.value = true
+    crud.error.value = null
+    try {
+      const response = await iterationApi.deleteIteration(id, options)
+      unwrap(response, 'Failed to delete iteration')
+      crud.items.value = crud.items.value.filter(item => item.id !== id)
+      if (crud.currentItem.value?.id === id) {
+        crud.currentItem.value = null
+      }
+      return response
+    } catch (e) {
+      crud.error.value = e.message
+      throw e
+    } finally {
+      crud.loading.value = false
+    }
+  }
+
   return {
     iterations: crud.items,
     currentIteration: crud.currentItem,
@@ -82,7 +101,7 @@ export const useIterationStore = defineStore('iteration', () => {
     fetchWithStats,
     createIteration: crud.create,
     updateIteration: crud.update,
-    deleteIteration: crud.deleteItem,
+    deleteIteration,
     updateStatus,
     setCurrentIteration: crud.setCurrentItem,
     clearError: crud.clearError

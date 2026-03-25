@@ -86,13 +86,17 @@ class IterationService {
     return await this.iterationRepo.update(iterationId, { status });
   }
 
-  async delete(iterationId: number) {
+  async delete(iterationId: number, deleteTasks: boolean = false) {
     const exists = await this.iterationRepo.exists(iterationId);
     if (!exists) {
       return false;
     }
 
-    await this.taskRepo.clearIteration(iterationId);
+    if (deleteTasks) {
+      await this.taskRepo.deleteByIteration(iterationId);
+    } else {
+      await this.taskRepo.clearIteration(iterationId);
+    }
     return await this.iterationRepo.delete(iterationId);
   }
 
