@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import i18n from '../src/locales'
 import WorkflowStartEditorDialog from '../src/components/workflow/WorkflowStartEditorDialog.vue'
@@ -244,7 +244,7 @@ describe('WorkflowStartEditorDialog', () => {
     await textarea.setValue('更新后的提示词内容。')
     await flushPromises()
 
-    await wrapper.find('button[data-type="primary"]').trigger('click')
+    await wrapper.get('[data-testid="confirm-start-button"]').trigger('click')
 
     expect(wrapper.emitted('confirm')).toEqual([[
       {
@@ -266,6 +266,123 @@ describe('WorkflowStartEditorDialog', () => {
         ]
       }
     ]])
+  })
+
+  it('prevents confirming after adding a stage until the new stage is fully configured', async () => {
+    getAgents.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 3, name: '测试工程师 - 小张', enabled: true, executorType: 'CLAUDE_CODE' }
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const addButton = wrapper.get('[data-testid="add-step-button"]')
+    expect(addButton).toBeTruthy()
+    await addButton.trigger('click')
+    await flushPromises()
+
+    const confirmButton = wrapper.get('[data-testid="confirm-start-button"]')
+    expect(confirmButton.attributes('disabled')).toBeDefined()
+  })
+
+  it('emits a valid snapshot with generated step id after adding and configuring a new stage', async () => {
+    getAgents.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 3, name: '测试工程师 - 小张', enabled: true, executorType: 'CLAUDE_CODE' }
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="add-step-button"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('button').filter((button) => button.text() === '详情')[2].trigger('click')
+    await flushPromises()
+
+    const [nameInput] = wrapper.findAll('input')
+    await nameInput.setValue('回归验证')
+    await flushPromises()
+
+    await wrapper.find('.el-select-stub').setValue('3')
+    await flushPromises()
+
+    await wrapper.find('textarea').setValue('执行回归验证并记录结果。')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="confirm-start-button"]').trigger('click')
+
+    expect(wrapper.emitted('confirm')).toEqual([[
+      {
+        template_id: 'dev-workflow-v1',
+        name: '默认研发工作流',
+        steps: [
+          {
+            id: 'requirement-design',
+            name: '需求设计',
+            instructionPrompt: '先完成需求分析。',
+            agentId: 1
+          },
+          {
+            id: 'code-development',
+            name: '代码开发',
+            instructionPrompt: '根据上游摘要完成代码实现。',
+            agentId: 2
+          },
+          {
+            id: 'step-3',
+            name: '回归验证',
+            instructionPrompt: '执行回归验证并记录结果。',
+            agentId: 3
+          }
+        ]
+      }
+    ]])
+  })
+
+  it('removes the selected stage after delete confirmation', async () => {
+    getAgents.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
+      ]
+    })
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue()
+
+    const wrapper = mountDialog({
+      draftTemplate: {
+        template_id: 'dev-workflow-v1',
+        name: '默认研发工作流',
+        steps: [
+          { id: 'step-1', name: '需求设计', instructionPrompt: '先完成需求分析。', agentId: 1 },
+          { id: 'step-2', name: '代码开发', instructionPrompt: '根据需求完成代码实现。', agentId: 2 },
+          { id: 'step-3', name: '测试', instructionPrompt: '执行测试。', agentId: 1 }
+        ]
+      }
+    })
+    await flushPromises()
+
+    await wrapper.findAll('button').filter((button) => button.text() === '详情')[1].trigger('click')
+    await flushPromises()
+
+    const deleteButton = wrapper.get('[data-testid="delete-step-button"]')
+    expect(deleteButton).toBeTruthy()
+    await deleteButton.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalled()
+    expect(wrapper.findAll('.workflow-start-editor-step')).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('代码开发')
   })
 
   it('renders missing and disabled agent states inline', async () => {
