@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="true"
-    title="Code Changes"
+    title="代码变更"
     width="90%"
     top="5vh"
     :close-on-click-modal="false"
@@ -10,9 +10,9 @@
   >
     <template #header>
       <div class="dialog-header">
-        <span>Code Changes</span>
+        <span>代码变更</span>
         <div class="branch-info">
-          <el-tag type="info">{{ sourceRef }}</el-tag>
+          <el-tag type="info">当前工作区</el-tag>
           <el-icon><Right /></el-icon>
           <el-tag type="success">{{ targetRef }}</el-tag>
         </div>
@@ -108,7 +108,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Right, Plus, Minus } from '@element-plus/icons-vue'
-import axios from 'axios'
+import { getDiff } from '../api/git'
 
 const props = defineProps({
   projectId: {
@@ -119,17 +119,13 @@ const props = defineProps({
     type: Number,
     required: true
   },
-  sourceRef: {
-    type: String,
-    required: true
-  },
   targetRef: {
     type: String,
-    required: true
+    default: ''
   }
 })
 
-const emit = defineEmits(['close'])
+defineEmits(['close'])
 
 const loading = ref(true)
 const diffData = ref(null)
@@ -157,7 +153,6 @@ const parsedDiff = computed(() => {
   let newLineNum = 0
 
   for (const line of lines) {
-    // Skip header lines
     if (line.startsWith('diff --git') ||
         line.startsWith('index ') ||
         line.startsWith('--- ') ||
@@ -174,7 +169,6 @@ const parsedDiff = computed(() => {
     }
 
     if (line.startsWith('@@')) {
-      // Parse hunk header like @@ -1,5 +1,7 @@
       const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/)
       if (match) {
         oldLineNum = parseInt(match[1])
@@ -211,7 +205,6 @@ const parsedDiff = computed(() => {
         content: line.substring(1)
       })
     } else if (line.trim()) {
-      // Other lines (like file mode changes)
       result.push({
         type: 'other',
         lineNumber: '',
@@ -228,7 +221,8 @@ const getStatusType = (status) => {
   const types = {
     added: 'success',
     modified: 'warning',
-    deleted: 'danger'
+    deleted: 'danger',
+    untracked: 'success'
   }
   return types[status] || 'info'
 }
@@ -237,7 +231,8 @@ const getStatusLabel = (status) => {
   const labels = {
     added: 'A',
     modified: 'M',
-    deleted: 'D'
+    deleted: 'D',
+    untracked: 'U'
   }
   return labels[status] || '?'
 }
@@ -253,16 +248,9 @@ onMounted(async () => {
 const loadDiff = async () => {
   loading.value = true
   try {
-    const response = await axios.get(`/api/tasks/${props.taskId}/worktree/diff`, {
-      params: {
-        project_id: props.projectId,
-        source: props.sourceRef,
-        target: props.targetRef
-      }
-    })
-    if (response.data.success) {
-      diffData.value = response.data.data
-      // Select first file by default
+    const response = await getDiff(props.projectId, props.taskId)
+    if (response.success) {
+      diffData.value = response.data
       if (diffData.value.files?.length > 0) {
         selectedFile.value = diffData.value.files[0].path
       }

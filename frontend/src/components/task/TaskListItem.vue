@@ -152,7 +152,7 @@
         </div>
 
         <div class="workflow-section quick-actions">
-          <button v-if="!running" class="quick-action-btn" @click.stop="handleStartClick">
+          <button class="quick-action-btn" :disabled="!canStartTask" @click.stop="handleStartClick">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
@@ -193,8 +193,18 @@
 
         <div class="workflow-section worktree-summary">
           <div class="worktree-summary-header">
-            <span class="worktree-summary-title">{{ $t('git.worktree', 'Git Worktree') }}</span>
-            <span class="worktree-summary-status" :class="worktreeClass">{{ workflowWorktreeStatusText }}</span>
+            <div class="worktree-summary-header-main">
+              <span class="worktree-summary-title">{{ $t('git.worktree', 'Git Worktree') }}</span>
+              <span class="worktree-summary-status" :class="worktreeClass">{{ workflowWorktreeStatusText }}</span>
+            </div>
+            <button
+              v-if="task.worktree_status === 'created'"
+              class="worktree-summary-delete-btn"
+              :disabled="worktreeLoading"
+              @click.stop="handleDeleteWorktree"
+            >
+              {{ $t('git.deleteWorktree', '删除工作树') }}
+            </button>
           </div>
           <div v-if="task.worktree_branch" class="worktree-summary-row">
             <span class="worktree-summary-label">{{ $t('git.branch', 'Branch') }}</span>
@@ -291,7 +301,7 @@ const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-
 const { t } = useI18n()
 
 // Use composables
-const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, handleWorktree: handleWorktreeAction } = useWorktree()
+const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, getWorktreeStatusText, createWorktree, deleteWorktree } = useWorktree()
 const { getStatusClass } = useStatusStyle()
 
 // Real workflow run data from API
@@ -340,17 +350,10 @@ const refreshWorkflowRun = async () => {
 // Computed
 const worktreeLoading = computed(() => isWorktreeLoading(props.task.id))
 const worktreeClass = computed(() => getWorktreeClass(props.task))
-const worktreeTooltip = computed(() => {
-  if (props.task.worktree_status === 'created') return '打开本地目录'
-  if (props.task.worktree_status === 'error') return 'Worktree 创建失败'
-  return '创建 Worktree 沙箱'
-})
-const workflowWorktreeStatusText = computed(() => {
-  if (props.task.worktree_status === 'created') return '已创建'
-  if (props.task.worktree_status === 'error') return '创建失败'
-  return '未创建'
-})
+const worktreeTooltip = computed(() => getWorktreeTooltip(props.task))
+const workflowWorktreeStatusText = computed(() => getWorktreeStatusText(props.task))
 const statusClass = computed(() => getStatusClass(props.task.status))
+const canStartTask = computed(() => !props.running && props.task?.status !== 'DONE')
 
 // Workflow data - only from real backend workflow run data or explicit prop
 const workflowData = computed(() => {
@@ -445,8 +448,15 @@ const handleNodeClick = (node) => {
 
 // Handle start button click
 const handleStartClick = () => {
+  if (!canStartTask.value) return
   console.log('[TaskListItem] handleStartClick called, task:', props.task?.id, 'running:', props.running)
   emit('workflow-action', { action: 'start', task: props.task })
+}
+
+const handleDeleteWorktree = async () => {
+  await deleteWorktree(props.task, (updatedTask) => {
+    emit('worktree-update', updatedTask)
+  })
 }
 
 const openWorktreeDirectory = () => {
@@ -459,7 +469,7 @@ const openWorktreeDirectory = () => {
     })
   } else if (props.task.worktree_status !== 'created') {
     // Create worktree if not created
-    handleWorktreeAction(props.task, (updatedTask) => {
+    createWorktree(props.task, (updatedTask) => {
       emit('worktree-update', updatedTask)
     })
   }
@@ -923,15 +933,47 @@ const openWorktreeDirectory = () => {
 
 .worktree-summary-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.worktree-summary-header-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .worktree-summary-title {
   font-size: 12px;
   font-weight: 600;
   color: #334155;
+}
+
+.worktree-summary-delete-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--el-color-danger-light-5);
+  border-radius: 6px;
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.worktree-summary-delete-btn:hover:not(:disabled) {
+  background: var(--el-color-danger);
+  border-color: var(--el-color-danger);
+  color: #fff;
+}
+
+.worktree-summary-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .worktree-summary-status {
@@ -1029,10 +1071,15 @@ const openWorktreeDirectory = () => {
   transition: all 0.2s ease;
 }
 
-.quick-actions .quick-action-btn:hover {
+.quick-actions .quick-action-btn:hover:not(:disabled) {
   background: #6366f1;
   border-color: #6366f1;
   color: #fff;
+}
+
+.quick-actions .quick-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .workflow-collapse-btn {

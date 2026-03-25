@@ -91,7 +91,7 @@ const loadTemplates = async () => {
     }
 
     templates.value = Array.isArray(response.data) ? response.data : []
-    selectedTemplateId.value = ''
+    selectedTemplateId.value = templates.value[0]?.template_id || ''
   } catch (error) {
     templates.value = []
     errorMessage.value = error?.message || t('workflowTemplate.loadFailed')

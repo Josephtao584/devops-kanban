@@ -736,7 +736,8 @@ test.test('SessionService listEvents returns paginated events with has_more meta
   }
 });
 
-test.test('SessionService listEvents returns empty events with zero metadata for a session with no events', async () => {
+
+test.test('SessionService getOutput returns concatenated canonical event content', async () => {
   const storagePath = await createTempStorageRoot();
 
   try {
@@ -744,29 +745,51 @@ test.test('SessionService listEvents returns empty events with zero metadata for
     const sessionEventRepo = new SessionEventRepository({ storagePath });
 
     const session = await sessionRepo.create({
-      task_id: 904,
+      task_id: 905,
       status: 'STOPPED',
       worktree_path: null,
-      branch: 'task/project/904',
-      initial_prompt: 'No events yet',
+      branch: 'task/project/905',
+      initial_prompt: 'Output please',
       agent_id: null,
       executor_type: 'CLAUDE_CODE',
       started_at: null,
       completed_at: null,
     });
 
+    await sessionEventRepo.append({
+      session_id: session.id,
+      segment_id: 1,
+      kind: 'stream_chunk',
+      role: 'assistant',
+      content: 'alpha\n',
+      payload: { stream: 'stdout' },
+    });
+    await sessionEventRepo.append({
+      session_id: session.id,
+      segment_id: 1,
+      kind: 'status',
+      role: 'system',
+      content: 'ignored',
+      payload: { status: 'IDLE' },
+    });
+    await sessionEventRepo.append({
+      session_id: session.id,
+      segment_id: 1,
+      kind: 'error',
+      role: 'system',
+      content: 'beta\n',
+      payload: { stream: 'stderr' },
+    });
+
     const service = new SessionService();
     service.sessionRepo = sessionRepo;
     service.sessionEventRepo = sessionEventRepo;
 
-    const page = await service.listEvents(session.id);
+    const output = await service.getOutput(session.id);
 
-    assert.deepEqual(page, {
-      events: [],
-      last_seq: 0,
-      has_more: false,
-    });
+    assert.equal(output, 'alpha\nbeta\n');
   } finally {
     await fs.rm(storagePath, { recursive: true, force: true });
   }
 });
+

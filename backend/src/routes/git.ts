@@ -353,7 +353,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
     const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
 
     for (const line of localOutput.trim().split('\n')) {
-      const match = line.match(/^\*?\s*(\S+)\s+([a-f0-9]+)\s*(.*)/);
+      const match = line.match(/^[*+]?\s*(\S+)\s+([a-f0-9]+)\s*(.*)/);
       if (!match) {
         continue;
       }
