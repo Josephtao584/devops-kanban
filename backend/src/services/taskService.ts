@@ -20,13 +20,13 @@ interface WorktreeResult {
 class TaskService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
-  workflowService: Pick<WorkflowService, 'startWorkflow'>;
+  workflowService: WorkflowService;
   repoRootResolver: () => string;
 
   constructor({ taskRepo, projectRepo, workflowService, repoRootResolver }: {
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
-    workflowService?: Pick<WorkflowService, 'startWorkflow'>;
+    workflowService?: WorkflowService;
     repoRootResolver?: () => string;
   } = {}) {
     this.taskRepo = taskRepo || new TaskRepository();
@@ -173,7 +173,7 @@ class TaskService {
     return await this.taskRepo.update(taskId, { status });
   }
 
-  async startTask(taskId: number, body?: StartTaskInput) {
+  async startTask(taskId: number, body: StartTaskInput) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
@@ -190,7 +190,7 @@ class TaskService {
     await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
 
     try {
-      await this.workflowService.startWorkflow(taskId, body?.workflow_template_id);
+      await this.workflowService.startWorkflow(taskId, body.workflow_template_id);
     } catch (error) {
       await this.taskRepo.update(taskId, { status: 'TODO' });
       throw error;
