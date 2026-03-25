@@ -89,10 +89,10 @@ async function defaultSpawnImpl({
 
     if (abortSignal) {
       if (abortSignal.aborted) {
-        spawnedProc.kill('SIGTERM');
+        proc.kill?.('SIGTERM');
       } else {
         abortSignal.addEventListener('abort', () => {
-          spawnedProc.kill('SIGTERM');
+          proc.kill?.('SIGTERM');
         }, { once: true });
       }
     }
