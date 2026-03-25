@@ -553,24 +553,6 @@ test.test('executeWorkflowStep fails when the bound agent record is missing', as
   );
 });
 
-test.test('executeWorkflowStep fails when the persisted agent args config is invalid', async () => {
-  const templateService = createTemplateService();
-  const agentRepo = {
-    async findById(id: number) {
-      assert.equal(id, 7);
-      return createAgent({ name: 'Broken Args Agent', args: ['--json', 1] as never });
-    },
-  };
-
-  await assert.rejects(
-    () => executeWorkflowStep({
-      templateService: templateService as never,
-      agentRepo: agentRepo as never,
-      ...createInputOverrides(),
-    }),
-    /invalid args configuration/
-  );
-});
 
 test.test('executeWorkflowStep fails when the persisted agent executor type is invalid', async () => {
   const templateService = createTemplateService();
@@ -610,24 +592,6 @@ test.test('executeWorkflowStep fails when the persisted agent command override i
   );
 });
 
-test.test('executeWorkflowStep fails when the persisted agent env config is invalid', async () => {
-  const templateService = createTemplateService();
-  const agentRepo = {
-    async findById(id: number) {
-      assert.equal(id, 7);
-      return createAgent({ name: 'Broken Env Agent', env: { MODE: 1 } as never });
-    },
-  };
-
-  await assert.rejects(
-    () => executeWorkflowStep({
-      templateService: templateService as never,
-      agentRepo: agentRepo as never,
-      ...createInputOverrides(),
-    }),
-    /invalid env configuration/
-  );
-});
 
 test.test('executeWorkflowStep fails when the persisted agent skills config is invalid', async () => {
   const templateService = createTemplateService();

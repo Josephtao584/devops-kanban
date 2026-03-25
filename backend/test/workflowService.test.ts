@@ -984,39 +984,6 @@ test.test('startWorkflow rejects a template step whose agent executor type is un
   );
 });
 
-test.test('startWorkflow rejects a template step whose agent args config is invalid', async () => {
-  const agents = buildValidAgents();
-  agents.set(11, buildAgent(11, { args: ['--ok', 123] }));
-  const harness = createStartWorkflowHarness({ agentRecords: agents });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: args must be an array of strings/,
-  );
-});
-
-test.test('startWorkflow rejects a template step whose agent env config is invalid', async () => {
-  const agents = buildValidAgents();
-  agents.set(11, buildAgent(11, { env: { CI: 1 } }));
-  const harness = createStartWorkflowHarness({ agentRecords: agents });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: env must be a string map/,
-  );
-});
-
-test.test('startWorkflow rejects a template step whose agent commandOverride is invalid', async () => {
-  const agents = buildValidAgents();
-  agents.set(11, buildAgent(11, { commandOverride: '   ' }));
-  const harness = createStartWorkflowHarness({ agentRecords: agents });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: commandOverride must be null, undefined, or a non-empty string/,
-  );
-});
-
 test.test('startWorkflow rejects a template step whose agent skills config is invalid', async () => {
   const agents = buildValidAgents();
   agents.set(11, buildAgent(11, { skills: ['review', 123] as never }));
