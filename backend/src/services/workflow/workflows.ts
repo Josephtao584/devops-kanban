@@ -5,7 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep } from './workflowStepExecutor.js';
-import type { WorkflowTemplate } from './workflowTemplateService.js';
+import type { WorkflowTemplateEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
 
 const sharedStateSchema = z.object({
@@ -53,7 +53,7 @@ export function getWorkflowFromWorkflowId(
 }
 
 export function buildWorkflowFromTemplate(
-  workflowTemplate: WorkflowTemplate,
+  workflowTemplate: WorkflowTemplateEntity,
   options: BuildWorkflowOptions,
 ) {
   const steps = workflowTemplate.steps.map((templateStep, index) => {

@@ -7,8 +7,8 @@ import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepos
 import {buildWorkflowFromTemplate, getWorkflowFromWorkflowId} from './workflows.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
-import type { WorkflowTemplate } from './workflowTemplateService.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
+import {WorkflowTemplateEntity} from "../../types/entities.js";
 
 
 function createValidationError(message: string) {
@@ -16,7 +16,7 @@ function createValidationError(message: string) {
 }
 
 
-function toStepState(template: WorkflowTemplate) {
+function toStepState(template: WorkflowTemplateEntity) {
   return template.steps.map((step) => ({
     step_id: step.id,
     name: step.name,
@@ -131,7 +131,7 @@ class WorkflowService {
     return run;
   }
 
-  async _loadTemplate(templateId: string): Promise<WorkflowTemplate> {
+  async _loadTemplate(templateId: string): Promise<WorkflowTemplateEntity> {
     const template = await this.workflowTemplateService.getTemplateById(templateId);
     if (!template) {
       throw createValidationError(`Workflow template not found: ${templateId}`);
@@ -139,7 +139,7 @@ class WorkflowService {
     return template;
   }
 
-  async _validateTemplateAgents(template: WorkflowTemplate) {
+  async _validateTemplateAgents(template: WorkflowTemplateEntity) {
     for (const step of template.steps) {
       if (!Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
@@ -175,7 +175,7 @@ class WorkflowService {
     throw error;
   }
 
-  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplate) {
+  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
     try {
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 
