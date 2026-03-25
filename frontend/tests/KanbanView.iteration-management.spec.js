@@ -140,6 +140,16 @@ const IterationListStub = defineComponent({
   }
 })
 
+const IterationFormStub = defineComponent({
+  name: 'IterationForm',
+  props: {
+    modelValue: { type: Boolean, default: false }
+  },
+  setup(props) {
+    return () => props.modelValue ? h('div', { class: 'iteration-form-stub' }, 'iteration form') : null
+  }
+})
+
 const flushPromises = async () => {
   await Promise.resolve()
   await Promise.resolve()
@@ -163,7 +173,7 @@ function mountView() {
         DiffSelectDialog: passthroughStub('DiffSelectDialog'),
         CommitDialog: passthroughStub('CommitDialog'),
         MergeDialog: passthroughStub('MergeDialog'),
-        IterationForm: passthroughStub('IterationForm'),
+        IterationForm: IterationFormStub,
         IterationList: IterationListStub,
         TaskButlerChat: passthroughStub('TaskButlerChat'),
         ChatBox: passthroughStub('ChatBox'),
@@ -217,6 +227,29 @@ describe('KanbanView iteration management', () => {
 
     taskSourceStore.showPreviewDialog = false
     taskSourceStore.closePreviewDialog = vi.fn()
+  })
+
+  it('moves the create iteration button from the toolbar into the manager dialog', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const filter = wrapper.find('.iteration-filter')
+    expect(filter.find('.open-iteration-manager').exists()).toBe(true)
+    expect(filter.find('.open-create-iteration').exists()).toBe(false)
+
+    expect(wrapper.find('.open-create-iteration').exists()).toBe(true)
+  })
+
+  it('opens the existing create iteration form from the manager dialog button', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.open-create-iteration').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.showIterationModal).toBe(true)
+    expect(wrapper.vm.editingIteration).toBe(null)
+    expect(wrapper.find('.iteration-form-stub').exists()).toBe(true)
   })
 
   it('deletes an iteration, refreshes data, and clears the active iteration filter when needed', async () => {

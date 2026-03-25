@@ -71,15 +71,6 @@
             >
               {{ $t('iteration.manageIterations') }}
             </el-button>
-            <el-button
-              type="primary"
-              size="small"
-              :disabled="!selectedProjectId"
-              @click="openCreateIteration"
-              style="margin-left: 8px"
-            >
-              {{ $t('iteration.createIteration') }}
-            </el-button>
           </div>
         </div>
 
@@ -451,6 +442,16 @@
       :title="$t('iteration.manageIterationsTitle')"
       width="720px"
     >
+      <div class="iteration-manager-actions">
+        <el-button
+          class="open-create-iteration"
+          type="primary"
+          size="small"
+          @click="openCreateIteration"
+        >
+          {{ $t('iteration.createIteration') }}
+        </el-button>
+      </div>
       <IterationList
         :iterations="projectIterations"
         @edit="handleEditIteration"
@@ -1898,6 +1899,12 @@ onUnmounted(() => {
   text-align: center;
   padding: 40px;
   color: var(--el-text-color-placeholder);
+}
+
+.iteration-manager-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px 8px;
 }
 
 /* Chat Container */
