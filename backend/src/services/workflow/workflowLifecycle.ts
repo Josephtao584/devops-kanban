@@ -34,9 +34,9 @@ function isSupportedExecutorType(value: unknown): value is ExecutorType {
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
-  agentRepo: Pick<AgentRepository, 'findById'>;
-  sessionRepo: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
-  sessionSegmentRepo: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
+  agentRepo: AgentRepository;
+  sessionRepo: SessionRepository;
+  sessionSegmentRepo: SessionSegmentRepository;
   workflowTemplateService?: WorkflowTemplateService;
   _stepAttemptSegmentIds: Map<string, number | null>;
 
@@ -48,9 +48,9 @@ class WorkflowLifecycle {
     workflowTemplateService,
   }: {
     workflowRunRepo: WorkflowRunRepository;
-    agentRepo: Pick<AgentRepository, 'findById'>;
-    sessionRepo: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
-    sessionSegmentRepo: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
+    agentRepo: AgentRepository;
+    sessionRepo: SessionRepository;
+    sessionSegmentRepo: SessionSegmentRepository;
     workflowTemplateService?: WorkflowTemplateService;
   }) {
     this.workflowRunRepo = workflowRunRepo;
@@ -138,7 +138,7 @@ class WorkflowLifecycle {
       executor_type: agent.executorType,
       started_at: new Date().toISOString(),
       completed_at: null,
-    } as Omit<SessionEntity, 'id'>);
+    });
   }
 
   private async _createStepAttemptSegment(
@@ -256,7 +256,7 @@ class WorkflowLifecycle {
     runId: number,
     stepId: string,
     status: 'COMPLETED' | 'FAILED' | 'CANCELLED',
-    stepUpdate: Partial<Pick<WorkflowStepEntity, 'summary' | 'error'>>,
+    stepUpdate: { summary?: string | null; error?: string | null },
   ) {
     const completedAt = new Date().toISOString();
     const { run, step } = await this._getRunStep(runId, stepId);

@@ -23,7 +23,7 @@ interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
   templateSnapshot?: WorkflowTemplateEntity;
   templateService?: WorkflowTemplateService;
-  agentRepo?: Pick<AgentRepository, 'findById'>;
+  agentRepo?: AgentRepository;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;

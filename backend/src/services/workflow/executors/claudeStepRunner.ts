@@ -5,7 +5,7 @@ import type { ExecutorConfig, ExecutorProcessHandle } from '../../../types/execu
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
-type ClaudeRuntimeExecutorConfig = Pick<ExecutorConfig, 'commandOverride' | 'args' | 'env'>;
+type ClaudeRuntimeExecutorConfig = { commandOverride?: string; args?: string[]; env?: Record<string, string> };
 
 type ClaudeSpawnExecution = {
   exitCode: number | null;

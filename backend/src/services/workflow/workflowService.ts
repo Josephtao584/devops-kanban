@@ -106,9 +106,9 @@ class WorkflowService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
   workflowTemplateService: WorkflowTemplateService;
-  agentRepo: Pick<AgentRepository, 'findById'>;
-  sessionRepo: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
-  sessionSegmentRepo: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
+  agentRepo: AgentRepository;
+  sessionRepo: SessionRepository;
+  sessionSegmentRepo: SessionSegmentRepository;
   lifecycle: WorkflowLifecycle;
   _activeRuns: Map<number, { run: any }>;
 
@@ -125,9 +125,9 @@ class WorkflowService {
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     workflowTemplateService?: WorkflowTemplateService;
-    agentRepo?: Pick<AgentRepository, 'findById'>;
-    sessionRepo?: Pick<SessionRepository, 'create' | 'findById' | 'update'>;
-    sessionSegmentRepo?: Pick<SessionSegmentRepository, 'create' | 'findLatestBySessionId' | 'update'>;
+    agentRepo?: AgentRepository;
+    sessionRepo?: SessionRepository;
+    sessionSegmentRepo?: SessionSegmentRepository;
     lifecycle?: WorkflowLifecycle;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
@@ -250,7 +250,7 @@ class WorkflowService {
     }
   }
 
-  async _resolveExecutionPath(task: Pick<WorkflowTaskRecord, 'project_id' | 'worktree_path'>) {
+  async _resolveExecutionPath(task: { project_id: number; worktree_path?: string | null }) {
     if (task.worktree_path) {
       return task.worktree_path;
     }

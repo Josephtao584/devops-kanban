@@ -95,6 +95,24 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 
 `frontend/vite.config.js`: Proxies `/api` to `http://localhost:8000`, defines `global: 'globalThis'` (sockjs-client polyfill)
 
+## TypeScript Coding Standards
+
+**Avoid TypeScript utility types** - Do not use `Pick<>`, `Omit<>`, `Partial<>`, or similar utility types. Instead:
+- Use explicit inline type definitions: `{ field1: type1; field2?: type2 }`
+- Declare full interfaces when types are reused
+- Keep type definitions clear and self-contained
+
+**Examples:**
+```typescript
+// ❌ Avoid
+agentRepo: Pick<AgentRepository, 'findById'>;
+stepUpdate: Partial<Pick<WorkflowStepEntity, 'summary' | 'error'>>;
+
+// ✅ Prefer
+agentRepo: AgentRepository;
+stepUpdate: { summary?: string | null; error?: string | null };
+```
+
 ## Common Issues
 
 1. **API Response Handling**: Backend always returns `{ success, message, data, error }`. Frontend must check `response.success` before using `response.data`.
