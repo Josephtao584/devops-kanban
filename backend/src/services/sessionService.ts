@@ -395,7 +395,7 @@ class SessionService {
   }
 
 
-  async continue(sessionId: number, input: string, broadcastFn?: BroadcastFn) {
+  async continue(sessionId: number, input: string, _broadcastFn?: BroadcastFn) {
     const session = await this.sessionRepo.findById(sessionId) as SessionLike | null;
     if (!session) {
       const error = new Error('Session not found') as Error & { statusCode?: number };
@@ -436,7 +436,7 @@ class SessionService {
       const result = await executor.continue({
         prompt: input,
         worktreePath,
-        providerSessionId: latestSegment?.provider_session_id,
+        providerSessionId: latestSegment?.provider_session_id ?? null,
         onEvent: async (event) => {
           await this.sessionEventRepo.append({
             session_id: sessionId,

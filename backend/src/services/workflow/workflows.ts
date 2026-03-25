@@ -77,9 +77,9 @@ export function buildWorkflowFromTemplate(
           templateSnapshot: options?.templateSnapshot ?? template,
           abortSignal,
           upstreamStepIds: previousStepId ? [previousStepId] : [],
-          runId: options?.runId,
-          sessionId,
-          segmentId,
+          runId: options?.runId ?? undefined,
+          sessionId: sessionId ?? undefined,
+          segmentId: segmentId ?? undefined,
           onProviderState: async (providerState) => {
             if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
               await options.lifecycle.sessionSegmentRepo.update(segmentId, {
