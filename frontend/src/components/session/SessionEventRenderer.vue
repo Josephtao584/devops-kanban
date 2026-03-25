@@ -1,11 +1,15 @@
 <template>
-  <div class="session-event-renderer" :class="`kind-${event.kind}`">
+  <div v-if="shouldDisplay" class="session-event-renderer" :class="`kind-${event.kind}`">
     <div v-if="event.kind === 'message'" class="event-message">
       <div class="event-role">{{ roleLabel }}</div>
       <div class="event-content">{{ event.content }}</div>
     </div>
 
-    <div v-else-if="event.kind === 'tool_call' || event.kind === 'tool_result'" class="event-card">
+    <div v-else-if="event.kind === 'tool_call'" class="event-card">
+      <div class="event-kind">{{ toolName }}</div>
+    </div>
+
+    <div v-else-if="event.kind === 'tool_result'" class="event-card">
       <div class="event-kind">{{ event.kind }}</div>
       <div class="event-content">{{ event.content }}</div>
     </div>
@@ -36,6 +40,34 @@ const roleLabel = computed(() => {
   if (role === 'user') return 'User'
   return 'Event'
 })
+
+const isDebuggerOutput = computed(() => {
+  const content = props.event?.content || ''
+  return content.includes('Debugger listening') ||
+         content.includes('Debugger attached') ||
+         content.includes('Waiting for the debugger')
+})
+
+const isSystemInit = computed(() => {
+  const content = props.event?.content || ''
+  return props.event?.kind === 'stream_chunk' &&
+         content.includes('"type":"system"') &&
+         content.includes('"subtype":"init"')
+})
+
+const shouldDisplay = computed(() => {
+  return !isDebuggerOutput.value && !isSystemInit.value
+})
+
+const toolName = computed(() => {
+  try {
+    const payload = props.event?.payload
+    if (payload && typeof payload === 'object' && payload.name) {
+      return payload.name
+    }
+  } catch {}
+  return 'tool_call'
+})
 </script>
 
 <style scoped>
@@ -50,14 +82,14 @@ const roleLabel = computed(() => {
 .event-artifact,
 .event-stream,
 .event-fallback {
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: 6px;
+  padding: 8px;
   background: #f8fafc;
 }
 
 .event-role,
 .event-kind {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   margin-bottom: 4px;
   color: #64748b;
@@ -69,7 +101,7 @@ const roleLabel = computed(() => {
 .event-artifact,
 .event-fallback,
 .event-stream {
-  font-size: 13px;
+  font-size: 12px;
   color: #0f172a;
   white-space: pre-wrap;
   word-break: break-word;
@@ -84,6 +116,9 @@ const roleLabel = computed(() => {
   margin: 0;
   background: #0f172a;
   color: #e2e8f0;
-  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  font-size: 11px;
+  max-height: 200px;
+  overflow: auto;
 }
 </style>
