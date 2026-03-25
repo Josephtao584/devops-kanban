@@ -521,7 +521,6 @@
             <p class="rejected-reason-text">{{ selectedNode.rejectedReason }}</p>
           </div>
 
-          <div class="info-card chat-card">
           <div v-if="selectedNode.isParent && selectedNode.childNodes" class="info-card">
             <h3 class="info-card-title">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
