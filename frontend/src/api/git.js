@@ -126,4 +126,4 @@ export const getDiffLegacy = (projectId, source, target) =>
  * Merge source branch into target branch
  */
 export const mergeBranch = (projectId, source, target) =>
-  api.post(`/git/branches/${source}/merge/${target}`, null, { params: { projectId } })
+  api.post(`/git/branches/${encodeURIComponent(source)}/merge/${encodeURIComponent(target)}`, null, { params: { projectId } })

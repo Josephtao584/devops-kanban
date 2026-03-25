@@ -31,7 +31,6 @@
       :project="editingProject"
       :loading="submitting"
       @submit="handleSubmit"
-      @cancel="resetForm"
     />
   </div>
 </template>

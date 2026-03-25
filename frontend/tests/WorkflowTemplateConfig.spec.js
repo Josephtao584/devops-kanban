@@ -298,61 +298,101 @@ describe('WorkflowTemplateConfig', () => {
     expect(wrapper.get('[data-testid="delete-template-button"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('creates a custom template from the selected template and selects it', async () => {
-    createWorkflowTemplate.mockImplementation(async (payload) => ({
+  it('creates a local draft from the selected template without calling the create API', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="create-template-id-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="create-template-name-input"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="create-template-button"]').trigger('click')
+    await flushPromises()
+
+    const draftId = wrapper.get('[data-testid="template-id"]').text()
+
+    expect(createWorkflowTemplate).not.toHaveBeenCalled()
+    expect(draftId).toContain('draft-')
+    expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(true)
+    expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('新建模版')
+    expect(wrapper.findAll('.workflow-step-card')).toHaveLength(customTemplate.steps.length)
+    expect(wrapper.find('textarea').element.value).toBe('梳理发布范围。')
+    expect(wrapper.text()).toContain('Disabled Agent (已禁用)')
+    expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(true)
+  })
+
+  it('creates the template only when saving a new draft', async () => {
+    createWorkflowTemplate.mockResolvedValue({
       success: true,
-      data: payload
-    }))
-
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
-      if (templateId === 'bugfix-flow-v1') {
-        return {
-          success: true,
-          data: {
-            template_id: 'bugfix-flow-v1',
-            name: 'Bugfix Flow',
-            steps: defaultTemplate.steps.map((step) => ({ ...step }))
-          }
-        }
-      }
-
-      const template = templateId === defaultTemplate.template_id ? defaultTemplate : customTemplate
-      return {
-        success: true,
-        data: JSON.parse(JSON.stringify(template))
+      data: {
+        template_id: 'template-3',
+        name: '新建模版',
+        steps: customTemplate.steps.map((step) => ({ ...step }))
       }
     })
 
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.get('[data-testid="create-template-id-input"]').setValue('bugfix-flow-v1')
-    await wrapper.get('[data-testid="create-template-name-input"]').setValue('Bugfix Flow')
+    await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+    await flushPromises()
+
     await wrapper.get('[data-testid="create-template-button"]').trigger('click')
+    await flushPromises()
+    const draftId = wrapper.get('[data-testid="template-id"]').text()
+
+    await wrapper.get('[data-testid="save-template-button"]').trigger('click')
     await flushPromises()
 
     expect(createWorkflowTemplate).toHaveBeenCalledTimes(1)
-    expect(createWorkflowTemplate).toHaveBeenCalledWith({
-      template_id: 'bugfix-flow-v1',
-      name: 'Bugfix Flow',
-      steps: [
-        {
-          id: 'requirement-design',
-          name: '需求设计',
-          instructionPrompt: '先完成需求分析。',
-          agentId: 1
-        },
-        {
-          id: 'testing',
-          name: '测试',
-          instructionPrompt: '执行测试。',
-          agentId: null
-        }
-      ]
-    })
-    expect(getWorkflowTemplateById).toHaveBeenLastCalledWith('bugfix-flow-v1')
-    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('bugfix-flow-v1')
-    expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('Bugfix Flow')
+    expect(createWorkflowTemplate.mock.calls[0][0].template_id).toMatch(/^template-\d+$/)
+    expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(false)
+    expect(wrapper.find('[data-testid="template-item-template-3"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('template-3')
+  })
+
+  it('keeps the draft selected when saving a new draft fails', async () => {
+    createWorkflowTemplate.mockRejectedValue(new Error('save failed'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="create-template-button"]').trigger('click')
+    await flushPromises()
+    const draftId = wrapper.get('[data-testid="template-id"]').text()
+
+    await wrapper.get('[data-testid="save-template-button"]').trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith('save failed')
+    expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(true)
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain(draftId)
+    expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('新建模版')
+    expect(wrapper.find('[data-testid="template-item-template-3"]').exists()).toBe(false)
+  })
+
+  it('deletes a local draft without calling the delete API', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="create-template-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('draft-')
+
+    await wrapper.get('[data-testid="delete-template-button"]').trigger('click')
+    await flushPromises()
+
+    expect(deleteWorkflowTemplate).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('dev-workflow-v1')
   })
 
   it('saves step bindings with agentId and without executor.type', async () => {
@@ -477,43 +517,6 @@ describe('WorkflowTemplateConfig', () => {
 
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('bugfix-flow-v1')
     expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('Bugfix Flow')
-  })
-
-  it('keeps create success when follow-up detail reload fails', async () => {
-    createWorkflowTemplate.mockResolvedValue({
-      success: true,
-      data: {
-        template_id: 'bugfix-flow-v1',
-        name: 'Bugfix Flow',
-        steps: defaultTemplate.steps.map((step) => ({ ...step }))
-      }
-    })
-
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
-      if (templateId === 'bugfix-flow-v1') {
-        throw new Error('detail reload failed')
-      }
-
-      const template = templateId === defaultTemplate.template_id ? defaultTemplate : customTemplate
-      return {
-        success: true,
-        data: JSON.parse(JSON.stringify(template))
-      }
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.get('[data-testid="create-template-id-input"]').setValue('bugfix-flow-v1')
-    await wrapper.get('[data-testid="create-template-name-input"]').setValue('Bugfix Flow')
-    await wrapper.get('[data-testid="create-template-button"]').trigger('click')
-    await flushPromises()
-
-    expect(createWorkflowTemplate).toHaveBeenCalledTimes(1)
-    expect(ElMessage.success).toHaveBeenCalledWith('工作流模板已创建')
-    expect(ElMessage.error).toHaveBeenCalledWith('detail reload failed')
-    expect(wrapper.text()).toContain('Bugfix Flow')
-    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('bugfix-flow-v1')
   })
 
   it('keeps delete success when follow-up reload fails', async () => {

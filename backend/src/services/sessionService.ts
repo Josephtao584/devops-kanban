@@ -83,6 +83,21 @@ class SessionService {
     return sessions;
   }
 
+  async getOutput(sessionId: number) {
+    const session = await this.sessionRepo.findById(sessionId);
+    if (!session) {
+      const error = new Error('Session not found') as Error & { statusCode?: number };
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const events = await this.sessionEventRepo.listBySessionId(sessionId);
+    return events
+      .filter((event) => event.kind === 'stream_chunk' || event.kind === 'message' || event.kind === 'error')
+      .map((event) => event.content)
+      .join('');
+  }
+
   async listEvents(sessionId: number, options: { afterSeq?: number; limit?: number } = {}) {
     const session = await this.sessionRepo.findById(sessionId);
     if (!session) {

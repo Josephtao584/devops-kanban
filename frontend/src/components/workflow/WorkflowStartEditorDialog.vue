@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :model-value="modelValue" :title="$t('workflowTemplate.startEditorTitle')" width="1280px" @close="handleCancel">
+  <el-dialog :model-value="modelValue" :title="$t('workflowTemplate.startEditorTitle')" width="920px" @close="handleCancel">
     <template v-if="draftTemplate">
       <div class="template-meta">
         <div class="meta-row">
@@ -20,8 +20,7 @@
           <div class="workflow-preview-track">
             <template v-for="(step, index) in previewSteps" :key="step.localKey">
               <div v-if="index > 0" class="workflow-connector" aria-hidden="true"></div>
-              <button
-                type="button"
+              <div
                 class="workflow-step-card workflow-start-editor-step"
                 :class="{
                   'is-selected': selectedStepIndex === index,
@@ -44,78 +43,17 @@
                   <span class="workflow-chip" :class="step.agentStateClass">
                     {{ step.agentSummary }}
                   </span>
-                  <span class="workflow-start-editor-prompt-text">
-                    {{ step.promptSummary }}
-                  </span>
                 </div>
-              </button>
+
+                <div class="workflow-step-card__actions">
+                  <el-button size="small" @click.stop="openStepDetails(index)">
+                    {{ $t('workflowTemplate.viewDetails') }}
+                  </el-button>
+                </div>
+              </div>
             </template>
           </div>
         </div>
-      </section>
-
-      <section class="step-editor-section">
-        <div class="section-heading-row">
-          <div class="section-heading">{{ $t('workflowTemplate.stepEditor') }}</div>
-        </div>
-
-        <div v-if="selectedStep" class="step-editor-card">
-          <div class="step-editor-card__header">
-            <div>
-              <div class="step-editor-card__title">
-                {{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}
-              </div>
-            </div>
-          </div>
-
-          <div class="step-editor-state-row binding-state-row">
-            <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
-              {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}
-            </el-tag>
-            <el-tag v-else-if="isDisabledAgent(selectedStep)" type="warning">
-              {{ formatBoundAgentState(selectedStep) }}
-            </el-tag>
-            <el-tag v-else-if="typeof selectedStep.agentId !== 'number'" type="info">
-              {{ $t('workflowTemplate.unassignedAgent') }}
-            </el-tag>
-          </div>
-
-          <div class="step-editor-grid">
-            <div class="editor-field">
-              <label>{{ $t('workflowTemplate.stepName') }}</label>
-              <el-input
-                v-model="selectedStep.name"
-                :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
-              />
-            </div>
-
-            <div class="editor-field editor-field--full">
-              <label>{{ $t('workflowTemplate.executor') }}</label>
-              <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
-                <el-option
-                  v-for="agent in agents"
-                  :key="agent.id"
-                  :label="formatWorkflowAgentOption(agent)"
-                  :value="agent.id"
-                  :disabled="agent.enabled === false"
-                />
-              </el-select>
-            </div>
-
-            <div class="editor-field editor-field--full">
-              <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
-              <el-input
-                v-model="selectedStep.instructionPrompt"
-                type="textarea"
-                :rows="6"
-                resize="vertical"
-                :placeholder="$t('workflowTemplate.instructionPromptHint')"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="state-block compact">{{ $t('workflowTemplate.selectStepHint') }}</div>
       </section>
     </template>
 
@@ -123,6 +61,74 @@
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
       <el-button type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
     </template>
+
+    <el-dialog
+      :model-value="showStepDetailsDialog"
+      :title="selectedStep?.name || $t('workflowTemplate.stepDetailsTitle')"
+      width="680px"
+      append-to-body
+      @close="closeStepDetails"
+    >
+      <div v-if="selectedStep" class="step-editor-card">
+        <div class="step-editor-card__header">
+          <div>
+            <div class="step-editor-card__title">
+              {{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="step-editor-state-row binding-state-row">
+          <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
+            {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}
+          </el-tag>
+          <el-tag v-else-if="isDisabledAgent(selectedStep)" type="warning">
+            {{ formatBoundAgentState(selectedStep) }}
+          </el-tag>
+          <el-tag v-else-if="typeof selectedStep.agentId !== 'number'" type="info">
+            {{ $t('workflowTemplate.unassignedAgent') }}
+          </el-tag>
+        </div>
+
+        <div class="step-editor-grid">
+          <div class="editor-field">
+            <label>{{ $t('workflowTemplate.stepName') }}</label>
+            <el-input
+              v-model="selectedStep.name"
+              :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+            />
+          </div>
+
+          <div class="editor-field editor-field--full">
+            <label>{{ $t('workflowTemplate.executor') }}</label>
+            <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
+              <el-option
+                v-for="agent in agents"
+                :key="agent.id"
+                :label="formatWorkflowAgentOption(agent)"
+                :value="agent.id"
+                :disabled="agent.enabled === false"
+              />
+            </el-select>
+          </div>
+
+          <div class="editor-field editor-field--full">
+            <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+            <el-input
+              v-model="selectedStep.instructionPrompt"
+              type="textarea"
+              :rows="6"
+              resize="vertical"
+              :placeholder="$t('workflowTemplate.instructionPromptHint')"
+            />
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="closeStepDetails">{{ $t('common.close') }}</el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 
@@ -153,17 +159,21 @@ const agents = ref([])
 const agentsLoaded = ref(false)
 const localTemplate = ref({ template_id: '', name: '', steps: [] })
 const selectedStepIndex = ref(0)
+const showStepDetailsDialog = ref(false)
 
 const normalizeTemplate = (rawTemplate) => normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
 
 watch(() => props.draftTemplate, (value) => {
   localTemplate.value = normalizeTemplate(value)
   selectedStepIndex.value = 0
+  showStepDetailsDialog.value = false
 }, { immediate: true })
 
 watch(() => props.modelValue, async (visible) => {
   if (visible) {
     await loadAgents()
+  } else {
+    showStepDetailsDialog.value = false
   }
 }, { immediate: true })
 
@@ -186,12 +196,6 @@ const isDisabledAgent = (step) => checkDisabledAgent(step, getAgentById)
 const formatWorkflowAgentOption = (agent) => formatAgentOption(agent, t)
 const formatBoundAgentState = (step) => formatAgentBindingState(step, getAgentById, t)
 const selectedStep = computed(() => localTemplate.value.steps[selectedStepIndex.value] || null)
-
-const getPromptSummary = (step) => {
-  const text = String(step?.instructionPrompt || '').trim()
-  if (!text) return t('workflowTemplate.promptPreviewEmpty')
-  return text.length > 48 ? `${text.slice(0, 48)}...` : text
-}
 
 const previewSteps = computed(() => {
   return (localTemplate.value.steps || []).map((step, index) => {
@@ -220,7 +224,6 @@ const previewSteps = computed(() => {
       agentSummary,
       agentStateClass,
       stateClass,
-      promptSummary: getPromptSummary(step),
       hasWarning: isMissingAgent(step) || isDisabledAgent(step) || !String(step.instructionPrompt || '').trim()
     }
   })
@@ -228,6 +231,15 @@ const previewSteps = computed(() => {
 
 const selectStep = (index) => {
   selectedStepIndex.value = index
+}
+
+const openStepDetails = (index) => {
+  selectStep(index)
+  showStepDetailsDialog.value = true
+}
+
+const closeStepDetails = () => {
+  showStepDetailsDialog.value = false
 }
 
 const canConfirm = computed(() => (
@@ -241,7 +253,10 @@ const canConfirm = computed(() => (
   ))
 ))
 
-const handleCancel = () => emit('update:modelValue', false)
+const handleCancel = () => {
+  showStepDetailsDialog.value = false
+  emit('update:modelValue', false)
+}
 const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.value))
 </script>
 
@@ -281,12 +296,12 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 }
 
 .workflow-preview-section {
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 
 .workflow-preview-shell {
   overflow-x: auto;
-  padding: 12px 4px 16px;
+  padding: 10px 4px 14px;
   border-radius: 16px;
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
@@ -301,15 +316,15 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 
 .workflow-connector {
   position: relative;
-  width: 52px;
+  width: 40px;
   flex-shrink: 0;
 }
 
 .workflow-connector::before {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 16px;
+  left: 6px;
+  right: 12px;
   top: 50%;
   height: 2px;
   background: #94a3b8;
@@ -319,7 +334,7 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 .workflow-connector::after {
   content: '';
   position: absolute;
-  right: 8px;
+  right: 6px;
   top: 50%;
   width: 0;
   height: 0;
@@ -330,15 +345,15 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 }
 
 .workflow-start-editor-step {
-  width: 250px;
-  min-height: 160px;
+  width: 210px;
+  min-height: 132px;
 }
 
 .workflow-step-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-radius: 14px;
   border: 2px solid #dbe4ee;
   background: #fff;
@@ -407,6 +422,12 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+}
+
+.workflow-step-card__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .workflow-chip {
@@ -437,20 +458,6 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 .workflow-chip--danger {
   background: #fee2e2;
   color: #b91c1c;
-}
-
-.workflow-start-editor-prompt-text {
-  color: #334155;
-  font-size: 13px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.step-editor-section {
-  margin-top: 8px;
 }
 
 .step-editor-card {
@@ -508,15 +515,6 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
   font-weight: 600;
 }
 
-.state-block.compact {
-  padding: 24px;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  text-align: center;
-  color: #666;
-}
-
 @media (max-width: 900px) {
   .step-editor-grid {
     grid-template-columns: 1fr;
@@ -524,6 +522,10 @@ const handleConfirm = () => emit('confirm', normalizeTemplate(localTemplate.valu
 
   .editor-field--full {
     grid-column: auto;
+  }
+
+  .workflow-start-editor-step {
+    width: 180px;
   }
 }
 </style>
