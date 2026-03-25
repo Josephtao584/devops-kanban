@@ -513,6 +513,19 @@ function createStepSessionHarness({
   };
 }
 
+test.test('startWorkflow uses the selected template/runtime path as the only authoritative source', async () => {
+  const harness = createStartWorkflowHarness({
+    template: buildTemplate(),
+  });
+
+  const run = await harness.service.startWorkflow(1, 'dev-workflow-v1');
+
+  assert.equal(run.workflow_template_id, 'dev-workflow-v1');
+  assert.equal(harness.createCalls.length, 1);
+  assert.equal(harness.taskUpdates[0]?.workflow_run_id, run.id);
+  assert.equal(harness.getTemplateLoads(), 1);
+});
+
 test.test('startWorkflow prefers a supplied workflow template snapshot and preserves the source template id', async () => {
   const harness = createStartWorkflowHarness();
   const editedSnapshot: WorkflowTemplate = {
