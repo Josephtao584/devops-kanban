@@ -10,6 +10,8 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "useUnknownInCatchVariables": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "allowJs": false,
     "resolveJsonModule": false,
     "skipLibCheck": true,

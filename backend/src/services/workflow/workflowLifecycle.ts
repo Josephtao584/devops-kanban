@@ -3,10 +3,8 @@ import type { AgentRepository } from '../../repositories/agentRepository.js';
 import type { SessionRepository } from '../../repositories/sessionRepository.js';
 import type { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
 import type { WorkflowTemplateService } from './workflowTemplateService.js';
-import type { WorkflowTemplate } from './workflowTemplateService.js';
-import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity } from '../../types/entities.ts';
-import type { ExecutorType } from '../../types/executors.js';
-import { SUPPORTED_EXECUTOR_TYPES, isSupportedExecutorType, type WorkflowTaskRecord, type WorkflowAgentRecord } from '../../types/workflow.js';
+import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
+import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;

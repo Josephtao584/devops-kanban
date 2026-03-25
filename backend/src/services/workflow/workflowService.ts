@@ -4,12 +4,11 @@ import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SessionRepository } from '../../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import { buildWorkflowFromTemplate, initWorkflows } from './workflows.js';
+import { buildWorkflowFromTemplate } from './workflows.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
-import { WorkflowTemplateService, normalizeTemplate } from './workflowTemplateService.js';
+import { WorkflowTemplateService } from './workflowTemplateService.js';
 import type { WorkflowTemplate } from './workflowTemplateService.js';
-import type { ExecutorType } from '../../types/executors.js';
-import { SUPPORTED_EXECUTOR_TYPES, isSupportedExecutorType, type WorkflowTaskRecord, type WorkflowAgentRecord } from '../../types/workflow.js';
+import { isSupportedExecutorType, type WorkflowTaskRecord, type WorkflowAgentRecord } from '../../types/workflow.js';
 
 function hasDuplicateWorkflowStepIds(template: WorkflowTemplate) {
   const actualStepIds = template.steps.map((step) => step.id);
@@ -24,16 +23,12 @@ function createWorkflowTemplateStepCountValidationError() {
   return createValidationError('Workflow template must include at least two steps');
 }
 
-function createUnavailableExecutorValidationMessage(stepName: string, agentId: number, executorType: ExecutorType) {
-  return `Step "${stepName}" references agent ${agentId} with unavailable executor type: ${executorType}`;
-}
-
 function createValidationError(message: string) {
   return Object.assign(new Error(message), { statusCode: 400 });
 }
 
 function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null {
-  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => false)) {
+  if (!Array.isArray(agent.skills) || agent.skills.some(() => false)) {
     return 'skills must be an array of strings';
   }
 
