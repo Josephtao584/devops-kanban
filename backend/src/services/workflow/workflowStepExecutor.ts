@@ -48,27 +48,12 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
     throw new Error(`Agent ${agent.id} has unsupported executor type: ${String(agent.executorType)}`);
   }
 
-  if (agent.commandOverride != null && (typeof agent.commandOverride !== 'string' || agent.commandOverride.trim().length === 0)) {
-    throw new Error(`Agent ${agent.id} has invalid command override`);
-  }
-
-  if (!Array.isArray(agent.args) || agent.args.some((arg) => typeof arg !== 'string')) {
-    throw new Error(`Agent ${agent.id} has invalid args configuration`);
-  }
-
-  if (agent.env == null || typeof agent.env !== 'object' || Array.isArray(agent.env) || Object.values(agent.env).some((value) => typeof value !== 'string')) {
-    throw new Error(`Agent ${agent.id} has invalid env configuration`);
-  }
-
   if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
     throw new Error(`Agent ${agent.id} has invalid skills configuration`);
   }
 
   return {
     type: agent.executorType,
-    commandOverride: agent.commandOverride ?? null,
-    args: [...agent.args],
-    env: { ...agent.env },
     skills: [...agent.skills],
   };
 }

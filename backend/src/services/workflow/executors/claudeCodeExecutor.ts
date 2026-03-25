@@ -22,13 +22,6 @@ class ClaudeCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
-      ...(executorConfig?.commandOverride ? {
-        executorConfig: {
-          commandOverride: executorConfig.commandOverride,
-          ...(executorConfig.args ? { args: executorConfig.args } : {}),
-          ...(executorConfig.env ? { env: executorConfig.env } : {}),
-        },
-      } : {}),
       ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
     });
