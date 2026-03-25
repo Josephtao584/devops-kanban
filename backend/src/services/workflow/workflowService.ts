@@ -8,32 +8,13 @@ import { buildWorkflowFromTemplate } from './workflows.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import type { WorkflowTemplate } from './workflowTemplateService.js';
-import { isSupportedExecutorType, type WorkflowTaskRecord, type WorkflowAgentRecord } from '../../types/workflow.js';
+import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 
-function hasDuplicateWorkflowStepIds(template: WorkflowTemplate) {
-  const actualStepIds = template.steps.map((step) => step.id);
-  return new Set(actualStepIds).size !== actualStepIds.length;
-}
-
-function createDuplicateWorkflowStepIdValidationError() {
-  return createValidationError('Workflow template step ids must be unique');
-}
-
-function createWorkflowTemplateStepCountValidationError() {
-  return createValidationError('Workflow template must include at least two steps');
-}
 
 function createValidationError(message: string) {
   return Object.assign(new Error(message), { statusCode: 400 });
 }
 
-function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null {
-  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
-    return 'skills must be an array of strings';
-  }
-
-  return null;
-}
 
 function toStepState(template: WorkflowTemplate) {
   return template.steps.map((step) => ({
@@ -101,7 +82,7 @@ class WorkflowService {
     this._activeRuns = new Map();
   }
 
-  async startWorkflow(taskId: number, workflowTemplateId?: string) {
+  async startWorkflow(taskId: number, workflowTemplateId: string) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
       const error: any = new Error('Task not found');
@@ -141,24 +122,15 @@ class WorkflowService {
     return run;
   }
 
-  async _loadTemplate(templateId?: string): Promise<WorkflowTemplate> {
-    const normalizedTemplateId = templateId?.trim() || 'dev-workflow-v1';
-    const template = await this.workflowTemplateService.getTemplateById(normalizedTemplateId);
+  async _loadTemplate(templateId: string): Promise<WorkflowTemplate> {
+    const template = await this.workflowTemplateService.getTemplateById(templateId);
     if (!template) {
-      throw createValidationError(`Workflow template not found: ${normalizedTemplateId}`);
+      throw createValidationError(`Workflow template not found: ${templateId}`);
     }
     return template;
   }
 
   async _validateTemplateAgents(template: WorkflowTemplate) {
-    if (!Array.isArray(template.steps) || template.steps.length < 2) {
-      throw createWorkflowTemplateStepCountValidationError();
-    }
-
-    if (hasDuplicateWorkflowStepIds(template)) {
-      throw createDuplicateWorkflowStepIdValidationError();
-    }
-
     for (const step of template.steps) {
       if (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
@@ -175,11 +147,6 @@ class WorkflowService {
 
       if (!isSupportedExecutorType(agent.executorType)) {
         throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with unsupported executor type: ${String(agent.executorType)}`);
-      }
-
-      const invalidConfigReason = getInvalidAgentConfigReason(agent);
-      if (invalidConfigReason) {
-        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with invalid executor configuration: ${invalidConfigReason}`);
       }
     }
   }
@@ -305,7 +272,7 @@ class WorkflowService {
       // Fallback: reconstruct from storage (handles edge cases where
       // _activeRuns entry was cleaned up but run is still marked RUNNING)
       const template = run.workflow_template_snapshot
-        ?? await this._loadTemplate(run.workflow_template_id ?? undefined);
+        ?? await this._loadTemplate(run.workflow_template_id);
       const workflow = buildWorkflowFromTemplate(template);
       const reconstructedRun = await workflow.createRun({ runId: String(runId) });
       await reconstructedRun.cancel();

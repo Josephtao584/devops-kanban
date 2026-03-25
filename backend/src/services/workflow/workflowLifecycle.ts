@@ -55,6 +55,7 @@ class WorkflowLifecycle {
 
   private async _getRunStep(runId: number, stepId: string) {
     const run = await this.workflowRunRepo.findById(runId);
+    console.log(`[WorkflowLifecycle] _getRunStep: runId=${runId}, found=${!!run}`);
     if (!run) {
       throw new Error(`Workflow run not found: ${runId}`);
     }
@@ -69,6 +70,7 @@ class WorkflowLifecycle {
 
   private async _getTemplateStepBinding(runId: number, stepId: string) {
     const run = await this.workflowRunRepo.findById(runId);
+    console.log(`[WorkflowLifecycle] _getTemplateStepBinding: runId=${runId}, found=${!!run}`);
     if (!run) {
       throw new Error(`Workflow run not found: ${runId}`);
     }
