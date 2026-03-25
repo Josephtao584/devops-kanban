@@ -8,26 +8,8 @@ import { buildWorkflowFromTemplate, initWorkflows } from './workflows.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { WorkflowTemplateService, normalizeTemplate } from './workflowTemplateService.js';
 import type { WorkflowTemplate } from './workflowTemplateService.js';
-import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity, WorkflowStepEntity } from '../../types/entities.ts';
-import type { ExecutorProcessHandle, ExecutorType } from '../../types/executors.js';
-
-interface WorkflowTaskRecord {
-  id: number;
-  project_id: number;
-  title?: string;
-  description?: string;
-  worktree_path?: string | null;
-  worktree_branch?: string | null;
-}
-
-interface WorkflowAgentRecord {
-  id: number;
-  executorType: string;
-  enabled: boolean;
-  skills: string[];
-}
-
-const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
+import type { ExecutorType } from '../../types/executors.js';
+import { SUPPORTED_EXECUTOR_TYPES, isSupportedExecutorType, type WorkflowTaskRecord, type WorkflowAgentRecord } from '../../types/workflow.js';
 
 function hasDuplicateWorkflowStepIds(template: WorkflowTemplate) {
   const actualStepIds = template.steps.map((step) => step.id);
@@ -50,12 +32,8 @@ function createValidationError(message: string) {
   return Object.assign(new Error(message), { statusCode: 400 });
 }
 
-function isSupportedExecutorType(value: unknown): value is ExecutorType {
-  return typeof value === 'string' && SUPPORTED_EXECUTOR_TYPES.includes(value as ExecutorType);
-}
-
 function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null {
-  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
+  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => false)) {
     return 'skills must be an array of strings';
   }
 
