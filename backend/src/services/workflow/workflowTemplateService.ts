@@ -71,7 +71,7 @@ function cloneTemplate(template: WorkflowTemplate): WorkflowTemplate {
 }
 
 function buildBuiltInTemplates(): WorkflowTemplate[] {
-  return BUILT_IN_TEMPLATES.map((template) => cloneTemplate(template));
+  return BUILT_IN_TEMPLATES.map((template) => cloneTemplate(template as unknown as WorkflowTemplate));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,7 +97,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStep {
     throw createValidationError('instructionPrompt must be a non-empty string');
   }
 
-  if (agentId !== null && (!Number.isInteger(agentId) || agentId < 0)) {
+  if (agentId !== null && agentId !== undefined && (typeof agentId !== 'number' || !Number.isInteger(agentId) || agentId < 0)) {
     throw createValidationError('agentId must be null or a non-negative integer');
   }
 
@@ -105,7 +105,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStep {
     id: id.trim(),
     name: name.trim(),
     instructionPrompt: instructionPrompt.trim(),
-    agentId,
+    agentId: typeof agentId === 'number' ? agentId : null,
   };
 }
 

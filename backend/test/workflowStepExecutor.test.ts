@@ -32,6 +32,7 @@ function createStep(agentId: number | null) {
 function createTemplateSnapshot(step = createStep(7)) {
   return {
     template_id: 'dev-workflow-v1',
+    name: '默认研发工作流',
     steps: [step],
   };
 }

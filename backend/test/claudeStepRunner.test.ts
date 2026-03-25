@@ -18,7 +18,7 @@ test.test('buildClaudeCliArgs uses -p prompt and skip permissions', () => {
 });
 
 test.test('buildClaudeSpawnCommand uses npx-based default command', () => {
-  const resolved = buildClaudeSpawnCommand({ commandOverride: null, args: [], env: {} }, { PATH: 'x' });
+  const resolved = buildClaudeSpawnCommand({ args: [], env: {} }, { PATH: 'x' });
   assert.equal(resolved.command, 'npx');
   assert.deepEqual(resolved.args, CLAUDE_DEFAULT_COMMAND.slice(1));
   assert.equal(resolved.env.PATH, 'x');

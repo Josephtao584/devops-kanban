@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import * as assert from 'node:assert/strict';
 import { buildWorkflowFromTemplate } from '../src/services/workflow/workflows.js';
 
 describe('buildWorkflowFromTemplate', () => {

@@ -92,9 +92,10 @@ class SessionService {
     }
 
     const requestedLimit = options.limit;
+    const afterSeq = options.afterSeq;
     const events = await this.sessionEventRepo.listBySessionId(sessionId, {
-      afterSeq: options.afterSeq,
-      limit: requestedLimit === undefined ? undefined : requestedLimit + 1,
+      ...(afterSeq !== undefined ? { afterSeq } : {}),
+      ...(requestedLimit !== undefined ? { limit: requestedLimit + 1 } : {}),
     });
     const hasMore = requestedLimit !== undefined && events.length > requestedLimit;
 

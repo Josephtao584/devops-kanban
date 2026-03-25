@@ -192,9 +192,11 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
 
   fastify.get<{ Params: IdParams; Querystring: ListSessionEventsQuery }>('/sessions/:id/events', async (request, reply) => {
     try {
+      const afterSeq = request.query.after_seq ? parseNumber(request.query.after_seq) : undefined;
+      const limit = request.query.limit ? parseNumber(request.query.limit) : undefined;
       const events = await service.listEvents(parseNumber(request.params.id), {
-        afterSeq: request.query.after_seq ? parseNumber(request.query.after_seq) : undefined,
-        limit: request.query.limit ? parseNumber(request.query.limit) : undefined,
+        ...(afterSeq !== undefined ? { afterSeq } : {}),
+        ...(limit !== undefined ? { limit } : {}),
       });
       return successResponse(events);
     } catch (error) {

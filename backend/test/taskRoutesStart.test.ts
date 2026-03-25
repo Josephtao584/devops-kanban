@@ -24,7 +24,7 @@ test.test('POST /:id/start forwards workflow_template_id from the request body',
   const startTaskCalls: Array<{ taskId: number; body?: StartTaskRouteBody }> = [];
 
   TaskService.prototype.startTask = async function startTask(taskId: number, body?: StartTaskRouteBody) {
-    startTaskCalls.push({ taskId, body });
+    startTaskCalls.push(body !== undefined ? { taskId, body } : { taskId });
     return { id: taskId, status: 'IN_PROGRESS', workflow_run_id: 77 } as never;
   };
 
@@ -56,7 +56,7 @@ test.test('POST /:id/start forwards workflow_template_snapshot from the request 
   const startTaskCalls: Array<{ taskId: number; body?: StartTaskRouteBody }> = [];
 
   TaskService.prototype.startTask = async function startTask(taskId: number, body?: StartTaskRouteBody) {
-    startTaskCalls.push({ taskId, body });
+    startTaskCalls.push(body !== undefined ? { taskId, body } : { taskId });
     return { id: taskId, status: 'IN_PROGRESS', workflow_run_id: 78 } as never;
   };
 
