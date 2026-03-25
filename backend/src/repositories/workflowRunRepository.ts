@@ -62,6 +62,25 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
     return data.filter((item) => item.task_id === taskId);
   }
 
+  override async create(entityData: CreateWorkflowRunRecord): Promise<StoredWorkflowRunEntity> {
+    return await this._serializeMutation(async () => {
+      const data = await this._loadAll();
+      const newId = this._getNextId(data);
+      const now = new Date().toISOString();
+
+      const entity = {
+        ...entityData,
+        id: newId,
+        created_at: now,
+        updated_at: now,
+      } as StoredWorkflowRunEntity;
+
+      data.push(entity);
+      await this._saveAll(data);
+      return entity;
+    });
+  }
+
   override async update(runId: number, runUpdate: UpdateWorkflowRunRecord): Promise<StoredWorkflowRunEntity | null> {
     return await this._serializeMutation(async () => {
       const data = await this._loadAll();
