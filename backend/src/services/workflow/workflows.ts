@@ -61,12 +61,12 @@ export function buildWorkflowFromTemplate(
       outputSchema: stepOutputSchema,
       stateSchema: sharedStateSchema,
       execute: async ({ inputData, state, abortSignal, abort }) => {
-        let sessionId: number | null = null;
-        let segmentId: number | null = null;
+        let sessionId: number | undefined;
+        let segmentId: number | undefined;
         if (options) {
           const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
-          sessionId = sessionInfo?.sessionId ?? null;
-          segmentId = sessionInfo?.segmentId ?? null;
+          sessionId = sessionInfo?.sessionId;
+          segmentId = sessionInfo?.segmentId;
         }
 
         const result = await executeWorkflowStep({
@@ -77,9 +77,9 @@ export function buildWorkflowFromTemplate(
           templateSnapshot: options?.templateSnapshot ?? template,
           abortSignal,
           upstreamStepIds: previousStepId ? [previousStepId] : [],
-          runId: options?.runId ?? undefined,
-          sessionId: sessionId ?? undefined,
-          segmentId: segmentId ?? undefined,
+          runId: options?.runId,
+          sessionId,
+          segmentId,
           onProviderState: async (providerState) => {
             if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
               await options.lifecycle.sessionSegmentRepo.update(segmentId, {
