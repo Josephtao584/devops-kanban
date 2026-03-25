@@ -1,13 +1,7 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
+import type { ExecutionEntity } from '../types/entities.js';
 
-interface ExecutionEntity extends BaseEntity {
-  session_id?: number;
-  task_id?: number;
-  [key: string]: unknown;
-}
-
-class ExecutionRepository extends BaseRepository<ExecutionEntity, Omit<ExecutionEntity, 'id' | 'created_at' | 'updated_at'>, Partial<ExecutionEntity>> {
+class ExecutionRepository extends BaseRepository<ExecutionEntity> {
   constructor() {
     super('executions.json');
   }
@@ -34,4 +28,3 @@ class ExecutionRepository extends BaseRepository<ExecutionEntity, Omit<Execution
 }
 
 export { ExecutionRepository };
-export type { ExecutionEntity };

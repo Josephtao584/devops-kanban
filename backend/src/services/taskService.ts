@@ -57,116 +57,47 @@ class TaskService {
 
   async create(taskData: CreateTaskInput) {
     if (!taskData.title || !taskData.title.trim()) {
-      const error = new Error('任务标题不能为空') as Error & { statusCode?: number };
+      const error: any = new Error('任务标题不能为空');
       error.statusCode = 400;
       throw error;
     }
 
     if (!taskData.project_id) {
-      const error = new Error('项目 ID 不能为空') as Error & { statusCode?: number };
+      const error: any = new Error('项目 ID 不能为空');
       error.statusCode = 400;
       throw error;
     }
 
     const projectExists = await this.projectRepo.exists(taskData.project_id);
     if (!projectExists) {
-      const error = new Error('项目不存在') as Error & { statusCode?: number };
+      const error: any = new Error('项目不存在');
       error.statusCode = 400;
       throw error;
     }
 
-    if (!taskData.status) {
-      taskData.status = 'TODO';
-    }
-    if (!taskData.priority) {
-      taskData.priority = 'MEDIUM';
-    }
-
-    const createData: TaskCreateRecord = {
+    const createData: Record<string, unknown> = {
       title: taskData.title,
       project_id: taskData.project_id,
-      status: taskData.status,
-      priority: taskData.priority,
+      status: taskData.status || 'TODO',
+      priority: taskData.priority || 'MEDIUM',
+      source: 'manual',
     };
-    if (taskData.description !== undefined) {
-      createData.description = taskData.description;
-    }
-    if (taskData.assignee !== undefined) {
-      createData.assignee = taskData.assignee;
-    }
-    if (taskData.due_date !== undefined) {
-      createData.due_date = taskData.due_date;
-    }
-    if (taskData.order !== undefined) {
-      createData.order = taskData.order;
-    }
-    if (taskData.external_id !== undefined) {
-      createData.external_id = taskData.external_id;
-    }
-    if (taskData.workflow_run_id !== undefined) {
-      createData.workflow_run_id = taskData.workflow_run_id;
-    }
-    if (taskData.worktree_path !== undefined) {
-      createData.worktree_path = taskData.worktree_path;
-    }
-    if (taskData.worktree_branch !== undefined) {
-      createData.worktree_branch = taskData.worktree_branch;
-    }
-    if (taskData.worktree_status !== undefined) {
-      createData.worktree_status = taskData.worktree_status;
-    }
-    if (taskData.iteration_id !== undefined) {
-      createData.iteration_id = taskData.iteration_id;
-    }
+
+    if (taskData.description !== undefined) createData.description = taskData.description;
+    if (taskData.assignee !== undefined) createData.assignee = taskData.assignee;
+    if (taskData.due_date !== undefined) createData.due_date = taskData.due_date;
+    if (taskData.order !== undefined) createData.order = taskData.order;
+    if (taskData.external_id !== undefined) createData.external_id = taskData.external_id;
+    if (taskData.workflow_run_id !== undefined) createData.workflow_run_id = taskData.workflow_run_id;
+    if (taskData.worktree_path !== undefined) createData.worktree_path = taskData.worktree_path;
+    if (taskData.worktree_branch !== undefined) createData.worktree_branch = taskData.worktree_branch;
+    if (taskData.iteration_id !== undefined) createData.iteration_id = taskData.iteration_id;
 
     return await this.taskRepo.create(createData);
   }
 
   async update(taskId: number, taskData: UpdateTaskInput) {
-    const updateData: TaskUpdateRecord = {};
-    if (taskData.title !== undefined) {
-      updateData.title = taskData.title;
-    }
-    if (taskData.description !== undefined) {
-      updateData.description = taskData.description;
-    }
-    if (taskData.project_id !== undefined) {
-      updateData.project_id = taskData.project_id;
-    }
-    if (taskData.status !== undefined) {
-      updateData.status = taskData.status;
-    }
-    if (taskData.priority !== undefined) {
-      updateData.priority = taskData.priority;
-    }
-    if (taskData.assignee !== undefined) {
-      updateData.assignee = taskData.assignee;
-    }
-    if (taskData.due_date !== undefined) {
-      updateData.due_date = taskData.due_date;
-    }
-    if (taskData.order !== undefined) {
-      updateData.order = taskData.order;
-    }
-    if (taskData.external_id !== undefined) {
-      updateData.external_id = taskData.external_id;
-    }
-    if (taskData.workflow_run_id !== undefined) {
-      updateData.workflow_run_id = taskData.workflow_run_id;
-    }
-    if (taskData.worktree_path !== undefined) {
-      updateData.worktree_path = taskData.worktree_path;
-    }
-    if (taskData.worktree_branch !== undefined) {
-      updateData.worktree_branch = taskData.worktree_branch;
-    }
-    if (taskData.worktree_status !== undefined) {
-      updateData.worktree_status = taskData.worktree_status;
-    }
-    if (taskData.iteration_id !== undefined) {
-      updateData.iteration_id = taskData.iteration_id;
-    }
-    return await this.taskRepo.update(taskId, updateData);
+    return await this.taskRepo.update(taskId, taskData);
   }
 
   async updateStatus(taskId: number, status: string) {
@@ -275,7 +206,6 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: branchName,
-        worktree_status: 'created',
       });
 
       return {
@@ -324,7 +254,6 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
-        worktree_status: 'none',
       });
       throw error;
     }

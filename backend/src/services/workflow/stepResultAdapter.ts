@@ -128,7 +128,7 @@ export function normalizeExecutorRawResult(rawResult: ExecutorRawResult | undefi
   };
 }
 
-export function adaptStepResult(executorType: string, executionResult: { rawResult?: ExecutorRawResult }) {
+export function adaptStepResult(_executorType: string, executionResult: { rawResult?: ExecutorRawResult }) {
   const normalizedRawResult = normalizeExecutorRawResult(executionResult?.rawResult);
   return validateStepResult(normalizedRawResult);
 }

@@ -1,5 +1,4 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
-import type { AgentEntity } from '../../repositories/agentRepository.js';
 import type {
   ExecutorConfig,
   ExecutorExecutionResult,
@@ -8,7 +7,7 @@ import type {
   ExecutorType,
   WorkflowExecutionEvent,
 } from '../../types/executors.js';
-import type { WorkflowTemplateEntity } from '../../types/entities.ts';
+import type { AgentEntity, WorkflowTemplateEntity } from '../../types/entities.ts';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { ExecutionEventSink } from './executionEventSink.js';
 import { adaptStepResult } from './stepResultAdapter.js';

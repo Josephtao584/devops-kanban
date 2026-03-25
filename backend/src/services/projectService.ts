@@ -28,27 +28,33 @@ class ProjectService {
   }
 
   async getWithStats(projectId: number) {
-    return await this.projectRepo.findByIdWithStats(projectId);
+    const project = await this.projectRepo.findById(projectId);
+    if (!project) {
+      return null;
+    }
+
+    const counts = await this.taskRepo.countByProject(projectId);
+
+    return {
+      ...project,
+      task_count: Object.values(counts).reduce((a, b) => a + b, 0),
+      todo_count: counts.TODO || 0,
+      in_progress_count: counts.IN_PROGRESS || 0,
+      done_count: counts.DONE || 0,
+    };
   }
 
   async create(projectData: CreateProjectInput) {
-    const createData: ProjectCreateRecord = {
+    return await this.projectRepo.create({
       name: projectData.name,
-    };
-    if (projectData.description !== undefined) {
-      createData.description = projectData.description;
-    }
-    if (projectData.git_url !== undefined) {
-      createData.git_url = projectData.git_url;
-    }
-    if (projectData.local_path !== undefined) {
-      createData.local_path = projectData.local_path;
-    }
-    return await this.projectRepo.create(createData);
+      description: projectData.description,
+      git_url: projectData.git_url,
+      local_path: projectData.local_path,
+    });
   }
 
   async update(projectId: number, projectData: UpdateProjectInput) {
-    const updateData: ProjectUpdateRecord = {};
+    const updateData: Record<string, unknown> = {};
     if (projectData.name !== undefined) {
       updateData.name = projectData.name;
     }

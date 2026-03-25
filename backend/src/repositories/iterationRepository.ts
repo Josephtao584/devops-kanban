@@ -1,12 +1,6 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
-import type { IterationCreateRecord, IterationUpdateRecord } from '../types/persistence/iterations.js';
+import type { IterationEntity } from '../types/entities.js';
 import { TaskRepository, type TaskStatusCounts } from './taskRepository.js';
-
-interface IterationEntity extends BaseEntity {
-  project_id: number;
-  name?: string;
-}
 
 interface IterationWithStats extends IterationEntity {
   task_count: number;
@@ -18,7 +12,7 @@ interface IterationWithStats extends IterationEntity {
   progress: number;
 }
 
-class IterationRepository extends BaseRepository<IterationEntity, IterationCreateRecord, IterationUpdateRecord> {
+class IterationRepository extends BaseRepository<IterationEntity> {
   constructor() {
     super('iterations.json');
   }
@@ -91,4 +85,4 @@ class IterationRepository extends BaseRepository<IterationEntity, IterationCreat
 }
 
 export { IterationRepository };
-export type { IterationEntity, IterationWithStats };
+export type { IterationWithStats };
