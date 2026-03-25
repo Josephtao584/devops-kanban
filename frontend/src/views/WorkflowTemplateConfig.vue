@@ -99,7 +99,7 @@
           <section class="workflow-preview-section">
             <div class="section-heading-row">
               <div class="section-heading">{{ $t('workflowTemplate.workflowPreview') }}</div>
-              <el-button type="primary" plain @click="addStep">
+              <el-button data-testid="add-step-button" type="primary" plain @click="addStep">
                 {{ $t('workflowTemplate.addStep') }}
               </el-button>
             </div>
@@ -107,12 +107,13 @@
               <div class="workflow-preview-track">
                 <template v-for="(step, index) in previewSteps" :key="step.localKey">
                   <div v-if="index > 0" class="workflow-connector" aria-hidden="true"></div>
-                  <button
-                    type="button"
+                  <div
                     class="workflow-step-card"
                     :class="{
                       'is-selected': selectedStepIndex === index,
-                      'has-warning': step.hasWarning
+                      'has-warning': step.hasWarning,
+                      'state-missing': step.stateClass === 'state-missing',
+                      'state-disabled': step.stateClass === 'state-disabled'
                     }"
                     @click="selectStep(index)"
                   >
@@ -125,7 +126,50 @@
                     <div class="workflow-step-card__meta">
                       <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
                     </div>
-                  </button>
+
+                    <div class="workflow-step-card__actions">
+                      <div class="workflow-step-card__action-row">
+                        <el-tooltip :content="$t('workflowTemplate.insertStepBefore')" placement="top">
+                          <el-button
+                            data-testid="insert-step-before-button"
+                            class="workflow-step-card__icon-button"
+                            size="small"
+                            :aria-label="$t('workflowTemplate.insertStepBefore')"
+                            :title="$t('workflowTemplate.insertStepBefore')"
+                            @click.stop="insertStep(index, 'before')"
+                          >
+                            <el-icon><Back /></el-icon>
+                          </el-button>
+                        </el-tooltip>
+                        <el-tooltip :content="$t('workflowTemplate.insertStepAfter')" placement="top">
+                          <el-button
+                            data-testid="insert-step-after-button"
+                            class="workflow-step-card__icon-button"
+                            size="small"
+                            :aria-label="$t('workflowTemplate.insertStepAfter')"
+                            :title="$t('workflowTemplate.insertStepAfter')"
+                            @click.stop="insertStep(index, 'after')"
+                          >
+                            <el-icon><Right /></el-icon>
+                          </el-button>
+                        </el-tooltip>
+                        <el-tooltip :content="$t('workflowTemplate.deleteStep')" placement="top">
+                          <el-button
+                            data-testid="delete-step-button"
+                            class="workflow-step-card__icon-button"
+                            size="small"
+                            type="danger"
+                            :disabled="!canDeleteStep"
+                            :aria-label="$t('workflowTemplate.deleteStep')"
+                            :title="$t('workflowTemplate.deleteStep')"
+                            @click.stop="confirmRemoveStep(index)"
+                          >
+                            <el-icon><Delete /></el-icon>
+                          </el-button>
+                        </el-tooltip>
+                      </div>
+                    </div>
+                  </div>
                 </template>
               </div>
             </div>
@@ -156,7 +200,10 @@
                 </div>
               </div>
 
-              <div class="step-editor-state-row">
+              <div
+                v-if="isMissingAgent(selectedStep) || isDisabledAgent(selectedStep) || typeof selectedStep.agentId !== 'number'"
+                class="step-editor-state-row binding-state-row"
+              >
                 <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
                   {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}
                 </el-tag>
@@ -218,7 +265,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Back, Right } from '@element-plus/icons-vue'
 import {
   createWorkflowTemplate,
   deleteWorkflowTemplate,
@@ -233,6 +281,9 @@ import {
   normalizeWorkflowTemplate,
   sanitizeWorkflowStep,
   createEmptyWorkflowStep,
+  insertWorkflowStep,
+  removeWorkflowStep,
+  resolveSelectedStepIndexAfterRemoval,
   buildWorkflowTemplatePayload,
   validateWorkflowTemplatePayload,
   getAgentDisplayName,
@@ -329,17 +380,20 @@ const previewSteps = computed(() => {
     const sanitized = sanitizeWorkflowStep(step)
     let agentSummary = t('workflowTemplate.unassignedAgent')
     let agentStateClass = 'workflow-chip--info'
+    let stateClass = 'state-ready'
 
     if (typeof sanitized.agentId === 'number') {
       if (isMissingAgent(sanitized)) {
         agentSummary = t('workflowTemplate.missingAgent', { id: sanitized.agentId })
         agentStateClass = 'workflow-chip--danger'
+        stateClass = 'state-missing'
       } else if (isDisabledAgent(sanitized)) {
         agentSummary = formatBoundAgentState(sanitized)
         agentStateClass = 'workflow-chip--warning'
+        stateClass = 'state-disabled'
       } else {
         agentSummary = getAgentLabel(getAgentById(sanitized.agentId))
-        agentStateClass = 'workflow-chip--success'
+        agentStateClass = 'workflow-chip--neutral'
       }
     }
 
@@ -348,6 +402,7 @@ const previewSteps = computed(() => {
       localKey: `${index}-${step.id || 'empty'}`,
       agentSummary,
       agentStateClass,
+      stateClass,
       hasWarning: isMissingAgent(sanitized) || isDisabledAgent(sanitized) || !sanitized.instructionPrompt
     }
   })
@@ -377,26 +432,39 @@ const addStep = () => {
   selectedStepIndex.value = template.value.steps.length - 1
 }
 
+const insertStep = (index, position) => {
+  if (!template.value) return
+
+  const { steps, insertedIndex } = insertWorkflowStep(
+    template.value.steps || [],
+    index,
+    position,
+    createEmptyWorkflowStep(t('workflowTemplate.newStepDefaultName'))
+  )
+  template.value.steps = steps
+  selectedStepIndex.value = insertedIndex
+}
+
 const removeStep = (index) => {
   if (!template.value) return
-  if (!canDeleteStep.value) {
+
+  const { steps, removed } = removeWorkflowStep(template.value.steps || [], index, {
+    minSteps: MIN_WORKFLOW_TEMPLATE_STEPS
+  })
+
+  if (!removed) {
     ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
     return
   }
 
-  template.value.steps = template.value.steps.filter((_, stepIndex) => stepIndex !== index)
-  if (selectedStepIndex.value > index) {
-    selectedStepIndex.value -= 1
-  } else if (selectedStepIndex.value === index) {
-    selectedStepIndex.value = Math.max(0, index - 1)
-  }
+  template.value.steps = steps
+  selectedStepIndex.value = resolveSelectedStepIndexAfterRemoval(selectedStepIndex.value, index, steps.length)
   syncSelectedStepIndex()
 }
 
 const confirmRemoveStep = async (index) => {
   if (!template.value) return
   if (!canDeleteStep.value) {
-    ElMessage.warning(t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS }))
     return
   }
 
@@ -415,6 +483,7 @@ const confirmRemoveStep = async (index) => {
     // user cancelled
   }
 }
+
 
 const validateTemplateBeforeSave = (currentTemplate) => {
   return validateWorkflowTemplatePayload(currentTemplate, t, {
@@ -953,35 +1022,43 @@ onMounted(() => {
 }
 
 .workflow-step-card {
-  width: 220px;
-  min-height: 120px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  gap: 10px;
+  width: 236px;
+  min-height: 176px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .workflow-step-card:hover {
-  border-color: var(--accent-color);
-  background: var(--bg-secondary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
 }
 
 .workflow-step-card.is-selected {
-  border-color: var(--accent-color);
-  background: var(--bg-secondary);
-  box-shadow: inset 0 0 0 1px var(--accent-color);
+  border-color: #3b82f6;
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
 }
 
 .workflow-step-card.has-warning {
-  border-color: var(--el-color-warning);
+  border-color: #fbbf24;
+}
+
+.workflow-step-card.state-missing {
+  border-color: #ef4444;
+}
+
+.workflow-step-card.state-disabled {
+  border-color: #f59e0b;
 }
 
 .workflow-step-card__top {
@@ -992,39 +1069,65 @@ onMounted(() => {
 }
 
 .workflow-step-card__order {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: 12px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 13px;
   font-weight: 700;
 }
 
-.workflow-step-card.is-selected .workflow-step-card__order {
-  background: var(--accent-color);
-  color: #ffffff;
-}
-
-.workflow-step-card.has-warning .workflow-step-card__order {
-  background: var(--el-color-warning-light-8);
-  color: var(--el-color-warning-dark-2);
-}
-
 .workflow-step-card__name {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .workflow-step-card__meta {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.workflow-step-card__actions {
+  display: flex;
+  margin-top: auto;
+}
+
+.workflow-step-card__action-row {
+  display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.workflow-step-card__action-row :deep(.el-tooltip) {
+  display: inline-flex;
+}
+
+.workflow-step-card__action-row :deep(.el-button) {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  margin-left: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.workflow-step-card__action-row :deep(.el-button .el-icon) {
+  font-size: 14px;
+}
+
+.workflow-step-card__icon-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
 }
 
 .workflow-chip {
@@ -1044,10 +1147,9 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.workflow-chip--success {
-  background: var(--el-color-success-light-9);
-  border-color: var(--el-color-success-light-5);
-  color: var(--el-color-success-dark-2);
+.workflow-chip--neutral {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .workflow-chip--warning {
@@ -1062,16 +1164,12 @@ onMounted(() => {
   color: var(--el-color-danger-dark-2);
 }
 
-.step-editor-section {
-  margin-top: 0;
-}
-
 .step-editor-card {
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
 }
 
 .step-editor-card__header {
@@ -1079,26 +1177,30 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .step-editor-card__title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .step-editor-state-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.binding-state-row {
+  min-height: 24px;
 }
 
 .step-editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .editor-field {
@@ -1161,6 +1263,9 @@ onMounted(() => {
 
   .editor-field--full {
     grid-column: auto;
+  }
+  .workflow-step-card {
+    width: 180px;
   }
 }
 
