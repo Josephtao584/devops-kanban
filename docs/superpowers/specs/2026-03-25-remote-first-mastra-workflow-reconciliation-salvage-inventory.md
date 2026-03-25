@@ -32,3 +32,17 @@
 - Run/step/session display represented: yes
 - Executor integration seam represented: yes
 - Legacy runtime/orchestrator code represented: yes
+
+## Final Outcome
+
+- Restored on top of remote Mastra baseline:
+  - remote `origin/master` workflow architecture files were adopted as the single source of truth
+  - workflow template editor/start editor UX remained working on the remote baseline
+  - workflow progress dialog run/step/session display remained working on the remote baseline
+  - backend workflow compatibility tests were repaired to match the current contract
+- Dropped as legacy:
+  - local workflow orchestration/runtime ownership in backend workflow architecture files
+  - any accidental non-conflicting local changes in workflow architecture-owned backend files after merge
+  - unrelated diff viewer and internal task source work from this reconciliation scope
+- Remaining follow-up items:
+  - plan and design docs are still untracked local artifacts unless explicitly committed later
