@@ -146,7 +146,7 @@ class WorkflowService {
   async startWorkflow(taskId: number, workflowTemplateId?: string) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error = new Error('Task not found');
+      const error: any = new Error('Task not found');
       error.statusCode = 404;
       throw error;
     }
@@ -154,7 +154,7 @@ class WorkflowService {
     const executionPath = await this._resolveExecutionPath(task);
     const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
-      const error = new Error('Task already has an active workflow run');
+      const error: any = new Error('Task already has an active workflow run');
       error.statusCode = 409;
       throw error;
     }
@@ -236,7 +236,7 @@ class WorkflowService {
       return project.local_path;
     }
 
-    const error = new Error('No workspace path configured for workflow execution');
+    const error: any = new Error('No workspace path configured for workflow execution');
     error.statusCode = 400;
     throw error;
   }
@@ -328,13 +328,13 @@ class WorkflowService {
   async cancelWorkflow(runId: number) {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
-      const error = new Error('Workflow run not found');
+      const error: any = new Error('Workflow run not found');
       error.statusCode = 404;
       throw error;
     }
 
     if (run.status !== 'RUNNING' && run.status !== 'PENDING') {
-      const error = new Error(`Cannot cancel workflow in status: ${run.status}`);
+      const error: any = new Error(`Cannot cancel workflow in status: ${run.status}`);
       error.statusCode = 400;
       throw error;
     }
