@@ -294,15 +294,10 @@
             </div>
           </div>
           <div class="step-chat-body">
-            <ChatBox
-              ref="stepChatBoxRef"
-              :task="selectedTask"
-              :agentId="currentViewingNode?.agentId || selectedAgentId"
-              :initial-session="null"
-              :default-collapsed="false"
-              :workflow-node="currentViewingNode"
-              @session-created="onNodeSessionCreated"
-              @request-agent-select="handleRequestAgentSelect"
+            <StepSessionPanel
+              :session-id="currentViewingNode?.sessionId"
+              :session-status="currentViewingNode?.status"
+              :step-name="currentViewingNode?.name"
             />
           </div>
         </div>
@@ -639,7 +634,7 @@ import { useIterationStore } from '../stores/iterationStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
 import { getActiveSessionByTask } from '../api/session.js'
 import AgentSelector from '../components/AgentSelector.vue'
-import ChatBox from '../components/ChatBox.vue'
+import StepSessionPanel from '../components/workflow/StepSessionPanel.vue'
 import TaskButlerChat from '../components/TaskButlerChat.vue'
 import DiffSelectDialog from '../components/DiffSelectDialog.vue'
 import CommitDialog from '../components/CommitDialog.vue'
