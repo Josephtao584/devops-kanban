@@ -16,6 +16,7 @@ class ClaudeCodeExecutor implements Executor {
     onSpawn,
     onEvent,
     onProviderState,
+    abortSignal,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     const sink = new ExecutionEventSink({ onEvent, onProviderState });
     const result = await this.runner.runStep({
@@ -23,6 +24,7 @@ class ClaudeCodeExecutor implements Executor {
       worktreePath,
       executorConfig,
       ...(onSpawn ? { onSpawn } : {}),
+      ...(abortSignal ? { abortSignal } : {}),
     });
 
     if (result.stdout) {
