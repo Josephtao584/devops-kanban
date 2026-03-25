@@ -5,7 +5,8 @@ import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep } from './workflowStepExecutor.js';
-import { getWorkflowExecutionContext } from './workflowExecutionContext.js';
+import type { WorkflowTemplate } from './workflowTemplateService.js';
+import type { WorkflowLifecycle } from './workflowLifecycle.js';
 
 const sharedStateSchema = z.object({
   taskTitle: z.string(),
@@ -13,166 +14,25 @@ const sharedStateSchema = z.object({
   worktreePath: z.string(),
 });
 
-function buildWorkflowSharedState({
-  taskTitle,
-  taskDescription,
-  worktreePath,
-}: {
-  taskTitle: string;
-  taskDescription: string;
-  worktreePath: string;
-}) {
-  return {
-    taskTitle,
-    taskDescription,
-    worktreePath,
-  };
-}
+const stepOutputSchema = z.object({ summary: z.string() });
 
-function buildStepExecutorInput({
-  state,
-  inputData,
-  upstreamStepIds,
-}: {
-  state: { worktreePath: string; taskTitle: string; taskDescription: string };
-  inputData: Record<string, unknown>;
-  upstreamStepIds: string[];
-}) {
-  return {
-    worktreePath: state.worktreePath,
-    state,
-    inputData,
-    upstreamStepIds,
-  };
-}
+const firstStepInputSchema = z.object({
+  taskId: z.number(),
+  taskTitle: z.string(),
+  taskDescription: z.string(),
+  worktreePath: z.string(),
+});
 
 let _mastra: Mastra | null = null;
-let _devWorkflow: ReturnType<typeof buildDevWorkflow> | null = null;
 let _initialized = false;
 
 export async function initWorkflows() {
   if (_initialized) return;
-
   const dbPath = path.join(STORAGE_PATH as string, 'mastra.db');
   _mastra = new Mastra({
-    storage: new LibSQLStore({
-      id: 'kanban-workflow-store',
-      url: `file:${dbPath}`,
-    }),
+    storage: new LibSQLStore({ id: 'kanban-workflow-store', url: `file:${dbPath}` }),
   });
-
-  _devWorkflow = buildDevWorkflow();
   _initialized = true;
-}
-
-function buildDevWorkflow() {
-  const stepResultSchema = z.object({
-    summary: z.string(),
-  });
-
-  const requirementDesignStep = createStep({
-    id: 'requirement-design',
-    inputSchema: z.object({
-      taskId: z.number(),
-      taskTitle: z.string(),
-      taskDescription: z.string(),
-      worktreePath: z.string(),
-    }),
-    outputSchema: stepResultSchema,
-    stateSchema: sharedStateSchema,
-    execute: async ({ inputData, state }: { inputData: { taskId: number; taskTitle: string; taskDescription: string; worktreePath: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
-      const workflowContext = getWorkflowExecutionContext();
-      return await executeWorkflowStep({
-        ...(workflowContext ? { context: workflowContext || undefined } : {}),
-        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
-        stepId: 'requirement-design',
-        ...buildStepExecutorInput({
-          state,
-          inputData,
-          upstreamStepIds: [],
-        }),
-      });
-    },
-  });
-
-  const codeDevelopmentStep = createStep({
-    id: 'code-development',
-    inputSchema: stepResultSchema,
-    outputSchema: stepResultSchema,
-    stateSchema: sharedStateSchema,
-    execute: async ({ inputData, state }: { inputData: { summary: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
-      const workflowContext = getWorkflowExecutionContext();
-      return await executeWorkflowStep({
-        ...(workflowContext ? { context: workflowContext || undefined } : {}),
-        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
-        stepId: 'code-development',
-        ...buildStepExecutorInput({
-          state,
-          inputData,
-          upstreamStepIds: ['requirement-design'],
-        }),
-      });
-    },
-  });
-
-  const testingStep = createStep({
-    id: 'testing',
-    inputSchema: stepResultSchema,
-    outputSchema: stepResultSchema,
-    stateSchema: sharedStateSchema,
-    execute: async ({ inputData, state }: { inputData: { summary: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
-      const workflowContext = getWorkflowExecutionContext();
-      return await executeWorkflowStep({
-        ...(workflowContext ? { context: workflowContext || undefined } : {}),
-        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
-        stepId: 'testing',
-        ...buildStepExecutorInput({
-          state,
-          inputData,
-          upstreamStepIds: ['code-development'],
-        }),
-      });
-    },
-  });
-
-  const codeReviewStep = createStep({
-    id: 'code-review',
-    inputSchema: stepResultSchema,
-    outputSchema: stepResultSchema,
-    stateSchema: sharedStateSchema,
-    execute: async ({ inputData, state }: { inputData: { summary: string }; state: { taskTitle: string; taskDescription: string; worktreePath: string } }) => {
-      const workflowContext = getWorkflowExecutionContext();
-      return await executeWorkflowStep({
-        ...(workflowContext ? { context: workflowContext || undefined } : {}),
-        ...(workflowContext?.templateSnapshot ? { templateSnapshot: workflowContext.templateSnapshot } : {}),
-        stepId: 'code-review',
-        ...buildStepExecutorInput({
-          state,
-          inputData,
-          upstreamStepIds: ['testing'],
-        }),
-      });
-    },
-  });
-
-  const workflow = createWorkflow({
-    id: 'dev-workflow-v1',
-    inputSchema: z.object({
-      taskId: z.number(),
-      taskTitle: z.string(),
-      taskDescription: z.string(),
-      worktreePath: z.string(),
-    }),
-    outputSchema: stepResultSchema,
-    stateSchema: sharedStateSchema,
-  })
-    .then(requirementDesignStep)
-    .then(codeDevelopmentStep)
-    .then(testingStep)
-    .then(codeReviewStep);
-
-  workflow.commit();
-  return workflow;
 }
 
 export function getMastra() {
@@ -180,9 +40,64 @@ export function getMastra() {
   return _mastra;
 }
 
-export function getDevWorkflow() {
-  if (!_devWorkflow) throw new Error('Workflow not initialized. Call initWorkflows() first.');
-  return _devWorkflow;
+interface BuildWorkflowOptions {
+  runId: number;
+  task: { id: number; project_id: number; execution_path: string };
+  lifecycle: WorkflowLifecycle;
+  templateSnapshot: WorkflowTemplate;
 }
 
-export { buildWorkflowSharedState, buildStepExecutorInput, sharedStateSchema };
+export function buildWorkflowFromTemplate(
+  template: WorkflowTemplate,
+  options?: BuildWorkflowOptions,
+) {
+  const steps = template.steps.map((templateStep, index) => {
+    const isFirst = index === 0;
+    const previousStepId = index > 0 ? template.steps[index - 1]?.id : null;
+
+    return createStep({
+      id: templateStep.id,
+      inputSchema: isFirst ? firstStepInputSchema : stepOutputSchema,
+      outputSchema: stepOutputSchema,
+      stateSchema: sharedStateSchema,
+      execute: async ({ inputData, state, abortSignal, abort }) => {
+        if (options) {
+          await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
+        }
+
+        const result = await executeWorkflowStep({
+          stepId: templateStep.id,
+          worktreePath: state.worktreePath,
+          state,
+          inputData,
+          templateSnapshot: options?.templateSnapshot ?? template,
+          abortSignal,
+          upstreamStepIds: previousStepId ? [previousStepId] : [],
+        });
+
+        if (abortSignal?.aborted) {
+          abort();
+          return { summary: '' };
+        }
+
+        return result;
+      },
+    });
+  });
+
+  let workflow = createWorkflow({
+    id: template.template_id,
+    inputSchema: firstStepInputSchema,
+    outputSchema: stepOutputSchema,
+    stateSchema: sharedStateSchema,
+  });
+
+  for (const step of steps) {
+    workflow = workflow.then(step) as any;
+  }
+
+  workflow.commit();
+  return workflow;
+}
+
+export { sharedStateSchema };

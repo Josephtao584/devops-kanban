@@ -7,9 +7,6 @@ export interface CreateAgentBody {
   description?: string;
   enabled: boolean;
   skills: string[];
-  commandOverride?: string | null;
-  args: string[];
-  env: Record<string, string>;
 }
 
 export interface UpdateAgentBody {
@@ -19,7 +16,4 @@ export interface UpdateAgentBody {
   description?: string;
   enabled?: boolean;
   skills?: string[];
-  commandOverride?: string | null;
-  args?: string[];
-  env?: Record<string, string>;
 }

@@ -27,7 +27,7 @@ test.test('TaskService.startTask forwards workflow_template_id to WorkflowServic
   const startWorkflowCalls: Array<{ taskId: number; workflowTemplateId?: string }> = [];
   const workflowService = {
     async startWorkflow(taskId: number, workflowTemplateId?: string) {
-      startWorkflowCalls.push({ taskId, workflowTemplateId });
+      startWorkflowCalls.push(workflowTemplateId !== undefined ? { taskId, workflowTemplateId } : { taskId });
       return { id: 99, task_id: taskId };
     },
   };
@@ -57,7 +57,7 @@ test.test('TaskService.startTask starts workflow without template id when body i
   const startWorkflowCalls: Array<{ taskId: number; workflowTemplateId?: string }> = [];
   const workflowService = {
     async startWorkflow(taskId: number, workflowTemplateId?: string) {
-      startWorkflowCalls.push({ taskId, workflowTemplateId });
+      startWorkflowCalls.push(workflowTemplateId !== undefined ? { taskId, workflowTemplateId } : { taskId });
       return { id: 99, task_id: taskId };
     },
   };
@@ -186,7 +186,7 @@ test.test('TaskService.startTask can pass a nullish workflow template body throu
   const startWorkflowCalls: Array<{ taskId: number; workflowTemplateId?: string }> = [];
   const workflowService = {
     async startWorkflow(taskId: number, workflowTemplateId?: string) {
-      startWorkflowCalls.push({ taskId, workflowTemplateId });
+      startWorkflowCalls.push(workflowTemplateId !== undefined ? { taskId, workflowTemplateId } : { taskId });
       return null;
     },
   };

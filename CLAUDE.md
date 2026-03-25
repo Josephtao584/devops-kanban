@@ -95,6 +95,35 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 
 `frontend/vite.config.js`: Proxies `/api` to `http://localhost:8000`, defines `global: 'globalThis'` (sockjs-client polyfill)
 
+## TypeScript Coding Standards
+
+**Avoid TypeScript utility types** - Do not use `Pick<>`, `Omit<>`, `Partial<>`, or similar utility types. Instead:
+- Use explicit inline type definitions: `{ field1: type1; field2?: type2 }`
+- Declare full interfaces when types are reused
+- Keep type definitions clear and self-contained
+
+**Avoid unnecessary type assertions** - Do not use `as` type assertions unless absolutely necessary:
+- Trust TypeScript's type inference
+- Remove redundant `as Type | null` assertions on repository calls
+- Use `const error: any = new Error()` when adding custom properties like `statusCode`
+- Only use `as` when TypeScript cannot infer the correct type
+
+**Examples:**
+```typescript
+// ❌ Avoid
+agentRepo: Pick<AgentRepository, 'findById'>;
+stepUpdate: Partial<Pick<WorkflowStepEntity, 'summary' | 'error'>>;
+const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
+const error = new Error('Not found') as Error & { statusCode?: number };
+
+// ✅ Prefer
+agentRepo: AgentRepository;
+stepUpdate: { summary?: string | null; error?: string | null };
+const task = await this.taskRepo.findById(taskId);
+const error: any = new Error('Not found');
+error.statusCode = 404;
+```
+
 ## Common Issues
 
 1. **API Response Handling**: Backend always returns `{ success, message, data, error }`. Frontend must check `response.success` before using `response.data`.

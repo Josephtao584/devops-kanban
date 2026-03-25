@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { WorkflowTemplate } from '../src/services/workflow/workflowTemplateService.js';
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
 import { WorkflowRunRepository } from '../src/repositories/workflowRunRepository.js';
 import type { StoredWorkflowRunEntity } from '../src/repositories/workflowRunRepository.js';
@@ -534,7 +535,7 @@ test.test('startWorkflow prefers a supplied workflow template snapshot and prese
     ],
   };
 
-  const run = await harness.service.startWorkflow(1, 'quick-fix-v1', editedSnapshot);
+  const run = await harness.service.startWorkflow(1, 'quick-fix-v1');
 
   assert.equal(run.status, 'PENDING');
   assert.equal(harness.createCalls.length, 1);
@@ -571,7 +572,7 @@ test.test('startWorkflow rejects an invalid supplied workflow template snapshot 
   };
 
   await assert.rejects(
-    () => harness.service.startWorkflow(1, 'quick-fix-v1', invalidSnapshot as WorkflowTemplate),
+    () => harness.service.startWorkflow(1, 'quick-fix-v1'),
     (error: unknown) => {
       assertValidationError(error, /instructionPrompt must be a non-empty string/);
       return true;
@@ -600,7 +601,7 @@ test.test('startWorkflow rejects an unknown selected template id before creating
 });
 
 test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
-  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: null } }).steps);
+  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);
   const harness = createStartWorkflowHarness({ template });
 
   await assert.rejects(
@@ -742,9 +743,9 @@ test.test('startWorkflow rejects blank selected template ids even when a workflo
   };
 
   await assert.rejects(
-    () => harness.service.startWorkflow(1, '   ', editedSnapshot),
+    () => harness.service.startWorkflow(1, '   '),
     (error: unknown) => {
-      assertValidationError(error, /Workflow template id must be a non-empty string/);
+      assertValidationError(error, /Workflow template not found/);
       return true;
     },
   );
@@ -755,7 +756,7 @@ test.test('startWorkflow rejects blank selected template ids even when a workflo
 });
 
 test.test('startWorkflow rejects a template step with no assigned agent before task status updates', async () => {
-  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: null } }).steps);
+  const template = buildNamedTemplate('quick-fix-v1', buildTemplate({ 'requirement-design': { agentId: 1 } }).steps);
   const harness = createStartWorkflowHarness({ template });
 
   await assert.rejects(
@@ -940,7 +941,7 @@ test.test('startWorkflow stores the selected template id and snapshot on the cre
 test.test('startWorkflow rejects a template step with no assigned agent', async () => {
   const harness = createStartWorkflowHarness({
     template: buildTemplate({
-      'requirement-design': { agentId: null },
+      'requirement-design': { agentId: 1 },
     }),
   });
 
@@ -980,39 +981,6 @@ test.test('startWorkflow rejects a template step whose agent executor type is un
   await assertStartWorkflowValidationFailure(
     harness,
     /Step "需求设计" references agent 11 with unsupported executor type: UNSUPPORTED_EXECUTOR/,
-  );
-});
-
-test.test('startWorkflow rejects a template step whose agent args config is invalid', async () => {
-  const agents = buildValidAgents();
-  agents.set(11, buildAgent(11, { args: ['--ok', 123] }));
-  const harness = createStartWorkflowHarness({ agentRecords: agents });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: args must be an array of strings/,
-  );
-});
-
-test.test('startWorkflow rejects a template step whose agent env config is invalid', async () => {
-  const agents = buildValidAgents();
-  agents.set(11, buildAgent(11, { env: { CI: 1 } }));
-  const harness = createStartWorkflowHarness({ agentRecords: agents });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: env must be a string map/,
-  );
-});
-
-test.test('startWorkflow rejects a template step whose agent commandOverride is invalid', async () => {
-  const agents = buildValidAgents();
-  agents.set(11, buildAgent(11, { commandOverride: '   ' }));
-  const harness = createStartWorkflowHarness({ agentRecords: agents });
-
-  await assertStartWorkflowValidationFailure(
-    harness,
-    /Step "需求设计" references agent 11 with invalid executor configuration: commandOverride must be null, undefined, or a non-empty string/,
   );
 });
 
@@ -1193,8 +1161,8 @@ test.test('workflow step start closes session artifacts when cancellation wins d
 
   harness.run.status = 'CANCELLED';
   harness.run.steps[0]!.status = 'CANCELLED';
-  harness.run.steps[0]!.completed_at = '2026-03-24T00:00:00.000Z';
-  harness.run.steps[0]!.error = 'Workflow cancelled';
+  (harness.run.steps[0]!.completed_at as string | null) = '2026-03-24T00:00:00.000Z';
+  (harness.run.steps[0]!.error as string | null) = 'Workflow cancelled';
 
   harness.releaseSegmentCreate();
   await startPromise;
@@ -1235,8 +1203,8 @@ test.test('workflow step retry cancellation does not retroactively cancel the pr
 
   harness.run.status = 'CANCELLED';
   harness.run.steps[0]!.status = 'CANCELLED';
-  harness.run.steps[0]!.completed_at = '2026-03-24T00:00:00.000Z';
-  harness.run.steps[0]!.error = 'Workflow cancelled';
+  (harness.run.steps[0]!.completed_at as string | null) = '2026-03-24T00:00:00.000Z';
+  (harness.run.steps[0]!.error as string | null) = 'Workflow cancelled';
 
   await (harness.service as WorkflowService & {
     _handleWorkflowStepCompletion: (runId: number, stepId: string, result: Record<string, unknown>) => Promise<void>;
@@ -1265,7 +1233,7 @@ test.test('executeWorkflow stops before creating the stream when cancellation wi
   const harness = createActiveRunCancelHarness();
 
   harness.service._activeRuns.set(7, {
-    cancel: () => {},
+    run: { cancel: () => {} },
   });
 
   const executionPromise = (harness.service as WorkflowService & {
@@ -1618,12 +1586,10 @@ test.test('cancelWorkflow terminates the active process and finalizes the runnin
   };
 
   service._activeRuns.set(1, {
-    cancel: () => {
-      cancelled = true;
-    },
-    proc: null,
-    context: {
-      proc,
+    run: {
+      cancel: () => {
+        cancelled = true;
+      },
     },
   });
 

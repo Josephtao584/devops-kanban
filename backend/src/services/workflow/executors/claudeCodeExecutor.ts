@@ -12,17 +12,17 @@ class ClaudeCodeExecutor implements Executor {
   async execute({
     prompt,
     worktreePath,
-    executorConfig,
     onSpawn,
     onEvent,
     onProviderState,
+    abortSignal,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     const sink = new ExecutionEventSink({ onEvent, onProviderState });
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
-      executorConfig,
       ...(onSpawn ? { onSpawn } : {}),
+      ...(abortSignal ? { abortSignal } : {}),
     });
 
     if (result.stdout) {

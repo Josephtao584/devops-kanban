@@ -23,7 +23,7 @@ interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
   templateSnapshot?: WorkflowTemplateEntity;
   templateService?: WorkflowTemplateService;
-  agentRepo?: Pick<AgentRepository, 'findById'>;
+  agentRepo?: AgentRepository;
   context?: { proc?: ExecutorProcessHandle | null } | undefined;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
@@ -36,6 +36,7 @@ interface ExecuteWorkflowStepInput {
   };
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
+  abortSignal?: AbortSignal | undefined;
 }
 
 function isExecutorType(value: unknown): value is ExecutorType {
@@ -47,27 +48,12 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
     throw new Error(`Agent ${agent.id} has unsupported executor type: ${String(agent.executorType)}`);
   }
 
-  if (agent.commandOverride != null && (typeof agent.commandOverride !== 'string' || agent.commandOverride.trim().length === 0)) {
-    throw new Error(`Agent ${agent.id} has invalid command override`);
-  }
-
-  if (!Array.isArray(agent.args) || agent.args.some((arg) => typeof arg !== 'string')) {
-    throw new Error(`Agent ${agent.id} has invalid args configuration`);
-  }
-
-  if (agent.env == null || typeof agent.env !== 'object' || Array.isArray(agent.env) || Object.values(agent.env).some((value) => typeof value !== 'string')) {
-    throw new Error(`Agent ${agent.id} has invalid env configuration`);
-  }
-
   if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
     throw new Error(`Agent ${agent.id} has invalid skills configuration`);
   }
 
   return {
     type: agent.executorType,
-    commandOverride: agent.commandOverride ?? null,
-    args: [...agent.args],
-    env: { ...agent.env },
     skills: [...agent.skills],
   };
 }
@@ -80,6 +66,7 @@ export async function executeWorkflowStep({
   context,
   onEvent,
   onProviderState,
+  abortSignal,
   stepId,
   worktreePath,
   state,
@@ -115,11 +102,18 @@ export async function executeWorkflowStep({
   });
   const sink = new ExecutionEventSink({ onEvent, onProviderState });
 
+  if (abortSignal && context) {
+    abortSignal.addEventListener('abort', () => {
+      context?.proc?.kill?.('SIGTERM');
+    }, { once: true });
+  }
+
   const executor = registry.getExecutor(executorConfig.type);
   const execution: ExecutorExecutionResult = await executor.execute({
     prompt,
     worktreePath,
     executorConfig,
+    abortSignal,
     onSpawn: (proc) => {
       if (context) {
         context.proc = proc;
