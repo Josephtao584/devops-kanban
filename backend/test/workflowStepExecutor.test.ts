@@ -32,6 +32,7 @@ function createStep(agentId: number | null) {
 function createTemplateSnapshot(step = createStep(7)) {
   return {
     template_id: 'dev-workflow-v1',
+    name: '默认研发工作流',
     steps: [step],
   };
 }
@@ -552,24 +553,6 @@ test.test('executeWorkflowStep fails when the bound agent record is missing', as
   );
 });
 
-test.test('executeWorkflowStep fails when the persisted agent args config is invalid', async () => {
-  const templateService = createTemplateService();
-  const agentRepo = {
-    async findById(id: number) {
-      assert.equal(id, 7);
-      return createAgent({ name: 'Broken Args Agent', args: ['--json', 1] as never });
-    },
-  };
-
-  await assert.rejects(
-    () => executeWorkflowStep({
-      templateService: templateService as never,
-      agentRepo: agentRepo as never,
-      ...createInputOverrides(),
-    }),
-    /invalid args configuration/
-  );
-});
 
 test.test('executeWorkflowStep fails when the persisted agent executor type is invalid', async () => {
   const templateService = createTemplateService();
@@ -609,24 +592,6 @@ test.test('executeWorkflowStep fails when the persisted agent command override i
   );
 });
 
-test.test('executeWorkflowStep fails when the persisted agent env config is invalid', async () => {
-  const templateService = createTemplateService();
-  const agentRepo = {
-    async findById(id: number) {
-      assert.equal(id, 7);
-      return createAgent({ name: 'Broken Env Agent', env: { MODE: 1 } as never });
-    },
-  };
-
-  await assert.rejects(
-    () => executeWorkflowStep({
-      templateService: templateService as never,
-      agentRepo: agentRepo as never,
-      ...createInputOverrides(),
-    }),
-    /invalid env configuration/
-  );
-});
 
 test.test('executeWorkflowStep fails when the persisted agent skills config is invalid', async () => {
   const templateService = createTemplateService();
@@ -645,5 +610,47 @@ test.test('executeWorkflowStep fails when the persisted agent skills config is i
     }),
     /invalid skills configuration/
   );
+});
+
+test.test('passes abortSignal to executor', async () => {
+  const proc: ExecutorProcessHandle = {
+    kill() {
+      return true;
+    },
+  };
+  const context: { proc?: ExecutorProcessHandle | null } = {};
+  const abortController = new AbortController();
+  let receivedAbortSignal: AbortSignal | undefined;
+  const templateService = createTemplateService();
+  const agentRepo = {
+    async findById(id: number) {
+      assert.equal(id, 7);
+      return createAgent();
+    },
+  };
+  const registry = {
+    getExecutor(type: keyof ExecutorMap) {
+      assert.equal(type, 'CODEX');
+      return {
+        async execute(input: ExecutorExecutionInput) {
+          receivedAbortSignal = input.abortSignal;
+          const rawResult: ExecutorRawResult = { summary: 'ok' };
+          return { exitCode: 0, stdout: '', stderr: '', rawResult, proc };
+        },
+      };
+    },
+  };
+
+  const result = await executeWorkflowStep({
+    templateService: templateService as never,
+    agentRepo: agentRepo as never,
+    registry: registry as never,
+    context,
+    abortSignal: abortController.signal,
+    ...createInputOverrides(),
+  });
+
+  assert.equal(receivedAbortSignal, abortController.signal);
+  assert.deepEqual(result, { summary: 'ok' });
 });
 

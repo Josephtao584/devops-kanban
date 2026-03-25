@@ -106,7 +106,7 @@ export interface WorkflowTemplateEntity {
     id: string;
     name: string;
     instructionPrompt: string;
-    agentId: number | null;
+    agentId: number;
   }>;
 }
 

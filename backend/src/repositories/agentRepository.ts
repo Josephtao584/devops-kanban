@@ -9,9 +9,6 @@ interface AgentEntity extends BaseEntity {
   description?: string;
   enabled: boolean;
   skills: string[];
-  commandOverride?: string | null;
-  args: string[];
-  env: Record<string, string>;
 }
 
 class AgentRepository extends BaseRepository<AgentEntity, CreateAgentBody, UpdateAgentBody> {

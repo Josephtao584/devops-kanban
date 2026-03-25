@@ -24,7 +24,7 @@ test.test('workflow template DTO accepts the existing full-template update paylo
         id: 'testing',
         name: '测试',
         instructionPrompt: '根据上游步骤摘要执行必要验证，说明测试结果、发现的问题和结论。',
-        agentId: null,
+        agentId: 1,
       },
       {
         id: 'code-review',

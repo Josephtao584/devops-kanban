@@ -5,7 +5,7 @@ import type { ExecutorConfig, ExecutorProcessHandle } from '../../../types/execu
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
-type ClaudeRuntimeExecutorConfig = Pick<ExecutorConfig, 'commandOverride' | 'args' | 'env'>;
+type ClaudeRuntimeExecutorConfig = { commandOverride?: string; args?: string[]; env?: Record<string, string> };
 
 type ClaudeSpawnExecution = {
   exitCode: number | null;
@@ -61,11 +61,13 @@ async function defaultSpawnImpl({
   prompt,
   onSpawn,
   executorConfig = {},
+  abortSignal,
 }: {
   worktreePath: string;
   prompt: string;
   onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
   executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
+  abortSignal?: AbortSignal;
 }) {
   const cliArgs = buildClaudeCliArgs(prompt);
   const resolved = buildClaudeSpawnCommand(executorConfig);
@@ -84,6 +86,16 @@ async function defaultSpawnImpl({
     const proc = toExecutorProcessHandle(spawnedProc);
 
     onSpawn?.(proc);
+
+    if (abortSignal) {
+      if (abortSignal.aborted) {
+        proc.kill?.('SIGTERM');
+      } else {
+        abortSignal.addEventListener('abort', () => {
+          proc.kill?.('SIGTERM');
+        }, { once: true });
+      }
+    }
 
     let stdout = '';
     let stderr = '';
@@ -132,17 +144,20 @@ class ClaudeStepRunner {
     worktreePath,
     executorConfig = {},
     onSpawn,
+    abortSignal,
   }: {
     prompt: string;
     worktreePath: string;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
     onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
+    abortSignal?: AbortSignal;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,
       prompt,
       executorConfig,
       ...(onSpawn ? { onSpawn } : {}),
+      ...(abortSignal ? { abortSignal } : {}),
     });
 
     if (execution.exitCode !== 0) {
