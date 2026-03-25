@@ -20,10 +20,7 @@ interface WorkflowAgentRecord {
   id: number;
   executorType: string;
   enabled: boolean;
-  commandOverride?: unknown;
-  args: unknown;
-  env: unknown;
-  skills?: unknown;
+  skills: string[];
 }
 
 const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];

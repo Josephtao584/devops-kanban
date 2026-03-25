@@ -24,10 +24,7 @@ interface WorkflowAgentRecord {
   id: number;
   executorType: string;
   enabled: boolean;
-  commandOverride?: unknown;
-  args: unknown;
-  env: unknown;
-  skills?: unknown;
+  skills: string[];
 }
 
 const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
@@ -58,18 +55,6 @@ function isSupportedExecutorType(value: unknown): value is ExecutorType {
 }
 
 function getInvalidAgentConfigReason(agent: WorkflowAgentRecord): string | null {
-  if (agent.commandOverride != null && (typeof agent.commandOverride !== 'string' || agent.commandOverride.trim().length === 0)) {
-    return 'commandOverride must be null, undefined, or a non-empty string';
-  }
-
-  if (!Array.isArray(agent.args) || agent.args.some((arg) => typeof arg !== 'string')) {
-    return 'args must be an array of strings';
-  }
-
-  if (agent.env == null || typeof agent.env !== 'object' || Array.isArray(agent.env) || Object.values(agent.env).some((value) => typeof value !== 'string')) {
-    return 'env must be a string map';
-  }
-
   if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
     return 'skills must be an array of strings';
   }
