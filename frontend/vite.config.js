@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
       global: 'globalThis'
     },
     test: {
+      include: [
+        'tests/**/*.{test,spec}.js',
+        'src/**/*.{test,spec}.js'
+      ],
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./tests/setup.js'],
@@ -39,3 +43,4 @@ export default defineConfig(({ mode }) => {
     }
   }
 })
+

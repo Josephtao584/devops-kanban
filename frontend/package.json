@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
@@ -29,6 +30,7 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@vitejs/plugin-vue": "^5.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "@vue/test-utils": "^2.4.6",

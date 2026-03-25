@@ -13,6 +13,14 @@ import { useTaskSourceStore } from '../src/stores/taskSourceStore'
 import { startTask } from '../src/api/task.js'
 import { getWorkflowTemplateById } from '../src/api/workflowTemplate.js'
 
+const handleWorktreeMock = vi.fn()
+
+vi.mock('../src/composables/useWorktree', () => ({
+  useWorktree: () => ({
+    handleWorktree: handleWorktreeMock
+  })
+}))
+
 vi.mock('../src/api/task.js', async () => {
   const actual = await vi.importActual('../src/api/task.js')
   return {
@@ -138,7 +146,14 @@ const WorkflowTemplateSelectDialogStub = defineComponent({
               templateId: 'quick-fix-v1',
               autoCreateWorktree: false
             })
-          }, 'confirm quick-fix')
+          }, 'confirm quick-fix'),
+          h('button', {
+            class: 'confirm-template-selection-with-worktree',
+            onClick: () => emit('confirm', {
+              templateId: 'quick-fix-v1',
+              autoCreateWorktree: true
+            })
+          }, 'confirm quick-fix with worktree')
         ])
       : null
   }
@@ -190,7 +205,7 @@ const KanbanListViewStub = defineComponent({
         }, `select ${task.title}`),
         h('button', {
           class: `start-task-${task.id}`,
-          onClick: () => emit('workflow-action', 'start')
+          onClick: () => emit('workflow-action', { action: 'start', task })
         }, `start ${task.title}`)
       ])
     ))
@@ -310,8 +325,11 @@ describe('KanbanView workflow start entrypoint', () => {
   beforeEach(() => {
     getWorkflowTemplateById.mockClear()
   })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    handleWorktreeMock.mockReset()
+    handleWorktreeMock.mockResolvedValue(null)
     localStorage.clear()
 
     const pinia = createPinia()
@@ -420,5 +438,58 @@ describe('KanbanView workflow start entrypoint', () => {
     })
     expect(ElMessage.success).toHaveBeenCalledWith('任务已启动')
     expect(taskStore.fetchTasks).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not toggle an existing worktree when auto-create is enabled during workflow start', async () => {
+    startTask.mockResolvedValue({ success: true })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const taskStore = useTaskStore()
+    taskStore.tasks = [
+      {
+        id: 7,
+        title: '修复启动流程',
+        status: 'TODO',
+        project_id: 1,
+        priority: 'HIGH',
+        worktree_status: 'created',
+        worktree_path: '/tmp/task-7',
+        worktree_branch: 'task/7'
+      }
+    ]
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-template-selection-with-worktree').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-workflow-edit').trigger('click')
+    await flushPromises()
+
+    expect(handleWorktreeMock).not.toHaveBeenCalled()
+    expect(startTask).toHaveBeenCalledWith(7, {
+      workflow_template_id: 'quick-fix-v1',
+      workflow_template_snapshot: {
+        template_id: 'quick-fix-v1-custom',
+        name: '快速修复工作流',
+        autoCreateWorktree: true,
+        steps: [
+          {
+            id: 'triage',
+            name: '问题定位',
+            instructionPrompt: '先确认问题范围，并记录复现条件。',
+            agentId: 11
+          },
+          {
+            id: 'fix',
+            name: '实施修复',
+            instructionPrompt: '完成最小修复。',
+            agentId: 12
+          }
+        ]
+      }
+    })
   })
 })

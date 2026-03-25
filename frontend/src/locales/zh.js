@@ -190,6 +190,7 @@ export default {
     disabled: '已禁用',
     sync: '同步',
     test: '测试连接',
+    testing: '测试中...',
     edit: '编辑',
     delete: '删除',
     editTitle: '编辑任务源',
