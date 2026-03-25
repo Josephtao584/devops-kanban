@@ -40,6 +40,11 @@ function normalizeStepResult(result: unknown): Record<string, unknown> {
   };
 }
 
+type StartWorkflowOptions = {
+  workflowTemplateId?: string | undefined;
+  workflowTemplateSnapshot?: WorkflowTemplate | undefined;
+};
+
 class WorkflowService {
   workflowRunRepo: WorkflowRunRepository;
   taskRepo: TaskRepository;
@@ -82,7 +87,7 @@ class WorkflowService {
     this._activeRuns = new Map();
   }
 
-  async startWorkflow(taskId: number, workflowTemplateId: string) {
+  async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
       const error: any = new Error('Task not found');
@@ -98,7 +103,14 @@ class WorkflowService {
       throw error;
     }
 
-    const template = await this._loadTemplate(workflowTemplateId);
+    const workflowTemplateId = typeof options === 'string' ? options : options.workflowTemplateId;
+    const workflowTemplateSnapshot = typeof options === 'string' ? undefined : options.workflowTemplateSnapshot;
+
+    if (!workflowTemplateSnapshot && !workflowTemplateId?.trim()) {
+      throw createValidationError('workflow template id or snapshot is required');
+    }
+
+    const template = workflowTemplateSnapshot ?? await this._loadTemplate(workflowTemplateId ?? '');
     await this._validateTemplateAgents(template);
 
     const run = await this.workflowRunRepo.create({

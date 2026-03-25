@@ -150,7 +150,7 @@ export default {
     connectionFailed: '连接失败',
     types: {
       GITHUB: 'GitHub',
-      GITLAB: 'GitLab',
+      CODEHUB: 'CodeHub',
       REQUIREMENT: '需求',
       JIRA: 'Jira',
       LINEAR: 'Linear',

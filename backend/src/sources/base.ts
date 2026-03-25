@@ -124,11 +124,10 @@ class UniversalAdapter extends TaskSourceAdapter {
     const resolvedPath = this._substituteWithNormalization(pathValue, this.source.config);
     const normalizedBaseUrl = typeof baseUrl === 'string' ? baseUrl : '';
     const normalizedPath = typeof resolvedPath === 'string' ? resolvedPath : '';
+    const normalizedBaseWithSlash = normalizedBaseUrl.endsWith('/') ? normalizedBaseUrl : `${normalizedBaseUrl}/`;
+    const relativePath = normalizedPath.replace(/^\/+/, '');
 
-    const url = new URL(
-      normalizedPath,
-      normalizedBaseUrl.endsWith('/') ? normalizedBaseUrl.slice(0, -1) : normalizedBaseUrl,
-    );
+    const url = new URL(relativePath, normalizedBaseWithSlash);
 
     if (params) {
       for (const [key, value] of Object.entries(params)) {

@@ -9,14 +9,15 @@ import {
 } from '../../src/sources/index.js';
 import { TaskSourceAdapter, UniversalAdapter } from '../../src/sources/base.js';
 import type { ImportedTask } from '../../src/types/sources.ts';
+import { loadAdapterTypes } from '../../src/config/taskSources.js';
 
 test.test('source registry exposes built-in adapters with metadata', () => {
   const types = getAvailableTypes();
 
   assert.equal(typeof types.GITHUB, 'object');
   assert.equal(types.GITHUB?.name, 'GitHub Issues');
-  assert.equal(typeof types.GITLAB, 'object');
-  assert.equal(types.GITLAB?.name, 'GitLab Issues');
+  assert.equal(typeof types.CODEHUB, 'object');
+  assert.equal(types.CODEHUB?.name, 'CodeHub Issues');
   assert.deepEqual(types.GITHUB?.configFields && (types.GITHUB.configFields as Record<string, unknown>).state, {
     type: 'string',
     required: false,
@@ -53,18 +54,47 @@ test.test('INTERNAL_API appears in available types and metadata-only config does
   assert.equal(adapter instanceof UniversalAdapter, false);
 });
 
-test.test('getAdapter returns discovered gitlab adapter instance', () => {
-  const adapter = getAdapter('GITLAB', {
-    type: 'GITLAB',
+test.test('getAdapter returns configured codehub adapter instance', () => {
+  const adapter = getAdapter('CODEHUB', {
+    type: 'CODEHUB',
     config: {
-      repo: 'group/project',
+      project_id: '123',
+      baseUrl: 'https://codehub.huawei.com/api/v4',
     },
   });
 
-  assert.ok(adapter instanceof TaskSourceAdapter);
-  assert.equal(adapter.source.type, 'GITLAB');
-  assert.equal(adapter.source.config.repo, 'group/project');
-  assert.equal(getAdapterMetadata('GITLAB')?.name, 'GitLab Issues');
+  assert.ok(adapter instanceof UniversalAdapter);
+  assert.equal(adapter.source.type, 'CODEHUB');
+  assert.equal(adapter.source.config.project_id, '123');
+  assert.equal(getAdapterMetadata('CODEHUB')?.name, 'CodeHub Issues');
+});
+
+test.test('CODEHUB request path keeps api version prefix in baseUrl', async () => {
+  const adapterTypes = await loadAdapterTypes();
+  const codehub = adapterTypes.find((typeDefinition) => typeDefinition.key === 'CODEHUB');
+
+  assert.ok(codehub);
+  assert.ok(codehub.request);
+
+  const adapter = new UniversalAdapter({
+    type: 'CODEHUB',
+    config: {
+      project_id: '123',
+      baseUrl: 'https://codehub.huawei.com/api/v4',
+    },
+  }, codehub);
+
+  const url = adapter._buildUrl(codehub.request.path, codehub.request.params);
+
+  assert.equal(url.toString(), 'https://codehub.huawei.com/api/v4/projects/123/issues');
+});
+
+test.test('legacy GITLAB adapter is no longer exposed after CodeHub rename', () => {
+  const types = getAvailableTypes();
+
+  assert.equal(types.GITLAB, undefined);
+  assert.equal(getAdapterMetadata('GITLAB'), null);
+  assert.throws(() => getAdapter('GITLAB', { type: 'GITLAB', config: {} }), /Unsupported source type: GITLAB/);
 });
 
 test.test('registerAdapter rejects subclasses without static type', () => {

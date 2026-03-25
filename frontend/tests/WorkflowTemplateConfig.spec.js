@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, inject, nextTick, provide, ref, toRef } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import WorkflowTemplateConfig from '../src/views/WorkflowTemplateConfig.vue'
 import i18n from '../src/locales'
 import {
@@ -76,7 +76,8 @@ const ElButtonStub = defineComponent({
   name: 'ElButtonStub',
   props: {
     disabled: { type: Boolean, default: false },
-    type: { type: String, default: '' }
+    type: { type: String, default: '' },
+    text: { type: Boolean, default: false }
   },
   emits: ['click'],
   setup(props, { slots, attrs, emit }) {
@@ -85,8 +86,48 @@ const ElButtonStub = defineComponent({
       class: ['el-button-stub', attrs.class],
       disabled: props.disabled,
       'data-type': props.type,
-      onClick: () => emit('click')
+      'data-text': String(props.text),
+      onClick: (event) => emit('click', event)
     }, slots.default?.())
+  }
+})
+
+const ElDialogStub = defineComponent({
+  name: 'ElDialogStub',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    title: { type: String, default: '' }
+  },
+  emits: ['close'],
+  setup(props, { slots, emit }) {
+    return () => props.modelValue ? h('div', { class: 'el-dialog-stub' }, [
+      h('div', { class: 'dialog-title-stub' }, props.title),
+      slots.default?.(),
+      slots.footer?.(),
+      h('button', { class: 'dialog-close-stub', onClick: () => emit('close') }, 'close')
+    ]) : null
+  }
+})
+
+const ElTooltipStub = defineComponent({
+  name: 'ElTooltipStub',
+  props: {
+    content: { type: String, default: '' },
+    placement: { type: String, default: 'top' }
+  },
+  setup(props, { slots }) {
+    return () => h('div', {
+      class: 'el-tooltip-stub',
+      'data-tooltip-content': props.content,
+      'data-placement': props.placement
+    }, slots.default?.())
+  }
+})
+
+const ElIconStub = defineComponent({
+  name: 'ElIconStub',
+  setup(_, { slots }) {
+    return () => h('span', { class: 'el-icon-stub' }, slots.default?.())
   }
 })
 
@@ -249,6 +290,9 @@ function mountView() {
       stubs: {
         'el-card': ElCardStub,
         'el-button': ElButtonStub,
+        'el-dialog': ElDialogStub,
+        'el-tooltip': ElTooltipStub,
+        'el-icon': ElIconStub,
         'el-input': ElInputStub,
         'el-select': ElSelectStub,
         'el-option': ElOptionStub,
@@ -260,11 +304,62 @@ function mountView() {
   })
 }
 
+const selectReleaseTemplate = async (wrapper) => {
+  await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+  await flushPromises()
+}
+
+const getStepCards = (wrapper) => wrapper.findAll('.workflow-step-card')
+const getSelectedStepCard = (wrapper) => wrapper.find('.workflow-step-card.is-selected')
+const getInsertBeforeButtons = (wrapper) => wrapper.findAll('[data-testid="insert-step-before-button"]')
+const getInsertAfterButtons = (wrapper) => wrapper.findAll('[data-testid="insert-step-after-button"]')
+const getDeleteStepButtons = (wrapper) => wrapper.findAll('[data-testid="delete-step-button"]')
+const getInlineStepNameInput = (wrapper) => wrapper.findAll('input').find((input) => input.attributes('data-testid') !== 'template-name-input')
+
+const focusInlineEditor = async (wrapper, index = 0) => {
+  await getStepCards(wrapper)[index].trigger('click')
+  await flushPromises()
+}
+
+const fillInlineEditor = async (wrapper, {
+  name,
+  agentId,
+  instructionPrompt
+} = {}) => {
+  if (typeof name === 'string') {
+    const nameInput = getInlineStepNameInput(wrapper)
+    await nameInput.setValue(name)
+    await flushPromises()
+  }
+
+  if (typeof agentId !== 'undefined') {
+    await wrapper.find('.el-select-stub').setValue(String(agentId))
+    await flushPromises()
+  }
+
+  if (typeof instructionPrompt === 'string') {
+    await wrapper.find('textarea').setValue(instructionPrompt)
+    await flushPromises()
+  }
+}
+
+const getSelectedCardName = (wrapper) => getSelectedStepCard(wrapper).find('.workflow-step-card__name').text()
+
+const createTemplateWithSteps = (steps) => ({
+  template_id: 'release-workflow-v1',
+  name: '发布工作流',
+  steps
+})
+
+const namedStep = (id, name, instructionPrompt, agentId) => ({ id, name, instructionPrompt, agentId })
+
 describe('WorkflowTemplateConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
     vi.spyOn(ElMessage, 'success').mockImplementation(() => {})
+    vi.spyOn(ElMessage, 'warning').mockImplementation(() => {})
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue()
 
     mockTemplateApis()
     getAgents.mockResolvedValue({
@@ -317,8 +412,9 @@ describe('WorkflowTemplateConfig', () => {
     expect(draftId).toContain('draft-')
     expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(true)
     expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('新建模版')
-    expect(wrapper.findAll('.workflow-step-card')).toHaveLength(customTemplate.steps.length)
-    expect(wrapper.find('textarea').element.value).toBe('梳理发布范围。')
+    expect(getStepCards(wrapper)).toHaveLength(customTemplate.steps.length)
+    expect(wrapper.find('.step-editor-card').exists()).toBe(true)
+    expect(wrapper.find('.step-editor-card__title').text()).toBe('需求设计')
     expect(wrapper.text()).toContain('Disabled Agent (已禁用)')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(true)
   })
@@ -407,6 +503,8 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
     await flushPromises()
 
+    await focusInlineEditor(wrapper, 0)
+
     const select = wrapper.find('select.el-select-stub')
     await select.setValue('3')
     await wrapper.get('[data-testid="template-name-input"]').setValue('发布工作流-已更新')
@@ -433,11 +531,28 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
     await flushPromises()
 
+    await focusInlineEditor(wrapper, 0)
+
     const disabledOption = wrapper.find('option[value="2"]')
     expect(disabledOption.exists()).toBe(true)
     expect(disabledOption.attributes()).toHaveProperty('disabled')
     expect(wrapper.text()).toContain('Disabled Agent (已禁用)')
     expect(wrapper.text()).toContain('缺失成员 (#999)')
+  })
+
+  it('does not render an empty binding state row when the selected step has no warning tag', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+    await flushPromises()
+
+    await focusInlineEditor(wrapper, 1)
+    await wrapper.find('select.el-select-stub').setValue('3')
+    await flushPromises()
+
+    const bindingStateRow = wrapper.find('.binding-state-row')
+    expect(bindingStateRow.exists()).toBe(false)
   })
 
   it('does not report missing agents when agent loading fails', async () => {
@@ -545,6 +660,178 @@ describe('WorkflowTemplateConfig', () => {
     expect(ElMessage.error).toHaveBeenCalledWith('refresh failed')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('dev-workflow-v1')
+  })
+
+  it('keeps template-page-specific actions while rendering card-level workflow editor controls', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    expect(wrapper.get('[data-testid="template-name-input"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="save-template-button"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="delete-template-button"]').exists()).toBe(true)
+    expect(wrapper.find('.step-editor-section').exists()).toBe(true)
+    expect(getStepCards(wrapper)).toHaveLength(2)
+
+    const firstCard = getStepCards(wrapper)[0]
+    expect(firstCard.findAll('.el-tooltip-stub')).toHaveLength(3)
+    expect(firstCard.find('[data-testid="insert-step-before-button"]').attributes('aria-label')).toBe('前插阶段')
+    expect(firstCard.find('[data-testid="insert-step-after-button"]').attributes('aria-label')).toBe('后插阶段')
+    expect(firstCard.find('[data-testid="delete-step-button"]').attributes('aria-label')).toBe('删除阶段')
+    expect(firstCard.find('[data-testid="open-step-details-button"]').exists()).toBe(false)
+  })
+
+  it('keeps editing inline below the cards when card actions are present', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    expect(wrapper.find('.step-editor-section').exists()).toBe(true)
+    expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
+    expect(wrapper.find('.step-editor-card').exists()).toBe(true)
+    expect(wrapper.find('.step-editor-card__title').text()).toBe('需求设计')
+
+    await focusInlineEditor(wrapper, 1)
+
+    expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
+    expect(wrapper.find('.step-editor-card__title').text()).toBe('测试')
+  })
+
+  it('updates card content from the inline editor and preserves template-level save flow', async () => {
+    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+      success: true,
+      data: payload
+    }))
+
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+    await focusInlineEditor(wrapper, 0)
+
+    await fillInlineEditor(wrapper, {
+      name: '发布评审',
+      agentId: 3,
+      instructionPrompt: '完成发布评审并同步结论。'
+    })
+
+    expect(getStepCards(wrapper)[0].find('.workflow-step-card__name').text()).toBe('发布评审')
+    expect(getStepCards(wrapper)[0].find('.workflow-chip').text()).toContain('Codex Reviewer')
+    expect(wrapper.find('.step-editor-section').exists()).toBe(true)
+    expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
+
+    await wrapper.get('[data-testid="save-template-button"]').trigger('click')
+    await flushPromises()
+
+    expect(updateWorkflowTemplate).toHaveBeenCalledTimes(1)
+    expect(updateWorkflowTemplate.mock.calls[0][0].steps[0]).toMatchObject({
+      id: 'requirement-design',
+      name: '发布评审',
+      instructionPrompt: '完成发布评审并同步结论。',
+      agentId: 3
+    })
+  })
+
+  it('inserts a new step before a card and opens details for the inserted step', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    await getInsertBeforeButtons(wrapper)[1].trigger('click')
+    await flushPromises()
+
+    expect(getStepCards(wrapper)).toHaveLength(3)
+    expect(getSelectedCardName(wrapper)).toBe('新阶段')
+    expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
+    expect(wrapper.find('.step-editor-card__title').text()).toBe('新阶段')
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
+      '需求设计',
+      '新阶段',
+      '测试'
+    ])
+  })
+
+  it('inserts a new step after a card and keeps template-page validation rules intact', async () => {
+    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+      success: true,
+      data: payload
+    }))
+
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    await getInsertAfterButtons(wrapper)[0].trigger('click')
+    await flushPromises()
+
+    expect(getStepCards(wrapper)).toHaveLength(3)
+    expect(getSelectedCardName(wrapper)).toBe('新阶段')
+
+    await fillInlineEditor(wrapper, {
+      name: '回归验证',
+      agentId: 3,
+      instructionPrompt: '执行回归验证。'
+    })
+
+    await wrapper.get('[data-testid="save-template-button"]').trigger('click')
+    await flushPromises()
+
+    expect(updateWorkflowTemplate).toHaveBeenCalledTimes(1)
+    expect(updateWorkflowTemplate.mock.calls[0][0].steps.map((step) => step.name)).toEqual([
+      '需求设计',
+      '回归验证',
+      '测试'
+    ])
+  })
+
+  it('deletes the selected middle step and keeps the previous step selected with the min-step rule of two', async () => {
+    const templateWithThreeSteps = createTemplateWithSteps([
+      namedStep('requirement-design', '需求设计', '先完成需求分析。', 1),
+      namedStep('implementation', '实现', '完成代码实现。', 3),
+      namedStep('testing', '测试', '执行测试。', 3)
+    ])
+    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+      const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithThreeSteps
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(template))
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+    await getStepCards(wrapper)[1].trigger('click')
+    await flushPromises()
+    await getDeleteStepButtons(wrapper)[1].trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1)
+    expect(getStepCards(wrapper)).toHaveLength(2)
+    expect(getSelectedCardName(wrapper)).toBe('需求设计')
+    expect(getDeleteStepButtons(wrapper).every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+    expect(wrapper.text()).toContain('模版至少保留 2 个阶段')
+  })
+
+  it('blocks deleting when only two steps remain and keeps the selected step unchanged', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+    await getStepCards(wrapper)[1].trigger('click')
+    await flushPromises()
+
+    expect(getSelectedCardName(wrapper)).toBe('测试')
+    const deleteButtons = getDeleteStepButtons(wrapper)
+    expect(deleteButtons).toHaveLength(2)
+    expect(deleteButtons[0].attributes('disabled')).toBeDefined()
+    expect(deleteButtons[1].attributes('disabled')).toBeDefined()
+
+    await deleteButtons[1].trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).not.toHaveBeenCalled()
+    expect(ElMessage.warning).not.toHaveBeenCalled()
+    expect(getStepCards(wrapper)).toHaveLength(2)
+    expect(getSelectedCardName(wrapper)).toBe('测试')
   })
 
   it('deletes a custom template and returns to the default template', async () => {

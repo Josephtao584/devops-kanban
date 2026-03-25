@@ -130,8 +130,8 @@ describe('TaskSourceConfig', () => {
     wrapper.vm.formData.type = 'GITHUB'
     expect(wrapper.vm.getFieldPlaceholder('token', {})).toBe('ghp_xxx...')
 
-    wrapper.vm.formData.type = 'GITLAB'
+    wrapper.vm.formData.type = 'CODEHUB'
     expect(wrapper.vm.getFieldLabel('baseUrl', {})).toBe('API 地址')
-    expect(wrapper.vm.getFieldPlaceholder('baseUrl', {})).toBe('https://gitlab.com/api/v4')
+    expect(wrapper.vm.getFieldPlaceholder('baseUrl', {})).toBe('https://codehub.huawei.com/api/v4')
   })
 })
