@@ -87,7 +87,16 @@ export function buildWorkflowFromTemplate(
           runId: options.runId,
           sessionId,
           segmentId,
-          onEvent: options.lifecycle.createEventHandler(sessionId, segmentId),
+          onEvent: async (event) => {
+              await options?.lifecycle.sessionEventRepo.append({
+                  session_id: sessionId,
+                  segment_id: segmentId,
+                  kind: event.kind,
+                  role: event.role,
+                  content: event.content,
+                  payload: event.payload || {},
+              });
+          },
           onProviderState: async (providerState) => {
             if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
               await options.lifecycle.sessionSegmentRepo.update(segmentId, {

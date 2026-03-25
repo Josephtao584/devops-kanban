@@ -68,11 +68,7 @@ class WorkflowService {
     this.projectRepo = projectRepo || new ProjectRepository();
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
-    this.lifecycle = lifecycle || new WorkflowLifecycle({
-      workflowRunRepo: this.workflowRunRepo,
-      agentRepo: this.agentRepo,
-      workflowTemplateService: this.workflowTemplateService,
-    });
+    this.lifecycle = lifecycle || new WorkflowLifecycle();
   }
 
   async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
