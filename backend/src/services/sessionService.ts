@@ -413,9 +413,17 @@ class SessionService {
     const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(sessionId);
     const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
     try {
+      const args = ['-y', '@anthropic-ai/claude-code'];
+      if (latestSegment?.provider_session_id) {
+        args.push('--session-id', latestSegment.provider_session_id);
+      } else {
+        args.push('--resume');
+      }
+      args.push('--prompt', input);
+
       const proc = this._spawnClaudeCode(
         worktreePath,
-        ['-y', '@anthropic-ai/claude-code', '--resume', '--prompt', input],
+        args,
         sessionId,
         'resume',
       );
