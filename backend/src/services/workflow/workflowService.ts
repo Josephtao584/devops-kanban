@@ -192,24 +192,12 @@ class WorkflowService {
   }
 
   async _loadTemplate(templateId?: string): Promise<WorkflowTemplate> {
-    if (templateId !== undefined) {
-      const normalizedTemplateId = templateId.trim();
-      const selectedTemplate = await this.workflowTemplateService.getTemplateById(normalizedTemplateId);
-      if (!selectedTemplate) {
-        throw createValidationError(`Workflow template not found: ${normalizedTemplateId}`);
-      }
-      return selectedTemplate;
+    const normalizedTemplateId = templateId?.trim() || 'dev-workflow-v1';
+    const template = await this.workflowTemplateService.getTemplateById(normalizedTemplateId);
+    if (!template) {
+      throw createValidationError(`Workflow template not found: ${normalizedTemplateId}`);
     }
-
-    if (typeof this.workflowTemplateService.getTemplate === 'function') {
-      return await this.workflowTemplateService.getTemplate();
-    }
-
-    const defaultTemplate = await this.workflowTemplateService.getTemplateById('dev-workflow-v1');
-    if (!defaultTemplate) {
-      throw createValidationError('Workflow template not found: dev-workflow-v1');
-    }
-    return defaultTemplate;
+    return template;
   }
 
   async _validateTemplateAgents(template: WorkflowTemplate) {
