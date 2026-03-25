@@ -7,9 +7,8 @@ import { ProjectRepository } from '../repositories/projectRepository.js';
 import { WorkflowService } from './workflow/workflowService.js';
 import { createWorktree, cleanupWorktree, isGitRepository, sanitizeName } from '../utils/git.js';
 
-import type { ProjectEntity } from '../types/entities.ts';
+import type { TaskEntity, ProjectEntity } from '../types/entities.ts';
 import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
-import type { TaskCreateRecord, TaskUpdateRecord } from '../types/persistence/tasks.js';
 
 interface WorktreeResult {
   worktree_path: string;
@@ -75,15 +74,15 @@ class TaskService {
       throw error;
     }
 
-    const createData: Record<string, unknown> = {
+    const createData: Omit<TaskEntity, 'id' | 'created_at' | 'updated_at'> = {
       title: taskData.title,
+      description: taskData.description,
       project_id: taskData.project_id,
       status: taskData.status || 'TODO',
       priority: taskData.priority || 'MEDIUM',
       source: 'manual',
     };
 
-    if (taskData.description !== undefined) createData.description = taskData.description;
     if (taskData.assignee !== undefined) createData.assignee = taskData.assignee;
     if (taskData.due_date !== undefined) createData.due_date = taskData.due_date;
     if (taskData.order !== undefined) createData.order = taskData.order;
@@ -214,7 +213,7 @@ class TaskService {
         worktree_status: 'created',
       };
     } catch (error) {
-      await this.taskRepo.update(taskId, { worktree_status: 'error' });
+      await this.taskRepo.update(taskId, { worktree_path: null });
       throw error;
     }
   }
@@ -246,7 +245,6 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
-        worktree_status: 'none',
       });
 
       return { success: true, message: 'Worktree deleted' };
@@ -273,7 +271,7 @@ class TaskService {
     return {
       worktree_path: worktreePath || null,
       worktree_branch: task.worktree_branch || null,
-      worktree_status: exists ? 'created' : (task.worktree_status || 'none'),
+      worktree_status: exists ? 'created' : 'none',
     };
   }
 }

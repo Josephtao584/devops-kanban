@@ -428,7 +428,6 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { taskId: string }; Querystring: ProjectIdQuery }>('/worktrees/:taskId', async (request, reply) => {
     try {
       const taskId = parseNumber(request.params.taskId);
-      const projectId = parseNumber(request.query.projectId);
 
       const task = await taskRepo.findById(taskId);
       if (!task) {
@@ -439,7 +438,6 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       return successResponse({
         worktree_path: task.worktree_path || null,
         worktree_branch: task.worktree_branch || null,
-        worktree_status: task.worktree_status || 'none',
       });
     } catch (error) {
       request.log.error(error);
@@ -464,7 +462,6 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       await taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: `task/${taskId}`,
-        worktree_status: 'created',
       });
 
       return successResponse({
@@ -499,7 +496,6 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       await taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
-        worktree_status: 'none',
       });
 
       return successResponse({ success: true }, 'Worktree deleted');

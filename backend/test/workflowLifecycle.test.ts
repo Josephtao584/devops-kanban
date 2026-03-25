@@ -2,13 +2,6 @@ import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { WorkflowLifecycle } from '../src/services/workflow/workflowLifecycle.js';
 
-interface TemplateStep {
-  id: string;
-  name: string;
-  instructionPrompt: string;
-  agentId: number | null;
-}
-
 interface AgentRecord {
   id: number;
   name: string;
