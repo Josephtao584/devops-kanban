@@ -988,7 +988,6 @@ const handleWorkflowAction = (payload) => {
     currentViewingNodeId.value = payload.node?.id || null
     currentViewingNode.value = payload.node || null
     isChatCollapsed.value = false
-    loadActiveSession()
   }
 }
 
@@ -1156,7 +1155,6 @@ const selectTask = (task) => {
   currentViewingNode.value = null
   // Auto expand workflow when task is selected
   expandedTaskId.value = task.id
-  loadActiveSession()
 }
 
 // Task modal
@@ -1391,23 +1389,6 @@ const handleRequestAgentSelect = (task) => {
   console.log('handleRequestAgentSelect called, task:', task?.id, 'projectId:', selectedProjectId.value)
   pendingTask.value = task
   showAgentSelector.value = true
-}
-
-const loadActiveSession = async () => {
-  if (!selectedTask.value) return
-  // Store task ID before async operation to prevent stale reference
-  const taskId = selectedTask.value.id
-  try {
-    const response = await getActiveSessionByTask(taskId)
-    if (response.success && response.data) {
-      activeSession.value = response.data
-    } else {
-      activeSession.value = null
-    }
-  } catch (error) {
-    console.error('Failed to load active session:', error)
-    activeSession.value = null
-  }
 }
 
 // Lifecycle
