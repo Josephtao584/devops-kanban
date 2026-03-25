@@ -1,7 +1,8 @@
 import crossSpawn from 'cross-spawn';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
-import type { ExecutorProcessHandle } from '../../../types/executors.js';
+import type { ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
+import { buildEvent } from '../../../types/executors.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
@@ -18,7 +19,12 @@ type ClaudeSpawnExecution = {
 };
 
 function buildClaudeCliArgs(prompt: string) {
-  return ['-p', prompt, '--dangerously-skip-permissions'];
+  return [
+    '-p', prompt,
+    '--dangerously-skip-permissions',
+    '--output-format', 'stream-json',
+    '--verbose',
+  ];
 }
 
 function buildClaudeSpawnCommand(executorConfig: ClaudeRuntimeExecutorConfig = {}, processEnv = process.env) {
@@ -56,18 +62,109 @@ function toExecutorProcessHandle(proc: unknown): ExecutorProcessHandle {
   return handle;
 }
 
+function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent | null {
+  const type = json.type;
+
+  // System init event
+  if (type === 'system') {
+    const sessionId = json.session_id;
+    if (typeof sessionId === 'string') {
+      return buildEvent('status', 'system', `session: ${sessionId}`, { session_id: sessionId });
+    }
+    return null;
+  }
+
+  // Assistant message
+  if (type === 'assistant') {
+    const message = json.message as Record<string, unknown> | undefined;
+    const content = message?.content as unknown[] | undefined;
+    if (!Array.isArray(content)) return null;
+
+    for (const block of content) {
+      if (typeof block !== 'object' || block === null) continue;
+      const b = block as Record<string, unknown>;
+
+      // Thinking block
+      if (b.type === 'thinking' && typeof b.thinking === 'string') {
+        return buildEvent('message', 'assistant', b.thinking, { block_type: 'thinking' });
+      }
+
+      // Text block
+      if (b.type === 'text' && typeof b.text === 'string') {
+        return buildEvent('message', 'assistant', b.text);
+      }
+
+      // Tool use
+      if (b.type === 'tool_use') {
+        const toolName = typeof b.name === 'string' ? b.name : 'unknown';
+        return buildEvent('tool_call', 'assistant', toolName, {
+          tool_name: toolName,
+          tool_id: b.id,
+          input: b.input,
+        });
+      }
+    }
+    return null;
+  }
+
+  // User message (tool_result)
+  if (type === 'user') {
+    const message = json.message as Record<string, unknown> | undefined;
+    const content = message?.content as unknown[] | undefined;
+    if (!Array.isArray(content)) return null;
+
+    for (const block of content) {
+      if (typeof block !== 'object' || block === null) continue;
+      const b = block as Record<string, unknown>;
+
+      if (b.type === 'tool_result') {
+        const toolUseId = b.tool_use_id;
+        const toolResult = typeof b.content === 'string' ? b.content : JSON.stringify(b.content);
+        return buildEvent('tool_result', 'tool', toolResult.substring(0, 500), {
+          tool_use_id: toolUseId,
+          is_error: b.is_error,
+        });
+      }
+    }
+    return null;
+  }
+
+  // Result event
+  if (type === 'result') {
+    const result = json.result;
+    if (typeof result === 'string') {
+      return buildEvent('message', 'assistant', result, {
+        duration_ms: json.duration_ms,
+        total_cost_usd: json.total_cost_usd,
+      });
+    }
+    return null;
+  }
+
+  // Error event
+  if (type === 'error') {
+    const error = json.error as Record<string, unknown> | undefined;
+    const message = typeof error?.message === 'string' ? error.message : 'Unknown error';
+    return buildEvent('error', 'system', message, { error });
+  }
+
+  return null;
+}
+
 async function defaultSpawnImpl({
   worktreePath,
   prompt,
   onSpawn,
   executorConfig = {},
   abortSignal,
+  onEvent,
 }: {
   worktreePath: string;
   prompt: string;
   onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
   executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
   abortSignal?: AbortSignal;
+  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
 }) {
   const cliArgs = buildClaudeCliArgs(prompt);
   const resolved = buildClaudeSpawnCommand(executorConfig);
@@ -101,7 +198,23 @@ async function defaultSpawnImpl({
     let stderr = '';
 
     spawnedProc.stdout?.on('data', (data: Buffer | string) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdout += chunk;
+
+      // Parse each line as JSON event
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const json = JSON.parse(line);
+          const event = parseStreamEvent(json);
+          if (event && onEvent) {
+            Promise.resolve(onEvent(event)).catch(() => {});
+          }
+        } catch {
+          // Not valid JSON, ignore
+        }
+      }
     });
 
     spawnedProc.stderr?.on('data', (data: Buffer | string) => {
@@ -145,12 +258,14 @@ class ClaudeStepRunner {
     executorConfig = {},
     onSpawn,
     abortSignal,
+    onEvent,
   }: {
     prompt: string;
     worktreePath: string;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
     onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
     abortSignal?: AbortSignal;
+    onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,
@@ -158,6 +273,7 @@ class ClaudeStepRunner {
       executorConfig,
       ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
+      ...(onEvent ? { onEvent } : {}),
     });
 
     if (execution.exitCode !== 0) {
