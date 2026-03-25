@@ -108,40 +108,25 @@
     <!-- Workflow expanded content (shown when task is expanded) -->
     <div v-if="workflowExpanded" class="workflow-expanded-content" @click.stop>
       <div class="workflow-main">
-        <div v-if="workflowData || task.workflow_run_id" class="workflow-section workflow-progress-bar">
-          <span class="workflow-status" :class="'status-' + workflowStatus">{{ workflowStatusText }}</span>
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-          </div>
-          <span class="progress-text">{{ completed }}/{{ total }}</span>
-          <button
-            class="workflow-refresh-btn"
-            @click.stop="refreshWorkflowRun"
-            title="刷新状态"
-          >
-            <span class="workflow-refresh-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-              </svg>
-            </span>
-          </button>
-        </div>
-
-        <div v-else class="workflow-section workflow-empty-state">
+        <div v-if="!(workflowData || task.workflow_run_id)" class="workflow-section workflow-empty-state">
           <span class="workflow-empty-title">{{ $t('workflow.noWorkflow') }}</span>
           <span class="workflow-empty-hint">可先创建 worktree，或直接启动任务后生成 workflow。</span>
         </div>
 
-        <div v-if="currentNode" class="workflow-section node-detail">
-          <span class="node-detail-name">{{ currentNode.name }}</span>
-          <span class="node-detail-status" :class="'status-' + currentNode.status?.toLowerCase()">
-            {{ getStatusText(currentNode.status) }}
-          </span>
-          <span v-if="currentNode.duration" class="node-detail-duration">{{ currentNode.duration }}min</span>
-          <span v-if="currentNode.role" class="node-detail-role">@{{ currentNode.role }}</span>
-        </div>
-
-        <div class="workflow-section">
+        <div
+          class="workflow-section workflow-panel-section"
+          :class="{ 'workflow-panel-section-bordered': workflowData || task.workflow_run_id }"
+        >
+          <div class="workflow-panel-header">
+            <span class="workflow-panel-title">工作流</span>
+            <span
+              v-if="workflowData || task.workflow_run_id"
+              class="quick-action-status workflow-status"
+              :class="'status-' + workflowStatus"
+            >
+              {{ workflowStatusText }}
+            </span>
+          </div>
           <InlineWorkflowPanel
             v-if="workflowData"
             :workflow="workflowData"
@@ -152,6 +137,7 @@
         </div>
 
         <div class="workflow-section quick-actions">
+
           <button class="quick-action-btn" :disabled="!canStartTask" @click.stop="handleStartClick">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -188,6 +174,20 @@
               <line x1="12" cy="15" x2="12" y2="15"></line>
             </svg>
             合入
+          </button>
+          <button
+            v-if="task.workflow_run_id"
+            class="quick-action-btn"
+            :disabled="refreshLoading"
+            @click.stop="refreshWorkflowRun"
+            title="刷新状态"
+          >
+            <span class="workflow-refresh-icon" :class="{ 'is-loading': refreshLoading }">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              </svg>
+            </span>
+            刷新
           </button>
         </div>
 
@@ -394,10 +394,6 @@ const workflowProgress = computed(() => {
   if (!workflowData.value) return { completed: 0, total: 0, percent: 0 }
   return getWorkflowProgress(workflowData.value)
 })
-
-const completed = computed(() => workflowProgress.value.completed)
-const total = computed(() => workflowProgress.value.total)
-const progressPercent = computed(() => workflowProgress.value.percent)
 
 // Status text helper
 const getStatusText = (status) => {
@@ -775,7 +771,6 @@ const openWorktreeDirectory = () => {
 /* Workflow expanded content */
 .workflow-expanded-content {
   flex-basis: 100%;
-  border-top: 2px solid #6366f1;
   background: #f8fafc;
   display: flex;
   flex-direction: column;
@@ -797,11 +792,27 @@ const openWorktreeDirectory = () => {
   border-bottom: none;
 }
 
-/* Progress bar */
-.workflow-progress-bar {
+.workflow-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workflow-panel-section-bordered {
+  border-top: 1px solid #e2e8f0;
+}
+
+.workflow-panel-header {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
+}
+
+.workflow-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
 }
 
 .workflow-empty-state {
@@ -852,29 +863,6 @@ const openWorktreeDirectory = () => {
 .workflow-status.status-failed {
   background: #fee2e2;
   color: #dc2626;
-}
-
-.workflow-progress-bar .progress-bar {
-  flex: 1;
-  height: 8px;
-  background: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.workflow-progress-bar .progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  border-radius: 4px;
-  transition: width 0.4s ease;
-}
-
-.workflow-progress-bar .progress-text {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 500;
-  min-width: 60px;
-  text-align: right;
 }
 
 /* Node detail */
@@ -1082,6 +1070,12 @@ const openWorktreeDirectory = () => {
   cursor: not-allowed;
 }
 
+.quick-actions .quick-action-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+}
+
 .workflow-collapse-btn {
   display: inline-flex;
   align-items: center;
@@ -1105,21 +1099,9 @@ const openWorktreeDirectory = () => {
   transform: translateX(-1px);
 }
 
-.workflow-refresh-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: #6b7280;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
-  flex-shrink: 0;
-  transform: none !important;
+/* Loading animation */
+.is-loading {
+  animation: spin 1s linear infinite;
 }
 
 .workflow-refresh-icon {
@@ -1137,17 +1119,6 @@ const openWorktreeDirectory = () => {
   height: 14px;
   animation: none !important;
   transform: none !important;
-}
-
-.workflow-refresh-btn:hover {
-  color: #6366f1;
-  background: #eef2ff;
-  transform: none !important;
-}
-
-/* Loading animation */
-.is-loading {
-  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
