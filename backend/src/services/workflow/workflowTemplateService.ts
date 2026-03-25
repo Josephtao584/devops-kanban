@@ -37,7 +37,7 @@ type WorkflowTemplateStep = {
   id: string;
   name: string;
   instructionPrompt: string;
-  agentId: number | null;
+  agentId: number;
 };
 
 type WorkflowTemplate = {
@@ -97,15 +97,15 @@ function normalizeStep(step: unknown): WorkflowTemplateStep {
     throw createValidationError('instructionPrompt must be a non-empty string');
   }
 
-  if (agentId !== null && agentId !== undefined && (typeof agentId !== 'number' || !Number.isInteger(agentId) || agentId < 0)) {
-    throw createValidationError('agentId must be null or a non-negative integer');
+  if (typeof agentId !== 'number' || !Number.isInteger(agentId) || agentId < 0) {
+    throw createValidationError('agentId must be a non-negative integer');
   }
 
   return {
     id: id.trim(),
     name: name.trim(),
     instructionPrompt: instructionPrompt.trim(),
-    agentId: typeof agentId === 'number' ? agentId : null,
+    agentId,
   };
 }
 

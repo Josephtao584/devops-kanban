@@ -194,13 +194,13 @@ test.test('WorkflowTemplateService updates the default built-in template', async
       id: 'design',
       name: '设计',
       instructionPrompt: '更新默认模板设计步骤。',
-      agentId: null,
+      agentId: 1,
     },
     {
       id: 'build',
       name: '开发',
       instructionPrompt: '更新默认模板开发步骤。',
-      agentId: null,
+      agentId: 1,
     },
   ];
 
