@@ -9,7 +9,6 @@ import type {
 } from '../../types/executors.js';
 import type { AgentEntity, WorkflowTemplateEntity } from '../../types/entities.ts';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
-import { ExecutionEventSink } from './executionEventSink.js';
 import { adaptStepResult } from './stepResultAdapter.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
@@ -99,7 +98,6 @@ export async function executeWorkflowStep({
     inputData,
     upstreamStepIds,
   });
-  const sink = new ExecutionEventSink({ onEvent, onProviderState });
 
   if (abortSignal && context) {
     abortSignal.addEventListener('abort', () => {
@@ -118,12 +116,8 @@ export async function executeWorkflowStep({
         context.proc = proc;
       }
     },
-    onEvent: async (event) => {
-      await sink.append(event);
-    },
-    onProviderState: async (providerState) => {
-      await sink.appendProviderState(providerState);
-    },
+    onEvent,
+    onProviderState,
   });
 
   if (context) {

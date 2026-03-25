@@ -2,11 +2,9 @@ import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
-import { SessionRepository } from '../../repositories/sessionRepository.js';
-import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import {buildWorkflowFromTemplate, getWorkflowFromWorkflowId} from './workflows.js';
-import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
+import { WorkflowLifecycle } from './workflowLifecycle.js';
+import {buildWorkflowFromTemplate, getWorkflowFromWorkflowId} from './workflows.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 import {WorkflowTemplateEntity} from "../../types/entities.js";
 
@@ -42,7 +40,7 @@ function normalizeStepResult(result: unknown): Record<string, unknown> {
 
 type StartWorkflowOptions = {
   workflowTemplateId?: string | undefined;
-  workflowTemplateSnapshot?: WorkflowTemplate | undefined;
+  workflowTemplateSnapshot?: WorkflowTemplateEntity | undefined;
 };
 
 class WorkflowService {
@@ -51,22 +49,18 @@ class WorkflowService {
   projectRepo: ProjectRepository;
   workflowTemplateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
-  sessionRepo: SessionRepository;
-  sessionSegmentRepo: SessionSegmentRepository;
   lifecycle: WorkflowLifecycle;
 
   async _resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, sessionRepo, sessionSegmentRepo, lifecycle }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     workflowTemplateService?: WorkflowTemplateService;
     agentRepo?: AgentRepository;
-    sessionRepo?: SessionRepository;
-    sessionSegmentRepo?: SessionSegmentRepository;
     lifecycle?: WorkflowLifecycle;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
@@ -74,15 +68,7 @@ class WorkflowService {
     this.projectRepo = projectRepo || new ProjectRepository();
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
-    this.sessionRepo = sessionRepo || new SessionRepository();
-    this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
-    this.lifecycle = lifecycle || new WorkflowLifecycle({
-      workflowRunRepo: this.workflowRunRepo,
-      agentRepo: this.agentRepo,
-      sessionRepo: this.sessionRepo,
-      sessionSegmentRepo: this.sessionSegmentRepo,
-      workflowTemplateService: this.workflowTemplateService,
-    });
+    this.lifecycle = lifecycle || new WorkflowLifecycle();
   }
 
   async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
