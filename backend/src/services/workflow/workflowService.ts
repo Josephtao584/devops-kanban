@@ -113,10 +113,6 @@ class WorkflowService {
   _activeRuns: Map<number, { run: any }>;
 
   async _resetTaskToTodo(taskId: number) {
-    if (typeof this.taskRepo.update !== 'function' || !Number.isFinite(taskId) || taskId <= 0) {
-      return;
-    }
-
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
@@ -148,10 +144,6 @@ class WorkflowService {
   }
 
   async startWorkflow(taskId: number, workflowTemplateId?: string) {
-    if (workflowTemplateId !== undefined && (workflowTemplateId.trim().length === 0)) {
-      throw createValidationError('Workflow template id must be a non-empty string');
-    }
-
     const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
     if (!task) {
       const error = new Error('Task not found') as Error & { statusCode?: number };
