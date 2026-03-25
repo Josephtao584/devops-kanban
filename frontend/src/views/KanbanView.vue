@@ -627,7 +627,7 @@
 import { h, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
   OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
@@ -1305,7 +1305,7 @@ const handleDeleteIteration = async (iteration) => {
     await ElMessageBox.confirm(
       h('div', { class: 'iteration-delete-confirm' }, [
         h('p', t('iteration.deleteConfirmMessage', { name: iteration.name })),
-        h('el-checkbox', {
+        h(ElCheckbox, {
           modelValue: deleteTasks,
           'onUpdate:modelValue': (value) => {
             deleteTasks = value

@@ -114,6 +114,18 @@ class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, 
     return updatedCount;
   }
 
+  async deleteByIteration(iterationId: number): Promise<number> {
+    const data = await this._loadAll();
+    const filtered = data.filter((item) => item.iteration_id !== iterationId);
+    const deletedCount = data.length - filtered.length;
+
+    if (deletedCount > 0) {
+      await this._saveAll(filtered);
+    }
+
+    return deletedCount;
+  }
+
   async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<StoredTaskEntity[]> {
     const tasks = await this.findByProject(projectId);
     if (iterationId === null || iterationId === undefined) {

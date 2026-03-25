@@ -280,8 +280,25 @@ describe('KanbanView iteration management', () => {
     expect(ElMessage.success).toHaveBeenCalled()
   })
 
+  it('builds the delete confirmation checkbox as a real component vnode', async () => {
+    let capturedMessage = null
+    globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ = (message) => {
+      capturedMessage = message
+    }
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await wrapper.find('.delete-iteration-3').trigger('click')
+    await flushPromises()
+
+    const checkboxNode = capturedMessage.children[1]
+    expect(typeof checkboxNode.type).not.toBe('string')
+  })
+
   it('deletes iteration tasks when the checkbox is checked in the confirmation', async () => {
-    globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ = (message, options) => {
+    globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ = (message) => {
       const checkboxNode = message.children[1]
       checkboxNode.props['onUpdate:modelValue'](true)
     }
