@@ -63,6 +63,15 @@
               style="width: 200px"
             />
             <el-button
+              class="open-iteration-manager"
+              size="small"
+              :disabled="!selectedProjectId"
+              @click="showIterationManager = true"
+              style="margin-left: 8px"
+            >
+              {{ $t('iteration.manageIterations') }}
+            </el-button>
+            <el-button
               type="primary"
               size="small"
               :disabled="!selectedProjectId"
@@ -437,6 +446,18 @@
       @merged="handleMerged"
     />
 
+    <el-dialog
+      v-model="showIterationManager"
+      :title="$t('iteration.manageIterationsTitle')"
+      width="720px"
+    >
+      <IterationList
+        :iterations="projectIterations"
+        @edit="handleEditIteration"
+        @delete="handleDeleteIteration"
+      />
+    </el-dialog>
+
     <!-- Iteration Form Dialog -->
     <IterationForm
       v-model="showIterationModal"
@@ -605,7 +626,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
   OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
@@ -627,6 +648,7 @@ import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
 import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import IterationSelect from '../components/iteration/IterationSelect.vue'
+import IterationList from '../components/iteration/IterationList.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
@@ -678,6 +700,7 @@ const showCommitDialog = ref(false)
 const commitDialogData = ref(null)
 const showMergeDialog = ref(false)
 const mergeDialogData = ref(null)
+const showIterationManager = ref(false)
 const showIterationModal = ref(false)
 const editingIteration = ref(null)
 const creatingIteration = ref(false)
@@ -1264,6 +1287,56 @@ const saveTask = async () => {
 const openCreateIteration = () => {
   editingIteration.value = null
   showIterationModal.value = true
+}
+
+const handleEditIteration = (iteration) => {
+  editingIteration.value = iteration
+  showIterationModal.value = true
+}
+
+const handleDeleteIteration = async (iteration) => {
+  try {
+    await ElMessageBox.confirm(
+      t('iteration.deleteConfirmMessage', { name: iteration.name }),
+      t('iteration.deleteConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel')
+      }
+    )
+  } catch {
+    return
+  }
+
+  let deleted = false
+
+  try {
+    const response = await iterationStore.deleteIteration(iteration.id)
+    if (!response?.success) {
+      throw new Error(response?.message || response?.error || t('iteration.deleteFailed'))
+    }
+
+    deleted = true
+
+    if (selectedIterationId.value === iteration.id) {
+      selectedIterationId.value = null
+    }
+
+    await Promise.all([
+      iterationStore.fetchByProject(selectedProjectId.value),
+      taskStore.fetchTasks(selectedProjectId.value)
+    ])
+
+    ElMessage.success(t('iteration.deleted'))
+  } catch (error) {
+    console.error('Failed to delete iteration:', error)
+    if (deleted) {
+      ElMessage.warning(t('iteration.refreshAfterDeleteFailed'))
+      return
+    }
+    ElMessage.error(t('iteration.deleteFailed'))
+  }
 }
 
 // Handle iteration form submit

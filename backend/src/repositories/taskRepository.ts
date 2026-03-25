@@ -89,6 +89,31 @@ class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, 
     return data.filter((item) => item.iteration_id === iterationId);
   }
 
+  async clearIteration(iterationId: number): Promise<number> {
+    const data = await this._loadAll();
+    const now = new Date().toISOString();
+    let updatedCount = 0;
+
+    const nextData = data.map((item) => {
+      if (item.iteration_id !== iterationId) {
+        return item;
+      }
+
+      updatedCount += 1;
+      return {
+        ...item,
+        iteration_id: null,
+        updated_at: now,
+      };
+    });
+
+    if (updatedCount > 0) {
+      await this._saveAll(nextData);
+    }
+
+    return updatedCount;
+  }
+
   async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<StoredTaskEntity[]> {
     const tasks = await this.findByProject(projectId);
     if (iterationId === null || iterationId === undefined) {
