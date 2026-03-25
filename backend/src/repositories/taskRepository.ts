@@ -1,9 +1,5 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
 import type { TaskEntity } from '../types/entities.ts';
-import type { TaskCreateRecord, TaskUpdateRecord } from '../types/persistence/tasks.js';
-
-interface StoredTaskEntity extends TaskEntity, BaseEntity {}
 
 interface TaskStatusCounts {
   REQUIREMENTS: number;
@@ -14,17 +10,17 @@ interface TaskStatusCounts {
   CANCELLED: number;
 }
 
-class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, TaskUpdateRecord> {
-  constructor(storagePath?: string) {
-    super('tasks.json', storagePath ? { storagePath } : undefined);
+class TaskRepository extends BaseRepository<TaskEntity> {
+  constructor() {
+    super('tasks.json');
   }
 
-  async findByProject(projectId: number): Promise<StoredTaskEntity[]> {
+  async findByProject(projectId: number): Promise<TaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.project_id === projectId);
   }
 
-  async findByProjectAndStatus(projectId: number, status: string): Promise<StoredTaskEntity[]> {
+  async findByProjectAndStatus(projectId: number, status: string): Promise<TaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.project_id === projectId && item.status === status);
   }
@@ -58,14 +54,14 @@ class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, 
     return initialLength - filtered.length;
   }
 
-  async findByStatus(status: string): Promise<StoredTaskEntity[]> {
+  async findByStatus(status: string): Promise<TaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.status === status);
   }
 
-  async groupByStatus(projectId: number): Promise<Record<keyof TaskStatusCounts, StoredTaskEntity[]>> {
+  async groupByStatus(projectId: number): Promise<Record<keyof TaskStatusCounts, TaskEntity[]>> {
     const tasks = await this.findByProject(projectId);
-    const grouped: Record<keyof TaskStatusCounts, StoredTaskEntity[]> = {
+    const grouped: Record<keyof TaskStatusCounts, TaskEntity[]> = {
       REQUIREMENTS: [],
       TODO: [],
       IN_PROGRESS: [],
@@ -84,19 +80,24 @@ class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, 
     return grouped;
   }
 
-  async findByIteration(iterationId: number): Promise<StoredTaskEntity[]> {
+  async findByIteration(iterationId: number): Promise<TaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.iteration_id === iterationId);
   }
 
-  async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<StoredTaskEntity[]> {
+  async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<TaskEntity[]> {
     const tasks = await this.findByProject(projectId);
     if (iterationId === null || iterationId === undefined) {
       return tasks.filter((task) => !task.iteration_id);
     }
     return tasks.filter((task) => task.iteration_id === iterationId);
   }
+
+  async findByExternalId(externalId: string): Promise<TaskEntity | null> {
+    const data = await this._loadAll();
+    return data.find((item) => item.external_id === externalId) || null;
+  }
 }
 
 export { TaskRepository };
-export type { TaskStatusCounts, StoredTaskEntity };
+export type { TaskStatusCounts };

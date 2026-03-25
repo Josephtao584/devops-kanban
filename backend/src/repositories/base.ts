@@ -6,12 +6,9 @@ interface BaseEntity {
   id: number;
   created_at: string;
   updated_at: string;
-  external_id?: string | null;
 }
 
-type StoredEntity<TCreate extends object> = TCreate & BaseEntity;
-
-class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate extends object = Partial<TCreate>> {
+class BaseRepository<T extends BaseEntity> {
   fileName: string;
   filepath: string;
   initializationPromise: Promise<void>;
@@ -65,24 +62,24 @@ class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate exten
     return data.find((item) => item.id === entityId) || null;
   }
 
-  async create(entityData: TCreate): Promise<T> {
+  async create(entityData: Omit<T, keyof BaseEntity>): Promise<T> {
     const data = await this._loadAll();
     const newId = this._getNextId(data);
     const now = new Date().toISOString();
 
-    const entity: StoredEntity<TCreate> = {
+    const entity = {
       ...entityData,
       id: newId,
       created_at: now,
       updated_at: now,
-    };
+    } as T;
 
-    data.push(entity as unknown as T);
+    data.push(entity);
     await this._saveAll(data);
-    return entity as unknown as T;
+    return entity;
   }
 
-  async update(entityId: number, entityData: TUpdate): Promise<T | null> {
+  async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
     const data = await this._loadAll();
     const index = data.findIndex((item) => item.id === entityId);
 
@@ -94,7 +91,7 @@ class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate exten
     const updateData = {
       ...Object.fromEntries(definedEntries),
       updated_at: new Date().toISOString(),
-    } as Partial<TUpdate> & Pick<BaseEntity, 'updated_at'>;
+    };
 
     data[index] = { ...data[index], ...updateData } as T;
     await this._saveAll(data);
@@ -116,11 +113,6 @@ class BaseRepository<T extends BaseEntity, TCreate extends object, TUpdate exten
   async count(): Promise<number> {
     const data = await this._loadAll();
     return data.length;
-  }
-
-  async findByExternalId(externalId: string): Promise<T | null> {
-    const data = await this._loadAll();
-    return data.find((item) => item.external_id === externalId) || null;
   }
 }
 

@@ -1,18 +1,13 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
 import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts';
 
-type CreateWorkflowRunRecord = Omit<WorkflowRunEntity, 'id'>;
-type UpdateWorkflowRunRecord = Partial<Omit<WorkflowRunEntity, 'id'>>;
 type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>>;
 
-interface StoredWorkflowRunEntity extends WorkflowRunEntity, BaseEntity {}
-
-class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, CreateWorkflowRunRecord, UpdateWorkflowRunRecord> {
+class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   private mutationQueue: Promise<void>;
 
-  constructor({ storagePath }: { storagePath?: string } = {}) {
-    super('workflow_runs.json', storagePath ? { storagePath } : {});
+  constructor() {
+    super('workflow_runs.json');
     this.mutationQueue = Promise.resolve();
   }
 
@@ -22,14 +17,14 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
     return await pendingMutation;
   }
 
-  private _shouldPreserveCancelledRun(run: StoredWorkflowRunEntity, runUpdate: UpdateWorkflowRunRecord) {
+  private _shouldPreserveCancelledRun(run: WorkflowRunEntity, runUpdate: Partial<Omit<WorkflowRunEntity, 'id' | 'created_at' | 'updated_at'>>) {
     return run.status === 'CANCELLED'
       && runUpdate.status !== undefined
       && runUpdate.status !== 'CANCELLED';
   }
 
   private _shouldPreserveCancelledStep(
-    run: StoredWorkflowRunEntity,
+    run: WorkflowRunEntity,
     step: WorkflowStepEntity,
     stepUpdate: UpdateWorkflowStepRecord,
   ) {
@@ -38,7 +33,7 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
       && stepUpdate.status !== 'CANCELLED';
   }
 
-  async findLatestByTaskId(taskId: number): Promise<StoredWorkflowRunEntity | null> {
+  async findLatestByTaskId(taskId: number): Promise<WorkflowRunEntity | null> {
     const data = await this._loadAll();
     const taskRuns = data.filter((item) => item.task_id === taskId);
 
@@ -53,21 +48,21 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
     return taskRuns[0] || null;
   }
 
-  async findByTaskId(taskId: number): Promise<StoredWorkflowRunEntity | null> {
+  async findByTaskId(taskId: number): Promise<WorkflowRunEntity | null> {
     return await this.findLatestByTaskId(taskId);
   }
 
-  async findAllByTaskId(taskId: number): Promise<StoredWorkflowRunEntity[]> {
+  async findAllByTaskId(taskId: number): Promise<WorkflowRunEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.task_id === taskId);
   }
 
-  override async findById(entityId: number): Promise<StoredWorkflowRunEntity | null> {
+  override async findById(entityId: number): Promise<WorkflowRunEntity | null> {
     await this.mutationQueue;
     return await super.findById(entityId);
   }
 
-  override async create(entityData: CreateWorkflowRunRecord): Promise<StoredWorkflowRunEntity> {
+  override async create(entityData: Omit<WorkflowRunEntity, 'id' | 'created_at' | 'updated_at'>): Promise<WorkflowRunEntity> {
     return await this._serializeMutation(async () => {
       const data = await this._loadAll();
       const newId = this._getNextId(data);
@@ -78,7 +73,7 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
         id: newId,
         created_at: now,
         updated_at: now,
-      } as StoredWorkflowRunEntity;
+      } as WorkflowRunEntity;
 
       data.push(entity);
       await this._saveAll(data);
@@ -86,7 +81,7 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
     });
   }
 
-  override async update(runId: number, runUpdate: UpdateWorkflowRunRecord): Promise<StoredWorkflowRunEntity | null> {
+  override async update(runId: number, runUpdate: Partial<Omit<WorkflowRunEntity, 'id' | 'created_at' | 'updated_at'>>): Promise<WorkflowRunEntity | null> {
     return await this._serializeMutation(async () => {
       const data = await this._loadAll();
       const index = data.findIndex((item) => item.id === runId);
@@ -103,15 +98,15 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
       const updateData = {
         ...Object.fromEntries(definedEntries),
         updated_at: new Date().toISOString(),
-      } as Partial<UpdateWorkflowRunRecord> & Pick<BaseEntity, 'updated_at'>;
+      };
 
-      data[index] = { ...run, ...updateData } as StoredWorkflowRunEntity;
+      data[index] = { ...run, ...updateData } as WorkflowRunEntity;
       await this._saveAll(data);
       return data[index]!;
     });
   }
 
-  async updateStep(runId: number, stepId: string, stepUpdate: UpdateWorkflowStepRecord): Promise<StoredWorkflowRunEntity | null> {
+  async updateStep(runId: number, stepId: string, stepUpdate: UpdateWorkflowStepRecord): Promise<WorkflowRunEntity | null> {
     return await this._serializeMutation(async () => {
       const data = await this._loadAll();
       const index = data.findIndex((item) => item.id === runId);
@@ -135,7 +130,7 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
         ...run,
         steps: [...run.steps],
         updated_at: new Date().toISOString(),
-      } as StoredWorkflowRunEntity;
+      } as WorkflowRunEntity;
 
       nextRun.steps[stepIndex] = {
         ...step,
@@ -150,4 +145,4 @@ class WorkflowRunRepository extends BaseRepository<StoredWorkflowRunEntity, Crea
 }
 
 export { WorkflowRunRepository };
-export type { StoredWorkflowRunEntity, CreateWorkflowRunRecord, UpdateWorkflowRunRecord, UpdateWorkflowStepRecord };
+export type { UpdateWorkflowStepRecord };

@@ -6,7 +6,8 @@ export interface ProjectEntity {
   description?: string;
   git_url?: string | null;
   local_path?: string | null;
-  [key: string]: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TaskEntity {
@@ -14,13 +15,20 @@ export interface TaskEntity {
   title: string;
   description?: string;
   project_id: number;
-  status?: string;
-  priority?: string;
+  status: string;
+  priority: string;
+  assignee?: string;
+  due_date?: string;
+  order?: number;
   external_id?: string | null;
   workflow_run_id?: number | null;
   worktree_path?: string | null;
   worktree_branch?: string | null;
-  [key: string]: unknown;
+  iteration_id?: number | null;
+  source: string;
+  labels?: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SessionEntity {
@@ -36,8 +44,8 @@ export interface SessionEntity {
   executor_type?: ExecutorType | null;
   started_at?: string | null;
   completed_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SessionSegmentEntity {
@@ -55,8 +63,8 @@ export interface SessionSegmentEntity {
   started_at?: string | null;
   completed_at?: string | null;
   metadata?: Record<string, unknown>;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SessionEventEntity {
@@ -68,8 +76,8 @@ export interface SessionEventEntity {
   role: 'assistant' | 'system' | 'tool' | 'user';
   content: string;
   payload: Record<string, unknown>;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WorkflowStepEntity {
@@ -84,29 +92,35 @@ export interface WorkflowStepEntity {
   summary: string | null;
 }
 
+export interface WorkflowTemplateStepEntity {
+  id: string;
+  name: string;
+  instructionPrompt: string;
+  agentId: number;
+}
+
 export interface WorkflowRunEntity {
   id: number;
   task_id: number;
   workflow_template_id: string;
-  workflow_template_snapshot?: WorkflowTemplateEntity | null;
+  workflow_template_snapshot: WorkflowTemplateEntity;
   status: string;
   current_step: string | null;
   steps: WorkflowStepEntity[];
   worktree_path: string;
   branch: string;
   context: Record<string, unknown>;
-  [key: string]: unknown;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WorkflowTemplateEntity {
+  id: number;
   template_id: string;
   name: string;
-  steps: Array<{
-    id: string;
-    name: string;
-    instructionPrompt: string;
-    agentId: number;
-  }>;
+  steps: WorkflowTemplateStepEntity[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TaskSourceEntity {
@@ -117,5 +131,39 @@ export interface TaskSourceEntity {
   config: Record<string, unknown>;
   enabled: boolean;
   last_sync_at?: string | null;
+  created_at: string;
+  updated_at: string;
   [key: string]: unknown;
+}
+
+export interface AgentEntity {
+  id: number;
+  name: string;
+  executorType: string;
+  role: string;
+  description?: string;
+  enabled: boolean;
+  skills: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IterationEntity {
+  id: number;
+  project_id: number;
+  name: string;
+  goal?: string;
+  status: string;
+  start_date?: string;
+  end_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExecutionEntity {
+  id: number;
+  session_id?: number;
+  task_id?: number;
+  created_at: string;
+  updated_at: string;
 }

@@ -1,7 +1,7 @@
 import crossSpawn from 'cross-spawn';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
-import type { ExecutorConfig, ExecutorProcessHandle } from '../../../types/executors.js';
+import type { ExecutorProcessHandle } from '../../../types/executors.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 

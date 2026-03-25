@@ -2,7 +2,7 @@ export interface WorkflowTemplateStepInput {
   id: string;
   name: string;
   instructionPrompt: string;
-  agentId: number | null;
+  agentId: number;
 }
 
 export interface CreateWorkflowTemplateInput {

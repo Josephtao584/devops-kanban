@@ -10,8 +10,8 @@ import type {
   SourceRecord,
   SourceTypeDefinition,
   TaskSourceImportResult,
-  TaskSourceSyncResultItem,
 } from './sources.ts';
+import type {TaskEntity} from "./entities.js";
 
 export interface FastifyRuntimeConfig {
   SERVER_PORT: number;
@@ -27,7 +27,7 @@ export interface TaskSourceServiceContract {
   create(source: CreateTaskSourceInput): Promise<SourceRecord>;
   update(sourceId: string, source: UpdateTaskSourceInput): Promise<SourceRecord | null>;
   delete(sourceId: string): Promise<SourceRecord | null>;
-  sync(sourceId: string): Promise<TaskSourceSyncResultItem[]>;
+  sync(sourceId: string): Promise<TaskEntity[]>;
   previewSync(sourceId: string): Promise<PreviewImportedTask[]>;
   importIssues(sourceId: string, items: ImportedTask[], projectId: number, iterationId?: number | null): Promise<TaskSourceImportResult>;
   testConnection(sourceId: string): Promise<boolean>;

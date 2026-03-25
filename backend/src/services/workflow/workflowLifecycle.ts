@@ -73,7 +73,7 @@ class WorkflowLifecycle {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const template = run.workflow_template_snapshot ?? (this.workflowTemplateService ? await this.workflowTemplateService.getTemplateById(run.workflow_template_id ?? 'dev-workflow-v1') : null);
+    const template = run.workflow_template_snapshot;
     if (!template) {
       throw new Error(`Workflow template not found for run: ${runId}`);
     }

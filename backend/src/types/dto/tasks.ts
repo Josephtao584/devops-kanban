@@ -11,7 +11,6 @@ export interface CreateTaskInput {
   workflow_run_id?: number | null;
   worktree_path?: string | null;
   worktree_branch?: string | null;
-  worktree_status?: string | null;
   order?: number;
 }
 
@@ -35,6 +34,5 @@ export interface UpdateTaskInput {
   workflow_run_id?: number | null;
   worktree_path?: string | null;
   worktree_branch?: string | null;
-  worktree_status?: string | null;
   order?: number;
 }
