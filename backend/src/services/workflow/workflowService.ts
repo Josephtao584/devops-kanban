@@ -144,9 +144,9 @@ class WorkflowService {
   }
 
   async startWorkflow(taskId: number, workflowTemplateId?: string) {
-    const task = await this.taskRepo.findById(taskId) as WorkflowTaskRecord | null;
+    const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error = new Error('Task not found') as Error & { statusCode?: number };
+      const error = new Error('Task not found');
       error.statusCode = 404;
       throw error;
     }
@@ -154,7 +154,7 @@ class WorkflowService {
     const executionPath = await this._resolveExecutionPath(task);
     const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
-      const error = new Error('Task already has an active workflow run') as Error & { statusCode?: number };
+      const error = new Error('Task already has an active workflow run');
       error.statusCode = 409;
       throw error;
     }
@@ -206,7 +206,7 @@ class WorkflowService {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
       }
 
-      const agent = await this.agentRepo.findById(step.agentId) as WorkflowAgentRecord | null;
+      const agent = await this.agentRepo.findById(step.agentId);
       if (!agent) {
         throw createValidationError(`Step "${step.name}" references agent ${step.agentId} that was not found`);
       }
@@ -233,10 +233,10 @@ class WorkflowService {
 
     const project = await this.projectRepo.findById(task.project_id);
     if (project?.local_path) {
-      return project.local_path as string;
+      return project.local_path;
     }
 
-    const error = new Error('No workspace path configured for workflow execution') as Error & { statusCode?: number };
+    const error = new Error('No workspace path configured for workflow execution');
     error.statusCode = 400;
     throw error;
   }
@@ -326,15 +326,15 @@ class WorkflowService {
   }
 
   async cancelWorkflow(runId: number) {
-    const run = await this.workflowRunRepo.findById(runId) as WorkflowRunEntity | null;
+    const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
-      const error = new Error('Workflow run not found') as Error & { statusCode?: number };
+      const error = new Error('Workflow run not found');
       error.statusCode = 404;
       throw error;
     }
 
     if (run.status !== 'RUNNING' && run.status !== 'PENDING') {
-      const error = new Error(`Cannot cancel workflow in status: ${run.status}`) as Error & { statusCode?: number };
+      const error = new Error(`Cannot cancel workflow in status: ${run.status}`);
       error.statusCode = 400;
       throw error;
     }
@@ -346,7 +346,7 @@ class WorkflowService {
     } else {
       // Fallback: reconstruct from storage (handles edge cases where
       // _activeRuns entry was cleaned up but run is still marked RUNNING)
-      const template = (run.workflow_template_snapshot as WorkflowTemplate | null)
+      const template = run.workflow_template_snapshot
         ?? await this._loadTemplate(run.workflow_template_id ?? undefined);
       const workflow = buildWorkflowFromTemplate(template);
       const reconstructedRun = await workflow.createRun({ runId: String(runId) });
@@ -363,7 +363,7 @@ class WorkflowService {
     }
 
     const updatedRun = await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
-    await this._resetTaskToTodo((run as { task_id?: number }).task_id ?? 0);
+    await this._resetTaskToTodo(run.task_id ?? 0);
     return updatedRun;
   }
 }
