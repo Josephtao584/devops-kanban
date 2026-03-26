@@ -549,6 +549,31 @@ test.test('InternalApiAdapter extracts list items when JSON text is nested in da
   ]);
 });
 
+test.test('InternalApiAdapter extracts list items from nested data.data.result', () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/tasks',
+      detailPath: '/tasks/{id}',
+    },
+  });
+
+  const response = {
+    data: {
+      data: {
+        result: [
+          { id: 2, number: 'US-2', title: 'Deep nested item' },
+        ],
+      },
+    },
+  };
+
+  assert.deepEqual(adapter._extractListItems(response), [
+    { id: 2, number: 'US-2', title: 'Deep nested item' },
+  ]);
+});
+
 test.test('InternalApiAdapter fetch throws when required config is missing', async () => {
   const adapter = new InternalApiAdapter({
     type: 'INTERNAL_API',
