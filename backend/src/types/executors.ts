@@ -35,7 +35,6 @@ export interface ExecutorExecutionInput {
   prompt: string;
   worktreePath: string;
   executorConfig?: ExecutorConfig | undefined;
-  onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   abortSignal?: AbortSignal | undefined;
@@ -46,7 +45,6 @@ export interface ExecutorContinueInput {
   worktreePath: string;
   providerSessionId?: string;
   executorConfig?: ExecutorConfig;
-  onSpawn?: ((proc: ExecutorProcessHandle) => void);
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>);
   abortSignal?: AbortSignal;

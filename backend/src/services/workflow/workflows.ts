@@ -46,10 +46,67 @@ interface BuildWorkflowOptions {
   lifecycle: WorkflowLifecycle;
 }
 
-export function getWorkflowFromWorkflowId(
-    workflowId: string
-){
-   return getMastra().getWorkflow(workflowId);
+export function getWorkflowFromWorkflowId(workflowId: string) {
+  return getMastra().getWorkflow(workflowId);
+}
+
+/**
+ * Check if a workflow is registered with Mastra
+ */
+export function hasWorkflow(workflowId: string): boolean {
+  try {
+    getMastra().getWorkflow(workflowId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a minimal workflow from template snapshot for recovery purposes (e.g., cancellation).
+ * This creates a workflow with no-op execute functions, sufficient for Mastra to manage run state.
+ */
+export function buildWorkflowForRecovery(template: WorkflowTemplateEntity) {
+  const steps = template.steps.map((templateStep, index) => {
+    const isFirst = index === 0;
+
+    return createStep({
+      id: templateStep.id,
+      inputSchema: isFirst ? firstStepInputSchema : stepOutputSchema,
+      outputSchema: stepOutputSchema,
+      stateSchema: sharedStateSchema,
+      execute: async () => ({ summary: '' }), // No-op for recovery
+    });
+  });
+
+  let workflow = createWorkflow({
+    id: template.template_id,
+    inputSchema: firstStepInputSchema,
+    outputSchema: stepOutputSchema,
+    stateSchema: sharedStateSchema,
+  });
+
+  for (const step of steps) {
+    workflow = workflow.then(step) as any;
+  }
+
+  workflow.commit();
+
+  // Register with Mastra
+  getMastra().addWorkflow(workflow);
+
+  return workflow;
+}
+
+/**
+ * Get or create a workflow for a given template.
+ * If the workflow is not registered (e.g., after server restart), rebuilds it from the template.
+ */
+export function ensureWorkflow(template: WorkflowTemplateEntity) {
+  if (hasWorkflow(template.template_id)) {
+    return getWorkflowFromWorkflowId(template.template_id);
+  }
+  return buildWorkflowForRecovery(template);
 }
 
 export function buildWorkflowFromTemplate(
@@ -66,11 +123,19 @@ export function buildWorkflowFromTemplate(
       outputSchema: stepOutputSchema,
       stateSchema: sharedStateSchema,
       execute: async ({ inputData, state, abortSignal, abort }) => {
+        console.log(`[Workflow] Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}`);
+
+        if (abortSignal) {
+          abortSignal.addEventListener('abort', () => {
+            console.log(`[Workflow] Step ${templateStep.id} received abort signal!`);
+          });
+        }
+
         let sessionId: number | undefined;
         let segmentId: number | undefined;
         const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
-        if(!sessionInfo){
-            throw new Error("session created error")
+        if (!sessionInfo) {
+          throw new Error('session created error');
         }
 
         sessionId = sessionInfo.sessionId;
@@ -81,21 +146,18 @@ export function buildWorkflowFromTemplate(
           worktreePath: state.worktreePath,
           state,
           inputData,
-          workflowTemplate: workflowTemplate,
+          workflowTemplate,
           abortSignal,
           upstreamStepIds: previousStepId ? [previousStepId] : [],
-          runId: options.runId,
-          sessionId,
-          segmentId,
           onEvent: async (event) => {
-              await options?.lifecycle.sessionEventRepo.append({
-                  session_id: sessionId,
-                  segment_id: segmentId,
-                  kind: event.kind,
-                  role: event.role,
-                  content: event.content,
-                  payload: event.payload || {},
-              });
+            await options?.lifecycle.sessionEventRepo.append({
+              session_id: sessionId,
+              segment_id: segmentId,
+              kind: event.kind,
+              role: event.role,
+              content: event.content,
+              payload: event.payload || {},
+            });
           },
           onProviderState: async (providerState) => {
             if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
@@ -128,6 +190,10 @@ export function buildWorkflowFromTemplate(
   }
 
   workflow.commit();
+
+  // Register workflow with Mastra for persistence and retrieval
+  getMastra().addWorkflow(workflow);
+
   return workflow;
 }
 
