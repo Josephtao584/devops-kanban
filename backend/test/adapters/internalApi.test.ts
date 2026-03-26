@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { gzipSync } from 'node:zlib';
 
 import { InternalApiAdapter } from '../../src/sources/internalApi.js';
 
@@ -501,6 +502,28 @@ test.test('InternalApiAdapter adds JSON headers when request body is present', (
     },
     method: 'POST',
   });
+});
+
+test.test('InternalApiAdapter parses gzip-compressed JSON responses', () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/tasks',
+      detailPath: '/tasks/{id}',
+    },
+  });
+
+  const payload = {
+    code: 200,
+    message: 'SUCCESS',
+    data: {
+      result: [{ id: 1, number: 'US-1', title: 'Compressed item' }],
+    },
+  };
+  const compressed = gzipSync(Buffer.from(JSON.stringify(payload), 'utf8'));
+
+  assert.deepEqual(adapter._parseResponseBody(compressed, 'gzip'), payload);
 });
 
 test.test('InternalApiAdapter fetch throws when required config is missing', async () => {

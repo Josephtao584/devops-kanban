@@ -1,5 +1,6 @@
 import { request as httpRequest, type IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { brotliDecompressSync, gunzipSync, inflateSync } from 'node:zlib';
 import { TaskSourceAdapter, type TaskSourceLike } from './base.js';
 import type { ImportedTask, SourceDefinition, SourceRecord } from '../types/sources.ts';
 
@@ -100,6 +101,37 @@ class InternalApiAdapter extends TaskSourceAdapter {
     };
   }
 
+  _decodeResponseBuffer(buffer: Buffer, contentEncoding: string | string[] | undefined): Buffer {
+    const encoding = Array.isArray(contentEncoding) ? contentEncoding.join(',').toLowerCase() : contentEncoding?.toLowerCase() ?? '';
+
+    if (encoding.includes('gzip')) {
+      return gunzipSync(buffer);
+    }
+    if (encoding.includes('br')) {
+      return brotliDecompressSync(buffer);
+    }
+    if (encoding.includes('deflate')) {
+      return inflateSync(buffer);
+    }
+
+    return buffer;
+  }
+
+  _bufferToText(buffer: Buffer): string {
+    return buffer.toString('utf8').replace(/^\uFEFF/, '');
+  }
+
+  _parseResponseBody(buffer: Buffer, contentEncoding: string | string[] | undefined): unknown {
+    const decodedBuffer = this._decodeResponseBuffer(buffer, contentEncoding);
+    const decodedText = this._bufferToText(decodedBuffer);
+    return JSON.parse(decodedText);
+  }
+
+  _formatResponseBody(buffer: Buffer, contentEncoding: string | string[] | undefined): string {
+    const decodedBuffer = this._decodeResponseBuffer(buffer, contentEncoding);
+    return this._bufferToText(decodedBuffer);
+  }
+
   _request(pathValue: string, requestOptions: RequestOptions = {}): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const url = new URL(pathValue, `${this.baseUrl}/`);
@@ -108,21 +140,22 @@ class InternalApiAdapter extends TaskSourceAdapter {
       const options = this._buildRequestOptions(url, requestOptions, body);
 
       const req = requestFactory(options, (res: IncomingMessage) => {
-        let data = '';
+        const chunks: Buffer[] = [];
 
         res.on('data', (chunk: Buffer | string) => {
-          data += chunk.toString();
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
         });
 
         res.on('end', () => {
+          const responseBuffer = Buffer.concat(chunks);
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             try {
-              resolve(JSON.parse(data));
+              resolve(this._parseResponseBody(responseBuffer, res.headers['content-encoding']));
             } catch {
-              resolve({ data });
+              resolve({ data: this._formatResponseBody(responseBuffer, res.headers['content-encoding']) });
             }
           } else {
-            reject(new Error(`Internal API error: ${res.statusCode} - ${data}`));
+            reject(new Error(`Internal API error: ${res.statusCode} - ${this._formatResponseBody(responseBuffer, res.headers['content-encoding'])}`));
           }
         });
       });
