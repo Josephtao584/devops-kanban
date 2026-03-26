@@ -107,6 +107,7 @@
               <div class="section-title">配置信息</div>
               <el-form-item
                 v-for="(field, key) in selectedTypeConfig.configFields"
+                v-if="!field.hidden"
                 :key="key"
                 :label="getFieldLabel(key, field)"
                 :prop="`config.${key}`"

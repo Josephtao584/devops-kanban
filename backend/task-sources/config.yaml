@@ -135,21 +135,25 @@ adapterTypes:
         required: false
         description: "每页工作项数量"
         default: "10"
+        hidden: true
       listPath:
         type: string
         required: true
         description: "工作项列表 API 的相对路径"
         default: /devops-workitem/api/v1/query/workitems
+        hidden: true
       detailPath:
         type: string
         required: true
         description: "详情 API 的相对路径模板"
         default: /devops-workitem/api/v1/query/{number}/document_detail
+        hidden: true
       detailIdField:
         type: string
         required: false
         description: "列表项中用于填充详情路径占位符的字段，默认为 number"
         default: number
+        hidden: true
       rejectUnauthorized:
         type: boolean
         required: false
