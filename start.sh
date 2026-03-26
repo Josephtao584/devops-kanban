@@ -88,12 +88,16 @@ if [ -z "$NODE_MAJOR" ] || ! printf '%s' "$NODE_MAJOR" | grep -Eq '^[0-9]+$'; th
     echo -e "${RED}✗ 错误：无法识别 Node.js 版本，当前输出为 ${NODE_VERSION:-<empty>}${NC}"
     exit 1
 fi
-if [ "$NODE_MAJOR" -lt 22 ] || [ "$NODE_MAJOR" -ge 23 ]; then
-    echo -e "${RED}✗ 错误：后端需要 Node.js 22.x，当前版本为 $NODE_VERSION${NC}"
+if [ "$NODE_MAJOR" -lt 22 ]; then
+    echo -e "${RED}✗ 错误：后端需要 Node.js 22+，当前版本为 $NODE_VERSION${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Node.js: $NODE_VERSION${NC}"
+if [ "$NODE_MAJOR" -ne 22 ]; then
+    echo -e "${YELLOW}⚠ 警告：推荐使用 Node.js 22.x，当前版本为 $NODE_VERSION，将继续启动${NC}"
+else
+    echo -e "${GREEN}✓ Node.js: $NODE_VERSION${NC}"
+fi
 
 # 初始化数据目录
 init_data_dir() {
