@@ -90,12 +90,35 @@ fi
 
 echo -e "${GREEN}✓ Node.js: $(node -v)${NC}"
 
+# 初始化数据目录
+init_data_dir() {
+    local data_dir="$PROJECT_ROOT/data"
+    local data_sample_dir="$PROJECT_ROOT/data-sample"
+
+    if [ -d "$data_dir" ]; then
+        return 0
+    fi
+
+    if [ -d "$data_sample_dir" ]; then
+        echo -e "${YELLOW}初始化后端数据：将 data-sample 复制到 data...${NC}"
+        cp -R "$data_sample_dir" "$data_dir"
+        echo -e "${GREEN}✓ 已初始化 data 目录${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}未找到 data-sample，已创建空 data 目录...${NC}"
+    mkdir -p "$data_dir"
+    echo -e "${GREEN}✓ 已创建 data 目录${NC}"
+}
+
+init_data_dir
+
 # 检查并清理端口占用
 echo ""
 echo -e "${YELLOW}检查端口占用...${NC}"
 
 cleanup_port $FRONTEND_PORT "前端服务 (Vite)"
-cleanup_port $BACKEND_PORT "后端服务 (Uvicorn)"
+cleanup_port $BACKEND_PORT "后端服务 (Node.js)"
 
 echo ""
 
@@ -125,7 +148,7 @@ for i in {1..15}; do
         break
     fi
     if [ $i -eq 15 ]; then
-        echo -e "${YELLOW}⚠ 前端启动超时，查看日志：/tmp/frontend.log${NC}"
+        echo -e "${YELLOW}⚠ 前端启动超时，查看日志：/tmp/kanban-frontend.log${NC}"
         echo -e "${YELLOW}   继续启动后端服务...${NC}"
     fi
     sleep 1
@@ -134,23 +157,6 @@ done
 # 启动后端
 echo ""
 echo -e "${YELLOW}[2/2] 启动后端服务 (Node.js)...${NC}"
-
-# 确保数据目录存在：
-# 1) data/ 不存在则尝试从 data-sample/ 复制
-# 2) data-sample/ 也不存在则创建空 data/
-DATA_DIR="$PROJECT_ROOT/data"
-DATA_SAMPLE_DIR="$PROJECT_ROOT/data-sample"
-if [ ! -d "$DATA_DIR" ]; then
-    if [ -d "$DATA_SAMPLE_DIR" ]; then
-        echo -e "${YELLOW}初始化后端数据：将 data-sample 复制到 data...${NC}"
-        cp -R "$DATA_SAMPLE_DIR" "$DATA_DIR"
-        echo -e "${GREEN}✓ 已初始化 data 目录${NC}"
-    else
-        echo -e "${YELLOW}未找到 data-sample，已创建空 data 目录...${NC}"
-        mkdir -p "$DATA_DIR"
-        echo -e "${GREEN}✓ 已创建 data 目录${NC}"
-    fi
-fi
 
 cd "$BACKEND_DIR"
 
