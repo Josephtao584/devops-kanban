@@ -258,6 +258,8 @@ describe('KanbanView iteration management', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
     await wrapper.find('.open-create-iteration').trigger('click')
     await flushPromises()
 
@@ -270,6 +272,8 @@ describe('KanbanView iteration management', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
     await wrapper.find('.edit-iteration-3').trigger('click')
     await flushPromises()
 
@@ -287,6 +291,8 @@ describe('KanbanView iteration management', () => {
     wrapper.vm.selectedIterationId = 3
     await wrapper.vm.$nextTick()
 
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
     await wrapper.find('.delete-iteration-3').trigger('click')
     await flushPromises()
 
@@ -309,6 +315,8 @@ describe('KanbanView iteration management', () => {
 
     const iterationStore = useIterationStore()
 
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
     await wrapper.find('.delete-iteration-3').trigger('click')
     await flushPromises()
 

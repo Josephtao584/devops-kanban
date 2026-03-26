@@ -74,15 +74,6 @@
           </div>
         </div>
 
-        <div v-if="selectedProjectId" class="iteration-management-section">
-          <IterationList
-            :iterations="projectIterations"
-            @click="handleIterationClick"
-            @edit="openEditIteration"
-            @delete="handleDeleteIteration"
-          />
-        </div>
-
         <!-- Kanban Board -->
         <div v-if="viewMode === 'kanban'" class="kanban-board" ref="kanbanBoardRef">
           <KanbanColumn
@@ -1607,20 +1598,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.iteration-management-section {
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
-
-.iteration-management-section :deep(.iterations-grid) {
-  padding: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-}
-
-.iteration-management-section :deep(.empty-state) {
-  padding: 20px 12px;
 }
 
 .view-toggle {
