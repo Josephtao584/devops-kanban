@@ -168,48 +168,76 @@ class InternalApiAdapter extends TaskSourceAdapter {
     });
   }
 
-  _extractListItems(response: unknown): UnknownRecord[] {
-    if (Array.isArray(response)) {
-      return response.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
+  _normalizeJsonLikeResponse(response: unknown): unknown {
+    if (typeof response !== 'string') {
+      return response;
     }
 
-    if (response && typeof response === 'object') {
-      const data = (response as UnknownRecord).data;
+    const trimmed = response.trim();
+    if (!trimmed) {
+      return response;
+    }
+
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        return response;
+      }
+    }
+
+    return response;
+  }
+
+  _extractListItems(response: unknown): UnknownRecord[] {
+    const normalizedResponse = this._normalizeJsonLikeResponse(response);
+
+    if (Array.isArray(normalizedResponse)) {
+      return normalizedResponse.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
+    }
+
+    if (normalizedResponse && typeof normalizedResponse === 'object') {
+      const data = this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data);
       if (Array.isArray(data)) {
         return data.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
       }
 
       if (data && typeof data === 'object') {
-        const result = (data as UnknownRecord).result;
+        const result = this._normalizeJsonLikeResponse((data as UnknownRecord).result);
         if (Array.isArray(result)) {
           return result.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
         }
       }
     }
 
-    throw new Error('Internal API list response must be an array, { data: [] }, or { data: { result: [] } }');
+    const responseType = Array.isArray(normalizedResponse) ? 'array' : typeof normalizedResponse;
+    throw new Error(`Internal API list response must be an array, { data: [] }, or { data: { result: [] } }. Received type: ${responseType}`);
   }
 
   _extractDetailObject(response: unknown): UnknownRecord {
-    if (response && typeof response === 'object' && !Array.isArray(response)) {
-      const data = (response as UnknownRecord).data;
+    const normalizedResponse = this._normalizeJsonLikeResponse(response);
+
+    if (normalizedResponse && typeof normalizedResponse === 'object' && !Array.isArray(normalizedResponse)) {
+      const data = this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data);
       if (data && typeof data === 'object' && !Array.isArray(data)) {
         return data as UnknownRecord;
       }
 
-      return response as UnknownRecord;
+      return normalizedResponse as UnknownRecord;
     }
 
     throw new Error('Internal API detail response must be an object or { data: {} }');
   }
 
   _extractDetailRecords(response: unknown): UnknownRecord[] {
-    if (Array.isArray(response)) {
-      return response.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
+    const normalizedResponse = this._normalizeJsonLikeResponse(response);
+
+    if (Array.isArray(normalizedResponse)) {
+      return normalizedResponse.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
     }
 
-    if (response && typeof response === 'object') {
-      const data = (response as UnknownRecord).data;
+    if (normalizedResponse && typeof normalizedResponse === 'object') {
+      const data = this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data);
       if (Array.isArray(data)) {
         return data.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
       }

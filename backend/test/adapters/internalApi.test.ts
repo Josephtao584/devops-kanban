@@ -526,6 +526,29 @@ test.test('InternalApiAdapter parses gzip-compressed JSON responses', () => {
   assert.deepEqual(adapter._parseResponseBody(compressed, 'gzip'), payload);
 });
 
+test.test('InternalApiAdapter extracts list items when JSON text is nested in data', () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/tasks',
+      detailPath: '/tasks/{id}',
+    },
+  });
+
+  const response = {
+    data: JSON.stringify({
+      result: [
+        { id: 1, number: 'US-1', title: 'Nested json text item' },
+      ],
+    }),
+  };
+
+  assert.deepEqual(adapter._extractListItems(response), [
+    { id: 1, number: 'US-1', title: 'Nested json text item' },
+  ]);
+});
+
 test.test('InternalApiAdapter fetch throws when required config is missing', async () => {
   const adapter = new InternalApiAdapter({
     type: 'INTERNAL_API',
