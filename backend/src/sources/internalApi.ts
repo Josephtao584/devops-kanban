@@ -105,9 +105,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
     };
     if (url.protocol === 'https:') {
       options.rejectUnauthorized = this.rejectUnauthorized;
-      console.log('[DEBUG _buildRequestOptions] https request, rejectUnauthorized:', this.rejectUnauthorized);
     }
-    console.log('[DEBUG _buildRequestOptions] url:', url.toString(), 'options:', options);
     return options;
   }
 
@@ -149,7 +147,6 @@ class InternalApiAdapter extends TaskSourceAdapter {
       const body = requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body);
       const options = this._buildRequestOptions(url, requestOptions, body);
 
-      console.log('[DEBUG _request] method:', options.method, 'url:', url.toString(), 'body:', body);
       const req = requestFactory(options, (res: IncomingMessage) => {
         const chunks: Buffer[] = [];
 
@@ -235,42 +232,31 @@ class InternalApiAdapter extends TaskSourceAdapter {
     // Handle double-encoded JSON strings: if data is a string that looks like
     // a JSON object or array, try parsing it.
     let dataValueForResult = dataValue;
-    console.log('[DEBUG _extractListItems] dataValue type:', typeof dataValueForResult, 'value:', dataValueForResult);
     if (typeof dataValueForResult === 'string') {
       const trimmed = dataValueForResult.trim();
-      const startsWithBrace = trimmed.startsWith('{');
-      const startsWithBracket = trimmed.startsWith('[');
-      const startsWithQuote = trimmed.startsWith('"');
-      console.log('[DEBUG _extractListItems] trimmed startsWith "{":', startsWithBrace, 'startsWith "[":', startsWithBracket, 'startsWith "\"":', startsWithQuote);
-      if (startsWithBrace || startsWithBracket) {
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         try {
           dataValueForResult = JSON.parse(trimmed);
-          console.log('[DEBUG _extractListItems] parsed as JSON, type:', typeof dataValueForResult);
-        } catch (e) {
-          console.log('[DEBUG _extractListItems] parse failed:', (e as Error).message);
+        } catch {
+          // Keep original string
         }
-      } else if (startsWithQuote) {
+      } else if (trimmed.startsWith('"')) {
         // Double-encoded: '"{"result":[]}"' -> first parse gives '{"result":[]}'
         try {
           const firstParse = JSON.parse(trimmed);
-          console.log('[DEBUG _extractListItems] first parse result type:', typeof firstParse, 'value:', firstParse);
           if (typeof firstParse === 'string') {
             const inner = firstParse.trim();
             if (inner.startsWith('{') || inner.startsWith('[')) {
               dataValueForResult = JSON.parse(inner);
-              console.log('[DEBUG _extractListItems] second parse result type:', typeof dataValueForResult);
-            } else {
-              console.log('[DEBUG _extractListItems] inner does not start with { or [');
             }
           } else if (typeof firstParse === 'object' && firstParse !== null) {
             dataValueForResult = firstParse;
           }
-        } catch (e) {
-          console.log('[DEBUG _extractListItems] double-parse failed:', (e as Error).message);
+        } catch {
+          // Keep original string
         }
       }
     }
-    console.log('[DEBUG _extractListItems] dataValueForResult type:', typeof dataValueForResult, 'value:', dataValueForResult);
 
     const dataArray = this._toObjectArray(dataValue);
     if (dataArray) {
