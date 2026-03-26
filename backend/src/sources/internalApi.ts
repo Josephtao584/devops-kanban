@@ -139,6 +139,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
       const body = requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body);
       const options = this._buildRequestOptions(url, requestOptions, body);
 
+      console.log('[DEBUG _request] method:', options.method, 'url:', url.toString(), 'body:', body);
       const req = requestFactory(options, (res: IncomingMessage) => {
         const chunks: Buffer[] = [];
 
