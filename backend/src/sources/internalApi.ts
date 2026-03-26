@@ -451,7 +451,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
         {
           key: 'mine_todo',
           operator: '||',
-          value: [this.userId != null ? String(this.userId) : ''],
+          value: [this.userId != null ? (Number(this.userId) || this.userId) : ''],
         },
       ],
       sort: {
