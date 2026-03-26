@@ -4,6 +4,7 @@ import { TaskSourceService } from '../services/taskSourceService.js';
 import type {
   CreateTaskSourceInput,
   TaskSourceImportBody,
+  TaskSourcePreviewBody,
   UpdateTaskSourceInput,
 } from '../types/dto/taskSources.js';
 import type { IdParams } from '../types/http/params.js';
@@ -109,9 +110,10 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: IdParams }>('/:id/sync/preview', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body: TaskSourcePreviewBody }>('/:id/sync/preview', async (request, reply) => {
     try {
-      return successResponse(await getService().previewSync(request.params.id));
+      const { limit = 10, offset = 0 } = request.body ?? {};
+      return successResponse(await getService().previewSync(request.params.id, { limit, offset }));
     } catch (error) {
       request.log.error(error);
       return handleTaskSourceError(reply, error, `Failed to preview sync: ${getErrorMessage(error, 'Unknown error')}`);

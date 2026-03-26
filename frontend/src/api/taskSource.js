@@ -9,6 +9,6 @@ export const updateTaskSource = (id, data) => api.put(`/task-sources/${id}`, dat
 export const deleteTaskSource = (id) => api.delete(`/task-sources/${id}`)
 
 export const syncTaskSource = (id) => api.post(`/task-sources/${id}/sync`)
-export const previewSync = (id) => api.post(`/task-sources/${id}/sync/preview`)
+export const previewSync = (id, params = {}) => api.post(`/task-sources/${id}/sync/preview`, params)
 export const importIssues = (id, data) => api.post(`/task-sources/${id}/sync/import`, data)
 export const testTaskSource = (id) => api.get(`/task-sources/${id}/test`)

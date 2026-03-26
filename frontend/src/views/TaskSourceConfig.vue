@@ -105,13 +105,16 @@
           <template v-if="selectedTypeConfig">
             <div class="form-section">
               <div class="section-title">配置信息</div>
-              <el-form-item
+              <template
                 v-for="(field, key) in selectedTypeConfig.configFields"
                 :key="key"
-                :label="getFieldLabel(key, field)"
-                :prop="`config.${key}`"
-                :required="field.required"
               >
+                <el-form-item
+                  v-if="field && !field.hidden"
+                  :label="getFieldLabel(key, field)"
+                  :prop="`config.${key}`"
+                  :required="field.required"
+                >
                 <!-- State 字段使用下拉框 -->
                 <el-select
                   v-if="key === 'state'"
@@ -136,6 +139,24 @@
                     :value="label"
                   />
                 </el-select>
+                <!-- boolean 类型使用开关 -->
+                <el-switch
+                  v-else-if="field.type === 'boolean'"
+                  v-model="formData.config[key]"
+                />
+                <!-- options 存在时使用下拉框 -->
+                <el-select
+                  v-else-if="field.options && field.options.length > 0"
+                  v-model="formData.config[key]"
+                  :placeholder="getFieldPlaceholder(key, field)"
+                >
+                  <el-option
+                    v-for="opt in field.options"
+                    :key="opt.value"
+                    :label="opt.label"
+                    :value="opt.value"
+                  />
+                </el-select>
                 <!-- 默认使用输入框 -->
                 <el-input
                   v-else
@@ -144,6 +165,7 @@
                   clearable
                 />
               </el-form-item>
+              </template>
             </div>
           </template>
 
@@ -225,7 +247,7 @@
                   class="external-link"
                   @click.stop
                 >
-                  {{ $t('taskSource.viewOnGitHub') }} →
+                  {{ $t('taskSource.viewExternalItem') }} →
                 </a>
               </div>
             </div>
@@ -328,57 +350,48 @@ const getTypeLabel = (type) => {
   return localizedLabel === type ? type : `${type} · ${localizedLabel}`
 }
 
-const getTypeIcon = (type) => {
-  const icons = {
-    GITHUB: '🐙',
-    JIRA: '📋',
-    LINEAR: '📊'
-  }
-  return icons[type] || '📦'
+const getTypeIcon = (_type) => {
+  return ''
 }
 
 const getFieldLabel = (key, field) => {
-  const selectedType = formData.value.type
   const commonLabels = {
     repo: '仓库',
     token: '访问令牌',
     state: 'Issue 状态',
     labels: '标签筛选',
-    baseUrl: 'API 地址'
-  }
-
-  if (selectedType === 'INTERNAL_API') {
-    const internalApiLabels = {
-      baseUrl: 'API 基础地址',
-      listPath: '列表接口路径',
-      detailPath: '详情接口路径模板',
-      detailIdField: '详情ID字段'
-    }
-    return internalApiLabels[key] || commonLabels[key] || field.description || key
+    baseUrl: 'API 地址',
+    userId: '用户标识',
+    category: '分类',
+    status: '状态',
+    pageSize: '每页数量',
+    listPath: '列表路径',
+    detailPath: '详情路径',
+    detailIdField: '详情 ID 字段',
+    rejectUnauthorized: '接受自签名证书'
   }
 
   return commonLabels[key] || field.description || key
 }
 
 const getFieldPlaceholder = (key, field) => {
-  const selectedType = formData.value.type
   const commonPlaceholders = {
     repo: '例如: owner/repo',
     token: 'ghp_xxx...',
     state: '选择 Issue 状态',
     labels: '选择标签',
-    baseUrl: 'https://codehub.huawei.com/api/v4'
+    baseUrl: 'https://codehub.huawei.com/api/v4',
+    userId: '输入用户标识',
+    category: '例如: 5',
+    pageSize: '例如: 10',
+    listPath: '/devops-workitem/api/v1/query/workitems',
+    detailPath: '/devops-workitem/api/v1/query/{number}/document_detail',
+    detailIdField: '例如: number',
+    rejectUnauthorized: '关闭后接受自签名证书'
   }
 
-  if (selectedType === 'INTERNAL_API') {
-    const internalApiPlaceholders = {
-      baseUrl: '例如: https://internal.example.com',
-      token: '例如: Bearer xxx 或 ApiKey xxx',
-      listPath: '例如: /api/tasks',
-      detailPath: '例如: /api/tasks/{id}',
-      detailIdField: '例如: id 或 data.taskId'
-    }
-    return internalApiPlaceholders[key] || commonPlaceholders[key] || field.description || ''
+  if (field?.default !== undefined) {
+    return `默认: ${field.default}`
   }
 
   return commonPlaceholders[key] || field.description || ''
@@ -421,9 +434,27 @@ const onProjectChange = async () => {
   }
 }
 
+const buildDefaultConfig = (typeKey) => {
+  const typeConfig = taskSourceStore.availableTypes.find(type => type.key === typeKey)
+  const defaults = {}
+
+  if (!typeConfig?.configFields) {
+    return defaults
+  }
+
+  Object.entries(typeConfig.configFields).forEach(([key, field]) => {
+    if (field?.default !== undefined) {
+      defaults[key] = field.default
+    } else if (field?.type === 'array') {
+      defaults[key] = []
+    }
+  })
+
+  return defaults
+}
+
 const onTypeChange = () => {
-  // Reset config when type changes
-  formData.value.config = {}
+  formData.value.config = buildDefaultConfig(formData.value.type)
 }
 
 // Convert git_url (https://github.com/owner/repo.git) to owner/repo format
@@ -439,19 +470,21 @@ const gitUrlToRepo = (gitUrl) => {
 const showAddDialog = () => {
   isEditMode.value = false
 
-  // Get current project's git_url and convert to owner/repo format
   const currentProject = projectStore.projectList.find(p => String(p.id) === selectedProjectId.value)
   const gitUrl = currentProject?.git_url || ''
   const defaultRepo = gitUrlToRepo(gitUrl)
+  const type = taskSourceStore.availableTypes.length > 0 ? taskSourceStore.availableTypes[0].key : ''
+  const defaultConfig = buildDefaultConfig(type)
+
+  if (defaultRepo && type === 'GITHUB') {
+    defaultConfig.repo = defaultRepo
+  }
 
   formData.value = {
     name: '',
-    type: taskSourceStore.availableTypes.length > 0 ? taskSourceStore.availableTypes[0].key : '',
+    type,
     project_id: selectedProjectId.value,
-    config: {
-      repo: defaultRepo,
-      state: 'open'
-    },
+    config: defaultConfig,
     enabled: true
   }
   dialogVisible.value = true

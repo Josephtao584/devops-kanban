@@ -16,6 +16,11 @@ type UniversalAdapterConfig = {
   transforms?: Record<string, TransformConfig>;
 };
 
+type FetchOptions = {
+  limit?: number;
+  offset?: number;
+};
+
 abstract class TaskSourceAdapter {
   static type: string | null = null;
   static metadata: Record<string, unknown> | null = null;
@@ -26,7 +31,7 @@ abstract class TaskSourceAdapter {
     this.source = source;
   }
 
-  async fetch(): Promise<ImportedTask[]> {
+  async fetch(_options?: FetchOptions): Promise<ImportedTask[]> {
     throw new Error('fetch() must be implemented by subclass');
   }
 
@@ -274,7 +279,7 @@ class UniversalAdapter extends TaskSourceAdapter {
     return result;
   }
 
-  override async fetch(): Promise<ImportedTask[]> {
+  override async fetch(options?: FetchOptions): Promise<ImportedTask[]> {
     const { method = 'GET', params = {} } = this.request;
     const headers = this._buildHeaders(this.request.headers);
     const url = this._buildUrl(this.request.path, params);
@@ -287,7 +292,11 @@ class UniversalAdapter extends TaskSourceAdapter {
       throw new Error(`Expected array in response, got ${typeof items}`);
     }
 
-    return items.map((item) => this.convertToTask(this._mapItem(item)));
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? items.length;
+    const sliced = items.slice(offset, offset + limit);
+
+    return sliced.map((item) => this.convertToTask(this._mapItem(item)));
   }
 
   override async testConnection(): Promise<boolean> {
@@ -319,4 +328,4 @@ class UniversalAdapter extends TaskSourceAdapter {
 }
 
 export { TaskSourceAdapter, UniversalAdapter };
-export type { TaskSourceLike, UniversalAdapterConfig };
+export type { TaskSourceLike, UniversalAdapterConfig, FetchOptions };
