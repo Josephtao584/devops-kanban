@@ -203,6 +203,18 @@
             </svg>
             取消
           </button>
+          <button
+            v-if="(workflowStatus === 'failed' || workflowStatus === 'cancelled') && task.workflow_run_id"
+            class="quick-action-btn quick-action-retry"
+            :disabled="retryLoading"
+            @click.stop="handleRetryWorkflow"
+            title="重试工作流"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+            </svg>
+            重试
+          </button>
         </div>
 
         <div class="workflow-section worktree-summary">
@@ -241,7 +253,7 @@ import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
-import { getWorkflowRun, cancelWorkflow } from '../../api/workflow'
+import { getWorkflowRun, cancelWorkflow, retryWorkflow } from '../../api/workflow'
 import {
   toTimelineWorkflow,
   getWorkflowProgress,
@@ -322,6 +334,7 @@ const { getStatusClass } = useStatusStyle()
 const realWorkflowRun = ref(null)
 const refreshLoading = ref(false)
 const cancelLoading = ref(false)
+const retryLoading = ref(false)
 
 // Fetch real workflow run when task is expanded and has workflow_run_id
 watch(() => [props.workflowExpanded, props.task?.workflow_run_id], async ([expanded, runId]) => {
@@ -378,6 +391,25 @@ const handleCancelWorkflow = async () => {
     ElMessage.error('取消工作流失败')
   } finally {
     cancelLoading.value = false
+  }
+}
+
+// Retry workflow
+const handleRetryWorkflow = async () => {
+  if (!props.task?.workflow_run_id) return
+  retryLoading.value = true
+  try {
+    const response = await retryWorkflow(props.task.workflow_run_id)
+    if (response.success) {
+      ElMessage.success('工作流重试已开始')
+      realWorkflowRun.value = response.data
+      emit('workflow-action', { action: 'retry', task: props.task })
+    }
+  } catch (error) {
+    console.error('Failed to retry workflow:', error)
+    ElMessage.error('重试工作流失败')
+  } finally {
+    retryLoading.value = false
   }
 }
 
@@ -466,7 +498,8 @@ const workflowStatusText = computed(() => {
     'running': '运行中',
     'paused': '已暂停',
     'done': '已完成',
-    'failed': '已失败'
+    'failed': '已失败',
+    'cancelled': '已取消'
   }
   return textMap[workflowStatus.value] || '待启动'
 })
@@ -899,6 +932,11 @@ const openWorktreeDirectory = () => {
   color: #dc2626;
 }
 
+.workflow-status.status-cancelled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 /* Node detail */
 .node-detail {
   display: flex;
@@ -1113,6 +1151,18 @@ const openWorktreeDirectory = () => {
 .quick-actions .quick-action-btn.quick-action-cancel:hover:not(:disabled) {
   background: #dc2626;
   border-color: #dc2626;
+  color: #fff;
+}
+
+.quick-actions .quick-action-btn.quick-action-retry {
+  color: #059669;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.quick-actions .quick-action-btn.quick-action-retry:hover:not(:disabled) {
+  background: #059669;
+  border-color: #059669;
   color: #fff;
 }
 

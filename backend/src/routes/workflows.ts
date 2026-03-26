@@ -85,6 +85,17 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       return errorResponse(getErrorMessage(error, 'Failed to cancel workflow'));
     }
   });
+
+  fastify.post<{ Params: IdParams }>('/runs/:id/retry', async (request, reply) => {
+    try {
+      const run = await workflowService.retryWorkflow(parseNumber(request.params.id));
+      return successResponse(run, 'Workflow retry started');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to retry workflow'));
+    }
+  });
 };
 
 export { workflowRoutes };

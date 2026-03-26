@@ -13,6 +13,9 @@ class BaseRepository<T extends BaseEntity> {
   filepath: string;
   initializationPromise: Promise<void>;
 
+  // Global write queue shared by all repository instances to prevent concurrent file corruption
+  private static globalWriteQueue: Promise<void> = Promise.resolve();
+
   constructor(fileName: string, { storagePath = STORAGE_PATH as string }: { storagePath?: string } = {}) {
     this.fileName = fileName;
     this.filepath = path.join(storagePath, fileName);
@@ -31,19 +34,31 @@ class BaseRepository<T extends BaseEntity> {
   }
 
   async _loadAll(): Promise<T[]> {
-    await this.initializationPromise;
-    try {
-      const data = await fs.readFile(this.filepath, 'utf-8');
-      return JSON.parse(data) as T[];
-    } catch {
-      return [];
-    }
+    return await this._serializeMutation(async () => {
+      await this.initializationPromise;
+      try {
+        const data = await fs.readFile(this.filepath, 'utf-8');
+        try {
+          return JSON.parse(data) as T[];
+        } catch (parseError) {
+          console.error(`[BaseRepo._loadAll] JSON parse error for ${this.fileName}:`, parseError);
+          console.error(`[BaseRepo._loadAll] File content:`);
+          console.error(data);
+          return [];
+        }
+      } catch (readError) {
+        console.error(`[BaseRepo._loadAll] ERROR reading ${this.fileName}:`, readError);
+        return [];
+      }
+    });
   }
 
   async _saveAll(data: T[]) {
-    await this.initializationPromise;
-    await fs.mkdir(path.dirname(this.filepath), { recursive: true });
-    await fs.writeFile(this.filepath, JSON.stringify(data, null, 2), 'utf-8');
+    await this._serializeMutation(async () => {
+      await this.initializationPromise;
+      await fs.mkdir(path.dirname(this.filepath), { recursive: true });
+      await fs.writeFile(this.filepath, JSON.stringify(data, null, 2), 'utf-8');
+    });
   }
 
   _getNextId(data: T[]) {
@@ -51,6 +66,19 @@ class BaseRepository<T extends BaseEntity> {
       return 1;
     }
     return Math.max(...data.map((item) => item.id || 0)) + 1;
+  }
+
+  /**
+   * Serialize a mutation operation through the global write queue.
+   * This ensures all write operations across all repositories are sequential,
+   * preventing JSON file corruption from concurrent writes.
+   */
+  protected async _serializeMutation<R>(mutation: () => Promise<R>): Promise<R> {
+    const pendingMutation = BaseRepository.globalWriteQueue.then(async () => {
+      return await mutation();
+    });
+    BaseRepository.globalWriteQueue = pendingMutation.then(() => undefined, () => undefined);
+    return await pendingMutation;
   }
 
   async findAll(): Promise<T[]> {
