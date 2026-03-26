@@ -189,6 +189,20 @@
             </span>
             刷新
           </button>
+          <button
+            v-if="workflowStatus === 'running' && task.workflow_run_id"
+            class="quick-action-btn quick-action-cancel"
+            :disabled="cancelLoading"
+            @click.stop="handleCancelWorkflow"
+            title="取消工作流"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            取消
+          </button>
         </div>
 
         <div class="workflow-section worktree-summary">
@@ -227,7 +241,7 @@ import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
-import { getWorkflowRun } from '../../api/workflow'
+import { getWorkflowRun, cancelWorkflow } from '../../api/workflow'
 import {
   toTimelineWorkflow,
   getWorkflowProgress,
@@ -307,6 +321,7 @@ const { getStatusClass } = useStatusStyle()
 // Real workflow run data from API
 const realWorkflowRun = ref(null)
 const refreshLoading = ref(false)
+const cancelLoading = ref(false)
 
 // Fetch real workflow run when task is expanded and has workflow_run_id
 watch(() => [props.workflowExpanded, props.task?.workflow_run_id], async ([expanded, runId]) => {
@@ -344,6 +359,25 @@ const refreshWorkflowRun = async () => {
     console.error('Failed to refresh workflow run:', error)
   } finally {
     refreshLoading.value = false
+  }
+}
+
+// Cancel workflow
+const handleCancelWorkflow = async () => {
+  if (!props.task?.workflow_run_id) return
+  cancelLoading.value = true
+  try {
+    const response = await cancelWorkflow(props.task.workflow_run_id)
+    if (response.success) {
+      ElMessage.success('工作流已取消')
+      realWorkflowRun.value = response.data
+      emit('workflow-action', { action: 'cancelled', task: props.task })
+    }
+  } catch (error) {
+    console.error('Failed to cancel workflow:', error)
+    ElMessage.error('取消工作流失败')
+  } finally {
+    cancelLoading.value = false
   }
 }
 
@@ -1068,6 +1102,18 @@ const openWorktreeDirectory = () => {
 .quick-actions .quick-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.quick-actions .quick-action-btn.quick-action-cancel {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.quick-actions .quick-action-btn.quick-action-cancel:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
 }
 
 .quick-actions .quick-action-status {

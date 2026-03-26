@@ -1,4 +1,5 @@
-import crossSpawn from 'cross-spawn';
+import crossSpawn, {SpawnedProcess} from 'cross-spawn';
+import { spawn } from 'node:child_process';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
 import type { ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
@@ -17,6 +18,27 @@ type ClaudeSpawnExecution = {
   prompt: string;
   proc: ExecutorProcessHandle | null;
 };
+
+/**
+ * Kill a process and all its children (process tree).
+ * On Windows, uses taskkill to kill the entire process tree.
+ */
+function killProcessTree(proc: ExecutorProcessHandle): boolean {
+  const pid = proc.pid;
+  if (!pid) return false;
+
+  if (process.platform === 'win32') {
+    // On Windows, use taskkill to kill the entire process tree
+    spawn('taskkill', ['/pid', String(pid), '/t', '/f'], {
+      stdio: 'ignore',
+      detached: true,
+    });
+    return true;
+  } else {
+    // On Unix, SIGTERM should propagate to the process group
+    return proc.kill?.('SIGTERM') ?? false;
+  }
+}
 
 function buildClaudeCliArgs(prompt: string) {
   return [
@@ -43,8 +65,8 @@ function summarizeCommand(command: string, args: string[]) {
   return [command, ...args].map((arg) => JSON.stringify(arg)).join(' ');
 }
 
-function toExecutorProcessHandle(proc: unknown): ExecutorProcessHandle {
-  if (typeof proc !== 'object' || proc === null) {
+function toExecutorProcessHandle(proc: SpawnedProcess): ExecutorProcessHandle {
+  if (proc === null) {
     return {};
   }
 
@@ -151,14 +173,12 @@ function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent
 async function defaultSpawnImpl({
   worktreePath,
   prompt,
-  onSpawn,
   executorConfig = {},
   abortSignal,
   onEvent,
 }: {
   worktreePath: string;
   prompt: string;
-  onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
   executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
   abortSignal?: AbortSignal;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
@@ -179,14 +199,14 @@ async function defaultSpawnImpl({
     });
     const proc = toExecutorProcessHandle(spawnedProc);
 
-    onSpawn?.(proc);
-
     if (abortSignal) {
       if (abortSignal.aborted) {
-        proc.kill?.('SIGTERM');
+        console.log(`[ClaudeStepRunner] Already aborted, killing process immediately`);
+        killProcessTree(proc);
       } else {
         abortSignal.addEventListener('abort', () => {
-          proc.kill?.('SIGTERM');
+          console.log(`[ClaudeStepRunner] Abort event received, killing process. pid: ${proc.pid}`);
+          killProcessTree(proc);
         }, { once: true });
       }
     }
@@ -253,14 +273,12 @@ class ClaudeStepRunner {
     prompt,
     worktreePath,
     executorConfig = {},
-    onSpawn,
     abortSignal,
     onEvent,
   }: {
     prompt: string;
     worktreePath: string;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
-    onSpawn?: ((proc: ExecutorProcessHandle) => void) | undefined;
     abortSignal?: AbortSignal;
     onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   }) {
@@ -268,7 +286,6 @@ class ClaudeStepRunner {
       worktreePath,
       prompt,
       executorConfig,
-      ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent ? { onEvent } : {}),
     });
