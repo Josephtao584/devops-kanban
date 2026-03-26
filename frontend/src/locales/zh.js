@@ -151,6 +151,7 @@ export default {
     types: {
       GITHUB: 'GitHub',
       CODEHUB: 'CodeHub',
+      INTERNAL_API: '内部接口',
       REQUIREMENT: '需求',
       JIRA: 'Jira',
       LINEAR: 'Linear',
@@ -175,7 +176,7 @@ export default {
     deselectAll: '取消全选',
     selected: '已选',
     imported: '已导入',
-    viewOnGitHub: '在 GitHub 查看',
+    viewExternalItem: '查看外部条目',
     confirmImport: '确认导入',
     selectAtLeastOne: '请至少选择一个 Issue',
     importSuccess: '成功导入 {count} 个任务',
@@ -559,11 +560,12 @@ export default {
     allIterations: '全部迭代',
     manageIterations: '管理迭代',
     manageIterationsTitle: '管理迭代',
-    deleted: '迭代已删除',
-    deleteFailed: '删除迭代失败',
-    refreshAfterDeleteFailed: '迭代已删除，但刷新列表失败',
     deleteConfirmTitle: '删除迭代',
     deleteConfirmMessage: '确定要删除 "{name}" 吗？该迭代下的任务会保留，但会解除与该迭代的关联。',
-    deleteTasksCheckbox: '同时删除当前迭代下的所有任务'
+    deleteTasksCheckbox: '同时删除当前迭代下的所有任务',
+    deleted: '迭代已删除',
+    deleteSuccess: '迭代已删除',
+    deleteFailed: '删除迭代失败',
+    refreshAfterDeleteFailed: '迭代已删除，但刷新列表失败'
   }
 }

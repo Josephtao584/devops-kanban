@@ -137,24 +137,43 @@ test.test('loadAdapterTypes includes metadata-only INTERNAL_API definitions with
       },
       token: {
         type: 'string',
+        required: true,
+        description: 'Authorization header value',
+      },
+      userId: {
+        type: 'string',
+        required: true,
+        description: 'User identifier used by the mine_todo filter',
+      },
+      category: {
+        type: 'string',
         required: false,
-        description: 'Optional bearer token or API key',
+        description: 'Workitem category filter value',
+        default: '5',
+      },
+      pageSize: {
+        type: 'string',
+        required: false,
+        description: 'Workitem page size',
+        default: '10',
       },
       listPath: {
         type: 'string',
         required: true,
-        description: 'Relative path for the list API, for example /api/tasks',
+        description: 'Relative path for the workitem list API',
+        default: '/devops-workitem/api/v1/query/workitems',
       },
       detailPath: {
         type: 'string',
         required: true,
-        description: 'Relative path template for the detail API, for example /api/tasks/{id}',
+        description: 'Relative path template for the detail API',
+        default: '/devops-workitem/api/v1/query/{number}/document_detail',
       },
       detailIdField: {
         type: 'string',
         required: false,
-        description: 'Field from the list item used to fill the detail path placeholder, defaults to id',
-        default: 'id',
+        description: 'Field from the list item used to fill the detail path placeholder, defaults to number',
+        default: 'number',
       },
     },
   });

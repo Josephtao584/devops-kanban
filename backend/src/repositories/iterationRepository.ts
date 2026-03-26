@@ -6,6 +6,11 @@ import { TaskRepository, type TaskStatusCounts } from './taskRepository.js';
 interface IterationEntity extends BaseEntity {
   project_id: number;
   name?: string;
+  description?: string;
+  goal?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
 }
 
 interface IterationWithStats extends IterationEntity {
@@ -19,8 +24,11 @@ interface IterationWithStats extends IterationEntity {
 }
 
 class IterationRepository extends BaseRepository<IterationEntity, IterationCreateRecord, IterationUpdateRecord> {
-  constructor() {
-    super('iterations.json');
+  storagePath?: string;
+
+  constructor(storagePath?: string) {
+    super('iterations.json', storagePath ? { storagePath } : undefined);
+    this.storagePath = storagePath;
   }
 
   async findByProject(projectId: number): Promise<IterationEntity[]> {
@@ -34,7 +42,7 @@ class IterationRepository extends BaseRepository<IterationEntity, IterationCreat
       return null;
     }
 
-    const taskRepo = new TaskRepository();
+    const taskRepo = new TaskRepository(this.storagePath);
     const tasks = await taskRepo.findByProject(iteration.project_id);
     const iterationTasks = tasks.filter((task) => task.iteration_id === iterationId);
 
@@ -71,7 +79,7 @@ class IterationRepository extends BaseRepository<IterationEntity, IterationCreat
   }
 
   async findTasks(iterationId: number) {
-    const taskRepo = new TaskRepository();
+    const taskRepo = new TaskRepository(this.storagePath);
     const allTasks = await taskRepo.findAll();
     return allTasks.filter((task) => task.iteration_id === iterationId);
   }

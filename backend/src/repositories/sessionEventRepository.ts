@@ -1,22 +1,13 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
 import type { SessionEventEntity } from '../types/entities.ts';
 
-type StoredSessionEventEntity = Omit<SessionEventEntity, 'created_at' | 'updated_at'> &
-  Pick<BaseEntity, 'created_at' | 'updated_at'>;
-
-type CreateSessionEventRecord = Omit<SessionEventEntity, 'id' | 'seq'>;
-type UpdateSessionEventRecord = Partial<Omit<SessionEventEntity, 'id' | 'session_id' | 'segment_id' | 'seq'>>;
+type CreateSessionEventRecord = Omit<SessionEventEntity, 'id' | 'seq' | 'created_at' | 'updated_at'>;
 
 const sessionEventWriteQueues = new Map<string, Promise<void>>();
 
-class SessionEventRepository extends BaseRepository<
-  StoredSessionEventEntity,
-  CreateSessionEventRecord,
-  UpdateSessionEventRecord
-> {
-  constructor({ storagePath }: { storagePath?: string } = {}) {
-    super('session_events.json', storagePath ? { storagePath } : {});
+class SessionEventRepository extends BaseRepository<SessionEventEntity> {
+  constructor() {
+    super('session_events.json');
   }
 
   private async queueMutation<T>(operation: () => Promise<T>): Promise<T> {
@@ -26,11 +17,11 @@ class SessionEventRepository extends BaseRepository<
     return await next;
   }
 
-  override async create(event: CreateSessionEventRecord): Promise<StoredSessionEventEntity> {
+  override async create(event: CreateSessionEventRecord): Promise<SessionEventEntity> {
     return await this.append(event);
   }
 
-  async append(event: CreateSessionEventRecord): Promise<StoredSessionEventEntity> {
+  async append(event: CreateSessionEventRecord): Promise<SessionEventEntity> {
     return await this.queueMutation(async () => {
       const data = await this._loadAll();
       const newId = this._getNextId(data);
@@ -40,7 +31,7 @@ class SessionEventRepository extends BaseRepository<
       ) + 1;
       const now = new Date().toISOString();
 
-      const entity: StoredSessionEventEntity = {
+      const entity: SessionEventEntity = {
         ...event,
         id: newId,
         seq: nextSeq,
@@ -57,7 +48,7 @@ class SessionEventRepository extends BaseRepository<
   async listBySessionId(
     sessionId: number,
     options: { afterSeq?: number; limit?: number } = {},
-  ): Promise<StoredSessionEventEntity[]> {
+  ): Promise<SessionEventEntity[]> {
     const data = await this._loadAll();
     const filtered = data
       .filter((item) => item.session_id === sessionId)
@@ -71,7 +62,7 @@ class SessionEventRepository extends BaseRepository<
     return filtered.slice(0, options.limit);
   }
 
-  override async update(eventId: number, update: UpdateSessionEventRecord): Promise<StoredSessionEventEntity | null> {
+  override async update(eventId: number, update: Partial<Omit<SessionEventEntity, 'id' | 'session_id' | 'segment_id' | 'seq' | 'created_at' | 'updated_at'>>): Promise<SessionEventEntity | null> {
     return await this.queueMutation(async () => await super.update(eventId, update));
   }
 
@@ -87,8 +78,4 @@ class SessionEventRepository extends BaseRepository<
 }
 
 export { SessionEventRepository };
-export type {
-  StoredSessionEventEntity,
-  CreateSessionEventRecord,
-  UpdateSessionEventRecord,
-};
+export type { CreateSessionEventRecord };

@@ -1,6 +1,6 @@
 import { ExecutionRepository } from '../repositories/executionRepository.js';
 import { SessionRepository } from '../repositories/sessionRepository.js';
-import type { ExecutionEntity } from '../repositories/executionRepository.js';
+import type { ExecutionEntity } from '../types/entities.js';
 import type {
   CreateExecutionInput as CreateExecutionDto,
   UpdateExecutionInput as UpdateExecutionDto,

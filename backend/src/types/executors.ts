@@ -41,6 +41,17 @@ export interface ExecutorExecutionInput {
   abortSignal?: AbortSignal | undefined;
 }
 
+export interface ExecutorContinueInput {
+  prompt: string;
+  worktreePath: string;
+  providerSessionId?: string;
+  executorConfig?: ExecutorConfig;
+  onSpawn?: ((proc: ExecutorProcessHandle) => void);
+  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);
+  onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>);
+  abortSignal?: AbortSignal;
+}
+
 export interface ExecutorExecutionResult {
   exitCode: number | null;
   stdout: string;
@@ -51,6 +62,16 @@ export interface ExecutorExecutionResult {
 
 export interface Executor {
   execute(input: ExecutorExecutionInput): Promise<ExecutorExecutionResult>;
+  continue(input: ExecutorContinueInput): Promise<ExecutorExecutionResult>;
 }
 
 export type ExecutorMap = Record<ExecutorType, Executor>;
+
+export function buildEvent(
+  kind: WorkflowExecutionEventKind,
+  role: WorkflowExecutionEventRole,
+  content: string,
+  payload: Record<string, unknown> = {}
+): WorkflowExecutionEvent {
+  return { kind, role, content, payload };
+}

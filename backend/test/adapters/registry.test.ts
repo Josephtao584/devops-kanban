@@ -39,6 +39,8 @@ test.test('INTERNAL_API appears in available types and metadata-only config does
 
   const types = getAvailableTypes();
   assert.equal(types.INTERNAL_API?.name, 'Internal API');
+  assert.equal((types.INTERNAL_API?.configFields as Record<string, { default?: string }>).detailIdField?.default, 'number');
+  assert.equal((types.INTERNAL_API?.configFields as Record<string, { default?: string }>).listPath?.default, '/devops-workitem/api/v1/query/workitems');
   assert.equal('request' in (types.INTERNAL_API ?? {}), false);
   assert.equal('mapping' in (types.INTERNAL_API ?? {}), false);
 

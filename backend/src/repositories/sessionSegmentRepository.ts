@@ -1,22 +1,13 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
 import type { SessionSegmentEntity } from '../types/entities.ts';
 
-type StoredSessionSegmentEntity = Omit<SessionSegmentEntity, 'created_at' | 'updated_at'> &
-  Pick<BaseEntity, 'created_at' | 'updated_at'>;
-
-type CreateSessionSegmentRecord = Omit<SessionSegmentEntity, 'id' | 'segment_index'>;
-type UpdateSessionSegmentRecord = Partial<Omit<SessionSegmentEntity, 'id' | 'session_id' | 'segment_index'>>;
+type CreateSessionSegmentRecord = Omit<SessionSegmentEntity, 'id' | 'segment_index' | 'created_at' | 'updated_at'>;
 
 const sessionSegmentWriteQueues = new Map<string, Promise<void>>();
 
-class SessionSegmentRepository extends BaseRepository<
-  StoredSessionSegmentEntity,
-  CreateSessionSegmentRecord,
-  UpdateSessionSegmentRecord
-> {
-  constructor({ storagePath }: { storagePath?: string } = {}) {
-    super('session_segments.json', storagePath ? { storagePath } : {});
+class SessionSegmentRepository extends BaseRepository<SessionSegmentEntity> {
+  constructor() {
+    super('session_segments.json');
   }
 
   private async queueMutation<T>(operation: () => Promise<T>): Promise<T> {
@@ -26,20 +17,20 @@ class SessionSegmentRepository extends BaseRepository<
     return await next;
   }
 
-  async findBySessionId(sessionId: number): Promise<StoredSessionSegmentEntity[]> {
+  async findBySessionId(sessionId: number): Promise<SessionSegmentEntity[]> {
     const data = await this._loadAll();
     return data
       .filter((item) => item.session_id === sessionId)
       .sort((left, right) => left.segment_index - right.segment_index || left.id - right.id);
   }
 
-  async findLatestBySessionId(sessionId: number): Promise<StoredSessionSegmentEntity | null> {
+  async findLatestBySessionId(sessionId: number): Promise<SessionSegmentEntity | null> {
     const segments = await this.findBySessionId(sessionId);
     const latestSegment = segments[segments.length - 1];
     return latestSegment ?? null;
   }
 
-  override async create(segment: CreateSessionSegmentRecord): Promise<StoredSessionSegmentEntity> {
+  override async create(segment: CreateSessionSegmentRecord): Promise<SessionSegmentEntity> {
     return await this.queueMutation(async () => {
       const data = await this._loadAll();
       const newId = this._getNextId(data);
@@ -49,7 +40,7 @@ class SessionSegmentRepository extends BaseRepository<
       ) + 1;
       const now = new Date().toISOString();
 
-      const entity: StoredSessionSegmentEntity = {
+      const entity: SessionSegmentEntity = {
         ...segment,
         id: newId,
         segment_index: nextSegmentIndex,
@@ -63,7 +54,7 @@ class SessionSegmentRepository extends BaseRepository<
     });
   }
 
-  override async update(segmentId: number, update: UpdateSessionSegmentRecord): Promise<StoredSessionSegmentEntity | null> {
+  override async update(segmentId: number, update: Partial<Omit<SessionSegmentEntity, 'id' | 'session_id' | 'segment_index' | 'created_at' | 'updated_at'>>): Promise<SessionSegmentEntity | null> {
     return await this.queueMutation(async () => await super.update(segmentId, update));
   }
 
@@ -73,8 +64,4 @@ class SessionSegmentRepository extends BaseRepository<
 }
 
 export { SessionSegmentRepository };
-export type {
-  StoredSessionSegmentEntity,
-  CreateSessionSegmentRecord,
-  UpdateSessionSegmentRecord,
-};
+export type { CreateSessionSegmentRecord };
