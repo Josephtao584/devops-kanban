@@ -150,6 +150,20 @@ test.test('loadAdapterTypes includes metadata-only INTERNAL_API definitions with
         required: false,
         description: '工作项分类过滤值',
         default: '5',
+        valueType: 'string',
+        options: [
+          { label: 'Story', value: '5' },
+        ],
+      },
+      status: {
+        type: 'string',
+        required: false,
+        description: '工作项状态过滤值',
+        default: '131',
+        valueType: 'number',
+        options: [
+          { label: '待处理', value: 131 },
+        ],
       },
       pageSize: {
         type: 'string',
