@@ -62,57 +62,11 @@ export function hasWorkflow(workflowId: string): boolean {
   }
 }
 
-/**
- * Build a minimal workflow from template snapshot for recovery purposes (e.g., cancellation).
- * This creates a workflow with no-op execute functions, sufficient for Mastra to manage run state.
- */
-export function buildWorkflowForRecovery(template: WorkflowTemplateEntity) {
-  const steps = template.steps.map((templateStep, index) => {
-    const isFirst = index === 0;
-
-    return createStep({
-      id: templateStep.id,
-      inputSchema: isFirst ? firstStepInputSchema : stepOutputSchema,
-      outputSchema: stepOutputSchema,
-      stateSchema: sharedStateSchema,
-      execute: async () => ({ summary: '' }), // No-op for recovery
-    });
-  });
-
-  let workflow = createWorkflow({
-    id: template.template_id,
-    inputSchema: firstStepInputSchema,
-    outputSchema: stepOutputSchema,
-    stateSchema: sharedStateSchema,
-  });
-
-  for (const step of steps) {
-    workflow = workflow.then(step) as any;
-  }
-
-  workflow.commit();
-
-  // Register with Mastra
-  getMastra().addWorkflow(workflow);
-
-  return workflow;
-}
-
-/**
- * Get or create a workflow for a given template.
- * If the workflow is not registered (e.g., after server restart), rebuilds it from the template.
- */
-export function ensureWorkflow(template: WorkflowTemplateEntity) {
-  if (hasWorkflow(template.template_id)) {
-    return getWorkflowFromWorkflowId(template.template_id);
-  }
-  return buildWorkflowForRecovery(template);
-}
-
 export function buildWorkflowFromTemplate(
   workflowTemplate: WorkflowTemplateEntity,
   options: BuildWorkflowOptions,
 ) {
+
   const steps = workflowTemplate.steps.map((templateStep, index) => {
     const isFirst = index === 0;
     const previousStepId = index > 0 ? workflowTemplate.steps[index - 1]?.id : null;
@@ -123,11 +77,11 @@ export function buildWorkflowFromTemplate(
       outputSchema: stepOutputSchema,
       stateSchema: sharedStateSchema,
       execute: async ({ inputData, state, abortSignal, abort }) => {
-        console.log(`[Workflow] Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}`);
+        console.log(`[Workflow] Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}, workflowRun: ${options.runId}`);
 
         if (abortSignal) {
           abortSignal.addEventListener('abort', () => {
-            console.log(`[Workflow] Step ${templateStep.id} received abort signal!`);
+            console.log(`[Workflow] Step ${templateStep.id} received abort signal! workflowRun: ${options.runId}`);
           });
         }
 
