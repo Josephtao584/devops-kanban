@@ -471,7 +471,6 @@ class InternalApiAdapter extends TaskSourceAdapter {
         key: 'updated_time',
         value: 'desc',
       },
-      select_field: ['simple_domain'],
       pagination: {
         current_page: page,
         page_size: this.pageSize,
