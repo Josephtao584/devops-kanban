@@ -151,6 +151,7 @@ export default {
     types: {
       GITHUB: 'GitHub',
       CODEHUB: 'CodeHub',
+      INTERNAL_API: '内部接口',
       REQUIREMENT: '需求',
       JIRA: 'Jira',
       LINEAR: 'Linear',
@@ -175,7 +176,7 @@ export default {
     deselectAll: '取消全选',
     selected: '已选',
     imported: '已导入',
-    viewOnGitHub: '在 GitHub 查看',
+    viewExternalItem: '查看外部条目',
     confirmImport: '确认导入',
     selectAtLeastOne: '请至少选择一个 Issue',
     importSuccess: '成功导入 {count} 个任务',

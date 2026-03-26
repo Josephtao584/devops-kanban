@@ -21,6 +21,7 @@ export interface TaskEntity {
   due_date?: string;
   order?: number;
   external_id?: string | null;
+  external_url?: string | undefined;
   workflow_run_id?: number | null;
   worktree_path?: string | null;
   worktree_branch?: string | null;

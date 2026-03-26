@@ -224,6 +224,7 @@ class TaskSourceService {
         status: 'TODO',
         priority: 'MEDIUM',
         external_id: item.external_id,
+        external_url: typeof item.external_url === 'string' ? item.external_url : '',
         source: source.type,
         labels: item.labels || [],
         iteration_id: iterationId || null,
