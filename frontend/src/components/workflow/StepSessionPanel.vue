@@ -1,11 +1,10 @@
 <template>
-  <div class="step-session-panel">
-    <div class="panel-header">
+  <div class="step-session-panel step-session-panel--chat" :class="{ 'step-session-panel--no-header': !showHeader }">
+    <div v-if="showHeader" class="panel-header">
       <div class="panel-heading">
         <div class="panel-title-row">
           <div>
             <div class="panel-title">{{ stepName || '步骤会话' }}</div>
-            <div class="panel-subtitle" v-if="sessionId">Session #{{ sessionId }}</div>
           </div>
           <div class="panel-status" :class="statusClass">{{ sessionStatusText }}</div>
         </div>
@@ -28,7 +27,7 @@
       <div class="panel-state-title">暂无事件</div>
       <div class="panel-state-text">这里会显示该步骤的执行输出和对话记录。</div>
     </div>
-    <div v-else ref="eventsContainer" class="panel-events">
+    <div v-else ref="eventsContainer" class="panel-events panel-events--chat">
       <SessionEventRenderer
         v-for="event in events"
         :key="event.id ?? event.seq"
@@ -49,6 +48,9 @@
         </button>
       </div>
     </div>
+    <div v-else-if="sessionId" class="panel-readonly-hint">
+      当前步骤暂不支持继续输入，请查看执行结果或切换到可交互步骤。
+    </div>
   </div>
 </template>
 
@@ -67,6 +69,10 @@ const props = defineProps({
   stepName: {
     type: String,
     default: ''
+  },
+  showHeader: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -197,6 +203,15 @@ onBeforeUnmount(() => {
   background: #fafafa;
 }
 
+.step-session-panel--chat {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.step-session-panel--no-header {
+  gap: 10px;
+  padding-top: 12px;
+}
+
 .panel-header {
   flex-shrink: 0;
 }
@@ -263,6 +278,7 @@ onBeforeUnmount(() => {
 .panel-state {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
   gap: 4px;
   min-height: 160px;
@@ -304,9 +320,14 @@ onBeforeUnmount(() => {
   padding: 4px 0;
 }
 
+.panel-events--chat {
+  gap: 16px;
+  padding: 8px 6px 14px;
+}
+
 .panel-input {
   flex-shrink: 0;
-  padding-top: 4px;
+  padding-top: 8px;
 }
 
 .panel-input-shell {
@@ -315,7 +336,8 @@ onBeforeUnmount(() => {
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
   background: #ffffff;
 }
 
