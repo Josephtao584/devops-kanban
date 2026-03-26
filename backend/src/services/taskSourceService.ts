@@ -11,8 +11,8 @@ import type {
   ImportedTask,
   SourceRecord,
   SourceTypeDefinition as SharedSourceTypeDefinition,
-  TaskSourceSyncResultItem,
 } from '../types/sources.ts';
+import type {TaskEntity} from "../types/entities.js";
 
 const READ_ONLY_ERROR_MESSAGE = 'Task sources are read-only and managed by configuration';
 
@@ -22,9 +22,9 @@ class TaskSourceService {
   repository: TaskSourceRepository;
   taskRepository: TaskRepository;
 
-  constructor(options: { taskSourceStoragePath?: string; taskStoragePath?: string } = {}) {
-    this.repository = new TaskSourceRepository(options.taskSourceStoragePath);
-    this.taskRepository = new TaskRepository(options.taskStoragePath);
+  constructor() {
+    this.repository = new TaskSourceRepository();
+    this.taskRepository = new TaskRepository();
   }
 
   async loadSources(): Promise<SourceRecord[]> {
@@ -122,7 +122,7 @@ class TaskSourceService {
     return await loadAdapterTypes();
   }
 
-  async sync(sourceId: string): Promise<TaskSourceSyncResultItem[]> {
+  async sync(sourceId: string): Promise<TaskEntity[]> {
     const source = await this.getById(sourceId);
     if (!source) {
       const error = new Error('Task source not found') as Error & { statusCode?: number };
@@ -134,7 +134,7 @@ class TaskSourceService {
     const fetchedTasks = (await adapter.fetch()) as ImportedTask[];
     const projectId = source.project_id;
 
-    const createdTasks: TaskSourceSyncResultItem[] = [];
+    const createdTasks: TaskEntity[] = [];
     for (const taskData of fetchedTasks) {
       const existing = await this.taskRepository.findByExternalId(taskData.external_id);
       if (existing) {
@@ -145,7 +145,10 @@ class TaskSourceService {
       } else {
         const newTask = await this.taskRepository.create({
           ...taskData,
+          description: taskData.description ?? undefined,
           project_id: projectId,
+          status: 'TODO',
+          priority: 'MEDIUM',
           source: source.type,
         });
         createdTasks.push(newTask);
@@ -217,11 +220,10 @@ class TaskSourceService {
       await this.taskRepository.create({
         project_id: numericProjectId,
         title: item.title,
-        description: item.description,
+        description: item.description || '',
         status: 'TODO',
         priority: 'MEDIUM',
         external_id: item.external_id,
-        external_url: item.external_url,
         source: source.type,
         labels: item.labels || [],
         iteration_id: iterationId || null,

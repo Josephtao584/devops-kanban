@@ -1,10 +1,10 @@
 import { validateStepResult } from './executors/claudeStepResult.js';
-import { normalizeWorkflowExecutionEvent } from './executionEventSink.js';
-import type { ExecutorRawResult, WorkflowExecutionEvent } from '../../types/executors.js';
+import type { ExecutorRawResult, WorkflowExecutionEvent, WorkflowExecutionEventRole } from '../../types/executors.js';
+import { buildEvent } from '../../types/executors.js';
 
 type ExecutorRawEvent = {
   kind: string;
-  role?: 'assistant' | 'system' | 'tool' | 'user';
+  role?: WorkflowExecutionEventRole;
   content: string;
   payload?: Record<string, unknown>;
 };
@@ -26,74 +26,23 @@ function normalizeEvent(event: ExecutorRawEvent): WorkflowExecutionEvent | null 
 
   switch (event.kind) {
     case 'stdout':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'stream_chunk',
-        role: 'assistant',
-        content: event.content,
-        payload: {
-          ...payload,
-          stream: 'stdout',
-        },
-      });
+      return buildEvent('stream_chunk', 'assistant', event.content, { ...payload, stream: 'stdout' });
     case 'stderr':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'stream_chunk',
-        role: 'system',
-        content: event.content,
-        payload: {
-          ...payload,
-          stream: 'stderr',
-        },
-      });
+      return buildEvent('stream_chunk', 'system', event.content, { ...payload, stream: 'stderr' });
     case 'message':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'message',
-        role: event.role ?? 'assistant',
-        content: event.content,
-        payload,
-      });
+      return buildEvent('message', event.role ?? 'assistant', event.content, payload);
     case 'tool_call':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'tool_call',
-        role: event.role ?? 'assistant',
-        content: event.content,
-        payload,
-      });
+      return buildEvent('tool_call', event.role ?? 'assistant', event.content, payload);
     case 'tool_result':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'tool_result',
-        role: event.role ?? 'tool',
-        content: event.content,
-        payload,
-      });
+      return buildEvent('tool_result', event.role ?? 'tool', event.content, payload);
     case 'status':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'status',
-        role: event.role ?? 'system',
-        content: event.content,
-        payload,
-      });
+      return buildEvent('status', event.role ?? 'system', event.content, payload);
     case 'error':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'error',
-        role: event.role ?? 'system',
-        content: event.content,
-        payload,
-      });
+      return buildEvent('error', event.role ?? 'system', event.content, payload);
     case 'artifact':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'artifact',
-        role: event.role ?? 'assistant',
-        content: event.content,
-        payload,
-      });
+      return buildEvent('artifact', event.role ?? 'assistant', event.content, payload);
     case 'stream_chunk':
-      return normalizeWorkflowExecutionEvent({
-        kind: 'stream_chunk',
-        role: event.role ?? (payload.stream === 'stderr' ? 'system' : 'assistant'),
-        content: event.content,
-        payload,
-      });
+      return buildEvent('stream_chunk', event.role ?? (payload.stream === 'stderr' ? 'system' : 'assistant'), event.content, payload);
     default:
       return null;
   }
@@ -128,7 +77,7 @@ export function normalizeExecutorRawResult(rawResult: ExecutorRawResult | undefi
   };
 }
 
-export function adaptStepResult(executorType: string, executionResult: { rawResult?: ExecutorRawResult }) {
+export function adaptStepResult(_executorType: string, executionResult: { rawResult?: ExecutorRawResult }) {
   const normalizedRawResult = normalizeExecutorRawResult(executionResult?.rawResult);
   return validateStepResult(normalizedRawResult);
 }

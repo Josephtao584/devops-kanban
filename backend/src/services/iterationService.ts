@@ -1,7 +1,6 @@
 import { IterationRepository } from '../repositories/iterationRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
-
 import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/iterations.js';
 import type { IterationCreateRecord, IterationUpdateRecord } from '../types/persistence/iterations.js';
 
@@ -33,7 +32,7 @@ class IterationService {
   }
 
   async create(iterationData: CreateIterationInput) {
-    if (!iterationData.name || !iterationData.name.trim()) {
+    if (!iterationData.name?.trim()) {
       const error: any = new Error('迭代名称不能为空');
       error.statusCode = 400;
       throw error;
@@ -48,32 +47,20 @@ class IterationService {
     const projectExists = await this.projectRepo.exists(iterationData.project_id);
     if (!projectExists) {
       const error: any = new Error('项目不存在');
-      error.statusCode = 400;
+      error.statusCode = 404;
       throw error;
     }
 
     const createData: IterationCreateRecord = {
       project_id: iterationData.project_id,
+      name: iterationData.name,
+      description: iterationData.description,
+      goal: iterationData.goal,
       status: iterationData.status || 'PLANNED',
+      start_date: iterationData.start_date,
+      end_date: iterationData.end_date,
     };
-    if (iterationData.name !== undefined) {
-      createData.name = iterationData.name;
-    }
-    if (iterationData.description !== undefined) {
-      createData.description = iterationData.description;
-    }
-    if (iterationData.goal !== undefined) {
-      createData.goal = iterationData.goal;
-    }
-    if (iterationData.start_date !== undefined) {
-      createData.start_date = iterationData.start_date;
-    }
-    if (iterationData.end_date !== undefined) {
-      createData.end_date = iterationData.end_date;
-    }
-    if (iterationData.status !== undefined) {
-      createData.status = iterationData.status;
-    }
+
     return await this.iterationRepo.create(createData);
   }
 
