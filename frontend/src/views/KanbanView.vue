@@ -273,8 +273,8 @@
 
         <div v-if="selectedTask && !isChatCollapsed && currentViewingNodeId" class="chat-content step-chat-mode">
           <div class="step-chat-header">
-            <div class="step-header-info">
-              <span class="step-task-title">{{ selectedTask.title }}</span>
+            <div class="step-header-copy">
+              <span class="step-header-label">Workflow 对话</span>
               <div class="step-node-detail" v-if="currentViewingNode">
                 <span class="step-status-badge" :class="'step-' + currentViewingNode.status?.toLowerCase()">
                   {{ getStatusText(currentViewingNode.status) }}
@@ -288,8 +288,8 @@
           <div class="step-chat-body">
             <StepSessionPanel
               :session-id="currentViewingNode?.sessionId"
-              :session-status="currentViewingNode?.status"
               :step-name="currentViewingNode?.name"
+              :show-header="false"
             />
           </div>
         </div>
@@ -299,7 +299,8 @@
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <h2>点击 Workflow 节点进行对话</h2>
+            <h2>选择一个 Workflow 节点</h2>
+            <p>右侧会展示该步骤的执行会话、状态变化和继续对话入口。</p>
           </div>
         </div>
       </div>
@@ -1813,8 +1814,8 @@ onUnmounted(() => {
 
 .chat-container {
   width: 600px;
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border-color);
+  background: #f7f7f8;
+  border-left: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1825,6 +1826,7 @@ onUnmounted(() => {
   width: 0;
   overflow: visible;
   border-left: none;
+  box-shadow: none;
 }
 
 .chat-toggle-btn {
@@ -1833,10 +1835,10 @@ onUnmounted(() => {
   transform: translateY(-50%);
   right: 0;
   width: 24px;
-  height: 48px;
-  background: var(--accent-color);
+  height: 52px;
+  background: #111827;
   border: none;
-  border-radius: 4px 0 0 4px;
+  border-radius: 8px 0 0 8px;
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
@@ -1848,12 +1850,12 @@ onUnmounted(() => {
 
 .chat-container:not(.collapsed) .chat-toggle-btn {
   right: 0;
-  border-radius: 4px 0 0 4px;
+  border-radius: 8px 0 0 8px;
 }
 
 .chat-container.collapsed .chat-toggle-btn {
   right: 0;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 8px 8px 0;
   padding-left: 0;
 }
 
@@ -1879,9 +1881,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 40px 20px;
+  padding: 48px 28px;
   text-align: center;
-  background: var(--bg-secondary);
+  background: #f7f7f8;
 }
 
 @keyframes welcome-pulse {
@@ -1912,16 +1914,17 @@ onUnmounted(() => {
 }
 
 .chat-welcome h2 {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-primary);
+  margin-bottom: 10px;
+  color: #111827;
 }
 
 .chat-welcome p {
   font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
+  color: #6b7280;
+  line-height: 1.6;
+  max-width: 320px;
 }
 
 .chat-welcome strong {
@@ -2003,30 +2006,32 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-secondary);
+  min-height: 0;
+  background: #f7f7f8;
 }
 
 .step-chat-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border-color);
-  border-left: 3px solid var(--accent-color, #6366f1);
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  display: flex;
+  align-items: center;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f7f7f8;
   flex-shrink: 0;
 }
 
-.step-header-info {
+.step-header-copy {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.step-task-title {
-  font-size: 13px;
+.step-header-label {
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9ca3af;
 }
 
 .step-node-detail {
@@ -2039,52 +2044,48 @@ onUnmounted(() => {
 .step-status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
 .step-status-badge.step-done {
-  background: #10b98120;
-  color: #10b981;
+  background: #eaf8f1;
+  color: #059669;
 }
 
 .step-status-badge.step-in_progress {
-  background: #f59e0b20;
-  color: #f59e0b;
+  background: #fff4e5;
+  color: #d97706;
 }
 
 .step-status-badge.step-pending {
-  background: #94a3b820;
-  color: #94a3b8;
+  background: #eceff3;
+  color: #6b7280;
 }
 
 .step-status-badge.step-failed,
 .step-status-badge.step-rejected {
-  background: #ef444420;
-  color: #ef4444;
+  background: #fdecec;
+  color: #dc2626;
 }
 
 .step-node-name {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--accent-color);
+  color: #111827;
 }
 
-.step-node-role {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
+.step-node-role,
 .step-node-duration {
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .step-chat-body {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2095,7 +2096,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex: 1;
-  background: var(--bg-secondary);
+  background: #f7f7f8;
 }
 
 .task-placeholder-content {
@@ -2103,21 +2104,29 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 40px;
+  gap: 10px;
+  padding: 48px 32px;
+  max-width: 340px;
 }
 
 .task-placeholder-content svg {
-  margin-bottom: 20px;
-  color: var(--accent-color);
-  opacity: 0.5;
-  animation: welcome-pulse 2s ease-in-out infinite;
+  margin-bottom: 8px;
+  color: #9ca3af;
+  opacity: 0.9;
 }
 
 .task-placeholder-content h2 {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   margin: 0;
-  color: var(--text-primary);
+  color: #111827;
+}
+
+.task-placeholder-content p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6b7280;
 }
 
 .modal-overlay {
