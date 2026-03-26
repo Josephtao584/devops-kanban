@@ -2,13 +2,11 @@ import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
-import { SessionRepository } from '../../repositories/sessionRepository.js';
-import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import { buildWorkflowFromTemplate } from './workflows.js';
-import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
-import type { WorkflowTemplate } from './workflowTemplateService.js';
+import { WorkflowLifecycle } from './workflowLifecycle.js';
+import {buildWorkflowFromTemplate, getWorkflowFromWorkflowId} from './workflows.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
+import {WorkflowTemplateEntity} from "../../types/entities.js";
 
 
 function createValidationError(message: string) {
@@ -16,7 +14,7 @@ function createValidationError(message: string) {
 }
 
 
-function toStepState(template: WorkflowTemplate) {
+function toStepState(template: WorkflowTemplateEntity) {
   return template.steps.map((step) => ({
     step_id: step.id,
     name: step.name,
@@ -42,7 +40,7 @@ function normalizeStepResult(result: unknown): Record<string, unknown> {
 
 type StartWorkflowOptions = {
   workflowTemplateId?: string | undefined;
-  workflowTemplateSnapshot?: WorkflowTemplate | undefined;
+  workflowTemplateSnapshot?: WorkflowTemplateEntity | undefined;
 };
 
 class WorkflowService {
@@ -51,23 +49,18 @@ class WorkflowService {
   projectRepo: ProjectRepository;
   workflowTemplateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
-  sessionRepo: SessionRepository;
-  sessionSegmentRepo: SessionSegmentRepository;
   lifecycle: WorkflowLifecycle;
-  _activeRuns: Map<number, { run: any }>;
 
   async _resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, sessionRepo, sessionSegmentRepo, lifecycle }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     workflowTemplateService?: WorkflowTemplateService;
     agentRepo?: AgentRepository;
-    sessionRepo?: SessionRepository;
-    sessionSegmentRepo?: SessionSegmentRepository;
     lifecycle?: WorkflowLifecycle;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
@@ -75,16 +68,7 @@ class WorkflowService {
     this.projectRepo = projectRepo || new ProjectRepository();
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
-    this.sessionRepo = sessionRepo || new SessionRepository();
-    this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
-    this.lifecycle = lifecycle || new WorkflowLifecycle({
-      workflowRunRepo: this.workflowRunRepo,
-      agentRepo: this.agentRepo,
-      sessionRepo: this.sessionRepo,
-      sessionSegmentRepo: this.sessionSegmentRepo,
-      workflowTemplateService: this.workflowTemplateService,
-    });
-    this._activeRuns = new Map();
+    this.lifecycle = lifecycle || new WorkflowLifecycle();
   }
 
   async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
@@ -115,7 +99,6 @@ class WorkflowService {
 
     const run = await this.workflowRunRepo.create({
       task_id: taskId,
-      workflow_id: template.template_id,
       workflow_template_id: workflowTemplateId?.trim() || template.template_id,
       workflow_template_snapshot: template,
       status: 'PENDING',
@@ -134,7 +117,7 @@ class WorkflowService {
     return run;
   }
 
-  async _loadTemplate(templateId: string): Promise<WorkflowTemplate> {
+  async _loadTemplate(templateId: string): Promise<WorkflowTemplateEntity> {
     const template = await this.workflowTemplateService.getTemplateById(templateId);
     if (!template) {
       throw createValidationError(`Workflow template not found: ${templateId}`);
@@ -142,9 +125,9 @@ class WorkflowService {
     return template;
   }
 
-  async _validateTemplateAgents(template: WorkflowTemplate) {
+  async _validateTemplateAgents(template: WorkflowTemplateEntity) {
     for (const step of template.steps) {
-      if (typeof step.agentId !== 'number' || !Number.isFinite(step.agentId)) {
+      if (!Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
       }
 
@@ -178,19 +161,17 @@ class WorkflowService {
     throw error;
   }
 
-  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, templateSnapshot: WorkflowTemplate) {
+  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
     try {
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 
-      const workflow = buildWorkflowFromTemplate(templateSnapshot, {
+      const workflow = buildWorkflowFromTemplate(workflowTemplate, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
-        lifecycle: this.lifecycle,
-        templateSnapshot,
+        lifecycle: this.lifecycle
       });
 
       const run = await workflow.createRun({ runId: String(runId) });
-      this._activeRuns.set(runId, { run });
 
       const output = run.stream({
         inputData: {
@@ -246,7 +227,6 @@ class WorkflowService {
       }).catch(() => {});
       await this._resetTaskToTodo(task.id);
     } finally {
-      this._activeRuns.delete(runId);
     }
   }
 
@@ -276,19 +256,9 @@ class WorkflowService {
       throw error;
     }
 
-    // Cancel via in-memory run reference (sends AbortSignal to running step)
-    const activeRun = this._activeRuns.get(runId);
-    if (activeRun?.run) {
-      await activeRun.run.cancel();
-    } else {
-      // Fallback: reconstruct from storage (handles edge cases where
-      // _activeRuns entry was cleaned up but run is still marked RUNNING)
-      const template = run.workflow_template_snapshot
-        ?? await this._loadTemplate(run.workflow_template_id);
-      const workflow = buildWorkflowFromTemplate(template);
-      const reconstructedRun = await workflow.createRun({ runId: String(runId) });
-      await reconstructedRun.cancel();
-    }
+    const workflow = getWorkflowFromWorkflowId(run.workflow_template_id);
+    const reconstructedRun = await workflow.createRun({ runId: String(runId) });
+    await reconstructedRun.cancel();
 
     // Finalize running step
     const runningStep = (run.current_step

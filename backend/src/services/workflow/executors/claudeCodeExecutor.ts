@@ -1,6 +1,6 @@
 import { ClaudeStepRunner } from './claudeStepRunner.js';
-import { ExecutionEventSink } from '../executionEventSink.js';
-import type { Executor, ExecutorExecutionInput, ExecutorExecutionResult } from '../../../types/executors.js';
+import type { Executor, ExecutorExecutionInput, ExecutorContinueInput, ExecutorExecutionResult } from '../../../types/executors.js';
+import { buildEvent } from '../../../types/executors.js';
 
 class ClaudeCodeExecutor implements Executor {
   runner: ClaudeStepRunner;
@@ -17,25 +17,62 @@ class ClaudeCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
-    const sink = new ExecutionEventSink({ onEvent, onProviderState });
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
       ...(onSpawn ? { onSpawn } : {}),
       ...(abortSignal ? { abortSignal } : {}),
+      ...(onEvent || onProviderState ? { onEvent: async (event) => {
+        if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
+          await onProviderState({ providerSessionId: event.payload.session_id as string });
+        }
+        await onEvent?.(event);
+      }} : {}),
     });
 
-    if (result.stdout) {
-      await sink.appendStreamChunk(result.stdout, 'stdout');
+    if (result.stderr) {
+      await onEvent?.(buildEvent('stream_chunk', 'system', result.stderr, { stream: 'stderr' }));
     }
+
+    return {
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      proc: result.proc,
+      rawResult: result.parsedResult,
+    };
+  }
+
+  async continue({
+    prompt,
+    worktreePath,
+    providerSessionId,
+    onSpawn,
+    onEvent,
+    onProviderState,
+    abortSignal,
+  }: ExecutorContinueInput): Promise<ExecutorExecutionResult> {
+    const args = ['--output-format=stream-json', '--verbose'];
+    if (providerSessionId) {
+      args.push('--session-id', providerSessionId);
+    }
+
+    const result = await this.runner.runStep({
+      prompt,
+      worktreePath,
+      executorConfig: { args },
+      ...(onSpawn ? { onSpawn } : {}),
+      ...(abortSignal ? { abortSignal } : {}),
+      ...(onEvent || onProviderState ? { onEvent: async (event) => {
+        if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
+          await onProviderState({ providerSessionId: event.payload.session_id as string });
+        }
+        await onEvent?.(event);
+      }} : {}),
+    });
 
     if (result.stderr) {
-      await sink.appendStreamChunk(result.stderr, 'stderr');
-    }
-
-    const summary = result.parsedResult.summary.trim();
-    if (summary && summary !== result.stdout.trim()) {
-      await sink.appendMessage(result.parsedResult.summary);
+      await onEvent?.(buildEvent('stream_chunk', 'system', result.stderr, { stream: 'stderr' }));
     }
 
     return {

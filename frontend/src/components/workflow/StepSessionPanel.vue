@@ -19,14 +19,27 @@
         :event="event"
       />
     </div>
+
+    <div v-if="sessionId && isTerminal" class="panel-input">
+      <input
+        v-model="message"
+        @keyup.enter="sendMessage"
+        placeholder="继续对话..."
+        :disabled="isSending"
+      />
+      <button @click="sendMessage" :disabled="!message.trim() || isSending">
+        {{ isSending ? '发送中...' : '发送' }}
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import SessionEventRenderer from '../session/SessionEventRenderer.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
 import { SESSION_TERMINAL_STATUSES } from '../../constants/session.js'
+import { continueSession } from '../../api/session.js'
 
 const props = defineProps({
   sessionId: {
@@ -44,8 +57,27 @@ const props = defineProps({
 })
 
 const { events, isLoading, error, loadInitial, startPolling, stopPolling } = useSessionEvents()
+const message = ref('')
+const isSending = ref(false)
 
 const isTerminal = computed(() => SESSION_TERMINAL_STATUSES.includes(props.sessionStatus))
+
+async function sendMessage() {
+  if (!message.value.trim() || isSending.value || !props.sessionId) return
+
+  isSending.value = true
+  try {
+    await continueSession(props.sessionId, message.value.trim())
+    message.value = ''
+    await loadInitial(props.sessionId)
+    startPolling(props.sessionId, () => SESSION_TERMINAL_STATUSES.includes(props.sessionStatus))
+  } catch (err) {
+    console.error('Failed to send message:', err)
+    alert('发送失败: ' + (err.message || err))
+  } finally {
+    isSending.value = false
+  }
+}
 
 async function setupSession() {
   stopPolling()
@@ -119,5 +151,36 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 8px;
   overflow: auto;
+  flex: 1;
+}
+
+.panel-input {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.panel-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.panel-input button {
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.panel-input button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
 }
 </style>

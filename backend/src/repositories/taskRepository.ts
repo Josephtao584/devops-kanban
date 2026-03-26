@@ -134,6 +134,10 @@ class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, 
     return tasks.filter((task) => task.iteration_id === iterationId);
   }
 
+  async findByExternalId(externalId: string): Promise<StoredTaskEntity | null> {
+    const data = await this._loadAll();
+    return data.find((item) => item.external_id === externalId) || null;
+  }
 }
 
 export { TaskRepository };

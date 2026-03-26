@@ -1,5 +1,3 @@
-import type { TaskEntity } from './entities.js';
-
 export interface SourceDefinition extends Record<string, unknown> {
   type: string;
   key?: string;
@@ -43,11 +41,6 @@ export interface ImportedTask {
 
 export interface PreviewImportedTask extends ImportedTask {
   imported: boolean;
-}
-
-export interface TaskSourceSyncResultItem extends TaskEntity {
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface TaskSourceImportResult {
