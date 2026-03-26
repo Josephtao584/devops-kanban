@@ -2,7 +2,6 @@ import { AgentRepository } from '../../repositories/agentRepository.js';
 import type {
   ExecutorConfig,
   ExecutorExecutionResult,
-  ExecutorProcessHandle,
   ExecutorProviderState,
   ExecutorType,
   WorkflowExecutionEvent,
@@ -10,7 +9,6 @@ import type {
 import type { AgentEntity, WorkflowTemplateEntity } from '../../types/entities.ts';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { adaptStepResult } from './stepResultAdapter.js';
-import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
 
 const defaultRegistry = new AgentExecutorRegistry();
@@ -19,11 +17,7 @@ const defaultAgentRepo = new AgentRepository();
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
   workflowTemplate: WorkflowTemplateEntity;
-  templateService?: WorkflowTemplateService;
   agentRepo?: AgentRepository;
-  context?: { proc?: ExecutorProcessHandle | null } | undefined;
-  onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
-  onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   stepId: string;
   worktreePath: string;
   state: {
@@ -33,10 +27,9 @@ interface ExecuteWorkflowStepInput {
   };
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
-  abortSignal?: AbortSignal | undefined;
-  runId: number;
-  sessionId?: number | null;
-  segmentId?: number | null;
+  abortSignal?: AbortSignal;
+  onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
+  onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
 }
 
 function isExecutorType(value: unknown): value is ExecutorType {
@@ -58,71 +51,53 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
   };
 }
 
+async function resolveAgent(agentRepo: AgentRepository, stepId: string, agentId: number): Promise<AgentEntity> {
+  const agent = await agentRepo.findById(agentId);
+  if (!agent) {
+    throw new Error(`Workflow step ${stepId} references missing agent ${agentId}`);
+  }
+  if (!agent.enabled) {
+    throw new Error(`Workflow step ${stepId} bound agent ${agentId} is disabled`);
+  }
+  return agent;
+}
+
 export async function executeWorkflowStep({
   registry = defaultRegistry,
   workflowTemplate,
   agentRepo = defaultAgentRepo,
-  context,
-  onEvent,
-  onProviderState,
-  abortSignal,
   stepId,
   worktreePath,
   state,
   inputData,
   upstreamStepIds = [],
+  abortSignal,
+  onEvent,
+  onProviderState,
 }: ExecuteWorkflowStepInput) {
-  const step = workflowTemplate.steps.find((item: { id: string }) => item.id === stepId);
-
+  // 1. Find step
+  const step = workflowTemplate.steps.find((item) => item.id === stepId);
   if (!step) {
     throw new Error(`Workflow template step not found: ${stepId}`);
   }
 
-  if (typeof step.agentId !== 'number') {
-    throw new Error(`Workflow template step ${stepId} does not have a bound agent`);
-  }
-
-  const agent = await agentRepo.findById(step.agentId);
-  if (!agent) {
-    throw new Error(`Workflow step ${stepId} references missing agent ${step.agentId}`);
-  }
-
-  if (!agent.enabled) {
-    throw new Error(`Workflow step ${stepId} bound agent ${step.agentId} is disabled`);
-  }
-
+  // 2. Resolve agent
+  const agent = await resolveAgent(agentRepo, stepId, step.agentId);
   const executorConfig = buildExecutorConfig(agent);
-  const prompt = assembleWorkflowPrompt({
-    step,
-    state,
-    inputData,
-    upstreamStepIds,
-  });
 
-  if (abortSignal && context) {
-    abortSignal.addEventListener('abort', () => {
-      context?.proc?.kill?.('SIGTERM');
-    }, { once: true });
-  }
+  // 3. Build prompt
+  const prompt = assembleWorkflowPrompt({ step, state, inputData, upstreamStepIds });
 
+  // 4. Execute
   const executor = registry.getExecutor(executorConfig.type);
   const execution: ExecutorExecutionResult = await executor.execute({
     prompt,
     worktreePath,
     executorConfig,
     abortSignal,
-    onSpawn: (proc) => {
-      if (context) {
-        context.proc = proc;
-      }
-    },
     onEvent,
     onProviderState,
   });
-
-  if (context) {
-    context.proc = execution.proc;
-  }
 
   return adaptStepResult(executorConfig.type, execution);
 }
