@@ -68,7 +68,8 @@ class WorkflowService {
     this.projectRepo = projectRepo || new ProjectRepository();
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
-    this.lifecycle = lifecycle || new WorkflowLifecycle();
+    // Share the same workflowRunRepo instance with lifecycle to ensure mutation queue consistency
+    this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo });
   }
 
   async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
