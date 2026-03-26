@@ -219,13 +219,32 @@ class InternalApiAdapter extends TaskSourceAdapter {
     const dataValue = normalizedResponse && typeof normalizedResponse === 'object' && !Array.isArray(normalizedResponse)
       ? this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data)
       : undefined;
+
+    // Handle double-encoded JSON strings: if data is a string like "\"result\":[...]"
+    // that looks like a JSON string, try parsing it one more level deep.
+    let dataValueForResult = dataValue;
+    if (typeof dataValueForResult === 'string') {
+      const trimmed = dataValueForResult.trim();
+      const looksLikeJsonString = (trimmed.startsWith('"') && trimmed.endsWith('"'));
+      if (looksLikeJsonString) {
+        try {
+          const reparsed = JSON.parse(trimmed);
+          if (typeof reparsed === 'object' && reparsed !== null) {
+            dataValueForResult = reparsed;
+          }
+        } catch {
+          // Keep original string
+        }
+      }
+    }
+
     const dataArray = this._toObjectArray(dataValue);
     if (dataArray) {
       return dataArray;
     }
 
-    const resultValue = dataValue && typeof dataValue === 'object' && !Array.isArray(dataValue)
-      ? this._normalizeJsonLikeResponse((dataValue as UnknownRecord).result)
+    const resultValue = dataValueForResult && typeof dataValueForResult === 'object' && !Array.isArray(dataValueForResult)
+      ? this._normalizeJsonLikeResponse((dataValueForResult as UnknownRecord).result)
       : undefined;
     const resultArray = this._toObjectArray(resultValue);
     if (resultArray) {
@@ -244,6 +263,17 @@ class InternalApiAdapter extends TaskSourceAdapter {
       'data.records',
       'result.items',
     ];
+
+    // Also search through dataValueForResult (double-decoded data) using candidate paths.
+    if (dataValueForResult && typeof dataValueForResult === 'object' && !Array.isArray(dataValueForResult)) {
+      for (const pathValue of candidatePaths) {
+        const candidate = this._normalizeJsonLikeResponse(this._getNestedValue(dataValueForResult as UnknownRecord, pathValue));
+        const items = this._toObjectArray(candidate);
+        if (items) {
+          return items;
+        }
+      }
+    }
 
     if (normalizedResponse && typeof normalizedResponse === 'object' && !Array.isArray(normalizedResponse)) {
       for (const pathValue of candidatePaths) {
