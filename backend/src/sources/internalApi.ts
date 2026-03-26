@@ -189,29 +189,80 @@ class InternalApiAdapter extends TaskSourceAdapter {
     return response;
   }
 
-  _extractListItems(response: unknown): UnknownRecord[] {
-    const normalizedResponse = this._normalizeJsonLikeResponse(response);
-
-    if (Array.isArray(normalizedResponse)) {
-      return normalizedResponse.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
+  _toObjectArray(value: unknown): UnknownRecord[] | null {
+    if (!Array.isArray(value)) {
+      return null;
     }
 
-    if (normalizedResponse && typeof normalizedResponse === 'object') {
-      const data = this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data);
-      if (Array.isArray(data)) {
-        return data.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
-      }
+    return value.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
+  }
 
-      if (data && typeof data === 'object') {
-        const result = this._normalizeJsonLikeResponse((data as UnknownRecord).result);
-        if (Array.isArray(result)) {
-          return result.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object');
+  _describeObjectKeys(value: unknown): string {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return '';
+    }
+
+    return Object.keys(value as UnknownRecord).join(',');
+  }
+
+  _valueType(value: unknown): string {
+    return Array.isArray(value) ? 'array' : typeof value;
+  }
+
+  _extractListItems(response: unknown): UnknownRecord[] {
+    const normalizedResponse = this._normalizeJsonLikeResponse(response);
+    const directArray = this._toObjectArray(normalizedResponse);
+    if (directArray) {
+      return directArray;
+    }
+
+    const dataValue = normalizedResponse && typeof normalizedResponse === 'object' && !Array.isArray(normalizedResponse)
+      ? this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data)
+      : undefined;
+    const dataArray = this._toObjectArray(dataValue);
+    if (dataArray) {
+      return dataArray;
+    }
+
+    const resultValue = dataValue && typeof dataValue === 'object' && !Array.isArray(dataValue)
+      ? this._normalizeJsonLikeResponse((dataValue as UnknownRecord).result)
+      : undefined;
+    const resultArray = this._toObjectArray(resultValue);
+    if (resultArray) {
+      return resultArray;
+    }
+
+    const candidatePaths = [
+      'result',
+      'items',
+      'list',
+      'records',
+      'data.result',
+      'data.data.result',
+      'data.items',
+      'data.list',
+      'data.records',
+      'result.items',
+    ];
+
+    if (normalizedResponse && typeof normalizedResponse === 'object' && !Array.isArray(normalizedResponse)) {
+      for (const pathValue of candidatePaths) {
+        const candidate = this._normalizeJsonLikeResponse(this._getNestedValue(normalizedResponse as UnknownRecord, pathValue));
+        const items = this._toObjectArray(candidate);
+        if (items) {
+          return items;
         }
       }
     }
 
-    const responseType = Array.isArray(normalizedResponse) ? 'array' : typeof normalizedResponse;
-    throw new Error(`Internal API list response must be an array, { data: [] }, or { data: { result: [] } }. Received type: ${responseType}`);
+    throw new Error(
+      `Internal API list response must be an array, { data: [] }, or { data: { result: [] } }. ` +
+      `Received type: ${this._valueType(normalizedResponse)}, ` +
+      `rootKeys: [${this._describeObjectKeys(normalizedResponse)}], ` +
+      `dataType: ${this._valueType(dataValue)}, ` +
+      `dataKeys: [${this._describeObjectKeys(dataValue)}], ` +
+      `resultType: ${this._valueType(resultValue)}`
+    );
   }
 
   _extractDetailObject(response: unknown): UnknownRecord {
