@@ -12,7 +12,7 @@
     <div v-else-if="error" class="panel-error">{{ error.message || error }}</div>
     <div v-else-if="isLoading" class="panel-loading">加载中...</div>
     <div v-else-if="events.length === 0" class="panel-empty">暂无事件</div>
-    <div v-else class="panel-events">
+    <div v-else ref="eventsContainer" class="panel-events">
       <SessionEventRenderer
         v-for="event in events"
         :key="event.id ?? event.seq"
@@ -20,35 +20,31 @@
       />
     </div>
 
-    <div v-if="sessionId && isTerminal" class="panel-input">
+    <div v-if="sessionId && canInput" class="panel-input">
       <input
         v-model="message"
         @keyup.enter="sendMessage"
         placeholder="继续对话..."
-        :disabled="isSending"
+        :disabled="isBusy || isSending"
       />
-      <button @click="sendMessage" :disabled="!message.trim() || isSending">
-        {{ isSending ? '发送中...' : '发送' }}
+      <button @click="sendMessage" :disabled="!message.trim() || isBusy || isSending">
+        {{ isBusy ? '处理中...' : (isSending ? '发送中...' : '发送') }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import SessionEventRenderer from '../session/SessionEventRenderer.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
-import { SESSION_TERMINAL_STATUSES } from '../../constants/session.js'
-import { continueSession } from '../../api/session.js'
+import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
+import { getSession, continueSession } from '../../api/session.js'
 
 const props = defineProps({
   sessionId: {
     type: Number,
     default: null
-  },
-  sessionStatus: {
-    type: String,
-    default: ''
   },
   stepName: {
     type: String,
@@ -59,8 +55,33 @@ const props = defineProps({
 const { events, isLoading, error, loadInitial, startPolling, stopPolling } = useSessionEvents()
 const message = ref('')
 const isSending = ref(false)
+const sessionStatus = ref('')
+const eventsContainer = ref(null)
 
-const isTerminal = computed(() => SESSION_TERMINAL_STATUSES.includes(props.sessionStatus))
+const canInput = computed(() => SESSION_INPUT_STATUSES.includes(sessionStatus.value))
+const isBusy = computed(() => SESSION_BUSY_STATUSES.includes(sessionStatus.value))
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (eventsContainer.value) {
+      eventsContainer.value.scrollTop = eventsContainer.value.scrollHeight
+    }
+  })
+}
+
+async function fetchSessionStatus() {
+  if (!props.sessionId) {
+    sessionStatus.value = ''
+    return
+  }
+  try {
+    const response = await getSession(props.sessionId)
+    sessionStatus.value = response.data?.status || ''
+  } catch (err) {
+    console.error('Failed to fetch session status:', err)
+    sessionStatus.value = ''
+  }
+}
 
 async function sendMessage() {
   if (!message.value.trim() || isSending.value || !props.sessionId) return
@@ -69,8 +90,10 @@ async function sendMessage() {
   try {
     await continueSession(props.sessionId, message.value.trim())
     message.value = ''
+    await fetchSessionStatus()
     await loadInitial(props.sessionId)
-    startPolling(props.sessionId, () => SESSION_TERMINAL_STATUSES.includes(props.sessionStatus))
+    scrollToBottom()
+    startPollingWithStatusCheck()
   } catch (err) {
     console.error('Failed to send message:', err)
     alert('发送失败: ' + (err.message || err))
@@ -79,29 +102,59 @@ async function sendMessage() {
   }
 }
 
+function startPollingWithStatusCheck() {
+  startPolling(props.sessionId, () => false)
+}
+
 async function setupSession() {
   stopPolling()
 
   if (!props.sessionId) {
+    sessionStatus.value = ''
     return
   }
 
+  await fetchSessionStatus()
   await loadInitial(props.sessionId)
-  if (!isTerminal.value) {
-    startPolling(props.sessionId, () => SESSION_TERMINAL_STATUSES.includes(props.sessionStatus))
+  scrollToBottom()
+  startPollingWithStatusCheck()
+}
+
+// Watch events changes and scroll to bottom
+watch(events, () => {
+  scrollToBottom()
+}, { deep: true })
+
+// Poll session status periodically
+let statusPollTimer = null
+function startStatusPolling() {
+  stopStatusPolling()
+  statusPollTimer = setInterval(async () => {
+    if (props.sessionId && sessionStatus.value === 'RUNNING') {
+      await fetchSessionStatus()
+    }
+  }, 2000)
+}
+
+function stopStatusPolling() {
+  if (statusPollTimer) {
+    clearInterval(statusPollTimer)
+    statusPollTimer = null
   }
 }
 
 watch(
-  () => [props.sessionId, props.sessionStatus],
+  () => props.sessionId,
   () => {
     setupSession()
+    startStatusPolling()
   },
   { immediate: true }
 )
 
 onBeforeUnmount(() => {
   stopPolling()
+  stopStatusPolling()
 })
 </script>
 

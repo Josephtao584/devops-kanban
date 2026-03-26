@@ -6,7 +6,7 @@ import { SessionEventRepository } from '../repositories/sessionEventRepository.j
 import { TaskService } from './taskService.js';
 import { cleanupWorktree } from '../utils/git.js';
 import type { SessionSegmentEntity } from '../types/entities.ts';
-import {ExecutorType} from "../types/executors.js";
+import {Executor, ExecutorType} from "../types/executors.js";
 
 interface SessionLike {
   id: number;
@@ -73,8 +73,8 @@ class SessionService {
       throw error;
     }
 
-    if (session.status !== 'STOPPED') {
-      const error = new Error('Session is not stopped') as Error & { statusCode?: number };
+    if (session.status !== 'STOPPED' && session.status !== 'COMPLETED' && session.status !== 'FAILED' && session.status !== 'CANCELLED') {
+      const error = new Error('Session is not in a resumable state') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }
@@ -93,17 +93,42 @@ class SessionService {
     const executor = registry.getExecutor(session.executor_type as ExecutorType);
 
     const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
+    await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
 
+    // Save user message to session events
+    await this.sessionEventRepo.append({
+      session_id: sessionId,
+      segment_id: segment.id,
+      kind: 'message',
+      role: 'user',
+      content: input,
+      payload: {},
+    });
+
+    // Execute in background, return immediately
+    this._executeContinue(session, segment, executor, worktreePath, latestSegment, input).catch((err) => {
+      console.error(`[Session] Continue failed for session #${sessionId}:`, err);
+    });
+
+    return await this.sessionRepo.findById(sessionId);
+  }
+
+  private async _executeContinue(
+    session: SessionLike,
+    segment: { id: number },
+    executor: Executor,
+    worktreePath: string,
+    latestSegment: { provider_session_id?: string | null } | null,
+    input: string
+  ) {
     try {
-      await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
-
       const result = await executor.continue({
         prompt: input,
         worktreePath,
         ...(latestSegment?.provider_session_id ? { providerSessionId: latestSegment.provider_session_id } : {}),
         onEvent: async (event) => {
           await this.sessionEventRepo.append({
-            session_id: sessionId,
+            session_id: session.id,
             segment_id: segment.id,
             kind: event.kind,
             role: event.role,
@@ -121,17 +146,14 @@ class SessionService {
       });
 
       await this._markSegmentComplete(segment.id, result.exitCode === 0 ? 'COMPLETED' : 'ERROR');
-      await this.sessionRepo.update(sessionId, {
+      await this.sessionRepo.update(session.id, {
         status: 'STOPPED',
         completed_at: new Date().toISOString(),
       });
     } catch (error) {
       await this._markSegmentComplete(segment.id, 'ERROR');
-      await this.sessionRepo.update(sessionId, { status: 'STOPPED' });
-      throw error;
+      await this.sessionRepo.update(session.id, { status: 'STOPPED' });
     }
-
-    return await this.sessionRepo.findById(sessionId);
   }
 
   async exists(sessionId: number) {

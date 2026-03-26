@@ -67,7 +67,6 @@
         <StepSessionPanel
           v-if="selectedStep?.session_id"
           :session-id="selectedStep.session_id"
-          :session-status="selectedStep.status"
           :step-name="selectedStep.name"
         />
         <div v-else class="detail-empty">当前步骤暂无会话记录</div>

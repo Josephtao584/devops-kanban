@@ -129,16 +129,13 @@ function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent
     return null;
   }
 
-  // Result event
+  // Result event - only emit status, actual message already emitted via 'assistant' event
   if (type === 'result') {
-    const result = json.result;
-    if (typeof result === 'string') {
-      return buildEvent('message', 'assistant', result, {
-        duration_ms: json.duration_ms,
-        total_cost_usd: json.total_cost_usd,
-      });
-    }
-    return null;
+    return buildEvent('status', 'system', 'completed', {
+      duration_ms: json.duration_ms,
+      total_cost_usd: json.total_cost_usd,
+      stop_reason: json.stop_reason,
+    });
   }
 
   // Error event
