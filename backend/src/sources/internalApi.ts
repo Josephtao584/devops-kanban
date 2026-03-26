@@ -221,21 +221,47 @@ class InternalApiAdapter extends TaskSourceAdapter {
       : undefined;
 
     // Handle double-encoded JSON strings: if data is a string that looks like
-    // a JSON object or array (starts with { or [), try parsing it.
+    // a JSON object or array (starts with " { ", " [ ", or just { / [), try parsing it.
     let dataValueForResult = dataValue;
+    console.log('[DEBUG _extractListItems] dataValue type:', typeof dataValueForResult, 'value:', dataValueForResult);
     if (typeof dataValueForResult === 'string') {
       const trimmed = dataValueForResult.trim();
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const startsWithQuote = trimmed.startsWith('"');
+      const startsWithBraceOrBracket = trimmed.startsWith('{') || trimmed.startsWith('[');
+      console.log('[DEBUG _extractListItems] trimmed startsWith "\"":', startsWithQuote, 'startsWith "{[" :', startsWithBraceOrBracket);
+      if (startsWithBraceOrBracket) {
         try {
           const reparsed = JSON.parse(trimmed);
+          console.log('[DEBUG _extractListItems] reparsed type:', typeof reparsed, 'value:', reparsed);
           if (typeof reparsed === 'object' && reparsed !== null) {
             dataValueForResult = reparsed;
           }
-        } catch {
-          // Keep original string
+        } catch (e) {
+          console.log('[DEBUG _extractListItems] JSON.parse failed:', e.message);
+        }
+      } else if (startsWithQuote) {
+        // Double-encoded: '"{"result":[]}"' -> '{"result":[]}' -> {'result':[]}
+        try {
+          const firstParse = JSON.parse(trimmed);
+          console.log('[DEBUG _extractListItems] firstParse type:', typeof firstParse, 'value:', firstParse);
+          if (typeof firstParse === 'string') {
+            const secondTrim = firstParse.trim();
+            if (secondTrim.startsWith('{') || secondTrim.startsWith('[')) {
+              const reparsed = JSON.parse(secondTrim);
+              console.log('[DEBUG _extractListItems] second reparsed type:', typeof reparsed, 'value:', reparsed);
+              if (typeof reparsed === 'object' && reparsed !== null) {
+                dataValueForResult = reparsed;
+              }
+            }
+          } else if (typeof firstParse === 'object' && firstParse !== null) {
+            dataValueForResult = firstParse;
+          }
+        } catch (e) {
+          console.log('[DEBUG _extractListItems] double-parse failed:', e.message);
         }
       }
     }
+    console.log('[DEBUG _extractListItems] dataValueForResult type:', typeof dataValueForResult, 'value:', dataValueForResult);
 
     const dataArray = this._toObjectArray(dataValue);
     if (dataArray) {
