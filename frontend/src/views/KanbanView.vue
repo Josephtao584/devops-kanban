@@ -63,20 +63,19 @@
               style="width: 200px"
             />
             <el-button
-              type="primary"
+              class="open-iteration-manager"
               size="small"
               :disabled="!selectedProjectId"
-              @click="openCreateIteration"
+              @click="showIterationManager = true"
               style="margin-left: 8px"
             >
-              {{ $t('iteration.createIteration') }}
+              {{ $t('iteration.manageIterations') }}
             </el-button>
           </div>
         </div>
 
         <!-- Kanban Board -->
         <div v-if="viewMode === 'kanban'" class="kanban-board" ref="kanbanBoardRef">
-          <!-- TODO Column -->
           <KanbanColumn
             status="TODO"
             :title="$t('status.TODO')"
@@ -99,7 +98,6 @@
             @workflow-action="handleWorkflowAction"
           />
 
-          <!-- IN_PROGRESS Column -->
           <KanbanColumn
             status="IN_PROGRESS"
             :title="$t('status.IN_PROGRESS')"
@@ -118,7 +116,6 @@
             @workflow-action="handleWorkflowAction"
           />
 
-          <!-- DONE Column -->
           <KanbanColumn
             status="DONE"
             :title="$t('status.DONE')"
@@ -137,7 +134,6 @@
             @workflow-action="handleWorkflowAction"
           />
 
-          <!-- BLOCKED Column -->
           <KanbanColumn
             status="BLOCKED"
             :title="$t('status.BLOCKED')"
@@ -157,7 +153,6 @@
           />
         </div>
 
-        <!-- List View -->
         <KanbanListView
           v-else
           :tasks="filteredTasksForList"
@@ -179,7 +174,6 @@
         />
       </div>
 
-      <!-- Sync Preview Dialog -->
       <el-dialog
         v-model="taskSourceStore.showPreviewDialog"
         :title="$t('taskSource.previewTitle')"
@@ -260,7 +254,6 @@
         </template>
       </el-dialog>
 
-      <!-- Chat Container -->
       <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
         <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? 'Expand Chat' : 'Collapse Chat'">
           <span class="collapse-arrow" :class="{ collapsed: isChatCollapsed }">
@@ -278,7 +271,6 @@
           <h2>点击任务查看 Workflow</h2>
         </div>
 
-        <!-- Chat Panel - Step Mode -->
         <div v-if="selectedTask && !isChatCollapsed && currentViewingNodeId" class="chat-content step-chat-mode">
           <div class="step-chat-header">
             <div class="step-header-info">
@@ -302,7 +294,6 @@
           </div>
         </div>
 
-        <!-- Chat Panel - Task Selected, No Step -->
         <div v-if="selectedTask && !isChatCollapsed && !currentViewingNodeId" class="chat-content task-chat-placeholder">
           <div class="task-placeholder-content">
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -314,7 +305,6 @@
       </div>
     </div>
 
-    <!-- Task Modal -->
     <div v-if="showTaskModal" class="modal-overlay" @click.self="closeTaskModal">
       <div class="modal">
         <div class="modal-header">
@@ -376,7 +366,6 @@
       </div>
     </div>
 
-    <!-- Agent Selector Dialog -->
     <AgentSelector
       v-if="showAgentSelector"
       v-model="showAgentSelector"
@@ -385,7 +374,6 @@
       @select="handleAgentSelect"
     />
 
-    <!-- Workflow Timeline Dialog -->
     <WorkflowTimelineDialog
       v-model="showWorkflowDialog"
       :task-id="selectedTask?.id"
@@ -395,7 +383,6 @@
       @start-workflow="onStartWorkflow"
     />
 
-    <!-- Workflow Progress Dialog -->
     <WorkflowProgressDialog
       v-model="showProgressDialog"
       :task-id="selectedTask?.id"
@@ -404,7 +391,6 @@
       @workflow-completed="handleWorkflowCompleted"
     />
 
-    <!-- Diff Select Dialog -->
     <DiffSelectDialog
       v-if="showDiffDialog"
       :project-id="diffDialogData.projectId"
@@ -413,7 +399,6 @@
       @close="showDiffDialog = false"
     />
 
-    <!-- Commit Dialog -->
     <CommitDialog
       v-if="showCommitDialog"
       :project-id="commitDialogData.projectId"
@@ -422,7 +407,6 @@
       @close="showCommitDialog = false"
     />
 
-    <!-- Merge Dialog -->
     <MergeDialog
       v-if="showMergeDialog"
       :project-id="mergeDialogData.projectId"
@@ -432,7 +416,28 @@
       @merged="handleMerged"
     />
 
-    <!-- Iteration Form Dialog -->
+    <el-dialog
+      v-model="showIterationManager"
+      :title="$t('iteration.manageIterationsTitle')"
+      width="720px"
+    >
+      <div class="iteration-manager-actions">
+        <el-button
+          class="open-create-iteration"
+          type="primary"
+          size="small"
+          @click="openCreateIteration"
+        >
+          {{ $t('iteration.createIteration') }}
+        </el-button>
+      </div>
+      <IterationList
+        :iterations="projectIterations"
+        @edit="handleEditIteration"
+        @delete="handleDeleteIteration"
+      />
+    </el-dialog>
+
     <IterationForm
       v-model="showIterationModal"
       :iteration="editingIteration"
@@ -452,7 +457,6 @@
       @confirm="handleWorkflowStartEditorConfirm"
     />
 
-    <!-- Workflow Node Detail Dialog -->
     <div v-if="showNodeDialog && selectedNode" class="modal-overlay" @click.self="showNodeDialog = false">
       <div class="modal node-detail-modal">
         <div class="modal-header">
@@ -554,7 +558,6 @@
     </div>
   </div>
 
-  <!-- Delete Task Confirmation Dialog -->
   <el-dialog
     v-model="showDeleteConfirm"
     :title="t('task.deleteConfirmTitle')"
@@ -577,10 +580,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { h, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
   OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
@@ -601,6 +604,7 @@ import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
 import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import IterationSelect from '../components/iteration/IterationSelect.vue'
+import IterationList from '../components/iteration/IterationList.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
@@ -619,7 +623,6 @@ const { t } = useI18n()
 const route = useRoute()
 const toast = useToast()
 
-// Use Pinia stores
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
 const iterationStore = useIterationStore()
@@ -640,7 +643,6 @@ const {
   iterationStore,
 })
 
-// Local state
 const selectedTask = ref(null)
 const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
@@ -652,6 +654,7 @@ const showCommitDialog = ref(false)
 const commitDialogData = ref(null)
 const showMergeDialog = ref(false)
 const mergeDialogData = ref(null)
+const showIterationManager = ref(false)
 const showIterationModal = ref(false)
 const editingIteration = ref(null)
 const creatingIteration = ref(false)
@@ -673,7 +676,6 @@ const showWorkflowStartEditorDialog = ref(false)
 const workflowStartDraftTemplate = ref(null)
 const selectedWorkflowTemplateId = ref('')
 
-// Clear currentViewingNodeId when selected task becomes DONE
 watch(() => selectedTask.value?.status, (newStatus) => {
   if (newStatus === 'DONE' && currentViewingNodeId.value) {
     currentViewingNodeId.value = null
@@ -684,7 +686,6 @@ watch(() => selectedTask.value?.status, (newStatus) => {
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
 const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
-// Use useTaskTimer composable
 const {
   runningTasks,
   isTaskRunning,
@@ -694,7 +695,6 @@ const {
   cleanup: cleanupTimer
 } = useTaskTimer()
 
-// Use useWorkflowManager composable
 const {
   selectedNode,
   showNodeDialog,
@@ -712,31 +712,24 @@ const {
   t
 })
 
-// Handle task started event from TaskButlerChat
 const handleTaskStarted = async (updatedTask) => {
-  // Refresh tasks to reflect status change
   if (selectedProjectId.value) {
     await taskStore.fetchTasks(selectedProjectId.value)
   }
-  // Update selected task with new data
   if (selectedTask.value && selectedTask.value.id === updatedTask.id) {
     selectedTask.value = updatedTask
   }
 }
 
-// Handle view progress event from TaskButlerChat
 const handleViewProgress = ({ taskId, workflowRunId }) => {
   progressRunId.value = workflowRunId
   showProgressDialog.value = true
 }
 
-// Handle workflow completed event from WorkflowProgressDialog
 const handleWorkflowCompleted = async () => {
-  // Refresh tasks to reflect status change (task should now be DONE)
   if (selectedProjectId.value) {
     await taskStore.fetchTasks(selectedProjectId.value)
   }
-  // Update selected task from refreshed store
   if (selectedTask.value) {
     const updated = taskStore.tasks.find(t => t.id === selectedTask.value.id)
     if (updated) {
@@ -745,31 +738,22 @@ const handleWorkflowCompleted = async () => {
   }
 }
 
-// Handle tasks reorder from drag-and-drop
 const handleReorderTasks = async (newOrder) => {
   try {
-    // Update local state immediately for responsive UI
     localTasks.value = [...newOrder]
     taskStore.tasks = [...newOrder]
-
-    // Send update to backend
     await reorderTasks(newOrder)
-
     console.log('[KanbanView] Tasks reordered successfully')
   } catch (error) {
     console.error('[KanbanView] Failed to reorder tasks:', error)
-    // Reload tasks from server on error
     await taskStore.fetchTasks(selectedProjectId.value)
   }
 }
 
-// Handle worktree update from child components
 const handleWorktreeUpdate = (task) => {
-  // Task object is mutated by reference, no additional action needed
   console.log('[KanbanView] Worktree updated for task:', task.id)
 }
 
-// Handle sync task sources from TODO column - show preview first
 const handleSyncTaskSources = async () => {
   if (!selectedProjectId.value) return
 
@@ -802,7 +786,10 @@ const confirmSyncImport = async () => {
   }
 
   try {
-    const totalImported = await taskSourceStore.importSelectedPreviewTasks(selectedProjectId.value)
+    const totalImported = await taskSourceStore.importSelectedPreviewTasks(
+      selectedProjectId.value,
+      selectedIterationId.value
+    )
     await taskStore.fetchTasks(selectedProjectId.value)
     if (totalImported > 0) {
       toast.success(t('taskSource.importSuccess', { count: totalImported }))
@@ -817,34 +804,28 @@ const closeSyncPreview = () => {
   taskSourceStore.closePreviewDialog()
 }
 
-// Handle show diff dialog from butler chat
 const handleShowDiff = (data) => {
   diffDialogData.value = data
   showDiffDialog.value = true
 }
 
-// Handle show commit dialog from butler chat
 const handleShowCommit = (data) => {
   commitDialogData.value = data
   showCommitDialog.value = true
 }
 
-// Handle show merge dialog
 const openMergeDialog = (data) => {
   mergeDialogData.value = data
   showMergeDialog.value = true
 }
 
-// Handle merged event
 const handleMerged = () => {
-  // Refresh task data after merge
   if (selectedProjectId.value) {
     taskStore.fetchTasks(selectedProjectId.value)
   }
   toast.success(t('git.mergeSuccess', '合并成功'))
 }
 
-// Handle delete worktree from butler header
 const handleDeleteWorktree = async (task) => {
   const updatedTask = await handleWorktree(task, async () => {
     if (selectedProjectId.value) {
@@ -854,7 +835,6 @@ const handleDeleteWorktree = async (task) => {
   return updatedTask
 }
 
-// Handle workflow expand/collapse
 const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
 }
@@ -931,11 +911,9 @@ const handleWorkflowStartEditorConfirm = async (draftTemplate) => {
   )
 }
 
-// Handle workflow action from inline workflow panel
 const handleWorkflowAction = (payload) => {
   console.log('[KanbanView] handleWorkflowAction called:', payload, 'selectedTask:', selectedTask.value?.id)
 
-  // Extract action and task from payload
   const action = typeof payload === 'string' ? payload : payload.action
   const task = typeof payload === 'string' ? selectedTask.value : (payload.task || selectedTask.value)
 
@@ -949,39 +927,37 @@ const handleWorkflowAction = (payload) => {
       console.log('[KanbanView] no task, cannot start')
     }
   } else if (action === 'pause') {
-      // Handle pause
-    } else if (action === 'diff') {
-      if (selectedTask.value) {
-        handleShowDiff({
-          taskId: selectedTask.value.id,
-          projectId: selectedTask.value.project_id,
-          worktreeBranch: selectedTask.value.worktree_branch
-        })
-      }
-    } else if (action === 'commit') {
-      if (selectedTask.value) {
-        handleShowCommit({
-          taskId: selectedTask.value.id,
-          projectId: selectedTask.value.project_id,
-          worktreeBranch: selectedTask.value.worktree_branch
-        })
-      }
-    } else if (action === 'progress') {
-      if (selectedTask.value?.workflow_run_id) {
-        handleViewProgress({
-          taskId: selectedTask.value.id,
-          workflowRunId: selectedTask.value.workflow_run_id
-        })
-      }
-    } else if (action === 'help') {
-      // Help will be shown in chat
-    } else if (action === 'merge') {
-      if (selectedTask.value) {
-        openMergeDialog({
-          taskId: selectedTask.value.id,
-          projectId: selectedTask.value.project_id,
-          worktreeBranch: selectedTask.value.worktree_branch
-        })
+  } else if (action === 'diff') {
+    if (selectedTask.value) {
+      handleShowDiff({
+        taskId: selectedTask.value.id,
+        projectId: selectedTask.value.project_id,
+        worktreeBranch: selectedTask.value.worktree_branch
+      })
+    }
+  } else if (action === 'commit') {
+    if (selectedTask.value) {
+      handleShowCommit({
+        taskId: selectedTask.value.id,
+        projectId: selectedTask.value.project_id,
+        worktreeBranch: selectedTask.value.worktree_branch
+      })
+    }
+  } else if (action === 'progress') {
+    if (selectedTask.value?.workflow_run_id) {
+      handleViewProgress({
+        taskId: selectedTask.value.id,
+        workflowRunId: selectedTask.value.workflow_run_id
+      })
+    }
+  } else if (action === 'help') {
+  } else if (action === 'merge') {
+    if (selectedTask.value) {
+      openMergeDialog({
+        taskId: selectedTask.value.id,
+        projectId: selectedTask.value.project_id,
+        worktreeBranch: selectedTask.value.worktree_branch
+      })
     }
   } else if (payload && payload.action === 'node-click') {
     selectedTask.value = payload.task || null
@@ -991,40 +967,32 @@ const handleWorkflowAction = (payload) => {
   }
 }
 
-// Computed - tasks and projects
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
 
-// Filtered tasks by iteration
 const filteredTasks = computed(() => {
   if (!selectedIterationId.value) return tasks.value
   return tasks.value.filter(t => t.iteration_id === selectedIterationId.value)
 })
 
-// Worktree name from selected task
-// Current viewing workflow node - directly from node-click payload
 const currentViewingNode = ref(null)
 
-// Clear node selection and return to task chat mode
 const clearNodeSelection = () => {
   currentViewingNodeId.value = null
   currentViewingNode.value = null
 }
 
-// Worktree name from selected task
 const selectedTaskWorktreeName = computed(() => {
   if (!selectedTask.value?.worktree_path) return ''
   const parts = selectedTask.value.worktree_path.replace(/\\/g, '/').split('/')
   return parts[parts.length - 1] || selectedTask.value.worktree_path
 })
 
-// Local reactive arrays for draggable
 const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
 const localDoneTasks = ref([])
 const localBlockedTasks = ref([])
 
-// Sync store to local arrays with iteration filter
 watch(
   () => filteredTasks.value,
   (newTasks) => {
@@ -1036,14 +1004,12 @@ watch(
   { immediate: true, deep: true }
 )
 
-// Loading state
 const loading = reactive({
   projects: computed(() => projectStore.loading),
   tasks: computed(() => taskStore.loading),
   saving: false
 })
 
-// Task form
 const taskForm = reactive({
   title: '',
   description: '',
@@ -1054,12 +1020,9 @@ const taskForm = reactive({
   iteration_id: null
 })
 
-// Agent selector
 const showAgentSelector = ref(false)
 const pendingTask = ref(null)
 
-// Filtered tasks for list view - only sort, don't filter by status
-// Status filtering is handled by KanbanListView components
 const filteredTasksForList = computed(() => {
   const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 2, 'DONE': 3, 'BLOCKED': 4 }
   return [...filteredTasks.value].sort((a, b) => {
@@ -1069,7 +1032,6 @@ const filteredTasksForList = computed(() => {
   })
 })
 
-// Helper functions
 const updateColumnRefs = () => {
   localTodoTasks.value = filteredTasks.value.filter(t => t.status === 'TODO')
   localInProgressTasks.value = filteredTasks.value.filter(t => t.status === 'IN_PROGRESS')
@@ -1109,7 +1071,6 @@ const getPriorityLabel = (priority) => {
   return labels[priority] || 'Medium'
 }
 
-// Workflow node display helpers
 const getNodeRoleIcon = (role) => {
   if (!role) return Document
   const iconName = roleConfig[role]?.icon || 'Document'
@@ -1141,25 +1102,19 @@ const handleProjectChange = async () => {
   updateColumnRefs()
 }
 
-// Task selection
 const selectTask = (task) => {
-  // Toggle workflow when clicking the same task
   if (selectedTask.value && selectedTask.value.id === task.id) {
     expandedTaskId.value = expandedTaskId.value === task.id ? null : task.id
     return
   }
   console.log('[KanbanView] selectTask called with:', task)
   selectedTask.value = task
-  // Clear any step selection when task changes
   currentViewingNodeId.value = null
   currentViewingNode.value = null
-  // Auto expand workflow when task is selected
   expandedTaskId.value = task.id
 }
 
-// Task modal
 const openTaskModal = (task = null) => {
-  // Check if a project is selected
   if (!task && !selectedProjectId.value) {
     ElMessage.warning('请先选择一个项目')
     return
@@ -1195,7 +1150,6 @@ const closeTaskModal = () => {
   editingTaskId.value = null
 }
 
-// Save task
 const saveTask = async () => {
   if (!taskForm.title.trim()) return
 
@@ -1230,13 +1184,78 @@ const saveTask = async () => {
   }
 }
 
-// Open create iteration dialog
 const openCreateIteration = () => {
   editingIteration.value = null
   showIterationModal.value = true
 }
 
-// Handle iteration form submit
+const handleEditIteration = (iteration) => {
+  editingIteration.value = iteration
+  showIterationModal.value = true
+}
+
+const openEditIteration = handleEditIteration
+
+const handleIterationClick = (iteration) => {
+  selectedIterationId.value = iteration?.id || null
+}
+
+const handleDeleteIteration = async (iteration) => {
+  let deleteTasks = false
+
+  try {
+    await ElMessageBox.confirm(
+      h('div', { class: 'iteration-delete-confirm' }, [
+        h('p', t('iteration.deleteConfirmMessage', { name: iteration.name })),
+        h(ElCheckbox, {
+          modelValue: deleteTasks,
+          'onUpdate:modelValue': (value) => {
+            deleteTasks = value
+          }
+        }, () => t('iteration.deleteTasksCheckbox'))
+      ]),
+      t('iteration.deleteConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        dangerouslyUseHTMLString: false
+      }
+    )
+  } catch {
+    return
+  }
+
+  let deleted = false
+
+  try {
+    const response = await iterationStore.deleteIteration(iteration.id, { deleteTasks })
+    if (!response?.success) {
+      throw new Error(response?.message || response?.error || t('iteration.deleteFailed'))
+    }
+
+    deleted = true
+
+    if (selectedIterationId.value === iteration.id || String(selectedIterationId.value) === String(iteration.id)) {
+      selectedIterationId.value = null
+    }
+
+    await Promise.all([
+      iterationStore.fetchByProject(selectedProjectId.value),
+      taskStore.fetchTasks(selectedProjectId.value)
+    ])
+
+    ElMessage.success(t('iteration.deleted'))
+  } catch (error) {
+    console.error('Failed to delete iteration:', error)
+    if (deleted) {
+      ElMessage.warning(t('iteration.refreshAfterDeleteFailed'))
+      return
+    }
+    ElMessage.error(t('iteration.deleteFailed'))
+  }
+}
+
 const handleIterationSubmit = async (formData) => {
   creatingIteration.value = true
   try {
@@ -1254,7 +1273,7 @@ const handleIterationSubmit = async (formData) => {
     }
 
     showIterationModal.value = false
-    // Refresh iterations
+    editingIteration.value = null
     await iterationStore.fetchByProject(selectedProjectId.value)
   } catch (error) {
     console.error('Failed to save iteration:', error)
@@ -1264,7 +1283,6 @@ const handleIterationSubmit = async (formData) => {
   }
 }
 
-// Delete task
 const onDeleteTask = async (taskId) => {
   pendingDeleteTaskId.value = taskId
   deleteWorktreeChecked.value = false
@@ -1294,7 +1312,6 @@ const confirmDeleteTask = async () => {
   }
 }
 
-// Drag and drop handler
 const onDragEnd = async (evt) => {
   const newStatus = evt.to?.closest('.kanban-column')?.getAttribute('data-status')
   if (!newStatus) {
@@ -1326,7 +1343,6 @@ const onDragEnd = async (evt) => {
   }
 }
 
-// Session handlers
 const onSessionCreated = async (session) => {
   activeSession.value = session
   if (session.status === 'RUNNING' || session.status === 'IDLE') {
@@ -1391,6 +1407,22 @@ const handleRequestAgentSelect = (task) => {
   showAgentSelector.value = true
 }
 
+const loadActiveSession = async () => {
+  if (!selectedTask.value) return
+  const taskId = selectedTask.value.id
+  try {
+    const response = await getActiveSessionByTask(taskId)
+    if (response.success && response.data) {
+      activeSession.value = response.data
+    } else {
+      activeSession.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load active session:', error)
+    activeSession.value = null
+  }
+}
+
 // Lifecycle
 onMounted(async () => {
   try {
@@ -1416,7 +1448,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Top Header */
 .top-header {
   display: flex;
   padding: 12px 16px;
@@ -1459,7 +1490,6 @@ onUnmounted(() => {
   box-shadow: 0 0 0 3px rgba(92, 92, 255, 0.15);
 }
 
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1503,14 +1533,12 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
-/* Main Content Wrapper */
 .main-content-wrapper {
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
-/* Kanban Area */
 .kanban-area {
   display: flex;
   flex: 1;
@@ -1528,7 +1556,6 @@ onUnmounted(() => {
   max-width: calc(100% - 24px);
 }
 
-/* Kanban Board */
 .kanban-board {
   display: flex;
   flex: 1;
@@ -1540,7 +1567,6 @@ onUnmounted(() => {
   flex-wrap: nowrap;
 }
 
-/* View Mode Toolbar */
 .view-toolbar {
   padding: 12px;
   background: var(--bg-secondary);
@@ -1566,7 +1592,6 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-/* Sync Preview Dialog */
 .sync-preview-loading {
   display: flex;
   align-items: center;
@@ -1780,7 +1805,12 @@ onUnmounted(() => {
   color: var(--el-text-color-placeholder);
 }
 
-/* Chat Container */
+.iteration-manager-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px 8px;
+}
+
 .chat-container {
   width: 600px;
   background: var(--bg-secondary);
@@ -1969,7 +1999,6 @@ onUnmounted(() => {
   color: var(--el-color-danger);
 }
 
-/* Step Chat Mode - Unified with card style */
 .step-chat-mode {
   display: flex;
   flex-direction: column;
@@ -2061,7 +2090,6 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* Task Chat Placeholder */
 .task-chat-placeholder {
   display: flex;
   align-items: center;
@@ -2092,7 +2120,6 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -2226,7 +2253,6 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-/* Auto Assign Modal */
 .auto-assign-modal {
   max-width: 700px;
 }
@@ -2353,7 +2379,6 @@ onUnmounted(() => {
   text-align: center;
 }
 
-/* Node Detail Modal */
 .node-detail-modal {
   max-width: 800px;
 }
@@ -2554,7 +2579,6 @@ onUnmounted(() => {
   min-width: 80px;
 }
 
-/* Icon spin animation */
 .icon-spin {
   animation: spin 1s linear infinite;
 }
@@ -2564,7 +2588,6 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* Kanban Column Styles */
 .kanban-column {
   display: flex;
   flex-direction: column;
@@ -2732,7 +2755,6 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-/* Toggle Converted Button */
 .toggle-converted-btn {
   display: flex;
   align-items: center;
@@ -2756,7 +2778,6 @@ onUnmounted(() => {
   color: var(--el-color-warning);
 }
 
-/* Empty Column State */
 .empty-column {
   text-align: center;
   padding: 32px 16px;
@@ -2764,12 +2785,10 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-/* Requirement Card in Kanban */
 .kanban-column .requirement-card {
   margin-bottom: 12px;
 }
 
-/* Sync Modal */
 .sync-modal {
   max-width: 700px;
 }
@@ -2949,7 +2968,6 @@ onUnmounted(() => {
   color: var(--text-placeholder);
 }
 
-/* Add requirement button styles */
 .requirement-actions-row-bottom {
   margin-top: 8px;
 }

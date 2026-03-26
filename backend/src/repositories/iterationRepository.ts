@@ -1,6 +1,17 @@
 import { BaseRepository } from './base.js';
-import type { IterationEntity } from '../types/entities.js';
+import type { BaseEntity } from './base.js';
+import type { IterationCreateRecord, IterationUpdateRecord } from '../types/persistence/iterations.js';
 import { TaskRepository, type TaskStatusCounts } from './taskRepository.js';
+
+interface IterationEntity extends BaseEntity {
+  project_id: number;
+  name?: string;
+  description?: string;
+  goal?: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+}
 
 interface IterationWithStats extends IterationEntity {
   task_count: number;
@@ -12,9 +23,12 @@ interface IterationWithStats extends IterationEntity {
   progress: number;
 }
 
-class IterationRepository extends BaseRepository<IterationEntity> {
-  constructor() {
-    super('iterations.json');
+class IterationRepository extends BaseRepository<IterationEntity, IterationCreateRecord, IterationUpdateRecord> {
+  storagePath?: string;
+
+  constructor(storagePath?: string) {
+    super('iterations.json', storagePath ? { storagePath } : undefined);
+    this.storagePath = storagePath;
   }
 
   async findByProject(projectId: number): Promise<IterationEntity[]> {
@@ -28,7 +42,7 @@ class IterationRepository extends BaseRepository<IterationEntity> {
       return null;
     }
 
-    const taskRepo = new TaskRepository();
+    const taskRepo = new TaskRepository(this.storagePath);
     const tasks = await taskRepo.findByProject(iteration.project_id);
     const iterationTasks = tasks.filter((task) => task.iteration_id === iterationId);
 
@@ -65,7 +79,7 @@ class IterationRepository extends BaseRepository<IterationEntity> {
   }
 
   async findTasks(iterationId: number) {
-    const taskRepo = new TaskRepository();
+    const taskRepo = new TaskRepository(this.storagePath);
     const allTasks = await taskRepo.findAll();
     return allTasks.filter((task) => task.iteration_id === iterationId);
   }
@@ -85,4 +99,4 @@ class IterationRepository extends BaseRepository<IterationEntity> {
 }
 
 export { IterationRepository };
-export type { IterationWithStats };
+export type { IterationEntity, IterationWithStats };

@@ -1,5 +1,9 @@
 import { BaseRepository } from './base.js';
+import type { BaseEntity } from './base.js';
 import type { TaskEntity } from '../types/entities.ts';
+import type { TaskCreateRecord, TaskUpdateRecord } from '../types/persistence/tasks.js';
+
+interface StoredTaskEntity extends TaskEntity, BaseEntity {}
 
 interface TaskStatusCounts {
   REQUIREMENTS: number;
@@ -10,17 +14,17 @@ interface TaskStatusCounts {
   CANCELLED: number;
 }
 
-class TaskRepository extends BaseRepository<TaskEntity> {
-  constructor() {
-    super('tasks.json');
+class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, TaskUpdateRecord> {
+  constructor(storagePath?: string) {
+    super('tasks.json', storagePath ? { storagePath } : undefined);
   }
 
-  async findByProject(projectId: number): Promise<TaskEntity[]> {
+  async findByProject(projectId: number): Promise<StoredTaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.project_id === projectId);
   }
 
-  async findByProjectAndStatus(projectId: number, status: string): Promise<TaskEntity[]> {
+  async findByProjectAndStatus(projectId: number, status: string): Promise<StoredTaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.project_id === projectId && item.status === status);
   }
@@ -54,14 +58,14 @@ class TaskRepository extends BaseRepository<TaskEntity> {
     return initialLength - filtered.length;
   }
 
-  async findByStatus(status: string): Promise<TaskEntity[]> {
+  async findByStatus(status: string): Promise<StoredTaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.status === status);
   }
 
-  async groupByStatus(projectId: number): Promise<Record<keyof TaskStatusCounts, TaskEntity[]>> {
+  async groupByStatus(projectId: number): Promise<Record<keyof TaskStatusCounts, StoredTaskEntity[]>> {
     const tasks = await this.findByProject(projectId);
-    const grouped: Record<keyof TaskStatusCounts, TaskEntity[]> = {
+    const grouped: Record<keyof TaskStatusCounts, StoredTaskEntity[]> = {
       REQUIREMENTS: [],
       TODO: [],
       IN_PROGRESS: [],
@@ -80,12 +84,49 @@ class TaskRepository extends BaseRepository<TaskEntity> {
     return grouped;
   }
 
-  async findByIteration(iterationId: number): Promise<TaskEntity[]> {
+  async findByIteration(iterationId: number): Promise<StoredTaskEntity[]> {
     const data = await this._loadAll();
     return data.filter((item) => item.iteration_id === iterationId);
   }
 
-  async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<TaskEntity[]> {
+  async clearIteration(iterationId: number): Promise<number> {
+    const data = await this._loadAll();
+    const now = new Date().toISOString();
+    let updatedCount = 0;
+
+    const nextData = data.map((item) => {
+      if (item.iteration_id !== iterationId) {
+        return item;
+      }
+
+      updatedCount += 1;
+      return {
+        ...item,
+        iteration_id: null,
+        updated_at: now,
+      };
+    });
+
+    if (updatedCount > 0) {
+      await this._saveAll(nextData);
+    }
+
+    return updatedCount;
+  }
+
+  async deleteByIteration(iterationId: number): Promise<number> {
+    const data = await this._loadAll();
+    const filtered = data.filter((item) => item.iteration_id !== iterationId);
+    const deletedCount = data.length - filtered.length;
+
+    if (deletedCount > 0) {
+      await this._saveAll(filtered);
+    }
+
+    return deletedCount;
+  }
+
+  async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<StoredTaskEntity[]> {
     const tasks = await this.findByProject(projectId);
     if (iterationId === null || iterationId === undefined) {
       return tasks.filter((task) => !task.iteration_id);
@@ -93,11 +134,11 @@ class TaskRepository extends BaseRepository<TaskEntity> {
     return tasks.filter((task) => task.iteration_id === iterationId);
   }
 
-  async findByExternalId(externalId: string): Promise<TaskEntity | null> {
+  async findByExternalId(externalId: string): Promise<StoredTaskEntity | null> {
     const data = await this._loadAll();
     return data.find((item) => item.external_id === externalId) || null;
   }
 }
 
 export { TaskRepository };
-export type { TaskStatusCounts };
+export type { TaskStatusCounts, StoredTaskEntity };
