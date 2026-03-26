@@ -31,6 +31,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
   detailIdField: string;
   userId: string | undefined;
   category: string;
+  status: string;
   pageSize: number;
   rejectUnauthorized: boolean;
 
@@ -44,6 +45,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
     this.detailIdField = typeof config.detailIdField === 'string' && config.detailIdField ? config.detailIdField : 'id';
     this.userId = typeof config.userId === 'string' && config.userId ? config.userId : undefined;
     this.category = typeof config.category === 'string' && config.category ? config.category : '5';
+    this.status = typeof config.status === 'string' && config.status ? config.status : '131';
     this.pageSize = this._parsePositiveInt(config.pageSize, 10);
     this.rejectUnauthorized = config.rejectUnauthorized !== false;
   }
@@ -458,6 +460,11 @@ class InternalApiAdapter extends TaskSourceAdapter {
           key: 'mine_todo',
           operator: '||',
           value: [this.userId != null ? (Number(this.userId) || this.userId) : ''],
+        },
+        {
+          key: 'status',
+          operator: '||',
+          value: [Number(this.status) || this.status],
         },
       ],
       sort: {

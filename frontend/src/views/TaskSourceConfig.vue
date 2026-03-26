@@ -141,6 +141,19 @@
                   v-else-if="field.type === 'boolean'"
                   v-model="formData.config[key]"
                 />
+                <!-- options 存在时使用下拉框 -->
+                <el-select
+                  v-else-if="field.options && field.options.length > 0"
+                  v-model="formData.config[key]"
+                  :placeholder="getFieldPlaceholder(key, field)"
+                >
+                  <el-option
+                    v-for="opt in field.options"
+                    :key="opt.value"
+                    :label="opt.label"
+                    :value="opt.value"
+                  />
+                </el-select>
                 <!-- 默认使用输入框 -->
                 <el-input
                   v-else
@@ -352,6 +365,7 @@ const getFieldLabel = (key, field) => {
     baseUrl: 'API 地址',
     userId: '用户标识',
     category: '分类',
+    status: '状态',
     pageSize: '每页数量',
     listPath: '列表路径',
     detailPath: '详情路径',

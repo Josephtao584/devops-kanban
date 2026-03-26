@@ -337,6 +337,7 @@ test.test('InternalApiAdapter fetches paginated workitems and uses latest detail
           first_filters: [
             { key: 'category', operator: '||', value: ['5'] },
             { key: 'mine_todo', operator: '||', value: [10001] },
+            { key: 'status', operator: '||', value: [131] },
           ],
           sort: { key: 'updated_time', value: 'desc' },
           select_field: ['simple_domain'],
@@ -352,6 +353,7 @@ test.test('InternalApiAdapter fetches paginated workitems and uses latest detail
           first_filters: [
             { key: 'category', operator: '||', value: ['5'] },
             { key: 'mine_todo', operator: '||', value: [10001] },
+            { key: 'status', operator: '||', value: [131] },
           ],
           sort: { key: 'updated_time', value: 'desc' },
           select_field: ['simple_domain'],
@@ -422,6 +424,7 @@ test.test('InternalApiAdapter testConnection uses workitem POST payload when use
         first_filters: [
           { key: 'category', operator: '||', value: ['5'] },
           { key: 'mine_todo', operator: '||', value: [10001] },
+          { key: 'status', operator: '||', value: [131] },
         ],
         sort: { key: 'updated_time', value: 'desc' },
         select_field: ['simple_domain'],
