@@ -23,3 +23,8 @@ export interface TaskSourceImportBody {
   project_id?: number;
   iteration_id?: number | null;
 }
+
+export interface TaskSourcePreviewBody {
+  limit?: number;
+  offset?: number;
+}

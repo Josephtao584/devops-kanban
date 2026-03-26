@@ -50,7 +50,7 @@ class BaseRepository<T extends BaseEntity> {
     if (!data.length) {
       return 1;
     }
-    return Math.max(...data.map((item) => item.id || 0)) + 1;
+    return Math.max(...data.map((item) => Number(item.id) || 0)) + 1;
   }
 
   async findAll(): Promise<T[]> {
@@ -59,7 +59,7 @@ class BaseRepository<T extends BaseEntity> {
 
   async findById(entityId: number): Promise<T | null> {
     const data = await this._loadAll();
-    return data.find((item) => item.id === entityId) || null;
+    return data.find((item) => Number(item.id) === entityId) || null;
   }
 
   async create(entityData: Omit<T, keyof BaseEntity>): Promise<T> {
@@ -81,13 +81,16 @@ class BaseRepository<T extends BaseEntity> {
 
   async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
     const data = await this._loadAll();
-    const index = data.findIndex((item) => item.id === entityId);
+    const index = data.findIndex((item) => Number(item.id) === entityId);
 
     if (index === -1) {
       return null;
     }
 
-    const definedEntries = Object.entries(entityData).filter(([, value]) => value !== undefined);
+    // Filter out id and undefined values from update data to prevent type coercion issues
+    const definedEntries = Object.entries(entityData).filter(
+      ([key, value]) => key !== 'id' && value !== undefined
+    );
     const updateData = {
       ...Object.fromEntries(definedEntries),
       updated_at: new Date().toISOString(),
@@ -101,7 +104,7 @@ class BaseRepository<T extends BaseEntity> {
   async delete(entityId: number): Promise<boolean> {
     const data = await this._loadAll();
     const initialLength = data.length;
-    const filtered = data.filter((item) => item.id !== entityId);
+    const filtered = data.filter((item) => Number(item.id) !== entityId);
 
     if (filtered.length < initialLength) {
       await this._saveAll(filtered);

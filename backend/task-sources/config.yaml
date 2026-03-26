@@ -3,56 +3,69 @@
 # To add support for a new system (e.g., Jira, Linear), add a new adapter type here
 
 adapterTypes:
-  - key: GITHUB
-    name: GitHub Issues
-    description: 从 GitHub Issues 同步任务
+  - key: INTERNAL_API
+    name: CloudDevOps Story
+    description: 从内部 API 同步任务（列表 + 详情两段拉取模板）
     configFields:
-      repo:
+      baseUrl:
         type: string
         required: true
-        description: "Repository in format owner/repo"
+        description: "内部 API 基础地址，例如 https://internal.example.com"
       token:
         type: string
-        required: false
-        description: "GitHub Personal Access Token"
-      state:
+        required: true
+        description: "Authorization 请求头值"
+      userId:
+        type: string
+        required: true
+        description: "用于 mine_todo 过滤的用户标识"
+      category:
         type: string
         required: false
-        description: "Issue state filter: open, closed, or all"
-        default: open
-      labels:
-        type: array
-        required: false
-        description: "Filter by labels"
-    request:
-      baseUrl: "https://api.github.com"
-      path: "/repos/{repo}/issues"
-      method: GET
-      headers:
-        User-Agent: "DevOps-Kanban-App"
-        Accept: "application/vnd.github.v3+json"
-        Authorization: "token {token}"
-      params:
-        state: "{state}"
-        labels: "{labels}"
-    response:
-      type: array
-      path: ""  # 空路径表示根级别
-    mapping:
-      title: "$.title"
-      description: "$.body"
-      external_id: "$.id"
-      external_url: "$.html_url"
-      status: "$.state"
-      labels: "$.labels[*].name"
-      created_at: "$.created_at"
-      updated_at: "$.updated_at"
-    transforms:
+        description: "工作项分类过滤值"
+        default: "5"
+        valueType: string
+        options:
+          - label: "Story"
+            value: "5"
       status:
-        open: TODO
-        closed: DONE
-      external_id: "toString"
-      labels: "arrayMap(name)"
+        type: string
+        required: false
+        description: "工作项状态过滤值"
+        default: "131"
+        valueType: number
+        options:
+          - label: "待处理"
+            value: 131
+      pageSize:
+        type: string
+        required: false
+        description: "每页工作项数量"
+        default: "10"
+        hidden: true
+      listPath:
+        type: string
+        required: true
+        description: "工作项列表 API 的相对路径"
+        default: /devops-workitem/api/v1/query/workitems
+        hidden: true
+      detailPath:
+        type: string
+        required: true
+        description: "详情 API 的相对路径模板"
+        default: /devops-workitem/api/v1/query/{number}/document_detail
+        hidden: true
+      detailIdField:
+        type: string
+        required: false
+        description: "列表项中用于填充详情路径占位符的字段，默认为 number"
+        default: number
+        hidden: true
+      rejectUnauthorized:
+        type: boolean
+        required: false
+        description: "是否拒绝自签名证书（默认 true，设为 false 以接受自签名证书）"
+        default: true
 
   - key: CODEHUB
     name: CodeHub Issues
@@ -96,31 +109,56 @@ adapterTypes:
         closed: DONE
       external_id: "toString"
 
-  - key: INTERNAL_API
-    name: Internal API
-    description: 从内部 API 同步任务（列表 + 详情两段拉取模板）
+  - key: GITHUB
+    name: GitHub Issues
+    description: 从 GitHub Issues 同步任务
     configFields:
-      baseUrl:
+      repo:
         type: string
         required: true
-        description: "Internal API base URL, for example https://internal.example.com"
+        description: "仓库地址，格式为 owner/repo"
       token:
         type: string
         required: false
-        description: "Optional bearer token or API key"
-      listPath:
-        type: string
-        required: true
-        description: "Relative path for the list API, for example /api/tasks"
-      detailPath:
-        type: string
-        required: true
-        description: "Relative path template for the detail API, for example /api/tasks/{id}"
-      detailIdField:
+        description: "GitHub 个人访问令牌"
+      state:
         type: string
         required: false
-        description: "Field from the list item used to fill the detail path placeholder, defaults to id"
-        default: id
+        description: "Issue 状态筛选：open、closed 或 all"
+        default: open
+      labels:
+        type: array
+        required: false
+        description: "按标签筛选"
+    request:
+      baseUrl: "https://api.github.com"
+      path: "/repos/{repo}/issues"
+      method: GET
+      headers:
+        User-Agent: "DevOps-Kanban-App"
+        Accept: "application/vnd.github.v3+json"
+        Authorization: "token {token}"
+      params:
+        state: "{state}"
+        labels: "{labels}"
+    response:
+      type: array
+      path: ""  # 空路径表示根级别
+    mapping:
+      title: "$.title"
+      description: "$.body"
+      external_id: "$.id"
+      external_url: "$.html_url"
+      status: "$.state"
+      labels: "$.labels[*].name"
+      created_at: "$.created_at"
+      updated_at: "$.updated_at"
+    transforms:
+      status:
+        open: TODO
+        closed: DONE
+      external_id: "toString"
+      labels: "arrayMap(name)"
 
 # Future adapters can be added here, e.g.:
 #   - key: JIRA

@@ -125,7 +125,7 @@ class GitHubAdapter extends TaskSourceAdapter {
     });
   }
 
-  override async fetch(): Promise<ImportedTask[]> {
+  override async fetch(options?: { limit?: number; offset?: number }): Promise<ImportedTask[]> {
     if (!this.repo) {
       throw new Error('GitHub repository not configured. Please set the repo in task source settings.');
     }
@@ -133,7 +133,9 @@ class GitHubAdapter extends TaskSourceAdapter {
     if (!Array.isArray(issues)) {
       throw new Error(`Unexpected GitHub API response: expected array, got ${typeof issues}`);
     }
-    return issues.map((issue) => this.convertToTask(issue));
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? issues.length;
+    return issues.slice(offset, offset + limit).map((issue) => this.convertToTask(issue));
   }
 
   override async testConnection(): Promise<boolean> {

@@ -232,7 +232,7 @@
                     class="external-link"
                     @click.stop
                   >
-                    {{ $t('taskSource.viewOnGitHub') }} →
+                    {{ $t('taskSource.viewExternalItem') }} →
                   </a>
                 </div>
               </div>

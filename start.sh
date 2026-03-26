@@ -83,12 +83,16 @@ if ! command -v node &> /dev/null; then
 fi
 
 NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
-if [ "$NODE_MAJOR" -lt 22 ] || [ "$NODE_MAJOR" -ge 23 ]; then
-    echo -e "${RED}✗ 错误：后端需要 Node.js 22.x，当前版本为 $(node -v)${NC}"
+if [ "$NODE_MAJOR" -lt 22 ]; then
+    echo -e "${RED}✗ 错误：后端需要 Node.js 22+，当前版本为 $(node -v)${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Node.js: $(node -v)${NC}"
+if [ "$NODE_MAJOR" -ne 22 ]; then
+    echo -e "${YELLOW}⚠ 警告：推荐使用 Node.js 22.x，当前版本为 $(node -v)，将继续启动${NC}"
+else
+    echo -e "${GREEN}✓ Node.js: $(node -v)${NC}"
+fi
 
 # 检查并清理端口占用
 echo ""
