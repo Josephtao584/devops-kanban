@@ -172,12 +172,12 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
-  async function fetchPreviewItems(sourceId) {
+  async function fetchPreviewItems(sourceId, params = {}) {
     previewLoading.value = true
     error.value = null
     currentTaskSource.value = sourceId
     try {
-      const response = await taskSourceApi.previewSync(sourceId)
+      const response = await taskSourceApi.previewSync(sourceId, params)
       return unwrap(response, 'Failed to preview sync') || []
     } catch (e) {
       error.value = e.message
@@ -197,8 +197,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     showPreviewDialog.value = tasks.length > 0
   }
 
-  async function previewSync(sourceId) {
-    const items = await fetchPreviewItems(sourceId)
+  async function previewSync(sourceId, params = {}) {
+    const items = await fetchPreviewItems(sourceId, params)
     previewItems.value = items
     showPreviewDialog.value = items.length > 0
     return items
