@@ -52,9 +52,9 @@ class ClaudeCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
   }: ExecutorContinueInput): Promise<ExecutorExecutionResult> {
-    const args = ['--output-format=stream-json', '--verbose'];
+    const args = [];
     if (providerSessionId) {
-      args.push('--session-id', providerSessionId);
+      args.push('--resume', providerSessionId);
     }
 
     const result = await this.runner.runStep({

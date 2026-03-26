@@ -1,17 +1,11 @@
 <template>
-  <div v-if="shouldDisplay" class="session-event-renderer" :class="`kind-${event.kind}`">
+  <div v-if="shouldDisplay" class="session-event-renderer" :class="[`kind-${event.kind}`, `role-${event.role}`]">
     <div v-if="event.kind === 'message'" class="event-message">
-      <div class="event-role">{{ roleLabel }}</div>
       <div class="event-content">{{ event.content }}</div>
     </div>
 
-    <div v-else-if="event.kind === 'tool_call'" class="event-card">
-      <div class="event-kind">{{ toolName }}</div>
-    </div>
-
-    <div v-else-if="event.kind === 'tool_result'" class="event-card">
-      <div class="event-kind">{{ event.kind }}</div>
-      <div class="event-content">{{ event.content }}</div>
+    <div v-else-if="event.kind === 'tool_call'" class="event-tool">
+      <div class="event-kind">🔧 {{ toolName }}</div>
     </div>
 
     <div v-else-if="event.kind === 'status'" class="event-status">{{ event.content }}</div>
@@ -32,15 +26,6 @@ const props = defineProps({
   }
 })
 
-const roleLabel = computed(() => {
-  const role = props.event?.role
-  if (role === 'assistant') return 'Assistant'
-  if (role === 'system') return 'System'
-  if (role === 'tool') return 'Tool'
-  if (role === 'user') return 'User'
-  return 'Event'
-})
-
 const isDebuggerOutput = computed(() => {
   const content = props.event?.content || ''
   return content.includes('Debugger listening') ||
@@ -56,6 +41,8 @@ const isSystemInit = computed(() => {
 })
 
 const shouldDisplay = computed(() => {
+  // Hide tool_result events
+  if (props.event?.kind === 'tool_result') return false
   return !isDebuggerOutput.value && !isSystemInit.value
 })
 
@@ -73,52 +60,91 @@ const toolName = computed(() => {
 <style scoped>
 .session-event-renderer {
   display: block;
+  margin-bottom: 8px;
 }
 
-.event-message,
-.event-card,
-.event-status,
-.event-error,
-.event-artifact,
-.event-stream,
-.event-fallback {
-  border-radius: 6px;
-  padding: 8px;
-  background: #f8fafc;
+/* User message - right aligned, blue */
+.session-event-renderer.role-user .event-message {
+  margin-left: 40px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 12px 12px 4px 12px;
 }
 
-.event-role,
-.event-kind {
-  font-size: 11px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: #64748b;
-}
-
-.event-content,
-.event-status,
-.event-error,
-.event-artifact,
-.event-fallback,
-.event-stream {
-  font-size: 12px;
+/* Assistant message - left aligned, gray */
+.session-event-renderer.role-assistant .event-message {
+  margin-right: 40px;
+  background: #f1f5f9;
   color: #0f172a;
+  border-radius: 12px 12px 12px 4px;
+}
+
+.event-message {
+  padding: 10px 14px;
+}
+
+.event-content {
+  font-size: 13px;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
+/* Tool calls - compact, left aligned */
+.event-tool {
+  padding: 6px 10px;
+  background: #fef3c7;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.event-kind {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.event-status {
+  padding: 6px 10px;
+  background: #ecfdf5;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #059669;
+}
+
 .event-error {
+  padding: 8px 10px;
   background: #fef2f2;
-  color: #b91c1c;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+.event-artifact {
+  padding: 8px 10px;
+  background: #f0f9ff;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #0369a1;
 }
 
 .event-stream {
   margin: 0;
-  background: #0f172a;
+  padding: 8px 10px;
+  background: #1e293b;
   color: #e2e8f0;
+  border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   font-size: 11px;
-  max-height: 200px;
+  max-height: 150px;
   overflow: auto;
+}
+
+.event-fallback {
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #64748b;
 }
 </style>
