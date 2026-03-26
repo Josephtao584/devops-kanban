@@ -1,18 +1,36 @@
 <template>
   <div v-if="shouldDisplay" class="session-event-renderer" :class="[`kind-${event.kind}`, `role-${event.role}`]">
-    <div v-if="event.kind === 'message'" class="event-message">
-      <div class="event-content">{{ event.content }}</div>
+    <div v-if="event.kind === 'message'" class="event-row">
+      <div class="event-message">
+        <div class="event-content">{{ event.content }}</div>
+      </div>
     </div>
 
-    <div v-else-if="event.kind === 'tool_call'" class="event-tool">
-      <div class="event-kind">🔧 {{ toolName }}</div>
+    <div v-else-if="event.kind === 'tool_call'" class="event-system event-tool">
+      <div class="event-system-label">工具调用</div>
+      <div class="event-system-content">{{ toolName }}</div>
     </div>
 
-    <div v-else-if="event.kind === 'status'" class="event-status">{{ event.content }}</div>
-    <div v-else-if="event.kind === 'error'" class="event-error">{{ event.content }}</div>
-    <div v-else-if="event.kind === 'artifact'" class="event-artifact">{{ event.content }}</div>
-    <pre v-else-if="event.kind === 'stream_chunk'" class="event-stream">{{ event.content }}</pre>
-    <div v-else class="event-fallback">{{ event.content }}</div>
+    <div v-else-if="event.kind === 'status'" class="event-system event-status">
+      <div class="event-system-label">状态更新</div>
+      <div class="event-system-content">{{ event.content }}</div>
+    </div>
+    <div v-else-if="event.kind === 'error'" class="event-system event-error">
+      <div class="event-system-label">错误</div>
+      <div class="event-system-content">{{ event.content }}</div>
+    </div>
+    <div v-else-if="event.kind === 'artifact'" class="event-system event-artifact">
+      <div class="event-system-label">产物</div>
+      <div class="event-system-content">{{ event.content }}</div>
+    </div>
+    <div v-else-if="event.kind === 'stream_chunk'" class="event-system event-stream-shell">
+      <div class="event-system-label">执行输出</div>
+      <pre class="event-stream">{{ event.content }}</pre>
+    </div>
+    <div v-else class="event-system event-fallback">
+      <div class="event-system-label">事件</div>
+      <div class="event-system-content">{{ event.content }}</div>
+    </div>
   </div>
 </template>
 
@@ -41,7 +59,6 @@ const isSystemInit = computed(() => {
 })
 
 const shouldDisplay = computed(() => {
-  // Hide tool_result events
   if (props.event?.kind === 'tool_result') return false
   return !isDebuggerOutput.value && !isSystemInit.value
 })
@@ -59,92 +76,102 @@ const toolName = computed(() => {
 
 <style scoped>
 .session-event-renderer {
-  display: block;
-  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
 }
 
-/* User message - right aligned, blue */
-.session-event-renderer.role-user .event-message {
-  margin-left: 40px;
-  background: #3b82f6;
-  color: white;
-  border-radius: 12px 12px 4px 12px;
+.event-row {
+  display: flex;
 }
 
-/* Assistant message - left aligned, gray */
-.session-event-renderer.role-assistant .event-message {
-  margin-right: 40px;
-  background: #f1f5f9;
-  color: #0f172a;
-  border-radius: 12px 12px 12px 4px;
+.session-event-renderer.role-user .event-row {
+  justify-content: flex-end;
+}
+
+.session-event-renderer.role-assistant .event-row,
+.session-event-renderer:not(.role-user) .event-row {
+  justify-content: flex-start;
 }
 
 .event-message {
-  padding: 10px 14px;
+  max-width: min(85%, 560px);
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
 }
 
-.event-content {
+.session-event-renderer.role-user .event-message {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+  border-top-right-radius: 6px;
+}
+
+.session-event-renderer.role-assistant .event-message,
+.session-event-renderer:not(.role-user) .event-message {
+  border-top-left-radius: 6px;
+}
+
+.event-content,
+.event-system-content {
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-/* Tool calls - compact, left aligned */
-.event-tool {
-  padding: 6px 10px;
-  background: #fef3c7;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #92400e;
+.event-system {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
-.event-kind {
-  font-size: 12px;
-  font-weight: 500;
+.event-system-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
 }
 
-.event-status {
-  padding: 6px 10px;
-  background: #ecfdf5;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #059669;
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  background: #f9fafb;
 }
 
 .event-error {
-  padding: 8px 10px;
-  background: #fef2f2;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #dc2626;
+  background: #fff7f7;
+  border-color: #fecaca;
 }
 
-.event-artifact {
-  padding: 8px 10px;
-  background: #f0f9ff;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #0369a1;
+.event-stream-shell {
+  background: #111827;
+  border-color: #111827;
+}
+
+.event-stream-shell .event-system-label,
+.event-stream {
+  color: #e5e7eb;
 }
 
 .event-stream {
   margin: 0;
-  padding: 8px 10px;
-  background: #1e293b;
-  color: #e2e8f0;
-  border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   font-size: 11px;
-  max-height: 150px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
   overflow: auto;
 }
-
-.event-fallback {
-  padding: 8px 10px;
-  background: #f8fafc;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #64748b;
-}
 </style>
+
