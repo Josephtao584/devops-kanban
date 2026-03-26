@@ -13,7 +13,8 @@
   <a href="#-harness-engineering-视角">Harness Engineering</a> •
   <a href="#-功能特性">功能特性</a> •
   <a href="#-快速开始">快速开始</a> •
-  <a href="#-使用指南">使用指南</a>
+  <a href="#-使用指南">使用指南</a> •
+  <a href="#-贡献指南">贡献指南</a>
 </p>
 
 ---
@@ -192,7 +193,7 @@ project/
 
 ### 环境要求
 
-- **Node.js 18+**
+- **Node.js 22.x**（后端 `package.json` 当前限制为 `>=22 <23`）
 
 ### 一键启动（推荐）
 

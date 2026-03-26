@@ -105,6 +105,7 @@ export interface WorkflowRunEntity {
   task_id: number;
   workflow_template_id: string;
   workflow_template_snapshot: WorkflowTemplateEntity;
+  mastra_run_id: string | null;
   status: string;
   current_step: string | null;
   steps: WorkflowStepEntity[];
