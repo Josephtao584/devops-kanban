@@ -14,8 +14,8 @@ interface ProjectStats extends StoredProjectEntity {
 }
 
 class ProjectRepository extends BaseRepository<StoredProjectEntity, ProjectCreateRecord, ProjectUpdateRecord> {
-  constructor() {
-    super('projects.json');
+  constructor(storagePath?: string) {
+    super('projects.json', storagePath ? { storagePath } : undefined);
   }
 
   async findByIdWithStats(projectId: number): Promise<ProjectStats | null> {

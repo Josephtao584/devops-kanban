@@ -133,6 +133,7 @@ class TaskRepository extends BaseRepository<StoredTaskEntity, TaskCreateRecord, 
     }
     return tasks.filter((task) => task.iteration_id === iterationId);
   }
+
 }
 
 export { TaskRepository };

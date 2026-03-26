@@ -559,11 +559,12 @@ export default {
     allIterations: '全部迭代',
     manageIterations: '管理迭代',
     manageIterationsTitle: '管理迭代',
-    deleted: '迭代已删除',
-    deleteFailed: '删除迭代失败',
-    refreshAfterDeleteFailed: '迭代已删除，但刷新列表失败',
     deleteConfirmTitle: '删除迭代',
     deleteConfirmMessage: '确定要删除 "{name}" 吗？该迭代下的任务会保留，但会解除与该迭代的关联。',
-    deleteTasksCheckbox: '同时删除当前迭代下的所有任务'
+    deleteTasksCheckbox: '同时删除当前迭代下的所有任务',
+    deleted: '迭代已删除',
+    deleteSuccess: '迭代已删除',
+    deleteFailed: '删除迭代失败',
+    refreshAfterDeleteFailed: '迭代已删除，但刷新列表失败'
   }
 }

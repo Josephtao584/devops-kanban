@@ -303,6 +303,7 @@ function mountView() {
         DiffSelectDialog: passthroughStub('DiffSelectDialog'),
         CommitDialog: passthroughStub('CommitDialog'),
         IterationForm: passthroughStub('IterationForm'),
+        IterationList: passthroughStub('IterationList'),
         TaskButlerChat: passthroughStub('TaskButlerChat'),
         ChatBox: passthroughStub('ChatBox'),
         WorkflowTemplateSelectDialog: WorkflowTemplateSelectDialogStub,

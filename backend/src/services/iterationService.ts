@@ -10,10 +10,10 @@ class IterationService {
   projectRepo: ProjectRepository;
   taskRepo: TaskRepository;
 
-  constructor() {
-    this.iterationRepo = new IterationRepository();
-    this.projectRepo = new ProjectRepository();
-    this.taskRepo = new TaskRepository();
+  constructor(options: { storagePath?: string } = {}) {
+    this.iterationRepo = new IterationRepository(options.storagePath);
+    this.projectRepo = new ProjectRepository(options.storagePath);
+    this.taskRepo = new TaskRepository(options.storagePath);
   }
 
   async getByProject(projectId: number) {
@@ -34,33 +34,42 @@ class IterationService {
 
   async create(iterationData: CreateIterationInput) {
     if (!iterationData.name || !iterationData.name.trim()) {
-      const error = new Error('迭代名称不能为空') as Error & { statusCode?: number };
+      const error: any = new Error('迭代名称不能为空');
       error.statusCode = 400;
       throw error;
     }
 
     if (!iterationData.project_id) {
-      const error = new Error('项目 ID 不能为空') as Error & { statusCode?: number };
+      const error: any = new Error('项目 ID 不能为空');
       error.statusCode = 400;
       throw error;
     }
 
     const projectExists = await this.projectRepo.exists(iterationData.project_id);
     if (!projectExists) {
-      const error = new Error('项目不存在') as Error & { statusCode?: number };
+      const error: any = new Error('项目不存在');
       error.statusCode = 400;
       throw error;
     }
 
-    if (!iterationData.status) {
-      iterationData.status = 'PLANNED';
-    }
-
     const createData: IterationCreateRecord = {
       project_id: iterationData.project_id,
+      status: iterationData.status || 'PLANNED',
     };
     if (iterationData.name !== undefined) {
       createData.name = iterationData.name;
+    }
+    if (iterationData.description !== undefined) {
+      createData.description = iterationData.description;
+    }
+    if (iterationData.goal !== undefined) {
+      createData.goal = iterationData.goal;
+    }
+    if (iterationData.start_date !== undefined) {
+      createData.start_date = iterationData.start_date;
+    }
+    if (iterationData.end_date !== undefined) {
+      createData.end_date = iterationData.end_date;
     }
     if (iterationData.status !== undefined) {
       createData.status = iterationData.status;
@@ -76,6 +85,18 @@ class IterationService {
     if (iterationData.name !== undefined) {
       updateData.name = iterationData.name;
     }
+    if (iterationData.description !== undefined) {
+      updateData.description = iterationData.description;
+    }
+    if (iterationData.goal !== undefined) {
+      updateData.goal = iterationData.goal;
+    }
+    if (iterationData.start_date !== undefined) {
+      updateData.start_date = iterationData.start_date;
+    }
+    if (iterationData.end_date !== undefined) {
+      updateData.end_date = iterationData.end_date;
+    }
     if (iterationData.status !== undefined) {
       updateData.status = iterationData.status;
     }
@@ -87,8 +108,8 @@ class IterationService {
   }
 
   async delete(iterationId: number, deleteTasks: boolean = false) {
-    const exists = await this.iterationRepo.exists(iterationId);
-    if (!exists) {
+    const iterationExists = await this.iterationRepo.exists(iterationId);
+    if (!iterationExists) {
       return false;
     }
 
@@ -97,6 +118,7 @@ class IterationService {
     } else {
       await this.taskRepo.clearIteration(iterationId);
     }
+
     return await this.iterationRepo.delete(iterationId);
   }
 

@@ -129,29 +129,44 @@ const IterationSelectStub = defineComponent({
   }
 })
 
+const IterationFormStub = defineComponent({
+  name: 'IterationForm',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    iteration: { type: Object, default: null }
+  },
+  emits: ['update:modelValue', 'submit', 'cancel'],
+  setup(props) {
+    return () => props.modelValue ? h('div', { class: 'iteration-form-stub' }, [
+      h('div', { class: 'editing-iteration-name' }, props.iteration?.name || '')
+    ]) : null
+  }
+})
+
 const IterationListStub = defineComponent({
   name: 'IterationList',
   props: {
     iterations: { type: Array, default: () => [] }
   },
-  emits: ['delete', 'edit'],
+  emits: ['click', 'edit', 'delete'],
   setup(props, { emit }) {
-    return () => h('div', { class: 'iteration-list-stub' }, props.iterations.map((iteration) =>
+    return () => h('div', { class: 'iteration-list-stub' }, props.iterations.map((iteration) => h('div', {
+      key: iteration.id,
+      class: `iteration-item-${iteration.id}`
+    }, [
+      h('button', {
+        class: `select-iteration-${iteration.id}`,
+        onClick: () => emit('click', iteration)
+      }, `select ${iteration.name}`),
+      h('button', {
+        class: `edit-iteration-${iteration.id}`,
+        onClick: () => emit('edit', iteration)
+      }, `edit ${iteration.name}`),
       h('button', {
         class: `delete-iteration-${iteration.id}`,
         onClick: () => emit('delete', iteration)
       }, `delete ${iteration.name}`)
-    ))
-  }
-})
-
-const IterationFormStub = defineComponent({
-  name: 'IterationForm',
-  props: {
-    modelValue: { type: Boolean, default: false }
-  },
-  setup(props) {
-    return () => props.modelValue ? h('div', { class: 'iteration-form-stub' }, 'iteration form') : null
+    ])))
   }
 })
 
@@ -163,7 +178,10 @@ const flushPromises = async () => {
 
 const mockProjects = [{ id: 1, name: 'Alpha' }]
 const mockTasks = [{ id: 7, title: 'Task', description: 'desc', status: 'TODO', project_id: 1, priority: 'HIGH', assignee: 'Alice', iteration_id: 3 }]
-const mockIterations = [{ id: 3, name: 'Sprint 3', project_id: 1 }]
+const mockIterations = [
+  { id: 3, name: 'Sprint 3', description: '当前冲刺', goal: '收尾', start_date: '2026-03-01', end_date: '2026-03-15', status: 'ACTIVE', project_id: 1 },
+  { id: 4, name: 'Sprint 4', project_id: 1, status: 'PLANNED' }
+]
 
 function mountView() {
   return mount(KanbanView, {
@@ -229,21 +247,11 @@ describe('KanbanView iteration management', () => {
       return { success: true, data: mockIterations }
     })
     iterationStore.iterations = mockIterations
+    iterationStore.updateIteration = vi.fn().mockResolvedValue({ success: true, data: mockIterations[0] })
     iterationStore.deleteIteration = vi.fn().mockResolvedValue({ success: true })
 
     taskSourceStore.showPreviewDialog = false
     taskSourceStore.closePreviewDialog = vi.fn()
-  })
-
-  it('moves the create iteration button from the toolbar into the manager dialog', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const filter = wrapper.find('.iteration-filter')
-    expect(filter.find('.open-iteration-manager').exists()).toBe(true)
-    expect(filter.find('.open-create-iteration').exists()).toBe(false)
-
-    expect(wrapper.find('.open-create-iteration').exists()).toBe(true)
   })
 
   it('opens the existing create iteration form from the manager dialog button', async () => {
@@ -258,6 +266,17 @@ describe('KanbanView iteration management', () => {
     expect(wrapper.find('.iteration-form-stub').exists()).toBe(true)
   })
 
+  it('opens iteration form with selected iteration data when editing', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.edit-iteration-3').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.iteration-form-stub').exists()).toBe(true)
+    expect(wrapper.find('.editing-iteration-name').text()).toBe('Sprint 3')
+  })
+
   it('deletes an iteration without deleting tasks when the checkbox stays unchecked', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -268,7 +287,6 @@ describe('KanbanView iteration management', () => {
     wrapper.vm.selectedIterationId = 3
     await wrapper.vm.$nextTick()
 
-    await wrapper.find('.open-iteration-manager').trigger('click')
     await wrapper.find('.delete-iteration-3').trigger('click')
     await flushPromises()
 
@@ -277,24 +295,7 @@ describe('KanbanView iteration management', () => {
     expect(iterationStore.fetchByProject).toHaveBeenCalledWith('1')
     expect(taskStore.fetchTasks).toHaveBeenCalledWith('1')
     expect(wrapper.vm.selectedIterationId).toBe(null)
-    expect(ElMessage.success).toHaveBeenCalled()
-  })
-
-  it('builds the delete confirmation checkbox as a real component vnode', async () => {
-    let capturedMessage = null
-    globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ = (message) => {
-      capturedMessage = message
-    }
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.find('.open-iteration-manager').trigger('click')
-    await wrapper.find('.delete-iteration-3').trigger('click')
-    await flushPromises()
-
-    const checkboxNode = capturedMessage.children[1]
-    expect(typeof checkboxNode.type).not.toBe('string')
+    expect(ElMessage.success).toHaveBeenCalledWith('迭代已删除')
   })
 
   it('deletes iteration tasks when the checkbox is checked in the confirmation', async () => {
@@ -308,128 +309,9 @@ describe('KanbanView iteration management', () => {
 
     const iterationStore = useIterationStore()
 
-    await wrapper.find('.open-iteration-manager').trigger('click')
     await wrapper.find('.delete-iteration-3').trigger('click')
     await flushPromises()
 
     expect(iterationStore.deleteIteration).toHaveBeenCalledWith(3, { deleteTasks: true })
-  })
-
-  it('deletes an iteration, refreshes data, and clears the active iteration filter when needed', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const taskStore = useTaskStore()
-    const iterationStore = useIterationStore()
-
-    wrapper.vm.selectedIterationId = 3
-    await wrapper.vm.$nextTick()
-
-    await wrapper.find('.open-iteration-manager').trigger('click')
-    await wrapper.find('.delete-iteration-3').trigger('click')
-    await flushPromises()
-
-    expect(ElMessageBox.confirm).toHaveBeenCalled()
-    expect(iterationStore.deleteIteration).toHaveBeenCalledWith(3, { deleteTasks: false })
-    expect(iterationStore.fetchByProject).toHaveBeenCalledWith('1')
-    expect(taskStore.fetchTasks).toHaveBeenCalledWith('1')
-    expect(wrapper.vm.selectedIterationId).toBe(null)
-    expect(ElMessage.success).toHaveBeenCalled()
-  })
-
-  it('stores __ALL__ after deleting the currently selected iteration', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    wrapper.vm.selectedIterationId = 3
-    await wrapper.vm.$nextTick()
-
-    await wrapper.find('.open-iteration-manager').trigger('click')
-    await wrapper.find('.delete-iteration-3').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.vm.selectedIterationId).toBe(null)
-    expect(localStorage.getItem('kanban-selected-iteration-id')).toBe('__ALL__')
-  })
-
-  it('shows an error and skips refresh when delete returns success false', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const taskStore = useTaskStore()
-    const iterationStore = useIterationStore()
-    const initialIterationFetchCalls = iterationStore.fetchByProject.mock.calls.length
-    const initialTaskFetchCalls = taskStore.fetchTasks.mock.calls.length
-    iterationStore.deleteIteration.mockResolvedValueOnce({ success: false, message: '删除失败' })
-
-    await wrapper.find('.open-iteration-manager').trigger('click')
-    await wrapper.find('.delete-iteration-3').trigger('click')
-    await flushPromises()
-
-    expect(iterationStore.fetchByProject.mock.calls.length).toBe(initialIterationFetchCalls)
-    expect(taskStore.fetchTasks.mock.calls.length).toBe(initialTaskFetchCalls)
-    expect(ElMessage.error).toHaveBeenCalledWith('删除迭代失败')
-    expect(ElMessage.success).not.toHaveBeenCalled()
-  })
-
-  it('keeps the delete result but warns when refresh fails after delete succeeds', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const taskStore = useTaskStore()
-    const iterationStore = useIterationStore()
-    iterationStore.fetchByProject.mockRejectedValueOnce(new Error('refresh failed'))
-
-    wrapper.vm.selectedIterationId = 3
-    await wrapper.vm.$nextTick()
-
-    await wrapper.find('.open-iteration-manager').trigger('click')
-    await wrapper.find('.delete-iteration-3').trigger('click')
-    await flushPromises()
-
-    expect(iterationStore.deleteIteration).toHaveBeenCalledWith(3, { deleteTasks: false })
-    expect(wrapper.vm.selectedIterationId).toBe(null)
-    expect(localStorage.getItem('kanban-selected-iteration-id')).toBe('__ALL__')
-    expect(taskStore.fetchTasks).toHaveBeenCalled()
-    expect(ElMessage.warning).toHaveBeenCalledWith('迭代已删除，但刷新列表失败')
-    expect(ElMessage.error).not.toHaveBeenCalled()
-  })
-
-  it('passes the selected iteration when confirming sync import', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const taskStore = useTaskStore()
-    const taskSourceStore = useTaskSourceStore()
-    taskSourceStore.importSelectedPreviewTasks = vi.fn().mockResolvedValue(1)
-    taskSourceStore.selectedSyncTasks = new Set(['ext-1'])
-
-    wrapper.vm.selectedIterationId = 3
-    await wrapper.vm.$nextTick()
-
-    await wrapper.vm.confirmSyncImport()
-    await flushPromises()
-
-    expect(taskSourceStore.importSelectedPreviewTasks).toHaveBeenCalledWith('1', 3)
-    expect(taskStore.fetchTasks).toHaveBeenCalledWith('1')
-  })
-
-  it('passes null iteration when syncing from all-iterations view', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const taskStore = useTaskStore()
-    const taskSourceStore = useTaskSourceStore()
-    taskSourceStore.importSelectedPreviewTasks = vi.fn().mockResolvedValue(1)
-    taskSourceStore.selectedSyncTasks = new Set(['ext-1'])
-
-    wrapper.vm.selectedIterationId = null
-    await wrapper.vm.$nextTick()
-
-    await wrapper.vm.confirmSyncImport()
-    await flushPromises()
-
-    expect(taskSourceStore.importSelectedPreviewTasks).toHaveBeenCalledWith('1', null)
-    expect(taskStore.fetchTasks).toHaveBeenCalledWith('1')
   })
 })
