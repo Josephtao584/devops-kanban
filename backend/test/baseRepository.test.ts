@@ -23,7 +23,7 @@ interface DemoEntity extends BaseEntity {
   name: string;
 }
 
-class DemoRepository extends BaseRepository<DemoEntity, { name: string }, { name?: string }> {
+class DemoRepository extends BaseRepository<DemoEntity> {
   constructor(storagePath: string) {
     super('demo.json', { storagePath });
   }
@@ -68,7 +68,7 @@ test.test('BaseRepository waits for async initialization before create writes da
   const storagePath = await createTempStorageRoot();
   const deferred = createDeferred();
 
-  class SlowInitDemoRepository extends BaseRepository<DemoEntity, { name: string }, { name?: string }> {
+  class SlowInitDemoRepository extends BaseRepository<DemoEntity> {
     constructor() {
       super('demo.json', { storagePath });
     }

@@ -15,8 +15,6 @@ test.test('project route and service DTOs accept explicit create and update inpu
 
   const createWithNullableFields: CreateProjectInput = {
     name: 'Infra',
-    git_url: null,
-    local_path: null,
   };
 
   const updateInput: UpdateProjectInput = {

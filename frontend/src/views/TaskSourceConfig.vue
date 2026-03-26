@@ -225,7 +225,7 @@
                   class="external-link"
                   @click.stop
                 >
-                  {{ $t('taskSource.viewOnGitHub') }} →
+                  {{ $t('taskSource.viewExternalItem') }} →
                 </a>
               </div>
             </div>
@@ -331,6 +331,7 @@ const getTypeLabel = (type) => {
 const getTypeIcon = (type) => {
   const icons = {
     GITHUB: '🐙',
+    INTERNAL_API: '🔌',
     JIRA: '📋',
     LINEAR: '📊'
   }
@@ -338,7 +339,6 @@ const getTypeIcon = (type) => {
 }
 
 const getFieldLabel = (key, field) => {
-  const selectedType = formData.value.type
   const commonLabels = {
     repo: '仓库',
     token: '访问令牌',
@@ -347,21 +347,10 @@ const getFieldLabel = (key, field) => {
     baseUrl: 'API 地址'
   }
 
-  if (selectedType === 'INTERNAL_API') {
-    const internalApiLabels = {
-      baseUrl: 'API 基础地址',
-      listPath: '列表接口路径',
-      detailPath: '详情接口路径模板',
-      detailIdField: '详情ID字段'
-    }
-    return internalApiLabels[key] || commonLabels[key] || field.description || key
-  }
-
   return commonLabels[key] || field.description || key
 }
 
 const getFieldPlaceholder = (key, field) => {
-  const selectedType = formData.value.type
   const commonPlaceholders = {
     repo: '例如: owner/repo',
     token: 'ghp_xxx...',
@@ -370,15 +359,8 @@ const getFieldPlaceholder = (key, field) => {
     baseUrl: 'https://codehub.huawei.com/api/v4'
   }
 
-  if (selectedType === 'INTERNAL_API') {
-    const internalApiPlaceholders = {
-      baseUrl: '例如: https://internal.example.com',
-      token: '例如: Bearer xxx 或 ApiKey xxx',
-      listPath: '例如: /api/tasks',
-      detailPath: '例如: /api/tasks/{id}',
-      detailIdField: '例如: id 或 data.taskId'
-    }
-    return internalApiPlaceholders[key] || commonPlaceholders[key] || field.description || ''
+  if (field?.default !== undefined) {
+    return `默认: ${field.default}`
   }
 
   return commonPlaceholders[key] || field.description || ''
@@ -421,9 +403,27 @@ const onProjectChange = async () => {
   }
 }
 
+const buildDefaultConfig = (typeKey) => {
+  const typeConfig = taskSourceStore.availableTypes.find(type => type.key === typeKey)
+  const defaults = {}
+
+  if (!typeConfig?.configFields) {
+    return defaults
+  }
+
+  Object.entries(typeConfig.configFields).forEach(([key, field]) => {
+    if (field?.default !== undefined) {
+      defaults[key] = field.default
+    } else if (field?.type === 'array') {
+      defaults[key] = []
+    }
+  })
+
+  return defaults
+}
+
 const onTypeChange = () => {
-  // Reset config when type changes
-  formData.value.config = {}
+  formData.value.config = buildDefaultConfig(formData.value.type)
 }
 
 // Convert git_url (https://github.com/owner/repo.git) to owner/repo format
@@ -439,19 +439,21 @@ const gitUrlToRepo = (gitUrl) => {
 const showAddDialog = () => {
   isEditMode.value = false
 
-  // Get current project's git_url and convert to owner/repo format
   const currentProject = projectStore.projectList.find(p => String(p.id) === selectedProjectId.value)
   const gitUrl = currentProject?.git_url || ''
   const defaultRepo = gitUrlToRepo(gitUrl)
+  const type = taskSourceStore.availableTypes.length > 0 ? taskSourceStore.availableTypes[0].key : ''
+  const defaultConfig = buildDefaultConfig(type)
+
+  if (defaultRepo && type === 'GITHUB') {
+    defaultConfig.repo = defaultRepo
+  }
 
   formData.value = {
     name: '',
-    type: taskSourceStore.availableTypes.length > 0 ? taskSourceStore.availableTypes[0].key : '',
+    type,
     project_id: selectedProjectId.value,
-    config: {
-      repo: defaultRepo,
-      state: 'open'
-    },
+    config: defaultConfig,
     enabled: true
   }
   dialogVisible.value = true

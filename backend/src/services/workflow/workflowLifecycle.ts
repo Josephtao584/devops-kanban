@@ -1,8 +1,8 @@
-import type { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
-import type { AgentRepository } from '../../repositories/agentRepository.js';
-import type { SessionRepository } from '../../repositories/sessionRepository.js';
-import type { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
-import type { WorkflowTemplateService } from './workflowTemplateService.js';
+import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
+import { AgentRepository } from '../../repositories/agentRepository.js';
+import { SessionRepository } from '../../repositories/sessionRepository.js';
+import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
+import { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 
@@ -11,7 +11,7 @@ class WorkflowLifecycle {
   agentRepo: AgentRepository;
   sessionRepo: SessionRepository;
   sessionSegmentRepo: SessionSegmentRepository;
-  workflowTemplateService?: WorkflowTemplateService;
+  sessionEventRepo: SessionEventRepository;
   _stepAttemptSegmentIds: Map<string, number | null>;
 
   constructor({
@@ -19,21 +19,19 @@ class WorkflowLifecycle {
     agentRepo,
     sessionRepo,
     sessionSegmentRepo,
-    workflowTemplateService,
+    sessionEventRepo,
   }: {
-    workflowRunRepo: WorkflowRunRepository;
-    agentRepo: AgentRepository;
-    sessionRepo: SessionRepository;
-    sessionSegmentRepo: SessionSegmentRepository;
-    workflowTemplateService?: WorkflowTemplateService;
-  }) {
-    this.workflowRunRepo = workflowRunRepo;
-    this.agentRepo = agentRepo;
-    this.sessionRepo = sessionRepo;
-    this.sessionSegmentRepo = sessionSegmentRepo;
-    if (workflowTemplateService) {
-      this.workflowTemplateService = workflowTemplateService;
-    }
+    workflowRunRepo?: WorkflowRunRepository;
+    agentRepo?: AgentRepository;
+    sessionRepo?: SessionRepository;
+    sessionSegmentRepo?: SessionSegmentRepository;
+    sessionEventRepo?: SessionEventRepository;
+  } = {}) {
+    this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
+    this.agentRepo = agentRepo || new AgentRepository();
+    this.sessionRepo = sessionRepo || new SessionRepository();
+    this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
+    this.sessionEventRepo = sessionEventRepo || new SessionEventRepository();
     this._stepAttemptSegmentIds = new Map();
   }
 
@@ -73,7 +71,7 @@ class WorkflowLifecycle {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const template = run.workflow_template_snapshot ?? (this.workflowTemplateService ? await this.workflowTemplateService.getTemplateById(run.workflow_template_id ?? 'dev-workflow-v1') : null);
+    const template = run.workflow_template_snapshot;
     if (!template) {
       throw new Error(`Workflow template not found for run: ${runId}`);
     }
@@ -336,7 +334,10 @@ class WorkflowLifecycle {
 
     if (await this._isWorkflowStepCancelled(runId, stepId)) {
       await this._finalizeCancelledStepStart(runId, stepId, startedAt, session, attemptSegment);
+      return;
     }
+
+    return { sessionId: session.id, segmentId: attemptSegment.id };
   }
 
   async onStepComplete(runId: number, stepId: string, result: Record<string, unknown>) {
@@ -376,6 +377,7 @@ class WorkflowLifecycle {
 
     await this.onStepError(runId, step.step_id, errorMessage || 'Workflow failed');
   }
+
 }
 
 export { WorkflowLifecycle };
