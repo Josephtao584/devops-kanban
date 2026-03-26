@@ -36,16 +36,15 @@
           <span class="progress-percent">{{ progress }}%</span>
         </div>
         <el-progress :percentage="progress" :status="progressStatus" />
+        <div class="card-actions">
+          <el-button link type="primary" @click.stop="$emit('edit', iteration)">
+            <el-icon><Edit /></el-icon>
+          </el-button>
+          <el-button link type="danger" @click.stop="$emit('delete', iteration)">
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </div>
       </div>
-    </template>
-
-    <template #actions>
-      <el-button link type="primary" @click.stop="$emit('edit', iteration)">
-        <el-icon><Edit /></el-icon>
-      </el-button>
-      <el-button link type="danger" @click.stop="$emit('delete', iteration)">
-        <el-icon><Delete /></el-icon>
-      </el-button>
     </template>
   </el-card>
 </template>
@@ -165,6 +164,12 @@ const formatDate = (dateStr) => {
 .card-footer {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 8px;
 }
 

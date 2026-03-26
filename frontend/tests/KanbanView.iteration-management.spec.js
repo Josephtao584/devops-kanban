@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import i18n from '../src/locales'
 import KanbanView from '../src/views/KanbanView.vue'
@@ -10,6 +10,26 @@ import { useProjectStore } from '../src/stores/projectStore'
 import { useTaskStore } from '../src/stores/taskStore'
 import { useIterationStore } from '../src/stores/iterationStore'
 import { useTaskSourceStore } from '../src/stores/taskSourceStore'
+
+vi.mock('element-plus', async () => {
+  const actual = await vi.importActual('element-plus')
+  return {
+    ...actual,
+    ElMessage: {
+      success: vi.fn(),
+      error: vi.fn(),
+      warning: vi.fn()
+    },
+    ElMessageBox: {
+      confirm: vi.fn().mockImplementation(async (message, _title, options) => {
+        if (typeof globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ === 'function') {
+          globalThis.__ITERATION_DELETE_CONFIRM_HOOK__(message, options)
+        }
+        return 'confirm'
+      })
+    }
+  }
+})
 
 vi.mock('../src/api/session.js', () => ({
   getActiveSessionByTask: vi.fn().mockResolvedValue({ success: true, data: null })
@@ -109,6 +129,47 @@ const IterationSelectStub = defineComponent({
   }
 })
 
+const IterationFormStub = defineComponent({
+  name: 'IterationForm',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    iteration: { type: Object, default: null }
+  },
+  emits: ['update:modelValue', 'submit', 'cancel'],
+  setup(props) {
+    return () => props.modelValue ? h('div', { class: 'iteration-form-stub' }, [
+      h('div', { class: 'editing-iteration-name' }, props.iteration?.name || '')
+    ]) : null
+  }
+})
+
+const IterationListStub = defineComponent({
+  name: 'IterationList',
+  props: {
+    iterations: { type: Array, default: () => [] }
+  },
+  emits: ['click', 'edit', 'delete'],
+  setup(props, { emit }) {
+    return () => h('div', { class: 'iteration-list-stub' }, props.iterations.map((iteration) => h('div', {
+      key: iteration.id,
+      class: `iteration-item-${iteration.id}`
+    }, [
+      h('button', {
+        class: `select-iteration-${iteration.id}`,
+        onClick: () => emit('click', iteration)
+      }, `select ${iteration.name}`),
+      h('button', {
+        class: `edit-iteration-${iteration.id}`,
+        onClick: () => emit('edit', iteration)
+      }, `edit ${iteration.name}`),
+      h('button', {
+        class: `delete-iteration-${iteration.id}`,
+        onClick: () => emit('delete', iteration)
+      }, `delete ${iteration.name}`)
+    ])))
+  }
+})
+
 const flushPromises = async () => {
   await Promise.resolve()
   await Promise.resolve()
@@ -116,8 +177,11 @@ const flushPromises = async () => {
 }
 
 const mockProjects = [{ id: 1, name: 'Alpha' }]
-const mockTasks = [{ id: 7, title: '旧任务', description: '旧描述', status: 'TODO', project_id: 1, priority: 'HIGH', assignee: 'Alice', iteration_id: 3 }]
-const mockIterations = [{ id: 3, name: 'Sprint 3' }]
+const mockTasks = [{ id: 7, title: 'Task', description: 'desc', status: 'TODO', project_id: 1, priority: 'HIGH', assignee: 'Alice', iteration_id: 3 }]
+const mockIterations = [
+  { id: 3, name: 'Sprint 3', description: '当前冲刺', goal: '收尾', start_date: '2026-03-01', end_date: '2026-03-15', status: 'ACTIVE', project_id: 1 },
+  { id: 4, name: 'Sprint 4', project_id: 1, status: 'PLANNED' }
+]
 
 function mountView() {
   return mount(KanbanView, {
@@ -132,15 +196,15 @@ function mountView() {
         DiffSelectDialog: passthroughStub('DiffSelectDialog'),
         CommitDialog: passthroughStub('CommitDialog'),
         MergeDialog: passthroughStub('MergeDialog'),
-        IterationForm: passthroughStub('IterationForm'),
-        IterationList: passthroughStub('IterationList'),
+        IterationForm: IterationFormStub,
+        IterationList: IterationListStub,
         TaskButlerChat: passthroughStub('TaskButlerChat'),
         ChatBox: passthroughStub('ChatBox'),
         WorkflowTemplateSelectDialog: passthroughStub('WorkflowTemplateSelectDialog'),
         WorkflowStartEditorDialog: passthroughStub('WorkflowStartEditorDialog'),
         IterationSelect: IterationSelectStub,
         draggable: true,
-        'el-dialog': true,
+        'el-dialog': passthroughStub('el-dialog'),
         'el-button': true,
         'el-radio-group': true,
         'el-radio-button': true,
@@ -152,10 +216,11 @@ function mountView() {
   })
 }
 
-describe('KanbanView add-task modal', () => {
+describe('KanbanView iteration management', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ = null
 
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -176,67 +241,85 @@ describe('KanbanView add-task modal', () => {
       return { success: true, data: mockTasks }
     })
     taskStore.tasks = mockTasks
-    taskStore.createTask = vi.fn().mockResolvedValue({ id: 101 })
-    taskStore.updateTask = vi.fn().mockResolvedValue({ id: 7 })
 
-    iterationStore.fetchByProject = vi.fn().mockResolvedValue({ success: true, data: mockIterations })
+    iterationStore.fetchByProject = vi.fn().mockImplementation(async () => {
+      iterationStore.iterations = mockIterations
+      return { success: true, data: mockIterations }
+    })
     iterationStore.iterations = mockIterations
+    iterationStore.updateIteration = vi.fn().mockResolvedValue({ success: true, data: mockIterations[0] })
+    iterationStore.deleteIteration = vi.fn().mockResolvedValue({ success: true })
 
     taskSourceStore.showPreviewDialog = false
     taskSourceStore.closePreviewDialog = vi.fn()
-
-    vi.spyOn(ElMessage, 'success').mockImplementation(() => {})
-    vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
   })
 
-  it('does not render the auto-assign-workflow option in the add-task modal', async () => {
+  it('opens the existing create iteration form from the manager dialog button', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.vm.openTaskModal()
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
+    await wrapper.find('.open-create-iteration').trigger('click')
     await flushPromises()
 
-    const modal = wrapper.find('.modal')
-    expect(modal.exists()).toBe(true)
-    expect(modal.text()).not.toContain('自动分配到工作流')
+    expect(wrapper.vm.showIterationModal).toBe(true)
+    expect(wrapper.vm.editingIteration).toBe(null)
+    expect(wrapper.find('.iteration-form-stub').exists()).toBe(true)
   })
 
-  it('still creates a task from the add-task modal without autoAssignWorkflow in the payload', async () => {
+  it('opens iteration form with selected iteration data when editing', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const taskStore = useTaskStore()
-
-    await wrapper.vm.openTaskModal()
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
+    await wrapper.find('.edit-iteration-3').trigger('click')
     await flushPromises()
 
-    await wrapper.find('.modal input[type="text"]').setValue('新任务')
-    await wrapper.find('.modal .btn-primary').trigger('click')
-    await flushPromises()
-
-    expect(taskStore.createTask).toHaveBeenCalledTimes(1)
-    expect(taskStore.createTask.mock.calls[0][0]).not.toHaveProperty('autoAssignWorkflow')
+    expect(wrapper.find('.iteration-form-stub').exists()).toBe(true)
+    expect(wrapper.find('.editing-iteration-name').text()).toBe('Sprint 3')
   })
 
-  it('still updates an existing task without affecting other task fields', async () => {
+  it('deletes an iteration without deleting tasks when the checkbox stays unchecked', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     const taskStore = useTaskStore()
+    const iterationStore = useIterationStore()
 
-    await wrapper.vm.openTaskModal(mockTasks[0])
+    wrapper.vm.selectedIterationId = 3
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
+    await wrapper.find('.delete-iteration-3').trigger('click')
     await flushPromises()
 
-    await wrapper.find('.modal input[type="text"]').setValue('新标题')
-    await wrapper.find('.modal .btn-primary').trigger('click')
+    expect(ElMessageBox.confirm).toHaveBeenCalled()
+    expect(iterationStore.deleteIteration).toHaveBeenCalledWith(3, { deleteTasks: false })
+    expect(iterationStore.fetchByProject).toHaveBeenCalledWith('1')
+    expect(taskStore.fetchTasks).toHaveBeenCalledWith('1')
+    expect(wrapper.vm.selectedIterationId).toBe(null)
+    expect(ElMessage.success).toHaveBeenCalledWith('迭代已删除')
+  })
+
+  it('deletes iteration tasks when the checkbox is checked in the confirmation', async () => {
+    globalThis.__ITERATION_DELETE_CONFIRM_HOOK__ = (message) => {
+      const checkboxNode = message.children[1]
+      checkboxNode.props['onUpdate:modelValue'](true)
+    }
+
+    const wrapper = mountView()
     await flushPromises()
 
-    expect(taskStore.updateTask).toHaveBeenCalledTimes(1)
-    expect(taskStore.updateTask.mock.calls[0][1]).toMatchObject({
-      title: '新标题',
-      assignee: 'Alice',
-      iteration_id: 3
-    })
-    expect(taskStore.updateTask.mock.calls[0][1]).not.toHaveProperty('autoAssignWorkflow')
+    const iterationStore = useIterationStore()
+
+    await wrapper.find('.open-iteration-manager').trigger('click')
+    await flushPromises()
+    await wrapper.find('.delete-iteration-3').trigger('click')
+    await flushPromises()
+
+    expect(iterationStore.deleteIteration).toHaveBeenCalledWith(3, { deleteTasks: true })
   })
 })
