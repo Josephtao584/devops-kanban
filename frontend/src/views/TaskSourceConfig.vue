@@ -105,14 +105,16 @@
           <template v-if="selectedTypeConfig">
             <div class="form-section">
               <div class="section-title">配置信息</div>
-              <el-form-item
+              <template
                 v-for="(field, key) in selectedTypeConfig.configFields"
-                v-if="field && !field.hidden"
                 :key="key"
-                :label="getFieldLabel(key, field)"
-                :prop="`config.${key}`"
-                :required="field.required"
               >
+                <el-form-item
+                  v-if="field && !field.hidden"
+                  :label="getFieldLabel(key, field)"
+                  :prop="`config.${key}`"
+                  :required="field.required"
+                >
                 <!-- State 字段使用下拉框 -->
                 <el-select
                   v-if="key === 'state'"
@@ -163,6 +165,7 @@
                   clearable
                 />
               </el-form-item>
+              </template>
             </div>
           </template>
 
