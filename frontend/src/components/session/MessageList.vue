@@ -33,13 +33,18 @@
         v-for="msg in messages"
         :key="msg.id"
         class="message"
-        :class="`message-${msg.role}`"
+        :class="[`message-${msg.role}`, `message-kind-${msg.kind || 'message'}`]"
       >
-        <div class="message-header">
-          <span class="message-role">{{ getRoleLabel(msg.role) }}</span>
-          <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
-        </div>
-        <div class="message-content" v-html="formatContent(msg.content)"></div>
+        <template v-if="(msg.kind || 'message') === 'message'">
+          <div class="message-header">
+            <span class="message-role">{{ getRoleLabel(msg.role) }}</span>
+            <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+          </div>
+          <div class="message-content" v-html="formatContent(msg.content)"></div>
+        </template>
+        <template v-else>
+          <SessionEventRenderer :event="msg" />
+        </template>
       </div>
     </div>
   </div>
@@ -49,6 +54,7 @@
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChatDotRound, ChatLineRound, Document } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
+import SessionEventRenderer from './SessionEventRenderer.vue'
 
 const props = defineProps({
   messages: {
@@ -90,7 +96,11 @@ const containerRef = ref(null)
 const isUnmounted = ref(false)
 
 const getRoleLabel = (role) => {
-  return role === 'user' ? t('chat.you', 'You') : t('chat.assistant', 'Assistant')
+  if (role === 'user') return t('chat.you', 'You')
+  if (role === 'assistant') return t('chat.assistant', 'Assistant')
+  if (role === 'system') return t('chat.system', 'System')
+  if (role === 'tool') return t('chat.tool', 'Tool')
+  return t('chat.event', 'Event')
 }
 
 const formatTime = (timestamp) => {
@@ -197,24 +207,219 @@ defineExpose({ scrollToBottom })
 }
 
 .message {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-kind-message {
   padding: 10px 14px;
   border-radius: 12px;
   max-width: 85%;
 }
 
-.message-user {
+.message-kind-message.message-user {
   align-self: flex-end;
   background: var(--accent-color, #6366f1);
   color: white;
   margin-left: auto;
 }
 
-.message-assistant {
+.message-kind-message.message-assistant {
   align-self: flex-start;
   background: var(--message-bg, #f3f4f6);
   color: var(--text-primary, #333333);
   border: 1px solid var(--border-color, #e0e0e0);
 }
+
+.message-kind-message.message-system,
+.message-kind-message.message-tool {
+  align-self: flex-start;
+  background: #eef2ff;
+  color: #312e81;
+  border: 1px solid #c7d2fe;
+  max-width: 90%;
+}
+
+.message:not(.message-kind-message) {
+  width: 100%;
+}
+
+.message-kind-tool_call,
+.message-kind-tool_result,
+.message-kind-status,
+.message-kind-error,
+.message-kind-artifact,
+.message-kind-stream_chunk {
+  max-width: 100%;
+}
+
+.message-kind-stream_chunk {
+  margin: 4px 0;
+}
+
+.message-kind-status {
+  align-self: center;
+}
+
+.message-kind-error {
+  align-self: stretch;
+}
+
+.message-kind-tool_call,
+.message-kind-tool_result,
+.message-kind-artifact {
+  align-self: stretch;
+}
+
+.message-kind-message .message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.message-kind-message.message-user .message-header {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.message-kind-message.message-assistant .message-header,
+.message-kind-message.message-system .message-header,
+.message-kind-message.message-tool .message-header {
+  color: var(--text-muted, #999999);
+}
+
+.message-kind-message .message-content {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-kind-message .message-content :deep(code) {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Fira Code', monospace;
+  font-size: 13px;
+}
+
+.message-kind-message .message-content :deep(pre) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.message-kind-message .message-content :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message-kind-message .message-content :deep(strong) {
+  font-weight: 600;
+}
+
+.message-kind-message .message-content :deep(.check-icon) {
+  color: #10b981;
+}
+
+.message-kind-message .message-content :deep(.loading-icon) {
+  color: #3b82f6;
+  animation: spin 1s linear infinite;
+}
+
+.message-kind-message .message-content :deep(.pending-icon) {
+  color: #6b7280;
+}
+
+.message-kind-tool_call :deep(.session-event-renderer),
+.message-kind-tool_result :deep(.session-event-renderer),
+.message-kind-status :deep(.session-event-renderer),
+.message-kind-error :deep(.session-event-renderer),
+.message-kind-artifact :deep(.session-event-renderer),
+.message-kind-stream_chunk :deep(.session-event-renderer) {
+  width: 100%;
+}
+
+.message-user {
+  align-self: flex-end;
+  margin-left: auto;
+}
+
+.message-assistant,
+.message-system,
+.message-tool {
+  align-self: flex-start;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.message-role {
+  font-weight: 600;
+}
+
+.message-time {
+  opacity: 0.7;
+}
+
+.message-content {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-content :deep(code) {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Fira Code', monospace;
+  font-size: 13px;
+}
+
+.message-content :deep(pre) {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.message-content :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.message-content :deep(strong) {
+  font-weight: 600;
+}
+
+.message-content :deep(.check-icon) {
+  color: #10b981;
+}
+
+.message-content :deep(.loading-icon) {
+  color: #3b82f6;
+  animation: spin 1s linear infinite;
+}
+
+.message-content :deep(.pending-icon) {
+  color: #6b7280;
+}
+
+@keyframes spin {
 
 .message-header {
   display: flex;
