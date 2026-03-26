@@ -81,12 +81,9 @@ export function buildWorkflowFromTemplate(
           worktreePath: state.worktreePath,
           state,
           inputData,
-          workflowTemplate: workflowTemplate,
+          workflowTemplate,
           abortSignal,
           upstreamStepIds: previousStepId ? [previousStepId] : [],
-          runId: options.runId,
-          sessionId,
-          segmentId,
           onEvent: async (event) => {
               await options?.lifecycle.sessionEventRepo.append({
                   session_id: sessionId,
