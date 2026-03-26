@@ -148,11 +148,14 @@ class InternalApiAdapter extends TaskSourceAdapter {
 
         res.on('end', () => {
           const responseBuffer = Buffer.concat(chunks);
+          console.log('[DEBUG _request] raw buffer length:', responseBuffer.length, 'hex start:', responseBuffer.slice(0, 20).toString('hex'));
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             try {
               resolve(this._parseResponseBody(responseBuffer, res.headers['content-encoding']));
-            } catch {
-              resolve({ data: this._formatResponseBody(responseBuffer, res.headers['content-encoding']) });
+            } catch (e) {
+              const rawText = this._formatResponseBody(responseBuffer, res.headers['content-encoding']);
+              console.log('[DEBUG _request] JSON parse failed, wrapping as { data: "..." }, raw length:', rawText.length, 'raw:', rawText.substring(0, 200));
+              resolve({ data: rawText });
             }
           } else {
             reject(new Error(`Internal API error: ${res.statusCode} - ${this._formatResponseBody(responseBuffer, res.headers['content-encoding'])}`));
@@ -583,6 +586,8 @@ class InternalApiAdapter extends TaskSourceAdapter {
         method: 'POST',
         body: this._buildWorkitemListBody(currentPage),
       });
+      console.log('[DEBUG _fetchWorkitemItems] raw response type:', typeof response, 'keys:', response && typeof response === 'object' ? Object.keys(response as object) : 'N/A');
+      console.log('[DEBUG _fetchWorkitemItems] response.data type:', typeof (response as any)?.data, 'value:', (response as any)?.data);
       this._assertWorkitemSuccessResponse(response);
       const pageItems = this._extractListItems(response);
       items.push(...pageItems);
