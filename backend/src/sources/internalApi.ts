@@ -139,7 +139,6 @@ class InternalApiAdapter extends TaskSourceAdapter {
       const body = requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body);
       const options = this._buildRequestOptions(url, requestOptions, body);
 
-      console.log('[DEBUG _request] method:', options.method, 'url:', url.toString(), 'body:', body);
       const req = requestFactory(options, (res: IncomingMessage) => {
         const chunks: Buffer[] = [];
 
@@ -149,14 +148,11 @@ class InternalApiAdapter extends TaskSourceAdapter {
 
         res.on('end', () => {
           const responseBuffer = Buffer.concat(chunks);
-          console.log('[DEBUG _request] raw buffer length:', responseBuffer.length, 'hex start:', responseBuffer.slice(0, 20).toString('hex'));
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             try {
               resolve(this._parseResponseBody(responseBuffer, res.headers['content-encoding']));
-            } catch (e) {
-              const rawText = this._formatResponseBody(responseBuffer, res.headers['content-encoding']);
-              console.log('[DEBUG _request] JSON parse failed, wrapping as { data: "..." }, raw length:', rawText.length, 'raw:', rawText.substring(0, 200));
-              resolve({ data: rawText });
+            } catch {
+              resolve({ data: this._formatResponseBody(responseBuffer, res.headers['content-encoding']) });
             }
           } else {
             reject(new Error(`Internal API error: ${res.statusCode} - ${this._formatResponseBody(responseBuffer, res.headers['content-encoding'])}`));
@@ -225,47 +221,33 @@ class InternalApiAdapter extends TaskSourceAdapter {
       : undefined;
 
     // Handle double-encoded JSON strings: if data is a string that looks like
-    // a JSON object or array (starts with " { ", " [ ", or just { / [), try parsing it.
+    // a JSON object or array, try parsing it.
     let dataValueForResult = dataValue;
-    console.log('[DEBUG _extractListItems] dataValue type:', typeof dataValueForResult, 'value:', dataValueForResult);
     if (typeof dataValueForResult === 'string') {
       const trimmed = dataValueForResult.trim();
-      const startsWithQuote = trimmed.startsWith('"');
-      const startsWithBraceOrBracket = trimmed.startsWith('{') || trimmed.startsWith('[');
-      console.log('[DEBUG _extractListItems] trimmed startsWith "\"":', startsWithQuote, 'startsWith "{[" :', startsWithBraceOrBracket);
-      if (startsWithBraceOrBracket) {
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         try {
-          const reparsed = JSON.parse(trimmed);
-          console.log('[DEBUG _extractListItems] reparsed type:', typeof reparsed, 'value:', reparsed);
-          if (typeof reparsed === 'object' && reparsed !== null) {
-            dataValueForResult = reparsed;
-          }
-        } catch (e) {
-          console.log('[DEBUG _extractListItems] JSON.parse failed:', e.message);
+          dataValueForResult = JSON.parse(trimmed);
+        } catch {
+          // Keep original string
         }
-      } else if (startsWithQuote) {
-        // Double-encoded: '"{"result":[]}"' -> '{"result":[]}' -> {'result':[]}
+      } else if (trimmed.startsWith('"')) {
+        // Double-encoded: '"{"result":[]}"' -> first parse gives '{"result":[]}'
         try {
           const firstParse = JSON.parse(trimmed);
-          console.log('[DEBUG _extractListItems] firstParse type:', typeof firstParse, 'value:', firstParse);
           if (typeof firstParse === 'string') {
-            const secondTrim = firstParse.trim();
-            if (secondTrim.startsWith('{') || secondTrim.startsWith('[')) {
-              const reparsed = JSON.parse(secondTrim);
-              console.log('[DEBUG _extractListItems] second reparsed type:', typeof reparsed, 'value:', reparsed);
-              if (typeof reparsed === 'object' && reparsed !== null) {
-                dataValueForResult = reparsed;
-              }
+            const inner = firstParse.trim();
+            if (inner.startsWith('{') || inner.startsWith('[')) {
+              dataValueForResult = JSON.parse(inner);
             }
           } else if (typeof firstParse === 'object' && firstParse !== null) {
             dataValueForResult = firstParse;
           }
-        } catch (e) {
-          console.log('[DEBUG _extractListItems] double-parse failed:', e.message);
+        } catch {
+          // Keep original string
         }
       }
     }
-    console.log('[DEBUG _extractListItems] dataValueForResult type:', typeof dataValueForResult, 'value:', dataValueForResult);
 
     const dataArray = this._toObjectArray(dataValue);
     if (dataArray) {
@@ -454,7 +436,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
         {
           key: 'mine_todo',
           operator: '||',
-          value: [this.userId],
+          value: [this.userId != null ? String(this.userId) : ''],
         },
       ],
       sort: {
@@ -587,8 +569,6 @@ class InternalApiAdapter extends TaskSourceAdapter {
         method: 'POST',
         body: this._buildWorkitemListBody(currentPage),
       });
-      console.log('[DEBUG _fetchWorkitemItems] raw response type:', typeof response, 'keys:', response && typeof response === 'object' ? Object.keys(response as object) : 'N/A');
-      console.log('[DEBUG _fetchWorkitemItems] response.data type:', typeof (response as any)?.data, 'value:', (response as any)?.data);
       this._assertWorkitemSuccessResponse(response);
       const pageItems = this._extractListItems(response);
       items.push(...pageItems);
