@@ -33,7 +33,7 @@ export const getWorkflowDisplayStatus = (run) => {
   if (run.status === 'RUNNING' || run.status === 'PENDING') return 'running'
   if (run.status === 'COMPLETED') return 'done'
   if (run.status === 'FAILED') return 'failed'
-  if (run.status === 'CANCELLED') return 'paused'
+  if (run.status === 'CANCELLED') return 'cancelled'
   return 'pending'
 }
 
