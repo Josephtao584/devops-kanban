@@ -2,7 +2,7 @@ import { TaskSourceRepository } from '../repositories/taskSourceRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { loadAdapterTypes } from '../config/taskSources.js';
 import { getAdapter, getAdapterMetadata } from '../sources/index.js';
-import type { TaskSourceLike } from '../sources/base.js';
+import type { TaskSourceLike, FetchOptions } from '../sources/base.js';
 import type {
   CreateTaskSourceInput,
   UpdateTaskSourceInput,
@@ -174,7 +174,7 @@ class TaskSourceService {
     return getAdapterMetadata(type);
   }
 
-  async previewSync(sourceId: string) {
+  async previewSync(sourceId: string, options?: FetchOptions) {
     const source = await this.getById(sourceId);
     if (!source) {
       const error = new Error('Task source not found') as Error & { statusCode?: number };
@@ -183,7 +183,7 @@ class TaskSourceService {
     }
 
     const adapter = getAdapter(source.type, source as TaskSourceLike);
-    const issues = (await adapter.fetch()) as ImportedTask[];
+    const issues = (await adapter.fetch(options)) as ImportedTask[];
 
     const allTasks = await this.taskRepository.findAll();
     const importedExternalIds = new Set(

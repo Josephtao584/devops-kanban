@@ -564,20 +564,27 @@ class InternalApiAdapter extends TaskSourceAdapter {
     return Promise.all(items.map((item) => fetchTask.call(this, item)));
   }
 
-  async _fetchGenericTasks(): Promise<ImportedTask[]> {
+  async _fetchGenericTasks(options?: { limit?: number; offset?: number }): Promise<ImportedTask[]> {
     const listResponse = await this._request(this.listPath);
     const items = this._extractListItems(listResponse);
-    return this._fetchTasks(items, this._fetchGenericTask);
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? items.length;
+    const sliced = items.slice(offset, offset + limit);
+    return this._fetchTasks(sliced, this._fetchGenericTask);
   }
 
-  async _fetchWorkitemTasks(): Promise<ImportedTask[]> {
-    const items = await this._fetchWorkitemItems();
-    return this._fetchTasks(items, this._fetchWorkitemTask);
+  async _fetchWorkitemTasks(options?: { limit?: number; offset?: number }): Promise<ImportedTask[]> {
+    const items = await this._fetchWorkitemItems(options);
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? items.length;
+    const sliced = items.slice(offset, offset + limit);
+    return this._fetchTasks(sliced, this._fetchWorkitemTask);
   }
 
-  async _fetchWorkitemItems(): Promise<UnknownRecord[]> {
+  async _fetchWorkitemItems(options?: { limit?: number; offset?: number }): Promise<UnknownRecord[]> {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
+    const limit = options?.limit;
 
     while (true) {
       const response = await this._request(this.listPath, {
@@ -590,6 +597,10 @@ class InternalApiAdapter extends TaskSourceAdapter {
       const pageItems = this._extractListItems(response);
       items.push(...pageItems);
 
+      if (limit != null && items.length >= limit) {
+        return items.slice(0, limit);
+      }
+
       if (this._isLastWorkitemPage(response, pageItems.length)) {
         return items;
       }
@@ -598,7 +609,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
     }
   }
 
-  override async fetch(): Promise<ImportedTask[]> {
+  override async fetch(options?: { limit?: number; offset?: number }): Promise<ImportedTask[]> {
     if (!this.baseUrl) {
       throw new Error('Internal API baseUrl is required.');
     }
@@ -609,11 +620,13 @@ class InternalApiAdapter extends TaskSourceAdapter {
       throw new Error('Internal API detailPath is required.');
     }
 
+    const offset = options?.offset ?? 0;
+
     if (this._usesWorkitemEndpoints()) {
-      return this._fetchWorkitemTasks();
+      return this._fetchWorkitemTasks({ limit: options?.limit });
     }
 
-    return this._fetchGenericTasks();
+    return this._fetchGenericTasks({ limit: options?.limit });
   }
 
   override async testConnection(): Promise<boolean> {
