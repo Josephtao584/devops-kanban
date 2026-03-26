@@ -289,6 +289,7 @@
             <StepSessionPanel
               :session-id="currentViewingNode?.sessionId"
               :step-name="currentViewingNode?.name"
+              :show-header="false"
             />
           </div>
         </div>
