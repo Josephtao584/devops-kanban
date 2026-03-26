@@ -55,7 +55,8 @@ class TaskSourceService {
 
   async getById(sourceId: string) {
     const sources = await this.loadSources();
-    return sources.find((source) => source.id === sourceId) || null;
+    const numericSourceId = Number(sourceId);
+    return sources.find((source) => Number(source.id) === numericSourceId) || null;
   }
 
   async getByProject(projectId: number) {
