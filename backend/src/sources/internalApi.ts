@@ -220,13 +220,12 @@ class InternalApiAdapter extends TaskSourceAdapter {
       ? this._normalizeJsonLikeResponse((normalizedResponse as UnknownRecord).data)
       : undefined;
 
-    // Handle double-encoded JSON strings: if data is a string like "\"result\":[...]"
-    // that looks like a JSON string, try parsing it one more level deep.
+    // Handle double-encoded JSON strings: if data is a string that looks like
+    // a JSON object or array (starts with { or [), try parsing it.
     let dataValueForResult = dataValue;
     if (typeof dataValueForResult === 'string') {
       const trimmed = dataValueForResult.trim();
-      const looksLikeJsonString = (trimmed.startsWith('"') && trimmed.endsWith('"'));
-      if (looksLikeJsonString) {
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         try {
           const reparsed = JSON.parse(trimmed);
           if (typeof reparsed === 'object' && reparsed !== null) {
