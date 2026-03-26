@@ -3,101 +3,8 @@
 # To add support for a new system (e.g., Jira, Linear), add a new adapter type here
 
 adapterTypes:
-  - key: GITHUB
-    name: GitHub Issues
-    description: 从 GitHub Issues 同步任务
-    configFields:
-      repo:
-        type: string
-        required: true
-        description: "仓库地址，格式为 owner/repo"
-      token:
-        type: string
-        required: false
-        description: "GitHub 个人访问令牌"
-      state:
-        type: string
-        required: false
-        description: "Issue 状态筛选：open、closed 或 all"
-        default: open
-      labels:
-        type: array
-        required: false
-        description: "按标签筛选"
-    request:
-      baseUrl: "https://api.github.com"
-      path: "/repos/{repo}/issues"
-      method: GET
-      headers:
-        User-Agent: "DevOps-Kanban-App"
-        Accept: "application/vnd.github.v3+json"
-        Authorization: "token {token}"
-      params:
-        state: "{state}"
-        labels: "{labels}"
-    response:
-      type: array
-      path: ""  # 空路径表示根级别
-    mapping:
-      title: "$.title"
-      description: "$.body"
-      external_id: "$.id"
-      external_url: "$.html_url"
-      status: "$.state"
-      labels: "$.labels[*].name"
-      created_at: "$.created_at"
-      updated_at: "$.updated_at"
-    transforms:
-      status:
-        open: TODO
-        closed: DONE
-      external_id: "toString"
-      labels: "arrayMap(name)"
-
-  - key: CODEHUB
-    name: CodeHub Issues
-    description: 从 CodeHub Issues 同步任务
-    configFields:
-      project_id:
-        type: string
-        required: true
-        description: "Project ID from CodeHub"
-      token:
-        type: string
-        required: false
-        description: "CodeHub Personal Access Token"
-      baseUrl:
-        type: string
-        required: false
-        description: "CodeHub API base URL"
-        default: "https://git.com/api/v4"
-    request:
-      baseUrl: "{baseUrl}"
-      path: "/projects/{project_id}/issues"
-      method: GET
-      headers:
-        User-Agent: "DevOps-Kanban-App"
-        Accept: "application/json"
-        PRIVATE-TOKEN: "{token}"
-    response:
-      type: object
-      path: "$.issues"
-    mapping:
-      title: "$.title"
-      description: "$.description"
-      external_id: "$.id"
-      external_url: "$.project_id"
-      status: "$.state"
-      created_at: "$.created_at"
-      updated_at: "$.updated_at"
-    transforms:
-      status:
-        opened: TODO
-        closed: DONE
-      external_id: "toString"
-
   - key: INTERNAL_API
-    name: Internal API
+    name: CloudDevOps Story
     description: 从内部 API 同步任务（列表 + 详情两段拉取模板）
     configFields:
       baseUrl:
@@ -159,6 +66,99 @@ adapterTypes:
         required: false
         description: "是否拒绝自签名证书（默认 true，设为 false 以接受自签名证书）"
         default: true
+
+  - key: CODEHUB
+    name: CodeHub Issues
+    description: 从 CodeHub Issues 同步任务
+    configFields:
+      project_id:
+        type: string
+        required: true
+        description: "Project ID from CodeHub"
+      token:
+        type: string
+        required: false
+        description: "CodeHub Personal Access Token"
+      baseUrl:
+        type: string
+        required: false
+        description: "CodeHub API base URL"
+        default: "https://git.com/api/v4"
+    request:
+      baseUrl: "{baseUrl}"
+      path: "/projects/{project_id}/issues"
+      method: GET
+      headers:
+        User-Agent: "DevOps-Kanban-App"
+        Accept: "application/json"
+        PRIVATE-TOKEN: "{token}"
+    response:
+      type: object
+      path: "$.issues"
+    mapping:
+      title: "$.title"
+      description: "$.description"
+      external_id: "$.id"
+      external_url: "$.project_id"
+      status: "$.state"
+      created_at: "$.created_at"
+      updated_at: "$.updated_at"
+    transforms:
+      status:
+        opened: TODO
+        closed: DONE
+      external_id: "toString"
+
+  - key: GITHUB
+    name: GitHub Issues
+    description: 从 GitHub Issues 同步任务
+    configFields:
+      repo:
+        type: string
+        required: true
+        description: "仓库地址，格式为 owner/repo"
+      token:
+        type: string
+        required: false
+        description: "GitHub 个人访问令牌"
+      state:
+        type: string
+        required: false
+        description: "Issue 状态筛选：open、closed 或 all"
+        default: open
+      labels:
+        type: array
+        required: false
+        description: "按标签筛选"
+    request:
+      baseUrl: "https://api.github.com"
+      path: "/repos/{repo}/issues"
+      method: GET
+      headers:
+        User-Agent: "DevOps-Kanban-App"
+        Accept: "application/vnd.github.v3+json"
+        Authorization: "token {token}"
+      params:
+        state: "{state}"
+        labels: "{labels}"
+    response:
+      type: array
+      path: ""  # 空路径表示根级别
+    mapping:
+      title: "$.title"
+      description: "$.body"
+      external_id: "$.id"
+      external_url: "$.html_url"
+      status: "$.state"
+      labels: "$.labels[*].name"
+      created_at: "$.created_at"
+      updated_at: "$.updated_at"
+    transforms:
+      status:
+        open: TODO
+        closed: DONE
+      external_id: "toString"
+      labels: "arrayMap(name)"
 
 # Future adapters can be added here, e.g.:
 #   - key: JIRA

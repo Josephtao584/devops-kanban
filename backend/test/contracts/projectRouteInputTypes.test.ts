@@ -28,7 +28,7 @@ test.test('project route and service DTOs accept explicit create and update inpu
   };
 
   assert.equal(createInput.name, 'Platform');
-  assert.equal(createWithNullableFields.git_url, null);
+  assert.equal(createWithNullableFields.git_url, undefined);
   assert.equal(updateInput.local_path, '/repos/platform');
   assert.equal(updateWithNullableFields.git_url, null);
 });
