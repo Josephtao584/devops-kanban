@@ -103,7 +103,9 @@ class InternalApiAdapter extends TaskSourceAdapter {
     };
     if (url.protocol === 'https:') {
       options.rejectUnauthorized = this.rejectUnauthorized;
+      console.log('[DEBUG _buildRequestOptions] https request, rejectUnauthorized:', this.rejectUnauthorized);
     }
+    console.log('[DEBUG _buildRequestOptions] url:', url.toString(), 'options:', options);
     return options;
   }
 
