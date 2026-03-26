@@ -350,14 +350,8 @@ const getTypeLabel = (type) => {
   return localizedLabel === type ? type : `${type} · ${localizedLabel}`
 }
 
-const getTypeIcon = (type) => {
-  const icons = {
-    GITHUB: '🐙',
-    INTERNAL_API: '🔌',
-    JIRA: '📋',
-    LINEAR: '📊'
-  }
-  return icons[type] || '📦'
+const getTypeIcon = (_type) => {
+  return ''
 }
 
 const getFieldLabel = (key, field) => {
