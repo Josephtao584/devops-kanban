@@ -82,13 +82,18 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
+NODE_VERSION=$(node -v 2>/dev/null)
+NODE_MAJOR=$(printf '%s' "$NODE_VERSION" | sed -E 's/^v([0-9]+).*/\1/')
+if [ -z "$NODE_MAJOR" ] || ! printf '%s' "$NODE_MAJOR" | grep -Eq '^[0-9]+$'; then
+    echo -e "${RED}✗ 错误：无法识别 Node.js 版本，当前输出为 ${NODE_VERSION:-<empty>}${NC}"
+    exit 1
+fi
 if [ "$NODE_MAJOR" -lt 22 ] || [ "$NODE_MAJOR" -ge 23 ]; then
-    echo -e "${RED}✗ 错误：后端需要 Node.js 22.x，当前版本为 $(node -v)${NC}"
+    echo -e "${RED}✗ 错误：后端需要 Node.js 22.x，当前版本为 $NODE_VERSION${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Node.js: $(node -v)${NC}"
+echo -e "${GREEN}✓ Node.js: $NODE_VERSION${NC}"
 
 # 初始化数据目录
 init_data_dir() {
