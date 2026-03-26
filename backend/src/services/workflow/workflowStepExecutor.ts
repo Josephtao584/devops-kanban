@@ -80,9 +80,6 @@ export async function executeWorkflowStep({
   if (!step) {
     throw new Error(`Workflow template step not found: ${stepId}`);
   }
-  if (typeof step.agentId !== 'number') {
-    throw new Error(`Workflow template step ${stepId} does not have a bound agent`);
-  }
 
   // 2. Resolve agent
   const agent = await resolveAgent(agentRepo, stepId, step.agentId);

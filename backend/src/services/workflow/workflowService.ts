@@ -4,7 +4,7 @@ import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
-import {buildWorkflowFromTemplate, getWorkflowFromWorkflowId} from './workflows.js';
+import {buildWorkflowFromTemplate, ensureWorkflow} from './workflows.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 import {WorkflowTemplateEntity} from "../../types/entities.js";
 
@@ -72,7 +72,7 @@ class WorkflowService {
     this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo });
   }
 
-  async startWorkflow(taskId: number, options: string | StartWorkflowOptions) {
+  async startWorkflow(taskId: number, options: StartWorkflowOptions) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
       const error: any = new Error('Task not found');
@@ -88,8 +88,8 @@ class WorkflowService {
       throw error;
     }
 
-    const workflowTemplateId = typeof options === 'string' ? options : options.workflowTemplateId;
-    const workflowTemplateSnapshot = typeof options === 'string' ? undefined : options.workflowTemplateSnapshot;
+    const workflowTemplateId = options.workflowTemplateId;
+    const workflowTemplateSnapshot = options.workflowTemplateSnapshot;
 
     if (!workflowTemplateSnapshot && !workflowTemplateId?.trim()) {
       throw createValidationError('workflow template id or snapshot is required');
@@ -244,6 +244,8 @@ class WorkflowService {
   }
 
   async cancelWorkflow(runId: number) {
+    console.log(`[WorkflowService] cancelWorkflow called for runId: ${runId}`);
+
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
       const error: any = new Error('Workflow run not found');
@@ -257,9 +259,22 @@ class WorkflowService {
       throw error;
     }
 
-    const workflow = getWorkflowFromWorkflowId(run.workflow_template_id);
+    // Use the stored template snapshot to ensure workflow is registered
+    const template = run.workflow_template_snapshot;
+    if (!template) {
+      const error: any = new Error('Workflow template snapshot not found');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    console.log(`[WorkflowService] Ensuring workflow ${template.template_id} is registered`);
+    const workflow = ensureWorkflow(template);
+    console.log(`[WorkflowService] Creating run with runId: ${runId}`);
     const reconstructedRun = await workflow.createRun({ runId: String(runId) });
+
+    console.log(`[WorkflowService] Calling cancel() on run`);
     await reconstructedRun.cancel();
+    console.log(`[WorkflowService] cancel() completed`);
 
     // Finalize running step
     const runningStep = (run.current_step
