@@ -10,20 +10,20 @@ adapterTypes:
       repo:
         type: string
         required: true
-        description: "Repository in format owner/repo"
+        description: "仓库地址，格式为 owner/repo"
       token:
         type: string
         required: false
-        description: "GitHub Personal Access Token"
+        description: "GitHub 个人访问令牌"
       state:
         type: string
         required: false
-        description: "Issue state filter: open, closed, or all"
+        description: "Issue 状态筛选：open、closed 或 all"
         default: open
       labels:
         type: array
         required: false
-        description: "Filter by labels"
+        description: "按标签筛选"
     request:
       baseUrl: "https://api.github.com"
       path: "/repos/{repo}/issues"
@@ -103,44 +103,44 @@ adapterTypes:
       baseUrl:
         type: string
         required: true
-        description: "Internal API base URL, for example https://internal.example.com"
+        description: "内部 API 基础地址，例如 https://internal.example.com"
       token:
         type: string
         required: true
-        description: "Authorization header value"
+        description: "Authorization 请求头值"
       userId:
         type: string
         required: true
-        description: "User identifier used by the mine_todo filter"
+        description: "用于 mine_todo 过滤的用户标识"
       category:
         type: string
         required: false
-        description: "Workitem category filter value"
+        description: "工作项分类过滤值"
         default: "5"
       pageSize:
         type: string
         required: false
-        description: "Workitem page size"
+        description: "每页工作项数量"
         default: "10"
       listPath:
         type: string
         required: true
-        description: "Relative path for the workitem list API"
+        description: "工作项列表 API 的相对路径"
         default: /devops-workitem/api/v1/query/workitems
       detailPath:
         type: string
         required: true
-        description: "Relative path template for the detail API"
+        description: "详情 API 的相对路径模板"
         default: /devops-workitem/api/v1/query/{number}/document_detail
       detailIdField:
         type: string
         required: false
-        description: "Field from the list item used to fill the detail path placeholder, defaults to number"
+        description: "列表项中用于填充详情路径占位符的字段，默认为 number"
         default: number
       rejectUnauthorized:
         type: boolean
         required: false
-        description: "Whether to reject self-signed certificates (default: true, set to false for self-signed certs)"
+        description: "是否拒绝自签名证书（默认 true，设为 false 以接受自签名证书）"
         default: true
 
 # Future adapters can be added here, e.g.:

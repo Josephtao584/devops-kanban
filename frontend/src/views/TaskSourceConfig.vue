@@ -349,7 +349,14 @@ const getFieldLabel = (key, field) => {
     token: '访问令牌',
     state: 'Issue 状态',
     labels: '标签筛选',
-    baseUrl: 'API 地址'
+    baseUrl: 'API 地址',
+    userId: '用户标识',
+    category: '分类',
+    pageSize: '每页数量',
+    listPath: '列表路径',
+    detailPath: '详情路径',
+    detailIdField: '详情 ID 字段',
+    rejectUnauthorized: '接受自签名证书'
   }
 
   return commonLabels[key] || field.description || key
@@ -361,7 +368,14 @@ const getFieldPlaceholder = (key, field) => {
     token: 'ghp_xxx...',
     state: '选择 Issue 状态',
     labels: '选择标签',
-    baseUrl: 'https://codehub.huawei.com/api/v4'
+    baseUrl: 'https://codehub.huawei.com/api/v4',
+    userId: '输入用户标识',
+    category: '例如: 5',
+    pageSize: '例如: 10',
+    listPath: '/devops-workitem/api/v1/query/workitems',
+    detailPath: '/devops-workitem/api/v1/query/{number}/document_detail',
+    detailIdField: '例如: number',
+    rejectUnauthorized: '关闭后接受自签名证书'
   }
 
   if (field?.default !== undefined) {

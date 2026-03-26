@@ -21,7 +21,7 @@ test.test('source registry exposes built-in adapters with metadata', () => {
   assert.deepEqual(types.GITHUB?.configFields && (types.GITHUB.configFields as Record<string, unknown>).state, {
     type: 'string',
     required: false,
-    description: 'Issue state filter: open, closed, or all',
+    description: 'Issue 状态筛选：open、closed 或 all',
     default: 'open',
   });
 });
