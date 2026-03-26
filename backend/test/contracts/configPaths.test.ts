@@ -25,6 +25,7 @@ async function withStartScriptFixture<T>(callback: (fixture: {
   run: (options?: {
     frontendReady?: boolean;
     backendReady?: boolean;
+    nodeVersionMode?: 'normal' | 'tty-noise';
   }) => Promise<{ stdout: string; stderr: string }>;
 }) => Promise<T>) {
   const rootPath = await fs.mkdtemp(path.join(os.tmpdir(), 'start-script-test-'));
@@ -45,6 +46,10 @@ if [ "$1" = "-v" ]; then
   exit 0
 fi
 if [ "$1" = "-p" ]; then
+  if [ "$NODE_VERSION_MODE" = "tty-noise" ]; then
+    echo "stdout is not a tty" >&2
+    exit 0
+  fi
   echo "22"
   exit 0
 fi
@@ -104,6 +109,7 @@ exit 1
             FAKE_START_ROOT: rootPath,
             FRONTEND_READY: options?.frontendReady === false ? '0' : '1',
             BACKEND_READY: options?.backendReady === false ? '0' : '1',
+            NODE_VERSION_MODE: options?.nodeVersionMode ?? 'normal',
           },
         });
 
@@ -147,5 +153,14 @@ test.test('start script prints the actual frontend timeout log path', async () =
   await withStartScriptFixture(async ({ run }) => {
     const result = await run({ frontendReady: false });
     assert.match(result.stdout, /\/tmp\/kanban-frontend\.log/);
+  });
+});
+
+test.test('start script ignores node -p tty noise and starts without shell integer errors', async () => {
+  await withStartScriptFixture(async ({ run }) => {
+    const result = await run({ nodeVersionMode: 'tty-noise' });
+    assert.match(result.stdout, /DevOps Kanban 启动完成/);
+    assert.doesNotMatch(result.stderr, /stdout is not a tty/);
+    assert.doesNotMatch(result.stderr, /integer expression expected/);
   });
 });
