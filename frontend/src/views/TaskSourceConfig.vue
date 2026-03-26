@@ -136,6 +136,11 @@
                     :value="label"
                   />
                 </el-select>
+                <!-- boolean 类型使用开关 -->
+                <el-switch
+                  v-else-if="field.type === 'boolean'"
+                  v-model="formData.config[key]"
+                />
                 <!-- 默认使用输入框 -->
                 <el-input
                   v-else
