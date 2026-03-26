@@ -549,11 +549,18 @@ class InternalApiAdapter extends TaskSourceAdapter {
       throw new Error(`Internal API list item is missing detail identifier field: ${this.detailIdField}`);
     }
 
+    // Use description from list response directly if available (no detail fetch needed)
+    const description = typeof item.description === 'string' ? item.description : '';
+    if (description) {
+      return this._buildWorkitemTask(item, description, identifier);
+    }
+
+    // Fall back to detail API if description not in list response
     const detailResponse = await this._request(this._buildDetailPath(identifier));
     this._assertWorkitemSuccessResponse(detailResponse);
     const detailRecords = this._extractDetailRecords(detailResponse);
-    const description = this._selectLatestContent(detailRecords);
-    return this._buildWorkitemTask(item, description, identifier);
+    const detailDescription = this._selectLatestContent(detailRecords);
+    return this._buildWorkitemTask(item, detailDescription, identifier);
   }
 
   async _fetchGenericTask(item: UnknownRecord): Promise<ImportedTask> {
