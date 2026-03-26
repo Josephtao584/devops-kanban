@@ -501,6 +501,7 @@ test.test('InternalApiAdapter adds JSON headers when request body is present', (
       'Content-Length': String(Buffer.byteLength(body)),
     },
     method: 'POST',
+    rejectUnauthorized: true,
   });
 });
 

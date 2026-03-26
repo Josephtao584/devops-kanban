@@ -32,6 +32,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
   userId: string | undefined;
   category: string;
   pageSize: number;
+  rejectUnauthorized: boolean;
 
   constructor(source: TaskSourceLike) {
     super(source);
@@ -44,6 +45,7 @@ class InternalApiAdapter extends TaskSourceAdapter {
     this.userId = typeof config.userId === 'string' && config.userId ? config.userId : undefined;
     this.category = typeof config.category === 'string' && config.category ? config.category : '5';
     this.pageSize = this._parsePositiveInt(config.pageSize, 10);
+    this.rejectUnauthorized = config.rejectUnauthorized !== false;
   }
 
   _normalizeBaseUrl(baseUrl: unknown): string {
@@ -92,13 +94,17 @@ class InternalApiAdapter extends TaskSourceAdapter {
   }
 
   _buildRequestOptions(url: URL, requestOptions: RequestOptions = {}, body?: string) {
-    return {
+    const options: Record<string, unknown> = {
       hostname: url.hostname,
       port: url.port || undefined,
       path: url.pathname + url.search,
       headers: this._getHeaders(body),
       method: requestOptions.method || 'GET',
     };
+    if (url.protocol === 'https:') {
+      options.rejectUnauthorized = this.rejectUnauthorized;
+    }
+    return options;
   }
 
   _decodeResponseBuffer(buffer: Buffer, contentEncoding: string | string[] | undefined): Buffer {

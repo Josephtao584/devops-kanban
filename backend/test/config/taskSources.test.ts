@@ -175,6 +175,12 @@ test.test('loadAdapterTypes includes metadata-only INTERNAL_API definitions with
         description: 'Field from the list item used to fill the detail path placeholder, defaults to number',
         default: 'number',
       },
+      rejectUnauthorized: {
+        type: 'boolean',
+        required: false,
+        description: 'Whether to reject self-signed certificates (default: true, set to false for self-signed certs)',
+        default: true,
+      },
     },
   });
   assert.equal('request' in (internalApi ?? {}), false);

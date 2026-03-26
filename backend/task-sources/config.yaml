@@ -137,6 +137,11 @@ adapterTypes:
         required: false
         description: "Field from the list item used to fill the detail path placeholder, defaults to number"
         default: number
+      rejectUnauthorized:
+        type: boolean
+        required: false
+        description: "Whether to reject self-signed certificates (default: true, set to false for self-signed certs)"
+        default: true
 
 # Future adapters can be added here, e.g.:
 #   - key: JIRA
