@@ -372,7 +372,7 @@ test.test('InternalApiAdapter fetches paginated workitems and uses latest detail
     {
       external_id: 'EP2025062300005',
       title: '流水线能力提升专项',
-      description: '<p>最新内容</p>',
+      description: '最新内容',
       external_url: 'https://devops.com/workitem/EP2025062300005',
       status: 'TODO',
       labels: [],
@@ -382,7 +382,7 @@ test.test('InternalApiAdapter fetches paginated workitems and uses latest detail
     {
       external_id: 'EP2025062300006',
       title: '平台稳定性治理',
-      description: '<p>已完成需求</p>',
+      description: '已完成需求',
       external_url: 'https://devops.com/workitem/EP2025062300006',
       status: 'DONE',
       labels: [],
@@ -391,6 +391,89 @@ test.test('InternalApiAdapter fetches paginated workitems and uses latest detail
     },
   ]);
 });
+
+test.test('InternalApiAdapter normalizes workitem rich text descriptions from list and detail responses', async () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      userId: '10001',
+      listPath: '/devops-workitem/api/v1/query/workitems',
+      detailPath: '/devops-workitem/api/v1/query/{number}/document_detail',
+      detailIdField: 'number',
+    },
+  });
+
+  adapter._request = async (pathValue: string, requestOptions?: { method?: string; body?: unknown }) => {
+    if (pathValue === '/devops-workitem/api/v1/query/workitems') {
+      const page = (requestOptions?.body as { pagination?: { current_page?: number } })?.pagination?.current_page;
+      if (page === 1) {
+        return {
+          code: 200,
+          data: {
+            result: [
+              {
+                number: 'EP-LIST',
+                title: 'List-rich task',
+                status: '待处理',
+                description: '<h2>标题</h2><p><strong>说明：</strong> 第一段<br>第二行</p><ul><li>项目A</li><li>项目B</li></ul><p><a href="https://example.com/doc">查看文档</a></p><script>alert(1)</script>',
+              },
+              {
+                number: 'EP-DETAIL',
+                title: 'Detail-rich task',
+                status: '已完成',
+              },
+            ],
+            current_page: 1,
+            total_pages: 1,
+            last_page: true,
+          },
+        };
+      }
+    }
+
+    if (pathValue === '/devops-workitem/api/v1/query/EP-DETAIL/document_detail') {
+      return {
+        code: 200,
+        data: [
+          {
+            id: 1,
+            content: '<p>&lt;b&gt;unsafe&lt;/b&gt; &amp; <strong>safe</strong></p><ol><li>一</li><li>二</li></ol>',
+            created_time: '2024-03-10T09:25:03Z',
+          },
+        ],
+      };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch();
+
+  assert.deepEqual(tasks, [
+    {
+      external_id: 'EP-LIST',
+      title: 'List-rich task',
+      description: '## 标题\n\n**说明：** 第一段\n第二行\n\n- 项目A\n- 项目B\n\n查看文档 (https://example.com/doc)',
+      external_url: '',
+      status: 'TODO',
+      labels: [],
+      created_at: null,
+      updated_at: null,
+    },
+    {
+      external_id: 'EP-DETAIL',
+      title: 'Detail-rich task',
+      description: '**unsafe** & **safe**\n\n- 一\n- 二',
+      external_url: '',
+      status: 'DONE',
+      labels: [],
+      created_at: null,
+      updated_at: null,
+    },
+  ]);
+});
+
 
 test.test('InternalApiAdapter testConnection uses workitem POST payload when userId is configured', async () => {
   const adapter = new InternalApiAdapter({
