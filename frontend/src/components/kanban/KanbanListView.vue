@@ -461,7 +461,8 @@ const formatElapsedTime = (taskId) => {
 }
 
 .task-list-container {
-  max-height: 500px;
+  min-height: 420px;
+  max-height: clamp(620px, 68vh, 820px);
   overflow-y: auto;
   padding: 10px;
   padding-bottom: 18px;
