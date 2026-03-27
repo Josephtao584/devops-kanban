@@ -1,30 +1,59 @@
 <template>
   <div class="project-list-view page-shell page-shell--canvas page-shell--padded">
-    <div class="page-shell__inner page-shell__inner--narrow">
-      <div class="page-header page-header--compact">
-        <h1 class="page-header__title page-title">{{ $t('project.title') }}</h1>
-        <el-button type="primary" @click="showCreateDialog">
-          <el-icon><Plus /></el-icon>
-          {{ $t('project.newProject') }}
-        </el-button>
+    <div class="page-shell__inner page-shell__inner--narrow project-home">
+      <div class="brand-banner">
+        <h1 class="brand-wordmark">DevOps Kanban</h1>
       </div>
 
-      <el-skeleton v-if="loading" :rows="5" animated />
+      <section class="surface-panel home-header">
+        <div class="page-header home-header__inner">
+          <div class="page-header__content">
+            <p class="page-header__description">{{ $t('project.homeDescription') }}</p>
+          </div>
+          <div class="page-actions">
+            <el-button type="primary" @click="showCreateDialog">
+              <el-icon><Plus /></el-icon>
+              {{ $t('project.newProject') }}
+            </el-button>
+          </div>
+        </div>
+      </section>
 
-      <el-empty v-else-if="projects.length === 0" :description="$t('project.noProjects')">
-        <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
-      </el-empty>
+      <section class="workspace-panel surface-panel">
+        <div class="page-header workspace-panel__header">
+          <div class="page-header__content">
+            <div class="page-header__title">{{ $t('project.workspaceTitle') }}</div>
+            <p class="page-header__description">{{ $t('project.workspaceDescription') }}</p>
+          </div>
+          <div class="page-actions">
+            <span class="workspace-panel__count">{{ projects.length }} {{ $t('project.workspaceCountSuffix') }}</span>
+          </div>
+        </div>
 
-      <div v-else class="project-grid">
-        <ProjectCard
-          v-for="project in projects"
-          :key="project.id"
-          :project="project"
-          @click="openProject"
-          @edit="showEditDialog"
-          @delete="handleDelete"
-        />
-      </div>
+        <div class="workspace-panel__body">
+          <el-skeleton v-if="loading" :rows="6" animated />
+
+          <div v-else-if="projects.length === 0" class="empty-workspace">
+            <div class="empty-workspace__icon">
+              <el-icon><FolderOpened /></el-icon>
+            </div>
+            <h2 class="empty-workspace__title">{{ $t('project.emptyTitle') }}</h2>
+            <p class="empty-workspace__description">{{ $t('project.emptyDescription') }}</p>
+            <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
+          </div>
+
+          <div v-else class="project-grid">
+            <ProjectCard
+              v-for="project in projects"
+              :key="project.id"
+              :project="project"
+              @click="openProject"
+              @edit="showEditDialog"
+              @delete="handleDelete"
+            />
+          </div>
+        </div>
+      </section>
 
       <ProjectFormDialog
         v-model="dialogVisible"
@@ -41,7 +70,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, FolderOpened } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
 import ProjectCard from '../components/project/ProjectCard.vue'
 import ProjectFormDialog from '../components/project/ProjectFormDialog.vue'
@@ -83,7 +112,7 @@ const handleSubmit = async (formData) => {
     }
     dialogVisible.value = false
     editingProject.value = null
-  } catch (e) {
+  } catch {
     ElMessage.error(editingProject.value ? t('project.updateFailed') : t('project.createFailed'))
   } finally {
     submitting.value = false
@@ -108,7 +137,7 @@ const handleDelete = async (project) => {
   try {
     await projectStore.deleteProject(project.id)
     ElMessage.success(t('project.deleted'))
-  } catch (e) {
+  } catch {
     ElMessage.error(t('project.deleteFailed'))
   }
 }
@@ -130,36 +159,104 @@ watch(() => dialogVisible.value, (newValue) => {
   overflow-y: auto;
 }
 
-.page-shell__inner {
+.project-home {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   min-height: 100%;
 }
 
-.page-header {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+.brand-banner {
+  padding: 4px 0 0;
 }
 
-.page-header :deep(.el-button--primary) {
-  background: var(--button-primary-gradient);
-  border-color: var(--button-primary-active-border);
-  color: var(--button-primary-text);
-  box-shadow: var(--button-primary-shadow);
+.brand-wordmark {
+  display: inline-block;
+  margin: 0;
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: #25C6C9;
 }
 
-.page-header :deep(.el-button--primary:hover) {
-  background: var(--button-primary-gradient-hover);
-  border-color: var(--button-primary-active-border);
-  color: var(--button-primary-text);
-  box-shadow: var(--button-primary-shadow-hover);
+.home-header {
+  overflow: hidden;
+}
+
+.home-header__inner {
+  border-bottom: 1px solid var(--border-color);
+  align-items: center;
+}
+
+.workspace-panel {
+  overflow: hidden;
+}
+
+.workspace-panel__header {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.workspace-panel__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-tint-strong);
+  color: var(--accent-color-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace-panel__body {
+  padding: 20px;
 }
 
 .project-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
 }
+
+.empty-workspace {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.empty-workspace__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--accent-color-strong);
+  background: var(--surface-tint-strong);
+}
+
+.empty-workspace__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.empty-workspace__description {
+  margin: 0;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
 </style>

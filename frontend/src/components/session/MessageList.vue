@@ -53,6 +53,7 @@
 <script setup>
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ChatDotRound, ChatLineRound, Document } from '@element-plus/icons-vue'
+import { marked } from 'marked'
 import { useI18n } from 'vue-i18n'
 import SessionEventRenderer from './SessionEventRenderer.vue'
 
@@ -109,30 +110,22 @@ const formatTime = (timestamp) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-// Format message content with basic markdown support
+// Format message content with markdown support
 const formatContent = (content) => {
   if (!content) return ''
 
-  // Escape HTML
-  let formatted = content
+  const safeContent = content
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
-  // Bold text **text** or __text__
-  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-  formatted = formatted.replace(/__(.*?)__/g, '<strong>$1</strong>')
+  const rendered = marked.parse(safeContent, {
+    gfm: true,
+    breaks: true
+  })
 
-  // Inline code `code`
-  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>')
+  let formatted = typeof rendered === 'string' ? rendered : ''
 
-  // Code blocks ```code```
-  formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-
-  // Line breaks
-  formatted = formatted.replace(/\n/g, '<br>')
-
-  // Checkmarks
   formatted = formatted.replace(/✅/g, '<span class="check-icon">✅</span>')
   formatted = formatted.replace(/🔄/g, '<span class="loading-icon">🔄</span>')
   formatted = formatted.replace(/⏳/g, '<span class="pending-icon">⏳</span>')
@@ -292,8 +285,9 @@ defineExpose({ scrollToBottom })
 .message-kind-message .message-content {
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
+  overflow-x: auto;
 }
 
 .message-kind-message .message-content :deep(code) {
@@ -490,6 +484,38 @@ defineExpose({ scrollToBottom })
 
 .message-content :deep(.pending-icon) {
   color: #6b7280;
+}
+
+.message-content :deep(p) {
+  margin: 0 0 8px;
+}
+
+.message-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.message-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.message-content :deep(th),
+.message-content :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #d1d5db);
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-content :deep(th) {
+  background: rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+}
+
+.message-user .message-content :deep(th) {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 @keyframes spin {
