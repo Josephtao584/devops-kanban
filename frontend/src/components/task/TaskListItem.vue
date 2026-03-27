@@ -576,23 +576,23 @@ const openWorktreeDirectory = () => {
 }
 
 .task-item[data-status="IN_PROGRESS"] {
-  border-left-color: #3b82f6;
-  background-color: #f0f7ff;
-  --task-hover-bg: #eaf4ff;
-  --task-hover-border: rgba(59, 130, 246, 0.24);
-  --task-selected-bg: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
-  --task-selected-border: rgba(59, 130, 246, 0.28);
-  --task-selected-left: #60a5fa;
+  border-left-color: var(--in-progress-strong);
+  background-color: #fdfefe;
+  --task-hover-bg: #fafdfd;
+  --task-hover-border: rgba(37, 198, 201, 0.18);
+  --task-selected-bg: linear-gradient(135deg, #ffffff 0%, rgba(37, 198, 201, 0.035) 100%);
+  --task-selected-border: rgba(37, 198, 201, 0.18);
+  --task-selected-left: var(--in-progress-strong);
 }
 
 .task-item[data-status="DONE"] {
-  border-left-color: #10b981;
-  background-color: #f0fdf4;
-  --task-hover-bg: #ecfdf5;
-  --task-hover-border: rgba(16, 185, 129, 0.24);
-  --task-selected-bg: linear-gradient(135deg, #f3fdf7 0%, #e8f8ee 100%);
-  --task-selected-border: rgba(16, 185, 129, 0.24);
-  --task-selected-left: #34d399;
+  border-left-color: var(--done-strong);
+  background-color: #fefefe;
+  --task-hover-bg: #fbfdfd;
+  --task-hover-border: rgba(37, 198, 201, 0.16);
+  --task-selected-bg: linear-gradient(135deg, #ffffff 0%, rgba(37, 198, 201, 0.045) 100%);
+  --task-selected-border: rgba(37, 198, 201, 0.16);
+  --task-selected-left: var(--done-strong);
 }
 
 .task-item[data-status="BLOCKED"] {
@@ -667,25 +667,27 @@ const openWorktreeDirectory = () => {
 
 .task-title-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .task-title-left {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .task-title {
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-tight);
+  font-size: 15px;
+  line-height: 1.35;
   font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .github-link {
@@ -698,6 +700,13 @@ const openWorktreeDirectory = () => {
 .github-link :deep(.el-tag) {
   border-radius: 999px;
   font-size: 10px;
+  font-weight: 600;
+  padding: 0 8px;
+  height: 22px;
+  line-height: 20px;
+  border-color: rgba(107, 114, 128, 0.14);
+  background: rgba(107, 114, 128, 0.06);
+  color: var(--text-secondary);
 }
 .github-link:hover {
   opacity: 0.8;
@@ -723,9 +732,9 @@ const openWorktreeDirectory = () => {
 
 .task-description {
   flex: 1;
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-relaxed);
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+  color: rgba(75, 85, 99, 0.92);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -846,12 +855,15 @@ const openWorktreeDirectory = () => {
 
 /* Status badge */
 .status-badge {
-  font-size: 10px;
-  padding: 3px 8px;
+  min-height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
+  font-size: 10px;
   font-weight: 700;
-  display: inline-block;
-  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.02em;
 }
 
 /* Workflow expanded content */
@@ -1161,7 +1173,7 @@ const openWorktreeDirectory = () => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 14px;
+  padding: 6px 12px;
   font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-secondary);

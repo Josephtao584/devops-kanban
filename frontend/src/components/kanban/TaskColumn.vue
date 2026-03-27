@@ -166,23 +166,26 @@ const taskCount = computed(() => props.tasks.length)
 .kanban-column {
   display: flex;
   flex-direction: column;
-  background: var(--el-bg-color-page);
-  border-radius: 8px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   width: 500px;
   min-width: 500px;
   max-width: 500px;
   flex: 0 0 500px;
   max-height: 100%;
+  overflow: hidden;
 }
 
 .column-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px;
+  gap: 10px;
+  padding: 16px 18px;
   font-weight: 600;
-  border-bottom: 1px solid var(--el-border-color-light);
-  background: var(--el-fill-color-light);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
 }
 
 .column-status {
@@ -201,49 +204,61 @@ const taskCount = computed(() => props.tasks.length)
 
 .column-title {
   flex: 1;
-  font-size: 15px;
-  color: var(--el-text-color-primary);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .column-count {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-bg-color);
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-size: var(--font-size-xs);
+  color: var(--accent-color);
+  background: var(--accent-color-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 700;
 }
 
 .sync-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
   background: transparent;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s;
 }
 
 .sync-btn:hover {
-  background: var(--el-fill-color-light);
-  color: var(--el-color-primary);
+  background: var(--hover-bg);
+  color: var(--accent-color);
 }
 
 .column-content {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
+  background: var(--bg-secondary);
 }
 
+.column-content :deep(.task-item:last-child) {
+  margin-bottom: 0;
+}
+
+.column-content :deep(.task-item) {
+  box-shadow: none;
+}
 .empty-column {
   text-align: center;
-  padding: 20px 8px;
-  color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  padding: 24px 12px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .add-task-btn {
@@ -251,21 +266,22 @@ const taskCount = computed(() => props.tasks.length)
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 12px;
-  border: 1px dashed var(--el-border-color-light);
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  background: transparent;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .add-task-btn:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: #eff6ff;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: var(--hover-bg);
 }
 
 /* Drag and drop styles */

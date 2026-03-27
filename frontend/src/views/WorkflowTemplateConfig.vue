@@ -1,9 +1,9 @@
 <template>
-  <div class="workflow-template-config">
-    <div class="page-header">
-      <div>
-        <h1>{{ $t('workflowTemplate.title') }}</h1>
-        <p class="page-description">{{ $t('workflowTemplate.description') }}</p>
+  <div class="workflow-template-config page-shell">
+    <div class="page-header page-header--compact">
+      <div class="page-header__content">
+        <h1 class="page-header__title">{{ $t('workflowTemplate.title') }}</h1>
+        <p class="page-header__description page-description">{{ $t('workflowTemplate.description') }}</p>
       </div>
     </div>
 
@@ -771,58 +771,27 @@ onMounted(() => {
 
 <style scoped>
 .workflow-template-config {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-primary);
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  flex-shrink: 0;
-}
-
-.page-header h1 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--text-primary);
-}
-
-.page-description {
-  margin: 2px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
+  padding: 0;
 }
 
 .template-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 16px;
-  padding: 16px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  padding: 0 20px 20px;
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--bg-secondary);
+  background: var(--page-bg);
 }
 
 .template-sidebar,
 .template-card {
   min-height: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-sm);
 }
 
 .template-card {
@@ -833,22 +802,22 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 16px;
+  padding: 18px;
 }
 
 :deep(.template-card .el-card__body) {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   height: 100%;
   min-height: 0;
-  padding: 16px;
+  padding: 18px;
   overflow: auto;
 }
 
 .sidebar-section-title {
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin-bottom: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -873,9 +842,9 @@ onMounted(() => {
   flex-direction: column;
   width: 100%;
   gap: 4px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg-primary);
   text-align: left;
   cursor: pointer;
@@ -883,19 +852,19 @@ onMounted(() => {
 }
 
 .template-list-item:hover {
-  border-color: var(--accent-color);
-  background: var(--bg-tertiary);
+  border-color: rgba(37, 198, 201, 0.24);
+  background: var(--bg-secondary);
 }
 
 .template-list-item.is-active {
   border-color: var(--accent-color);
-  background: var(--bg-tertiary);
-  box-shadow: inset 0 0 0 1px var(--accent-color);
+  background: rgba(37, 198, 201, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.12);
 }
 
 .template-list-item__name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -908,6 +877,50 @@ onMounted(() => {
   gap: 8px;
 }
 
+.editor-actions :deep(.el-button),
+.create-template-form :deep(.el-button),
+.section-heading-row :deep(.el-button) {
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.editor-actions :deep(.el-button--primary),
+.create-template-form :deep(.el-button--primary),
+.section-heading-row :deep(.el-button--primary) {
+  background: var(--button-primary-gradient);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
+}
+
+.editor-actions :deep(.el-button--primary:hover),
+.create-template-form :deep(.el-button--primary:hover),
+.section-heading-row :deep(.el-button--primary:hover) {
+  background: var(--button-primary-gradient-hover);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow-hover);
+}
+
+.editor-actions :deep(.el-button:not(.el-button--primary)),
+.create-template-form :deep(.el-button:not(.el-button--primary)),
+.section-heading-row :deep(.el-button:not(.el-button--primary)) {
+  background: var(--button-surface-bg);
+  border-color: var(--button-surface-border);
+  color: var(--button-surface-text);
+  box-shadow: var(--button-neutral-shadow);
+}
+
+.editor-actions :deep(.el-button:not(.el-button--primary):hover),
+.create-template-form :deep(.el-button:not(.el-button--primary):hover),
+.section-heading-row :deep(.el-button:not(.el-button--primary):hover) {
+  background: var(--button-surface-hover-bg);
+  border-color: var(--button-surface-hover-border);
+  color: var(--button-surface-hover-text);
+}
 .editor-actions--template {
   flex-shrink: 0;
 }
@@ -939,12 +952,12 @@ onMounted(() => {
 .meta-label {
   min-width: 88px;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .meta-value {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   word-break: break-all;
 }
@@ -952,8 +965,8 @@ onMounted(() => {
 .step-validation-hint {
   margin-top: -4px;
   color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
 }
 
 .section-heading-row {
@@ -961,15 +974,15 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  min-height: 32px;
 }
-
 .section-heading {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.05em;
 }
 
 .workflow-preview-section {
@@ -979,9 +992,9 @@ onMounted(() => {
 .workflow-preview-shell {
   overflow-x: auto;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: #fcfdfd;
 }
 
 .workflow-preview-track {
@@ -1028,25 +1041,25 @@ onMounted(() => {
   width: 236px;
   min-height: 176px;
   padding: 12px 14px;
-  border-radius: 14px;
-  border: 2px solid #dbe4ee;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
   background: #fff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-sm);
   text-align: left;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .workflow-step-card:hover {
-  transform: translateY(-2px);
-  border-color: #93c5fd;
-  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
+  transform: translateY(-1px);
+  border-color: rgba(37, 198, 201, 0.24);
+  box-shadow: var(--shadow-md);
 }
 
 .workflow-step-card.is-selected {
-  border-color: #3b82f6;
-  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+  border-color: var(--accent-color);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(37, 198, 201, 0.05) 100%);
+  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.10);
 }
 
 .workflow-step-card.has-warning {
@@ -1075,8 +1088,8 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: rgba(37, 198, 201, 0.12);
+  color: var(--accent-color);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1148,8 +1161,8 @@ onMounted(() => {
 }
 
 .workflow-chip--neutral {
-  background: #e2e8f0;
-  color: #334155;
+  background: rgba(37, 198, 201, 0.08);
+  color: var(--accent-color);
 }
 
 .workflow-chip--warning {
@@ -1166,10 +1179,10 @@ onMounted(() => {
 
 .step-editor-card {
   padding: 20px;
-  border-radius: 16px;
-  border: 1px solid #dbe4ee;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
   background: #fff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .step-editor-card__header {

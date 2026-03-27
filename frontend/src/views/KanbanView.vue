@@ -1498,36 +1498,43 @@ onUnmounted(() => {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 10px 18px;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
+  min-height: var(--button-compact-height);
+  padding: var(--button-normal-padding-y) var(--button-normal-padding-x);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--button-font-size);
+  font-weight: var(--button-font-weight);
+  line-height: 1;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-primary {
-  background: #6366f1;
-  color: white;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  background: var(--button-primary-gradient);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
 }
 
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  background: var(--button-primary-gradient-hover);
+  border-color: var(--button-primary-active-border);
+  box-shadow: var(--button-primary-shadow-hover);
 }
 
 .btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
+  background: var(--button-surface-bg);
+  color: var(--button-surface-text);
+  border-color: var(--button-surface-border);
+  box-shadow: var(--button-neutral-shadow);
 }
 
 .btn-secondary:hover {
-  background: var(--hover-bg);
-  border-color: var(--accent-color);
+  background: var(--button-surface-hover-bg);
+  border-color: var(--button-surface-hover-border);
+  color: var(--button-surface-hover-text);
 }
 
 .btn-icon {
@@ -1681,13 +1688,17 @@ onUnmounted(() => {
 }
 
 .view-toolbar :deep(.el-button) {
-  min-height: 30px;
+  min-height: var(--button-compact-height);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border-radius: var(--radius-sm);
-  padding: 4px 10px;
+  padding: var(--button-tight-padding-y) var(--button-tight-padding-x);
   line-height: 1;
+  font-size: var(--button-font-size);
+  font-weight: var(--button-font-weight);
   flex-shrink: 0;
+  box-shadow: var(--button-neutral-shadow);
 }
 
 .view-toolbar :deep(.el-button span) {
@@ -1696,10 +1707,42 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.view-toolbar :deep(.el-button--primary.is-plain),
+.view-toolbar :deep(.el-button--primary.is-plain) {
+  background: var(--button-primary-plain-bg);
+  border-color: var(--button-primary-plain-border);
+  color: var(--button-primary-plain-text);
+}
+
+.view-toolbar :deep(.el-button--primary.is-plain:hover) {
+  background: var(--button-primary-plain-hover-bg);
+  border-color: var(--button-primary-plain-hover-border);
+  color: var(--button-primary-plain-hover-text);
+}
+
 .view-toolbar :deep(.el-button--default) {
-  font-size: 12px;
-  font-weight: 600;
+  background: var(--button-surface-bg);
+  border-color: var(--button-surface-border);
+  color: var(--button-surface-text);
+}
+
+.view-toolbar :deep(.el-button--default:hover) {
+  background: var(--button-surface-hover-bg);
+  border-color: var(--button-surface-hover-border);
+  color: var(--button-surface-hover-text);
+}
+
+.view-toolbar :deep(.el-button--primary:not(.is-plain)) {
+  background: var(--button-primary-gradient);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
+}
+
+.view-toolbar :deep(.el-button--primary:not(.is-plain):hover) {
+  background: var(--button-primary-gradient-hover);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow-hover);
 }
 
 .open-iteration-manager {
@@ -2234,12 +2277,6 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.view-toolbar :deep(.el-button--primary.is-plain),
-.view-toolbar :deep(.el-button--default) {
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .view-toolbar :deep(.el-select__placeholder),
 .view-toolbar :deep(.el-input__inner) {
   font-size: 12px;
@@ -2307,10 +2344,21 @@ onUnmounted(() => {
 }
 
 .sync-preview-controls :deep(.el-button) {
-  min-height: 28px;
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 6px;
+  min-height: var(--button-compact-height);
+  padding: var(--button-tight-padding-y) var(--button-tight-padding-x);
+  font-size: var(--button-font-size);
+  font-weight: var(--button-font-weight);
+  border-radius: var(--radius-sm);
+  background: var(--button-surface-bg);
+  border-color: var(--button-surface-border);
+  color: var(--button-surface-text);
+  box-shadow: var(--button-neutral-shadow);
+}
+
+.sync-preview-controls :deep(.el-button:hover) {
+  background: var(--button-surface-hover-bg);
+  border-color: var(--button-surface-hover-border);
+  color: var(--button-surface-hover-text);
 }
 
 .selected-count {
@@ -2601,27 +2649,32 @@ onUnmounted(() => {
   gap: 8px;
   margin-bottom: 20px;
   animation: welcome-pulse 2s ease-in-out infinite;
+  opacity: 0.78;
 }
 
 .logo-devops,
 .logo-kanban {
   font-size: 32px;
   font-weight: 800;
+  background: linear-gradient(90deg, rgba(37, 198, 201, 0.78) 0%, rgba(37, 198, 201, 0.58) 40%, rgba(234, 180, 69, 0.48) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .logo-devops {
-  color: #818cf8;
+  margin-right: 4px;
 }
 
 .logo-kanban {
-  color: #a78bfa;
+  margin-left: -2px;
 }
 
 .chat-welcome h2 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 10px;
-  color: #111827;
+  color: var(--text-secondary);
 }
 
 .chat-welcome p {
@@ -2825,10 +2878,10 @@ onUnmounted(() => {
 }
 
 .task-placeholder-content h2 {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   margin: 0;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .task-placeholder-content p {
@@ -2852,7 +2905,7 @@ onUnmounted(() => {
 
 .chat-welcome h2,
 .step-node-name {
-  font-size: var(--font-size-lg);
+  font-size: 15px;
 }
 
 .butler-info h3 {

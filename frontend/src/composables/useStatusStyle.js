@@ -14,11 +14,11 @@ export function useStatusStyle() {
   }
 
   const statusColors = {
-    'TODO': { bg: 'var(--el-color-info-light-9)', color: 'var(--el-color-info)' },
-    'IN_PROGRESS': { bg: 'var(--el-color-warning-light-9)', color: 'var(--el-color-warning)' },
-    'DONE': { bg: 'var(--el-color-success-light-9)', color: 'var(--el-color-success)' },
+    'TODO': { bg: 'var(--todo-soft)', color: 'var(--todo-strong)' },
+    'IN_PROGRESS': { bg: 'var(--in-progress-soft)', color: 'var(--in-progress-strong)' },
+    'DONE': { bg: 'var(--done-soft)', color: 'var(--done-strong)' },
     'BLOCKED': { bg: 'var(--el-color-danger-light-9)', color: 'var(--el-color-danger)' },
-    'REQUIREMENT': { bg: 'var(--el-color-primary-light-9)', color: 'var(--el-color-primary)' }
+    'REQUIREMENT': { bg: 'var(--accent-color-soft)', color: 'var(--accent-color)' }
   }
 
   /**
@@ -46,13 +46,13 @@ export function useStatusStyle() {
    */
   function getStatusBorderColor(status) {
     const colorMap = {
-      'TODO': '#6b7280',
-      'IN_PROGRESS': '#3b82f6',
-      'DONE': '#10b981',
+      'TODO': 'var(--todo-strong)',
+      'IN_PROGRESS': 'var(--in-progress-strong)',
+      'DONE': 'var(--done-strong)',
       'BLOCKED': '#ef4444',
-      'REQUIREMENT': 'var(--el-color-primary)'
+      'REQUIREMENT': 'var(--accent-color)'
     }
-    return colorMap[status] || '#94a3b8'
+    return colorMap[status] || 'var(--accent-color)'
   }
 
   /**
@@ -62,13 +62,13 @@ export function useStatusStyle() {
    */
   function getStatusBackground(status) {
     const gradientMap = {
-      'TODO': 'linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%)',
-      'IN_PROGRESS': 'linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)',
-      'DONE': 'linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)',
+      'TODO': 'linear-gradient(135deg, #ffffff 0%, var(--yellow-accent-mid) 100%)',
+      'IN_PROGRESS': 'linear-gradient(135deg, #ffffff 0%, var(--teal-accent-mid) 100%)',
+      'DONE': 'linear-gradient(135deg, #ffffff 0%, var(--teal-accent-strong) 100%)',
       'BLOCKED': 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)',
-      'REQUIREMENT': 'linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)'
+      'REQUIREMENT': 'linear-gradient(135deg, #ffffff 0%, var(--teal-accent-weak) 100%)'
     }
-    return gradientMap[status] || 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
+    return gradientMap[status] || 'linear-gradient(135deg, #ffffff 0%, var(--teal-accent-weak) 100%)'
   }
 
   return {

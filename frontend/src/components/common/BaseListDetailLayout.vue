@@ -113,212 +113,118 @@ defineSlots({
 
 <style scoped>
 .base-config-layout {
-  padding: 1.5rem;
-  height: calc(100vh - 60px);
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-secondary);
 }
-
-/* Utility classes for common patterns */
-.empty-detail {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #a0aec0;
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.empty-detail p {
-  font-size: 0.875rem;
-}
-
-.empty-list, .loading-state {
-  text-align: center;
-  padding: 2rem;
-  color: #718096;
-  font-size: 0.875rem;
-}
-</style>
-
-<!--
-Usage Examples:
-
-1. Split Layout (AgentConfig):
-<BaseListDetailLayout
-  title="Agent Management"
-  layout-mode="split"
-  :loading="loading"
-  :is-empty="agents.length === 0"
-  :has-selection="selectedAgent !== null"
->
-  <template #header-actions>
-    <button @click="openAddForm">+ Add Agent</button>
-  </template>
-  <template #list-header>
-    <h3>Team List</h3>
-    <span class="count">{{ agents.length }}</span>
-  </template>
-  <template #list>
-    <div v-for="agent in agents" :key="agent.id" @click="selectAgent(agent)">
-      {{ agent.name }}
-    </div>
-  </template>
-  <template #detail>
-    <div v-if="selectedAgent">
-      <h2>{{ selectedAgent.name }}</h2>
-      <!-- Detail content -->
-    </div>
-    <div v-else class="empty-detail">
-      <p>Select an agent</p>
-    </div>
-  </template>
-</BaseListDetailLayout>
-
-2. Grid Layout (TaskSourceConfig):
-<BaseListDetailLayout
-  title="Task Sources"
-  layout-mode="grid"
-  :loading="loading"
-  :is-empty="sources.length === 0"
->
-  <template #header-actions>
-    <button @click="openAddForm">+ Add Source</button>
-  </template>
-  <template #filter>
-    <select v-model="selectedProject">
-      <option>Select Project</option>
-    </select>
-  </template>
-  <template #list>
-    <div v-for="source in sources" :key="source.id" class="source-card">
-      <h3>{{ source.name }}</h3>
-    </div>
-  </template>
-</BaseListDetailLayout>
-
-3. With Modal and Toast:
-<BaseListDetailLayout ...>
-  <!-- Layout content -->
-
-  <template #modal>
-    <BaseModal v-model="showForm" title="Add Item">
-      <form @submit.prevent="save">
-        <!-- Form fields -->
-      </form>
-    </BaseModal>
-  </template>
-
-  <template #toast>
-    <BaseToast v-model="toast.show" :message="toast.message" :type="toast.type" />
-  </template>
-</BaseListDetailLayout>
--->
 
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
   flex-shrink: 0;
 }
 
 .header h1 {
-  font-size: 1.5rem;
-  color: #2d3748;
   margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .filter-bar {
-  margin-bottom: 1rem;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
   flex-shrink: 0;
 }
 
-/* Content wrapper - supports multiple layout modes */
 .content-wrapper {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  padding: var(--page-padding);
+  background: var(--bg-secondary);
 }
 
-/* Split layout (AgentConfig) - left-right panels */
 .content-wrapper.split {
   display: flex;
-  gap: 1rem;
+  gap: var(--page-gap);
+}
+
+.list-panel,
+.detail-panel {
+  background: var(--panel-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  min-height: 0;
 }
 
 .list-panel {
   flex-shrink: 0;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
   flex-shrink: 0;
 }
 
 .list-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 8px;
 }
 
 .detail-panel {
   flex: 1;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* Grid layout (TaskSourceConfig) */
-.content-wrapper.grid {
+.content-wrapper.grid,
+.content-wrapper.single {
   overflow-y: auto;
 }
 
 .grid-content {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-  padding-bottom: 1rem;
-}
-
-/* Single column layout */
-.content-wrapper.single {
-  overflow-y: auto;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--page-gap);
 }
 
 .single-content {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--page-gap);
 }
 
-/* Empty states */
 .empty-detail {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #a0aec0;
+  padding: 32px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
 }
 
 .empty-icon {
@@ -327,14 +233,17 @@ Usage Examples:
   opacity: 0.5;
 }
 
-.empty-detail p {
-  font-size: 0.875rem;
+.empty-detail p,
+.empty-list,
+.loading-state {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
 }
 
-.empty-list, .loading-state {
+.empty-list,
+.loading-state {
   text-align: center;
-  padding: 2rem;
-  color: #718096;
-  font-size: 0.875rem;
+  padding: 32px 24px;
+  color: var(--text-secondary);
 }
 </style>

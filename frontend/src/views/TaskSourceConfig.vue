@@ -645,6 +645,24 @@ onMounted(loadProjects)
 .header :deep(.el-button) {
   min-height: 36px;
 }
+
+.header :deep(.el-button--primary),
+.empty-state :deep(.el-button--primary),
+.dialog-footer :deep(.el-button--primary) {
+  background: var(--button-primary-gradient);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
+}
+
+.header :deep(.el-button--primary:hover),
+.empty-state :deep(.el-button--primary:hover),
+.dialog-footer :deep(.el-button--primary:hover) {
+  background: var(--button-primary-gradient-hover);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow-hover);
+}
 .project-selector {
   margin: 0;
 }
