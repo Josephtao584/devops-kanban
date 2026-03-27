@@ -1,13 +1,13 @@
 <template>
-  <div class="task-source-config">
-    <div class="header">
-      <h1>{{ $t('taskSource.title') }}</h1>
+  <div class="task-source-config page-shell">
+    <div class="header page-header page-header--compact">
+      <h1 class="page-header__title">{{ $t('taskSource.title') }}</h1>
       <el-button v-if="selectedProjectId" type="primary" size="small" @click="showAddDialog">
         {{ $t('taskSource.add') }}
       </el-button>
     </div>
 
-    <div class="project-selector">
+    <div class="project-selector page-filter-bar">
       <label for="project">{{ $t('project.selectProject') }}:</label>
       <select id="project" v-model="selectedProjectId" @change="onProjectChange">
         <option value="">-- {{ $t('project.selectProject') }} --</option>
@@ -234,9 +234,7 @@
               <div class="item-labels" v-if="task.labels && task.labels.length > 0">
                 <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
               </div>
-              <div v-if="task.description" class="item-description">
-                {{ task.description.substring(0, 150) }}{{ task.description.length > 150 ? '...' : '' }}
-              </div>
+              <div v-if="task.description" class="item-description" v-html="formatTaskDescription(task.description || '')"></div>
               <div class="item-meta">
                 <span class="item-id">#{{ task.external_id }}</span>
                 <span class="item-source">{{ task.sourceName }}</span>
@@ -297,6 +295,7 @@ import { useTaskSourceStore } from '../stores/taskSourceStore'
 import { useTaskStore } from '../stores/taskStore'
 import { ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
+import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
 import { useToast } from '../composables/ui/useToast'
 
 const { t } = useI18n()
@@ -371,6 +370,17 @@ const getFieldLabel = (key, field) => {
     rejectUnauthorized: '接受自签名证书'
   }
 
+  const internalApiLabels = {
+    baseUrl: 'API 基础地址',
+    listPath: '列表接口路径',
+    detailPath: '详情接口路径模板',
+    detailIdField: '详情ID字段'
+  }
+
+  if (formData.value.type === 'INTERNAL_API' && internalApiLabels[key]) {
+    return internalApiLabels[key]
+  }
+
   return commonLabels[key] || field.description || key
 }
 
@@ -390,8 +400,20 @@ const getFieldPlaceholder = (key, field) => {
     rejectUnauthorized: '关闭后接受自签名证书'
   }
 
+  const internalApiPlaceholders = {
+    baseUrl: '例如: https://internal.example.com',
+    token: '例如: Bearer xxx 或 ApiKey xxx',
+    listPath: '例如: /api/tasks',
+    detailPath: '例如: /api/tasks/{id}',
+    detailIdField: '例如: id 或 data.taskId'
+  }
+
   if (field?.default !== undefined) {
     return `默认: ${field.default}`
+  }
+
+  if (formData.value.type === 'INTERNAL_API' && internalApiPlaceholders[key]) {
+    return internalApiPlaceholders[key]
   }
 
   return commonPlaceholders[key] || field.description || ''
@@ -614,54 +636,25 @@ onMounted(loadProjects)
 <style scoped>
 .task-source-config {
   padding: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 0;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
 }
 
-.header h1 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+.header :deep(.el-button) {
+  min-height: 36px;
 }
-
 .project-selector {
   margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg-primary);
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.project-selector label {
-  font-weight: 500;
-  color: var(--text-secondary);
-  font-size: 12px;
-  margin: 0;
-  white-space: nowrap;
 }
 
 .project-selector select {
-  padding: 6px 10px;
+  padding: 9px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  min-width: 200px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  min-width: 220px;
+  font-size: var(--font-size-sm);
   background: var(--bg-primary);
   color: var(--text-primary);
   cursor: pointer;
@@ -675,93 +668,94 @@ onMounted(loadProjects)
 .project-selector select:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 3px var(--accent-color-soft);
 }
 
 .task-sources-list {
   background: var(--bg-secondary);
   flex: 1;
   overflow: auto;
+  padding: var(--page-padding);
 }
 
 .loading, .empty-state, .select-project-prompt {
   text-align: center;
   padding: 40px 20px;
   color: var(--text-secondary);
-  font-size: 13px;
-  background: var(--bg-secondary);
+  font-size: var(--font-size-sm);
+  background: transparent;
 }
 
 .sources-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 16px;
-  padding: 16px;
-  background: var(--bg-secondary);
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--page-gap);
+  background: transparent;
 }
 
 .source-card {
-  background: var(--bg-primary);
-  border-radius: 8px;
-  padding: 16px;
+  background: var(--panel-bg);
+  border-radius: var(--radius-md);
+  padding: 18px;
   border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   transition: all 0.2s;
   position: relative;
 }
 
 .source-card:hover {
-  border-color: var(--accent-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: var(--shadow-md);
 }
 
 .source-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border-color);
   gap: 12px;
 }
 
 .source-header h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .source-id {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   word-break: break-all;
 }
 
 .source-type-badge {
-  background: var(--accent-color);
-  padding: 2px 8px;
-  border-radius: 4px;
+  background: var(--accent-color-soft);
+  padding: 4px 9px;
+  border-radius: 999px;
   font-size: 10px;
-  font-weight: 600;
-  color: white;
+  font-weight: 700;
+  color: var(--accent-color);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
 .source-details {
-  background: var(--bg-tertiary);
-  padding: 8px;
-  border-radius: 6px;
-  margin-bottom: 10px;
+  background: var(--bg-secondary);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  padding: 2px 0;
+  font-size: var(--font-size-xs);
+  padding: 4px 0;
   gap: 12px;
 }
 
@@ -778,8 +772,15 @@ onMounted(loadProjects)
 
 .source-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.source-actions :deep(.el-button) {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
 }
 
 /* Sync Preview Dialog */
@@ -800,11 +801,18 @@ onMounted(loadProjects)
 
 .sync-preview-controls {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--el-border-color-lightest);
+}
+
+.sync-preview-controls :deep(.el-button) {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
 }
 
 .selected-count {

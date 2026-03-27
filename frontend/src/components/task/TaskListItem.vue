@@ -86,9 +86,7 @@
         </div>
       </div>
       <div class="task-description-row">
-        <div v-if="task.description && !compact" class="task-description">
-          {{ task.description }}
-        </div>
+        <div v-if="task.description && !compact" class="task-description" v-html="formattedDescription"></div>
         <button
           class="workflow-collapse-btn description-collapse-btn"
           @click.stop="$emit('toggle-workflow', task.id)"
@@ -251,6 +249,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { getWorkflowRun, cancelWorkflow, retryWorkflow } from '../../api/workflow'
@@ -420,6 +419,7 @@ const worktreeTooltip = computed(() => getWorktreeTooltip(props.task))
 const workflowWorktreeStatusText = computed(() => getWorktreeStatusText(props.task))
 const statusClass = computed(() => getStatusClass(props.task.status))
 const canStartTask = computed(() => !props.running && props.task?.status !== 'DONE')
+const formattedDescription = computed(() => formatTaskDescription(props.task?.description || ''))
 
 // Workflow data - only from real backend workflow run data or explicit prop
 const workflowData = computed(() => {
@@ -545,17 +545,18 @@ const openWorktreeDirectory = () => {
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 14px;
-  border-radius: 8px;
-  margin-bottom: 6px;
-  background: #fff;
-  border: 1px solid var(--el-border-color-light);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
   border-left: 4px solid #94a3b8;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s, transform 0.2s;
   will-change: transform;
   width: 100%;
   box-sizing: border-box;
+  box-shadow: var(--shadow-sm);
   --task-hover-bg: #f8fafc;
   --task-hover-border: rgba(148, 163, 184, 0.28);
   --task-selected-bg: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
@@ -607,7 +608,8 @@ const openWorktreeDirectory = () => {
 .task-item:hover {
   border-color: var(--task-hover-border);
   background: var(--task-hover-bg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .task-item.task-selected,
@@ -615,17 +617,18 @@ const openWorktreeDirectory = () => {
   border: 1px solid var(--task-selected-border);
   border-left: 4px solid var(--task-selected-left);
   background: var(--task-selected-bg);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--task-selected-left) 22%, white), 0 8px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--task-selected-left) 22%, white), 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 
 .task-item.task-running {
-  border-left: 3px solid var(--el-color-primary);
+  border-left: 4px solid var(--el-color-primary);
 }
 
 /* Compact mode */
 .task-item.task-compact {
-  padding: 8px 10px;
-  gap: 8px;
+  padding: 12px;
+  gap: 10px;
+  border-radius: var(--radius-sm);
 }
 
 /* Drag handle */
@@ -679,9 +682,10 @@ const openWorktreeDirectory = () => {
 }
 
 .task-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .github-link {
@@ -691,13 +695,17 @@ const openWorktreeDirectory = () => {
   width: fit-content;
 }
 
+.github-link :deep(.el-tag) {
+  border-radius: 999px;
+  font-size: 10px;
+}
 .github-link:hover {
   opacity: 0.8;
 }
 
 .task-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -715,12 +723,22 @@ const openWorktreeDirectory = () => {
 
 .task-description {
   flex: 1;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.task-description :deep(strong) {
+  color: var(--text-primary);
+}
+
+.task-description :deep(code) {
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .task-iteration {
@@ -828,19 +846,24 @@ const openWorktreeDirectory = () => {
 
 /* Status badge */
 .status-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
   display: inline-block;
+  letter-spacing: 0.03em;
 }
 
 /* Workflow expanded content */
 .workflow-expanded-content {
   flex-basis: 100%;
-  background: #f8fafc;
+  margin-top: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .workflow-main {
@@ -851,10 +874,23 @@ const openWorktreeDirectory = () => {
 
 /* Workflow sections */
 .workflow-section {
-  padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
+.workflow-section:last-child {
+  border-bottom: none;
+}
+
+.workflow-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workflow-panel-section-bordered {
+  border-top: 1px solid var(--border-color);
+}
 .workflow-section:last-child {
   border-bottom: none;
 }
@@ -877,9 +913,11 @@ const openWorktreeDirectory = () => {
 }
 
 .workflow-panel-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #334155;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .workflow-empty-state {
@@ -889,21 +927,22 @@ const openWorktreeDirectory = () => {
 }
 
 .workflow-empty-title {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: #475569;
+  color: var(--text-primary);
 }
 
 .workflow-empty-hint {
-  font-size: 12px;
-  color: #64748b;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 .workflow-status {
-  font-size: 12px;
-  font-weight: 500;
-  padding: 2px 10px;
-  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
   white-space: nowrap;
 }
 
@@ -1007,24 +1046,26 @@ const openWorktreeDirectory = () => {
 }
 
 .worktree-summary-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #334155;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .worktree-summary-delete-btn {
-  padding: 4px 10px;
+  padding: 6px 10px;
   border: 1px solid var(--el-color-danger-light-5);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
-
 .worktree-summary-delete-btn:hover:not(:disabled) {
   background: var(--el-color-danger);
   border-color: var(--el-color-danger);
@@ -1071,27 +1112,27 @@ const openWorktreeDirectory = () => {
 .worktree-summary-label {
   flex-shrink: 0;
   min-width: 48px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .worktree-summary-value {
   min-width: 0;
-  font-size: 12px;
-  color: #334155;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
 }
 
 .worktree-summary-branch {
   flex-shrink: 0;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
   background: #eef2ff;
   color: #4338ca;
+  font-weight: 600;
 }
-
 .worktree-summary-path {
   flex: 1;
   min-width: 0;
@@ -1119,24 +1160,23 @@ const openWorktreeDirectory = () => {
 .quick-actions .quick-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #475569;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  gap: 5px;
+  padding: 7px 14px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .quick-actions .quick-action-btn:hover:not(:disabled) {
-  background: #6366f1;
-  border-color: #6366f1;
+  background: var(--accent-color);
+  border-color: var(--accent-color);
   color: #fff;
 }
-
 .quick-actions .quick-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

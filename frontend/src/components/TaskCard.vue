@@ -42,7 +42,7 @@
         </el-tag>
       </a>
     </div>
-    <p v-if="task.description" class="task-description">{{ truncatedDescription }}</p>
+    <div v-if="task.description" class="task-description" v-html="formattedDescription"></div>
 
     <template #footer>
       <div class="task-footer">
@@ -77,6 +77,15 @@
 <script setup>
 import { computed } from 'vue'
 import { Clock, VideoPlay, Loading, Refresh } from '@element-plus/icons-vue'
+import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
+
+const truncateText = (text, maxLength = 100) => {
+  const normalized = String(text || '')
+  if (normalized.length <= maxLength) {
+    return normalized
+  }
+  return `${normalized.slice(0, maxLength)}...`
+}
 
 const props = defineProps({
   task: {
@@ -115,12 +124,7 @@ const priorityLabel = computed(() => {
   return labels[props.task.priority] || 'Med'
 })
 
-const truncatedDescription = computed(() => {
-  if (!props.task.description) return ''
-  return props.task.description.length > 100
-    ? props.task.description.substring(0, 100) + '...'
-    : props.task.description
-})
+const formattedDescription = computed(() => formatTaskDescription(truncateText(props.task.description || '')))
 
 const formatTime = (dateStr) => {
   if (!dateStr) return ''
@@ -266,10 +270,23 @@ const getSourceName = (source) => {
 }
 
 .task-description {
-  margin: 0;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.task-description :deep(strong) {
+  color: var(--el-text-color-primary);
+}
+
+.task-description :deep(code) {
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .task-footer {

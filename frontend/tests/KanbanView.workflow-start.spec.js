@@ -105,7 +105,8 @@ vi.mock('../src/composables/kanban/useWorkflowManager', () => ({
 }))
 
 vi.mock('../src/mock/workflowAssignment', () => ({
-  analyzeTaskCategory: vi.fn(() => 'FEATURE')
+  analyzeTaskCategory: vi.fn(() => 'FEATURE'),
+  getRecommendedWorkflowTemplateId: vi.fn(() => 'quick-fix-v1')
 }))
 
 vi.mock('../src/mock/workflowData', () => ({
@@ -492,5 +493,34 @@ describe('KanbanView workflow start entrypoint', () => {
         ]
       }
     })
+  })
+
+  it('renders sync preview descriptions safely', async () => {
+    const taskSourceStore = useTaskSourceStore()
+    taskSourceStore.showPreviewDialog = true
+    taskSourceStore.syncPreviewTasks = [
+      {
+        external_id: 'STORY-1',
+        title: '同步任务',
+        status: 'TODO',
+        labels: ['story'],
+        description: '<script>alert(1)</script> **重点**\n- 条目',
+        imported: false,
+        sourceName: 'CloudDevOps',
+        external_url: 'https://example.com/story/1'
+      }
+    ]
+    taskSourceStore.selectedSyncTasks = new Set(['STORY-1'])
+    taskSourceStore.syncError = ''
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const description = wrapper.find('.item-description')
+    expect(description.exists()).toBe(true)
+    expect(description.html()).toContain('<strong>重点</strong>')
+    expect(description.html()).not.toContain('<script>alert(1)</script>')
+    expect(description.text()).toContain('alert(1)')
+    expect(description.text()).toContain('• 条目')
   })
 })

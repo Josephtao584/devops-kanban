@@ -67,7 +67,6 @@
               size="small"
               :disabled="!selectedProjectId"
               @click="showIterationManager = true"
-              style="margin-left: 8px"
             >
               {{ $t('iteration.manageIterations') }}
             </el-button>
@@ -219,9 +218,7 @@
                 <div class="item-labels" v-if="task.labels && task.labels.length > 0">
                   <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
                 </div>
-                <div v-if="task.description" class="item-description">
-                  {{ task.description.substring(0, 150) }}{{ task.description.length > 150 ? '...' : '' }}
-                </div>
+                <div v-if="task.description" class="item-description" v-html="formatTaskDescription(task.description || '')"></div>
                 <div class="item-meta">
                   <span class="item-id">#{{ task.external_id }}</span>
                   <span class="item-source">{{ task.sourceName }}</span>
@@ -449,6 +446,7 @@
 
     <WorkflowTemplateSelectDialog
       v-model="showWorkflowTemplateDialog"
+      :recommended-template-id="recommendedWorkflowTemplateId"
       @confirm="handleWorkflowTemplateConfirm"
     />
 
@@ -613,10 +611,11 @@ import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
-import { analyzeTaskCategory } from '../mock/workflowAssignment'
+import { analyzeTaskCategory, getRecommendedWorkflowTemplateId } from '../mock/workflowAssignment'
 import { reorderTasks, startTask, deleteTask } from '../api/task.js'
 import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
+import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
 import { useToast } from '../composables/ui/useToast'
 import { useWorktree } from '../composables/useWorktree'
 
@@ -676,6 +675,7 @@ const pendingDeleteTaskId = ref(null)
 const showWorkflowStartEditorDialog = ref(false)
 const workflowStartDraftTemplate = ref(null)
 const selectedWorkflowTemplateId = ref('')
+const recommendedWorkflowTemplateId = ref('')
 
 watch(() => selectedTask.value?.status, (newStatus) => {
   if (newStatus === 'DONE' && currentViewingNodeId.value) {
@@ -868,6 +868,7 @@ const startSelectedTaskWithTemplate = async (
       showWorkflowStartEditorDialog.value = false
       workflowStartDraftTemplate.value = null
       selectedWorkflowTemplateId.value = ''
+      recommendedWorkflowTemplateId.value = ''
 
       if (selectedProjectId.value) {
         await taskStore.fetchTasks(selectedProjectId.value)
@@ -898,6 +899,7 @@ const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree })
     showWorkflowTemplateDialog.value = false
     showWorkflowStartEditorDialog.value = true
     workflowStartDraftTemplate.value.autoCreateWorktree = autoCreateWorktree
+    recommendedWorkflowTemplateId.value = ''
   } catch (error) {
     console.error('加载工作流模板失败:', error)
     ElMessage.error('加载工作流模板失败')
@@ -922,6 +924,8 @@ const handleWorkflowAction = (payload) => {
     console.log('[KanbanView] start action, task:', task?.id)
     if (task) {
       selectedTask.value = task
+      const category = task.category || analyzeTaskCategory(task.title, task.description)
+      recommendedWorkflowTemplateId.value = getRecommendedWorkflowTemplateId(category)
       console.log('[KanbanView] showing workflow template dialog')
       showWorkflowTemplateDialog.value = true
     } else {
@@ -1444,17 +1448,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   overflow: hidden;
 }
 
 .top-header {
   display: flex;
-  padding: 12px 16px;
-  gap: 10px;
+  padding: 14px 20px;
+  gap: 12px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--panel-bg);
   flex-shrink: 0;
 }
 
@@ -1468,9 +1472,9 @@ onUnmounted(() => {
   padding: 10px 14px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1488,7 +1492,7 @@ onUnmounted(() => {
 .project-selector select:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(92, 92, 255, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-color-soft);
 }
 
 .btn {
@@ -1547,20 +1551,20 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   overflow-x: auto;
-  padding-top: 16px;
+  padding-top: 18px;
+  background: var(--bg-secondary);
 }
 
 .kanban-area :deep(.workflow-timeline) {
-  margin: 12px;
-  margin-bottom: 8px;
+  margin: 0 20px 12px;
   flex-shrink: 0;
-  max-width: calc(100% - 24px);
+  max-width: calc(100% - 40px);
 }
 
 .kanban-board {
   display: flex;
   flex: 1;
-  padding: 16px;
+  padding: 0 20px 20px;
   gap: 16px;
   min-height: 0;
   align-content: stretch;
@@ -1569,28 +1573,713 @@ onUnmounted(() => {
 }
 
 .view-toolbar {
-  padding: 12px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  margin: 0 20px;
+  min-height: 40px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.view-toolbar > * {
+  align-self: center;
 }
 
 .view-toggle {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.iteration-filter {
+.view-toggle :deep(.el-radio-group) {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.view-toggle :deep(.el-radio-button) {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  min-width: 88px;
+  min-height: 30px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+  box-shadow: none;
+}
+
+.view-toggle :deep(.el-radio-button__inner)::before {
+  display: none;
+}
+
+.view-toggle :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  border-color: var(--accent-color);
+  box-shadow: none;
 }
 
 .view-btn-content {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  line-height: 1;
+  font-size: 12px;
+}
+
+.view-btn-content svg {
+  flex-shrink: 0;
+}
+
+.iteration-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.iteration-filter > :first-child {
+  width: 200px;
+  flex: 0 0 200px;
+}
+
+.view-toolbar :deep(.el-select) {
+  width: 100%;
+}
+
+.view-toolbar :deep(.el-input__wrapper),
+.view-toolbar :deep(.el-select__wrapper) {
+  width: 100%;
+  min-height: 30px;
+  border-radius: var(--radius-sm);
+}
+
+.view-toolbar :deep(.el-select__wrapper) {
+  justify-content: space-between;
+}
+
+.view-toolbar :deep(.el-select__placeholder),
+.view-toolbar :deep(.el-input__inner) {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.view-toolbar :deep(.el-button) {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.view-toolbar :deep(.el-button span) {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.view-toolbar :deep(.el-button--primary.is-plain),
+.view-toolbar :deep(.el-button--default) {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.open-iteration-manager {
+  margin-left: 0 !important;
+}
+.view-toolbar :deep(.el-button--default span) {
+  white-space: nowrap;
+}
+
+.view-toggle {
+  flex-shrink: 0;
+}
+
+.view-toggle :deep(.el-radio-group) {
+  flex-wrap: nowrap;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  white-space: nowrap;
+}
+
+.view-toggle :deep(.el-radio-button) {
+  flex-shrink: 0;
+}
+
+.view-toggle :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner),
+.view-toggle :deep(.el-radio-button__inner) {
+  overflow: visible;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  box-sizing: border-box;
+}
+
+.view-toggle :deep(.el-radio-button) + .el-radio-button {
+  margin-left: 0;
+}
+
+.view-toggle :deep(.el-radio-button:not(:first-child) .el-radio-button__inner) {
+  border-left: 1px solid var(--border-color);
+}
+
+.view-toggle :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  border-left-color: var(--accent-color);
+}
+
+.view-toggle :deep(.el-radio-button:first-child .el-radio-button__inner) {
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.view-toggle :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.view-toggle :deep(.el-radio-button:first-child .el-radio-button__inner),
+.view-toggle :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.view-toggle :deep(.el-radio-button:not(:first-child) .el-radio-button__inner) {
+  margin-left: 0;
+}
+
+.view-toggle :deep(.el-radio-group) {
+  gap: 4px;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  min-width: 92px;
+  justify-content: center;
+}
+
+.view-toggle :deep(.el-radio-button__inner:hover) {
+  z-index: 1;
+}
+
+.view-toggle :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  z-index: 2;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  position: relative;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  border: 1px solid var(--border-color);
+}
+
+.view-toggle :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  border-color: var(--accent-color);
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  box-shadow: none;
+}
+
+.view-toggle :deep(.el-radio-button__inner)::before {
+  display: none;
+}
+
+.view-toggle :deep(.el-radio-button + .el-radio-button) {
+  margin-left: 0;
+}
+
+.view-toggle :deep(.el-radio-button) {
+  margin-left: 0;
+}
+
+.view-toggle :deep(.el-radio-button:first-child .el-radio-button__inner),
+.view-toggle :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.view-toggle :deep(.el-radio-button:not(:first-child) .el-radio-button__inner) {
+  margin-left: 0;
+}
+
+.view-toggle :deep(.el-radio-group) {
+  gap: 4px;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  background-clip: padding-box;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  overflow: hidden;
+}
+
+.view-toggle :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  overflow: hidden;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  text-overflow: clip;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  line-height: 1;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  min-width: 0;
+}
+
+.view-toggle :deep(.el-radio-button) {
+  min-width: 0;
+}
+
+.view-toggle :deep(.el-radio-group) {
+  min-width: 0;
+}
+
+.view-toggle :deep(.el-radio-button__inner) {
+  min-width: 88px;
+}
+
+.list-status-filter {
+  flex-shrink: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  flex-wrap: nowrap;
+}
+
+.list-status-filter :deep(.el-checkbox-button) {
+  flex-shrink: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  white-space: nowrap;
+  min-width: 70px;
+  justify-content: center;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  box-sizing: border-box;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  overflow: hidden;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  text-overflow: clip;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  border: 1px solid var(--border-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  border-color: var(--accent-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  box-shadow: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button:first-child .el-checkbox-button__inner),
+.list-status-filter :deep(.el-checkbox-button:last-child .el-checkbox-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.list-status-filter :deep(.el-checkbox-button:not(:first-child) .el-checkbox-button__inner) {
+  margin-left: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  gap: 4px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner)::before {
+  display: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button + .el-checkbox-button) {
+  margin-left: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  background-clip: padding-box;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  line-height: 1;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-width: 66px;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  min-width: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button) {
+  min-width: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-width: 66px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  z-index: 1;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner:hover) {
+  z-index: 1;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  position: relative;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  overflow: visible;
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  overflow: visible;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  overflow: hidden;
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  overflow: hidden;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  justify-content: center;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  font-size: 11px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  font-weight: 600;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  height: 30px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-height: 30px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  background: var(--panel-bg);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  background: var(--accent-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  color: var(--text-secondary);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  color: #fff;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  border-color: var(--border-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  border-color: var(--accent-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  box-shadow: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  box-shadow: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  white-space: nowrap;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  gap: 4px;
+}
+
+.list-status-filter :deep(.el-checkbox-button:not(:first-child) .el-checkbox-button__inner) {
+  margin-left: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button:first-child .el-checkbox-button__inner),
+.list-status-filter :deep(.el-checkbox-button:last-child .el-checkbox-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.list-status-filter :deep(.el-checkbox-button + .el-checkbox-button) {
+  margin-left: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner)::before {
+  display: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-width: 66px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  overflow: hidden;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  text-overflow: clip;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  display: flex;
+  align-items: center;
+}
+
+.list-status-filter :deep(.el-checkbox-button) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  line-height: 1;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-width: 66px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  flex-wrap: nowrap;
+}
+
+.list-status-filter :deep(.el-checkbox-button) {
+  flex-shrink: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  white-space: nowrap;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  height: 30px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-height: 30px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  box-sizing: border-box;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  box-shadow: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  box-shadow: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner)::before {
+  display: none;
+}
+
+.list-status-filter :deep(.el-checkbox-button + .el-checkbox-button) {
+  margin-left: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  gap: 4px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  min-width: 66px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  overflow: hidden;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  text-overflow: clip;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  background-clip: padding-box;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  position: relative;
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  z-index: 1;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner:hover) {
+  z-index: 1;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  border: 1px solid var(--border-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  border-color: var(--accent-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  color: var(--text-secondary);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  color: #fff;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  background: var(--panel-bg);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  background: var(--accent-color);
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  font-size: 11px;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  font-weight: 600;
+}
+
+.view-toolbar :deep(.el-button--primary.is-plain),
+.view-toolbar :deep(.el-button--default) {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.view-toolbar :deep(.el-select__placeholder),
+.view-toolbar :deep(.el-input__inner) {
+  font-size: 12px;
+}
+
+.view-toolbar :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  box-shadow: none;
+}
+
+.view-toolbar :deep(.el-radio-button:first-child .el-radio-button__inner),
+.view-toolbar :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.view-toolbar :deep(.el-radio-button:not(:first-child) .el-radio-button__inner) {
+  margin-left: 0;
+}
+
+.view-toggle,
+.list-status-filter {
+  min-height: 28px;
+}
+
+.view-toolbar :deep(.el-radio-group) {
+  gap: 4px;
+}
+.open-iteration-manager {
+  margin-left: 0 !important;
+}
+
+@media (max-width: 1200px) {
+  .view-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .iteration-filter {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
 }
 
 .sync-preview-loading {
@@ -1610,11 +2299,18 @@ onUnmounted(() => {
 
 .sync-preview-controls {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--el-border-color-light);
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--el-border-color-lightest);
+}
+
+.sync-preview-controls :deep(.el-button) {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
 }
 
 .selected-count {
@@ -1814,12 +2510,13 @@ onUnmounted(() => {
 
 .chat-container {
   width: 600px;
-  background: #f7f7f8;
-  border-left: 1px solid #e5e7eb;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   position: relative;
   flex-shrink: 0;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.04);
 }
 
 .chat-container.collapsed {
@@ -1834,11 +2531,11 @@ onUnmounted(() => {
   top: 50%;
   transform: translateY(-50%);
   right: 0;
-  width: 24px;
-  height: 52px;
+  width: 28px;
+  height: 56px;
   background: #111827;
   border: none;
-  border-radius: 8px 0 0 8px;
+  border-radius: 10px 0 0 10px;
   cursor: pointer;
   z-index: 100;
   transition: all 0.2s ease;
@@ -1846,6 +2543,17 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding-left: 4px;
+  box-shadow: -4px 0 14px rgba(15, 23, 42, 0.18);
+}
+
+.chat-toggle-btn:hover {
+  width: 32px;
+  background: #0f172a;
+}
+
+.chat-toggle-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .chat-container:not(.collapsed) .chat-toggle-btn {
@@ -1857,10 +2565,6 @@ onUnmounted(() => {
   right: 0;
   border-radius: 0 8px 8px 0;
   padding-left: 0;
-}
-
-.chat-toggle-btn:hover {
-  width: 28px;
 }
 
 .collapse-arrow {
@@ -1883,7 +2587,7 @@ onUnmounted(() => {
   height: 100%;
   padding: 48px 28px;
   text-align: center;
-  background: #f7f7f8;
+  background: var(--panel-bg);
 }
 
 @keyframes welcome-pulse {
@@ -2007,16 +2711,21 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #f7f7f8;
+  background: var(--panel-bg);
 }
 
 .step-chat-header {
   display: flex;
   align-items: center;
-  padding: 18px 20px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f7f7f8;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
   flex-shrink: 0;
+}
+
+.step-chat-header,
+.butler-header {
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.02);
 }
 
 .step-header-copy {
@@ -2096,7 +2805,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex: 1;
-  background: #f7f7f8;
+  background: var(--panel-bg);
 }
 
 .task-placeholder-content {
@@ -2104,31 +2813,59 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 10px;
+  gap: 12px;
   padding: 48px 32px;
-  max-width: 340px;
+  max-width: 360px;
 }
 
 .task-placeholder-content svg {
   margin-bottom: 8px;
-  color: #9ca3af;
+  color: var(--text-muted);
   opacity: 0.9;
 }
 
 .task-placeholder-content h2 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
   margin: 0;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .task-placeholder-content p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #6b7280;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
 }
 
+.task-placeholder-content strong {
+  color: var(--accent-color);
+}
+
+.chat-welcome p,
+.step-node-role,
+.step-node-duration,
+.butler-worktree .worktree-label,
+.butler-worktree .worktree-badge {
+  font-size: var(--font-size-xs);
+}
+
+.chat-welcome h2,
+.step-node-name {
+  font-size: var(--font-size-lg);
+}
+
+.butler-info h3 {
+  font-size: var(--font-size-md);
+}
+
+.step-header-label {
+  letter-spacing: 0.06em;
+}
+
+.step-status-badge {
+  border-radius: 999px;
+}
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -2143,25 +2880,27 @@ onUnmounted(() => {
 }
 
 .modal {
-  background: var(--bg-secondary);
-  border-radius: 12px;
+  background: var(--panel-bg);
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(219, 227, 239, 0.8);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--border-color);
 }
 
 .modal-header h2 {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
   margin: 0;
   color: var(--text-primary);
 }
@@ -2187,25 +2926,26 @@ onUnmounted(() => {
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 22px;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  padding: 16px 20px;
+  padding: 16px 22px;
   border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -2215,11 +2955,11 @@ onUnmounted(() => {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
   background: var(--bg-primary);
   color: var(--text-primary);
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .form-group input:focus,
@@ -2227,8 +2967,13 @@ onUnmounted(() => {
 .form-group select:focus {
   outline: none;
   border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px var(--accent-color-soft);
 }
 
+.modal-footer .btn,
+.modal-actions .btn {
+  min-height: 38px;
+}
 .form-group textarea {
   resize: vertical;
   min-height: 80px;
@@ -2290,7 +3035,7 @@ onUnmounted(() => {
 }
 
 .btn-link:hover {
-  background: var(--accent-color-light);
+  background: var(--accent-color-soft);
 }
 
 .requirements-list {

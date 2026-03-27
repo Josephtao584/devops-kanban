@@ -520,9 +520,75 @@ class InternalApiAdapter extends TaskSourceAdapter {
     return typeof latestRecord.content === 'string' ? latestRecord.content : '';
   }
 
+  _decodeHtmlEntities(value: string): string {
+    const namedEntities: Record<string, string> = {
+      amp: '&',
+      apos: "'",
+      gt: '>',
+      lt: '<',
+      nbsp: ' ',
+      quot: '"',
+      '#39': "'",
+    };
+
+    return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, rawCode) => {
+      const code = String(rawCode).toLowerCase();
+      if (code.startsWith('#x')) {
+        const parsed = Number.parseInt(code.slice(2), 16);
+        return Number.isNaN(parsed) ? entity : String.fromCodePoint(parsed);
+      }
+      if (code.startsWith('#')) {
+        const parsed = Number.parseInt(code.slice(1), 10);
+        return Number.isNaN(parsed) ? entity : String.fromCodePoint(parsed);
+      }
+      return namedEntities[code] ?? entity;
+    });
+  }
+
+  _normalizeWorkitemDescription(value: string): string {
+    if (!value) {
+      return '';
+    }
+
+    let normalized = value.replace(/\r\n?/g, '\n');
+    const hasHtmlLikeMarkup = /<\/?[a-z][^>]*>/i.test(normalized) || /&(#x[0-9a-f]+|#\d+|[a-z]+);/i.test(normalized);
+    if (!hasHtmlLikeMarkup) {
+      return normalized.trim();
+    }
+
+    normalized = normalized.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    normalized = normalized.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+    normalized = normalized.replace(/<br\s*\/?>/gi, '\n');
+    normalized = normalized.replace(/<pre\b[^>]*>\s*<code\b[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, '\n```\n$1\n```\n');
+    normalized = normalized.replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, '`$1`');
+    normalized = normalized.replace(/<a\b[^>]*href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (_match, _quote, href, inner) => {
+      const link = String(href).trim();
+      if (!link) {
+        return String(inner);
+      }
+      return `${String(inner)} (${link})`;
+    });
+    normalized = normalized.replace(/<(strong|b)\b[^>]*>([\s\S]*?)<\/(strong|b)>/gi, '**$2**');
+    normalized = normalized.replace(/<(em|i)\b[^>]*>([\s\S]*?)<\/(em|i)>/gi, '*$2*');
+    normalized = normalized.replace(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi, (_match, inner) => `\n## ${String(inner).replace(/<[^>]+>/g, ' ').trim()}\n`);
+    normalized = normalized.replace(/<li\b[^>]*>/gi, '\n- ');
+    normalized = normalized.replace(/<\/li>/gi, '');
+    normalized = normalized.replace(/<\/?(ul|ol)\b[^>]*>/gi, '\n');
+    normalized = normalized.replace(/<\/?(p|div|section|article|blockquote|header|footer|table|tbody|thead|tfoot|tr)\b[^>]*>/gi, '\n');
+    normalized = normalized.replace(/<img\b[^>]*src=(['"])(.*?)\1[^>]*>/gi, (_match, _quote, src) => `\n图片: ${String(src).trim()}\n`);
+    normalized = normalized.replace(/<[^>]+>/g, '');
+    normalized = this._decodeHtmlEntities(normalized);
+    normalized = normalized.replace(/\u00A0/g, ' ');
+    normalized = normalized.replace(/[ \t]+\n/g, '\n');
+    normalized = normalized.replace(/\n{3,}/g, '\n\n');
+
+    return normalized.trim();
+  }
+
   _buildWorkitemTask(item: UnknownRecord, description: string, identifier: unknown): ImportedTask {
     return this.convertToTask({
       ...item,
+      description,
       content: description,
       id: item.id ?? identifier,
       external_id: item.external_id ?? item.number ?? identifier,
@@ -623,13 +689,16 @@ class InternalApiAdapter extends TaskSourceAdapter {
       throw new Error('Internal API detailPath is required.');
     }
 
-    const offset = options?.offset ?? 0;
+    const fetchOptions = {
+      ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+      ...(options?.offset !== undefined ? { offset: options.offset } : {}),
+    };
 
     if (this._usesWorkitemEndpoints()) {
-      return this._fetchWorkitemTasks({ limit: options?.limit });
+      return this._fetchWorkitemTasks(fetchOptions);
     }
 
-    return this._fetchGenericTasks({ limit: options?.limit });
+    return this._fetchGenericTasks(fetchOptions);
   }
 
   override async testConnection(): Promise<boolean> {
@@ -657,13 +726,16 @@ class InternalApiAdapter extends TaskSourceAdapter {
   override convertToTask(item: unknown): ImportedTask {
     const record = (item ?? {}) as UnknownRecord;
     const title = [record.title, record.subject, record.name].find((value) => typeof value === 'string' && value) as string | undefined;
-    const description = [record.description, record.body, record.content].find((value) => typeof value === 'string') as string | undefined;
+    const rawDescription = [record.description, record.body, record.content].find((value) => typeof value === 'string') as string | undefined;
+    const description = this._usesWorkitemEndpoints()
+      ? this._normalizeWorkitemDescription(rawDescription || '')
+      : (rawDescription || '');
     const externalUrl = [record.url, record.external_url, record.html_url].find((value) => typeof value === 'string') as string | undefined;
 
     return {
       external_id: String(record.external_id ?? record.id ?? ''),
       title: title || 'Untitled',
-      description: description || '',
+      description,
       external_url: externalUrl || '',
       status: this._mapStatus(record.status ?? record.state),
       labels: this._mapLabels(record.labels),
