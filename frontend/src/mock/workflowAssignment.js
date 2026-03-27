@@ -76,12 +76,12 @@ export const ASSIGNMENT_RULES = {
 }
 
 export const CategoryWorkflowTemplateMapping = {
-  FEATURE: 'superpower-feature-v1',
-  BUG_FIX: 'superpower-bugfix-v1',
-  REFACTORING: 'superpower-refactoring-v1',
-  DOCUMENTATION: 'superpower-documentation-v1',
-  TESTING: 'superpower-testing-v1',
-  DESIGN: 'superpower-design-v1'
+  FEATURE: 'feature-v1',
+  BUG_FIX: 'bugfix-v1',
+  REFACTORING: 'refactoring-v1',
+  DOCUMENTATION: 'documentation-v1',
+  TESTING: 'testing-v1',
+  DESIGN: 'design-v1'
 }
 
 /**

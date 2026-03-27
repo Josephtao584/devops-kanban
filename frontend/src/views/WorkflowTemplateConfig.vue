@@ -294,7 +294,7 @@ import {
   formatBoundAgentState as formatAgentBindingState,
 } from '../components/workflow/templateEditorShared.js'
 
-const DEFAULT_TEMPLATE_ID = 'dev-workflow-v1'
+const DEFAULT_TEMPLATE_ID = 'workflow-v1'
 
 const { t } = useI18n()
 

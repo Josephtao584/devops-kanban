@@ -40,31 +40,31 @@ function buildValidAgents() {
 
 function buildTemplate() {
   return {
-    template_id: 'dev-workflow-v1',
-    name: '默认研发工作流',
+    template_id: 'workflow-v1',
+    name: '通用复杂任务工作流',
     steps: [
       {
-        id: 'requirement-design',
-        name: '需求设计',
-        instructionPrompt: '先完成需求分析。',
+        id: 'solution-design',
+        name: '方案设计',
+        instructionPrompt: '完成方案设计。',
         agentId: 11,
       },
       {
-        id: 'code-development',
-        name: '代码开发',
-        instructionPrompt: '完成代码实现。',
+        id: 'feature-development',
+        name: '开发实现',
+        instructionPrompt: '完成开发实现。',
         agentId: 12,
       },
       {
-        id: 'testing',
-        name: '测试',
-        instructionPrompt: '执行必要验证。',
+        id: 'qa-validation',
+        name: '测试验证',
+        instructionPrompt: '执行测试验证。',
         agentId: 13,
       },
       {
-        id: 'code-review',
-        name: '代码审查',
-        instructionPrompt: '完成代码审查。',
+        id: 'final-review',
+        name: '结果评审',
+        instructionPrompt: '完成最终评审。',
         agentId: 14,
       },
     ],
@@ -82,15 +82,15 @@ function createLifecycleHarness({
   const run = {
     id: 7,
     task_id: 1,
-    workflow_id: 'dev-workflow-v1',
-    workflow_template_id: 'dev-workflow-v1',
+    workflow_id: 'workflow-v1',
+    workflow_template_id: 'workflow-v1',
     workflow_template_snapshot: template,
     status: runStatus,
     current_step: currentStep,
     steps: [
       {
-        step_id: 'requirement-design',
-        name: '需求设计',
+        step_id: 'solution-design',
+        name: '方案设计',
         status: stepStatus,
         started_at: null as string | null,
         completed_at: null as string | null,
@@ -231,13 +231,13 @@ function createLifecycleHarness({
 test.test('onStepStart creates a session, segment, and marks step RUNNING', async () => {
   const harness = createLifecycleHarness();
 
-  await harness.lifecycle.onStepStart(7, 'requirement-design', harness.task);
+  await harness.lifecycle.onStepStart(7, 'solution-design', harness.task);
 
   assert.equal(harness.sessionCreates.length, 1);
   const sessionPayload = harness.sessionCreates[0]!;
   assert.equal(sessionPayload.task_id, 1);
   assert.equal(sessionPayload.workflow_run_id, 7);
-  assert.equal(sessionPayload.workflow_step_id, 'requirement-design');
+  assert.equal(sessionPayload.workflow_step_id, 'solution-design');
   assert.equal(sessionPayload.status, 'RUNNING');
   assert.equal(sessionPayload.agent_id, 11);
   assert.equal(sessionPayload.executor_type, 'CLAUDE_CODE');
@@ -256,13 +256,13 @@ test.test('onStepStart creates a session, segment, and marks step RUNNING', asyn
   assert.equal(step.error, null);
   assert.equal(step.summary, null);
 
-  assert.equal(harness.run.current_step, 'requirement-design');
+  assert.equal(harness.run.current_step, 'solution-design');
 });
 
 test.test('onStepComplete marks step COMPLETED with summary', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
     stepSessionId: null,
   });
 
@@ -273,7 +273,7 @@ test.test('onStepComplete marks step COMPLETED with summary', async () => {
   const segment = { id: 201, session_id: 101, status: 'RUNNING' } as Record<string, unknown> & { id: number; session_id: number };
   harness.segments.push(segment);
 
-  await harness.lifecycle.onStepComplete(7, 'requirement-design', { summary: '  Requirements analyzed successfully  ' });
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: '  Requirements analyzed successfully  ' });
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'COMPLETED');
   assert.ok(stepUpdate);
@@ -293,10 +293,10 @@ test.test('onStepComplete marks step COMPLETED with summary', async () => {
 test.test('onStepComplete with empty summary stores null', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
-  await harness.lifecycle.onStepComplete(7, 'requirement-design', { summary: '   ' });
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: '   ' });
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'COMPLETED');
   assert.ok(stepUpdate);
@@ -306,10 +306,10 @@ test.test('onStepComplete with empty summary stores null', async () => {
 test.test('onStepComplete with non-string summary stores null', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
-  await harness.lifecycle.onStepComplete(7, 'requirement-design', { other: 'data' });
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { other: 'data' });
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'COMPLETED');
   assert.ok(stepUpdate);
@@ -319,7 +319,7 @@ test.test('onStepComplete with non-string summary stores null', async () => {
 test.test('onStepError marks step FAILED with error message', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
   harness.run.steps[0]!.session_id = 101;
@@ -329,7 +329,7 @@ test.test('onStepError marks step FAILED with error message', async () => {
   const segment = { id: 201, session_id: 101, status: 'RUNNING' } as Record<string, unknown> & { id: number; session_id: number };
   harness.segments.push(segment);
 
-  await harness.lifecycle.onStepError(7, 'requirement-design', 'Agent process exited with code 1');
+  await harness.lifecycle.onStepError(7, 'solution-design', 'Agent process exited with code 1');
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'FAILED');
   assert.ok(stepUpdate);
@@ -348,10 +348,10 @@ test.test('onStepError marks step FAILED with error message', async () => {
 test.test('onStepError with empty message defaults to "Step failed"', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
-  await harness.lifecycle.onStepError(7, 'requirement-design', '');
+  await harness.lifecycle.onStepError(7, 'solution-design', '');
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'FAILED');
   assert.ok(stepUpdate);
@@ -361,7 +361,7 @@ test.test('onStepError with empty message defaults to "Step failed"', async () =
 test.test('onStepCancel marks step CANCELLED', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
   harness.run.steps[0]!.session_id = 101;
@@ -371,7 +371,7 @@ test.test('onStepCancel marks step CANCELLED', async () => {
   const segment = { id: 201, session_id: 101, status: 'RUNNING' } as Record<string, unknown> & { id: number; session_id: number };
   harness.segments.push(segment);
 
-  await harness.lifecycle.onStepCancel(7, 'requirement-design');
+  await harness.lifecycle.onStepCancel(7, 'solution-design');
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'CANCELLED');
   assert.ok(stepUpdate);
@@ -390,21 +390,21 @@ test.test('onStepCancel marks step CANCELLED', async () => {
 test.test('onUnexpectedError finalizes the currently running step as FAILED', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
   await harness.lifecycle.onUnexpectedError(7, 'Unexpected crash');
 
   const stepUpdate = harness.stepUpdates.find((update) => update.updateData.status === 'FAILED');
   assert.ok(stepUpdate);
-  assert.equal(stepUpdate.stepId, 'requirement-design');
+  assert.equal(stepUpdate.stepId, 'solution-design');
   assert.equal(stepUpdate.updateData.error, 'Unexpected crash');
 });
 
 test.test('onUnexpectedError with empty message defaults to "Workflow failed"', async () => {
   const harness = createLifecycleHarness({
     stepStatus: 'RUNNING',
-    currentStep: 'requirement-design',
+    currentStep: 'solution-design',
   });
 
   await harness.lifecycle.onUnexpectedError(7, '');
@@ -430,7 +430,7 @@ test.test('onStepStart skips if step is already cancelled', async () => {
     stepStatus: 'CANCELLED',
   });
 
-  await harness.lifecycle.onStepStart(7, 'requirement-design', harness.task);
+  await harness.lifecycle.onStepStart(7, 'solution-design', harness.task);
 
   assert.equal(harness.sessionCreates.length, 0);
   assert.equal(harness.segmentCreates.length, 0);
@@ -442,7 +442,7 @@ test.test('onStepComplete is a no-op when the step is already cancelled', async 
     stepStatus: 'CANCELLED',
   });
 
-  await harness.lifecycle.onStepComplete(7, 'requirement-design', { summary: 'Done' });
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: 'Done' });
 
   assert.equal(harness.stepUpdates.length, 0);
   assert.equal(harness.sessionUpdates.length, 0);
@@ -454,7 +454,7 @@ test.test('onStepComplete is a no-op when the run is already cancelled', async (
     stepStatus: 'RUNNING',
   });
 
-  await harness.lifecycle.onStepComplete(7, 'requirement-design', { summary: 'Done' });
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: 'Done' });
 
   assert.equal(harness.stepUpdates.length, 0);
 });

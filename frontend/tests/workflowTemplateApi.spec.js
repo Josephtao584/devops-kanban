@@ -137,7 +137,7 @@ describe('workflow template api helpers', () => {
 
     expect(seen).toEqual([
       {
-        url: '/workflow-template/dev-workflow-v1',
+        url: '/workflow-template/workflow-v1',
         method: 'get'
       }
     ])
