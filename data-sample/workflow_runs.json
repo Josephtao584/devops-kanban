@@ -6,6 +6,15 @@
     "current_step": "final-review",
     "steps": [
       {
+        "step_id": "requirement-clarification",
+        "name": "需求澄清",
+        "status": "COMPLETED",
+        "started_at": "2026-03-17T07:03:51.577170",
+        "completed_at": "2026-03-17T07:03:51.577170",
+        "retry_count": 0,
+        "error": null
+      },
+      {
         "step_id": "solution-design",
         "name": "方案设计",
         "status": "COMPLETED",
@@ -15,7 +24,7 @@
         "error": null
       },
       {
-        "step_id": "feature-development",
+        "step_id": "development-implementation",
         "name": "开发实现",
         "status": "COMPLETED",
         "started_at": "2026-03-17T07:03:51.577170",

@@ -89,8 +89,8 @@ test.test('startWorkflow prefers workflow_template_snapshot over stored template
   assert.equal(createdRuns.length, 1);
   const createdRun = createdRuns[0];
   assert.ok(createdRun);
-  assert.equal(createdRun.workflow_id, 'snapshot-template');
   assert.equal(createdRun.workflow_template_id, 'stored-template');
+  assert.equal((createdRun.workflow_template_snapshot as WorkflowTemplateEntity).template_id, 'snapshot-template');
   assert.deepEqual(createdRun.workflow_template_snapshot, snapshotTemplate);
   assert.deepEqual(
     (createdRun.steps as Array<{ step_id: string }>).map((step) => step.step_id),
@@ -154,8 +154,9 @@ test.test('startWorkflow falls back to stored template when snapshot is absent',
   assert.equal(createdRuns.length, 1);
   const createdRun = createdRuns[0];
   assert.ok(createdRun);
-  assert.equal(createdRun.workflow_id, 'stored-template');
+  assert.equal(createdRun.workflow_template_id, 'stored-template');
   assert.deepEqual(createdRun.workflow_template_snapshot, storedTemplate);
+  assert.equal((createdRun.workflow_template_snapshot as WorkflowTemplateEntity).template_id, 'stored-template');
   assert.deepEqual(executeCalls, [storedTemplate]);
 });
 
