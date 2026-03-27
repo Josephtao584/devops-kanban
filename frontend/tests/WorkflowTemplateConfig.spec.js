@@ -28,19 +28,19 @@ vi.mock('../src/api/agent', () => ({
 const TABLE_DATA_KEY = Symbol('table-data')
 
 const defaultTemplate = {
-  template_id: 'dev-workflow-v1',
-  name: '默认研发工作流',
+  template_id: 'workflow-v1',
+  name: '通用复杂任务工作流',
   steps: [
     {
-      id: 'requirement-design',
-      name: '需求设计',
-      instructionPrompt: '先完成需求分析。',
+      id: 'solution-design',
+      name: '方案设计',
+      instructionPrompt: '完成方案设计。',
       agentId: 1
     },
     {
-      id: 'testing',
-      name: '测试',
-      instructionPrompt: '执行测试。',
+      id: 'qa-validation',
+      name: '测试验证',
+      instructionPrompt: '执行测试验证。',
       agentId: null
     }
   ]
@@ -377,8 +377,8 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
 
     expect(getWorkflowTemplates).toHaveBeenCalledTimes(1)
-    expect(getWorkflowTemplateById).toHaveBeenCalledWith('dev-workflow-v1')
-    expect(wrapper.text()).toContain('默认研发工作流')
+    expect(getWorkflowTemplateById).toHaveBeenCalledWith('workflow-v1')
+    expect(wrapper.text()).toContain('通用复杂任务工作流')
     expect(wrapper.text()).toContain('发布工作流')
 
     const deleteButton = wrapper.get('[data-testid="delete-template-button"]')
@@ -488,7 +488,7 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
 
     expect(deleteWorkflowTemplate).not.toHaveBeenCalled()
-    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('dev-workflow-v1')
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
   })
 
   it('saves step bindings with agentId and without executor.type', async () => {
@@ -589,7 +589,7 @@ describe('WorkflowTemplateConfig', () => {
     const bugfixDetail = createDeferred()
 
     getWorkflowTemplateById.mockImplementation(async (templateId) => {
-      if (templateId === 'dev-workflow-v1') {
+      if (templateId === 'workflow-v1') {
         return {
           success: true,
           data: JSON.parse(JSON.stringify(defaultTemplate))
@@ -659,7 +659,7 @@ describe('WorkflowTemplateConfig', () => {
     expect(ElMessage.success).toHaveBeenCalledWith('工作流模板已删除')
     expect(ElMessage.error).toHaveBeenCalledWith('refresh failed')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('dev-workflow-v1')
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
   })
 
   it('keeps template-page-specific actions while rendering card-level workflow editor controls', async () => {
@@ -859,8 +859,8 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
 
     expect(deleteWorkflowTemplate).toHaveBeenCalledWith('release-workflow-v1')
-    expect(getWorkflowTemplateById).toHaveBeenLastCalledWith('dev-workflow-v1')
-    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('dev-workflow-v1')
+    expect(getWorkflowTemplateById).toHaveBeenLastCalledWith('workflow-v1')
+    expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
   })
 })

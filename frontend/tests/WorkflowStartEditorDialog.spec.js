@@ -146,8 +146,8 @@ function mountDialog(props = {}) {
     props: {
       modelValue: true,
       draftTemplate: {
-        template_id: 'dev-workflow-v1',
-        name: '默认研发工作流',
+        template_id: 'workflow-v1',
+        name: '通用复杂任务工作流',
         steps: [
           {
             id: 'requirement-design',
@@ -334,8 +334,8 @@ describe('WorkflowStartEditorDialog', () => {
 
     expect(wrapper.emitted('confirm')).toEqual([[
       {
-        template_id: 'dev-workflow-v1',
-        name: '默认研发工作流',
+        template_id: 'workflow-v1',
+        name: '通用复杂任务工作流',
         steps: [
           {
             id: 'requirement-design',
@@ -408,8 +408,8 @@ describe('WorkflowStartEditorDialog', () => {
 
     expect(wrapper.emitted('confirm')).toEqual([[
       {
-        template_id: 'dev-workflow-v1',
-        name: '默认研发工作流',
+        template_id: 'workflow-v1',
+        name: '通用复杂任务工作流',
         steps: [
           {
             id: 'requirement-design',
@@ -536,8 +536,8 @@ describe('WorkflowStartEditorDialog', () => {
 
     const wrapper = mountDialog({
       draftTemplate: {
-        template_id: 'dev-workflow-v1',
-        name: '默认研发工作流',
+        template_id: 'workflow-v1',
+        name: '通用复杂任务工作流',
         steps: [
           { id: 'step-1', name: '需求设计', instructionPrompt: '先完成需求分析。', agentId: 1 },
           { id: 'step-2', name: '测试', instructionPrompt: '执行测试。', agentId: 999 }

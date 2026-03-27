@@ -16,7 +16,30 @@
 
     <div v-else-if="event.kind === 'tool_call'" class="event-system event-system-card event-tool">
       <div class="event-system-label">工具调用</div>
-      <div class="event-system-content">{{ toolName }}</div>
+      <div class="event-system-content event-tool-name">{{ toolName }}</div>
+      <pre v-if="displayedToolCallText" class="event-tool-detail">{{ displayedToolCallText }}</pre>
+      <button
+        v-if="shouldShowToolCallToggle"
+        type="button"
+        class="event-tool-toggle"
+        @click="toggleToolCallExpanded"
+      >
+        {{ toolCallToggleLabel }}
+      </button>
+    </div>
+
+    <div v-else-if="event.kind === 'tool_result'" class="event-system event-system-card" :class="toolResultClass">
+      <div class="event-system-label">{{ toolResultLabel }}</div>
+      <pre v-if="displayedToolResultText" class="event-tool-detail event-tool-result-text">{{ displayedToolResultText }}</pre>
+      <div v-else-if="isToolResultExpanded" class="event-system-content">无输出</div>
+      <button
+        v-if="shouldShowToolResultToggle"
+        type="button"
+        class="event-tool-toggle"
+        @click="toggleToolResultExpanded"
+      >
+        {{ toolResultToggleLabel }}
+      </button>
     </div>
 
     <div v-else-if="event.kind === 'status'" class="event-system event-system-card event-status">
@@ -43,7 +66,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { marked } from 'marked'
 
 const props = defineProps({
@@ -52,6 +75,17 @@ const props = defineProps({
     required: true
   }
 })
+
+const isToolResultExpanded = ref(false)
+const isToolCallExpanded = ref(false)
+
+function toggleToolResultExpanded() {
+  isToolResultExpanded.value = !isToolResultExpanded.value
+}
+
+function toggleToolCallExpanded() {
+  isToolCallExpanded.value = !isToolCallExpanded.value
+}
 
 const isDebuggerOutput = computed(() => {
   const content = props.event?.content || ''
@@ -68,7 +102,6 @@ const isSystemInit = computed(() => {
 })
 
 const shouldDisplay = computed(() => {
-  if (props.event?.kind === 'tool_result') return false
   return !isDebuggerOutput.value && !isSystemInit.value
 })
 
@@ -77,13 +110,104 @@ const STATUS_COMPLETED_PATTERNS = ['完成', '结束', 'success', 'completed', '
 const STATUS_FAILED_PATTERNS = ['失败', 'error', 'failed']
 
 const toolName = computed(() => {
+  if (typeof props.event?.toolName === 'string' && props.event.toolName) {
+    return props.event.toolName
+  }
+
   try {
     const payload = props.event?.payload
-    if (payload && typeof payload === 'object' && payload.name) {
-      return payload.name
+    if (payload && typeof payload === 'object') {
+      if (payload.tool_name) {
+        return payload.tool_name
+      }
+      if (payload.name) {
+        return payload.name
+      }
     }
   } catch {}
+
+  if (typeof props.event?.content === 'string' && props.event.content) {
+    return props.event.content
+  }
+
   return '工具'
+})
+
+const toolInputPreview = computed(() => {
+  if (typeof props.event?.toolInputPreview === 'string') {
+    return props.event.toolInputPreview
+  }
+  return ''
+})
+
+const shouldShowToolCallToggle = computed(() => {
+  return props.event?.toolCallCollapsedByDefault === true && toolInputPreview.value !== ''
+})
+
+const displayedToolCallText = computed(() => {
+  if (!toolInputPreview.value) {
+    return ''
+  }
+
+  if (shouldShowToolCallToggle.value && !isToolCallExpanded.value) {
+    return ''
+  }
+
+  return toolInputPreview.value
+})
+
+const toolCallToggleLabel = computed(() => {
+  return isToolCallExpanded.value ? '收起' : '展开'
+})
+
+const toolResultText = computed(() => {
+  if (typeof props.event?.toolResultText === 'string') {
+    return props.event.toolResultText
+  }
+  return typeof props.event?.content === 'string' ? props.event.content : ''
+})
+
+const toolResultSummary = computed(() => {
+  if (typeof props.event?.toolResultSummary === 'string' && props.event.toolResultSummary) {
+    return props.event.toolResultSummary
+  }
+  return toolResultText.value
+})
+
+const shouldShowToolResultToggle = computed(() => {
+  return props.event?.toolResultCollapsedByDefault === true
+})
+
+const displayedToolResultText = computed(() => {
+  if (!toolResultText.value) {
+    return ''
+  }
+
+  if (shouldShowToolResultToggle.value && !isToolResultExpanded.value) {
+    return ''
+  }
+
+  return toolResultText.value
+})
+
+const toolResultToggleLabel = computed(() => {
+  return isToolResultExpanded.value ? '收起' : '展开'
+})
+
+const toolResultLabel = computed(() => {
+  const relatedToolName = typeof props.event?.relatedToolName === 'string' && props.event.relatedToolName
+    ? props.event.relatedToolName
+    : toolName.value
+
+  if (props.event?.toolIsError) {
+    return relatedToolName ? `${relatedToolName} 执行失败` : '工具执行失败'
+  }
+
+  return relatedToolName ? `${relatedToolName} 结果` : '工具结果'
+})
+
+const toolResultClass = computed(() => {
+  return props.event?.toolIsError ? 'event-tool-result event-tool-result-error' : 'event-tool-result'
 })
 
 const statusTone = computed(() => {
@@ -268,6 +392,7 @@ const formattedMessageContent = computed(() => {
 }
 
 .event-tool,
+.event-tool-result,
 .event-status,
 .event-artifact,
 .event-fallback {
@@ -275,10 +400,321 @@ const formattedMessageContent = computed(() => {
 }
 
 .event-tool .event-system-content,
+.event-tool-result .event-system-content,
 .event-status .event-system-content,
 .event-artifact .event-system-content,
 .event-fallback .event-system-content {
   color: #475569;
+}
+
+.event-tool-name {
+  font-weight: 600;
+}
+
+.event-tool-detail {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.event-tool-result {
+  border-style: dashed;
+}
+
+.event-tool-result-error {
+  background: #fff7f7;
+  border-color: #f1d7d7;
+}
+
+.event-tool-result-error .event-system-label {
+  color: #9a6666;
+}
+
+.event-tool-result-text {
+  max-height: 180px;
+}
+
+.event-tool-result .event-system-content {
+  font-size: 12px;
+}
+
+.event-tool-result .event-system-label {
+  font-weight: 500;
+  text-transform: none;
+}
+
+.event-tool-result .event-system-label::before {
+  content: '· ';
+}
+
+.event-tool-result .event-system-content,
+.event-tool-result .event-tool-detail {
+  padding-left: 2px;
+}
+
+.event-tool-result {
+  box-shadow: none;
+  opacity: 0.96;
+  align-self: flex-start;
+  width: fit-content;
+  min-width: min(240px, 100%);
+  color: #475569;
+}
+
+.event-tool-result .event-system-label {
+  color: #94a3b8;
+}
+
+.event-tool-result .event-tool-detail {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.event-tool-result-error .event-tool-detail {
+  background: rgba(185, 28, 28, 0.06);
+  color: #7f1d1d;
+}
+
+.event-tool-result-error .event-system-content {
+  color: #7f1d1d;
+}
+
+.event-tool-result:hover {
+  border-color: #cbd5e1;
+}
+
+.event-tool-result-error:hover {
+  border-color: #e5bcbc;
+}
+
+.event-tool-result {
+  max-width: min(calc(100% - 24px), 520px);
+}
+
+.event-tool-result .event-system-content,
+.event-tool-result .event-tool-detail {
+  text-align: left;
+}
+
+.event-tool-result .event-system-label {
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+.event-tool-result .event-system-content,
+.event-tool-result .event-tool-detail {
+  line-height: 1.7;
+}
+
+.event-tool-result {
+  background: #f9fafb;
+}
+
+.event-tool-result-error {
+  background: #fff7f7;
+}
+
+.event-tool-result .event-system-label,
+.event-tool-result .event-system-content,
+.event-tool-result .event-tool-detail {
+  user-select: text;
+}
+
+.event-tool-result .event-system-label {
+  user-select: none;
+}
+
+.event-tool-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.event-tool-toggle:hover {
+  color: #475569;
+}
+
+.event-tool-result-error .event-tool-toggle {
+  color: #b45353;
+}
+
+.event-tool-result-error .event-tool-toggle:hover {
+  color: #933333;
+}
+
+.event-tool-result-text {
+  margin-bottom: 2px;
+}
+
+.event-tool-result {
+  border-color: currentColor;
+}
+
+.event-tool-result-error {
+  color: #9a6666;
+}
+
+.event-tool-result:not(.event-tool-result-error) {
+  color: #475569;
+}
+
+.event-tool-result .event-tool-detail,
+.event-tool .event-tool-detail {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+}
+
+.event-tool-result .event-tool-detail,
+.event-tool .event-tool-detail {
+  text-rendering: optimizeLegibility;
+}
+
+.event-tool-result,
+.event-tool {
+  min-width: min(240px, 100%);
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  background: #f8fafc;
+}
+
+.event-tool-result .event-system-content,
+.event-tool .event-system-content,
+.event-status .event-system-content,
+.event-artifact .event-system-content,
+.event-fallback .event-system-content {
+  color: inherit;
+}
+
+.event-tool-result .event-system-label,
+.event-tool .event-system-label,
+.event-status .event-system-label,
+.event-artifact .event-system-label,
+.event-fallback .event-system-label {
+  color: #94a3b8;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  color: #475569;
+}
+
+.event-tool-result-error .event-system-label {
+  color: #9a6666;
+}
+
+.event-tool-result-error .event-system-content,
+.event-tool-result-error .event-tool-detail {
+  color: #7f1d1d;
+}
+
+.event-tool-result .event-system-content,
+.event-tool .event-system-content {
+  font-weight: 500;
+}
+
+.event-tool-result .event-tool-detail,
+.event-tool .event-tool-detail {
+  font-weight: 400;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  border-style: dashed;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  width: fit-content;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  margin-left: 0;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  box-shadow: none;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  opacity: 0.96;
+}
+
+.event-tool-result .event-system,
+.event-tool .event-system {
+  background: transparent;
+}
+
+.event-tool-result .event-system-label::before,
+.event-tool .event-system-label::before {
+  content: '· ';
+}
+
+.event-tool-result .event-system-label,
+.event-tool .event-system-label,
+.event-status .event-system-label,
+.event-artifact .event-system-label,
+.event-fallback .event-system-label {
+  font-weight: 500;
+}
+
+.event-tool-result .event-system-content,
+.event-tool .event-system-content,
+.event-status .event-system-content,
+.event-artifact .event-system-content,
+.event-fallback .event-system-content {
+  font-size: 12px;
+}
+
+.event-tool-result,
+.event-tool,
+.event-status,
+.event-artifact,
+.event-fallback {
+  border-color: #e2e8f0;
+}
+
+.event-tool-result .event-system-label,
+.event-tool .event-system-label,
+.event-status .event-system-label,
+.event-artifact .event-system-label,
+.event-fallback .event-system-label {
+  text-transform: none;
 }
 
 .event-row.event-chat-message.align-left {

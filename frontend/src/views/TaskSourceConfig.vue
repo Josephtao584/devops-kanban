@@ -115,9 +115,16 @@
                   :prop="`config.${key}`"
                   :required="field.required"
                 >
+                <!-- token 字段使用密码框 -->
+                <el-input
+                  v-if="key === 'token'"
+                  v-model="formData.config[key]"
+                  type="password"
+                  :placeholder="getFieldPlaceholder(key, field)"
+                />
                 <!-- State 字段使用下拉框 -->
                 <el-select
-                  v-if="key === 'state'"
+                  v-else-if="key === 'state'"
                   v-model="formData.config[key]"
                   :placeholder="getFieldPlaceholder(key, field)"
                 >
@@ -514,15 +521,48 @@ const showAddDialog = () => {
 
 const editSource = (source) => {
   isEditMode.value = true
+  const config = { ...source.config }
+
+  if (typeof config.token === 'string' && config.token) {
+    config.token = '****'
+  }
+
   formData.value = {
     id: source.id,
     name: source.name,
     type: source.type,
     project_id: source.project_id,
-    config: { ...source.config },
+    config,
     enabled: source.enabled
   }
   dialogVisible.value = true
+}
+
+const sanitizeTokenForSubmit = (payload, originalSource) => {
+  if (!payload?.config || typeof payload.config !== 'object') {
+    return payload
+  }
+
+  if (payload.config.token !== '****') {
+    return payload
+  }
+
+  const nextPayload = {
+    ...payload,
+    config: { ...payload.config }
+  }
+
+  if (originalSource?.config && typeof originalSource.config.token === 'string') {
+    nextPayload.config.token = originalSource.config.token
+  } else {
+    delete nextPayload.config.token
+  }
+
+  return nextPayload
+}
+
+const findCurrentSource = (sourceId) => {
+  return taskSourceStore.taskSources.find(source => source.id === sourceId) || null
 }
 
 const submitForm = async () => {
@@ -533,7 +573,9 @@ const submitForm = async () => {
     submitting.value = true
 
     if (isEditMode.value) {
-      await taskSourceStore.updateTaskSource(formData.value.id, formData.value)
+      const currentSource = findCurrentSource(formData.value.id)
+      const payload = sanitizeTokenForSubmit(formData.value, currentSource)
+      await taskSourceStore.updateTaskSource(formData.value.id, payload)
       toast.success(t('taskSource.updateSuccess'))
     } else {
       await taskSourceStore.createTaskSource(formData.value)

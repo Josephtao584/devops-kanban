@@ -1,13 +1,13 @@
 [
   {
     "task_id": 1,
-    "workflow_id": "dev-workflow-v1",
+    "workflow_id": "workflow-v1",
     "status": "COMPLETED",
-    "current_step": "code-review",
+    "current_step": "final-review",
     "steps": [
       {
-        "step_id": "requirement-design",
-        "name": "需求设计",
+        "step_id": "requirement-clarification",
+        "name": "需求澄清",
         "status": "COMPLETED",
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
@@ -15,8 +15,8 @@
         "error": null
       },
       {
-        "step_id": "code-development",
-        "name": "代码开发",
+        "step_id": "solution-design",
+        "name": "方案设计",
         "status": "COMPLETED",
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
@@ -24,8 +24,8 @@
         "error": null
       },
       {
-        "step_id": "testing",
-        "name": "测试",
+        "step_id": "development-implementation",
+        "name": "开发实现",
         "status": "COMPLETED",
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
@@ -33,8 +33,17 @@
         "error": null
       },
       {
-        "step_id": "code-review",
-        "name": "代码审查",
+        "step_id": "qa-validation",
+        "name": "测试验证",
+        "status": "COMPLETED",
+        "started_at": "2026-03-17T07:03:51.577170",
+        "completed_at": "2026-03-17T07:03:51.577170",
+        "retry_count": 0,
+        "error": null
+      },
+      {
+        "step_id": "final-review",
+        "name": "结果评审",
         "status": "COMPLETED",
         "started_at": "2026-03-17T07:03:51.577170",
         "completed_at": "2026-03-17T07:03:51.577170",
