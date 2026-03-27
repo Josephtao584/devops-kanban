@@ -411,13 +411,13 @@ defineExpose({
 }
 
 .status-badge.status-in-progress {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background: var(--in-progress-soft);
+  color: var(--in-progress-strong);
 }
 
 .status-badge.status-done {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: var(--done-soft);
+  color: var(--done-strong);
 }
 
 .status-badge.status-blocked {
@@ -448,13 +448,13 @@ defineExpose({
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #6366f1;
+  color: var(--accent-color);
   margin-left: auto;
 }
 
 .workflow-btn:hover:not(.disabled) {
-  background: var(--bg-tertiary, #f1f5f9);
-  border-color: #6366f1;
+  background: var(--accent-color-soft);
+  border-color: var(--accent-color);
 }
 
 .workflow-btn.disabled {
@@ -473,10 +473,10 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: 1px solid var(--border-color, #e2e8f0);
   background: var(--bg-primary, #ffffff);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   color: var(--text-primary, #1e293b);
   cursor: pointer;
@@ -537,11 +537,11 @@ defineExpose({
 }
 
 .message.user .message-avatar {
-  background: rgba(59, 130, 246, 0.1);
+  background: var(--teal-chat-bg);
 }
 
 .message.assistant .message-avatar {
-  background: rgba(99, 102, 241, 0.1);
+  background: var(--yellow-accent-strong);
 }
 
 .message-content {
@@ -612,7 +612,7 @@ defineExpose({
 
 .butler-input input:focus {
   outline: none;
-  border-color: var(--primary-color, #6366f1);
+  border-color: var(--primary-color, #11DC7B);
 }
 
 .butler-input input:disabled {
@@ -622,7 +622,7 @@ defineExpose({
 
 .butler-input button {
   padding: 10px 14px;
-  background: var(--primary-color, #6366f1);
+  background: var(--primary-color, #11DC7B);
   color: white;
   border: none;
   border-radius: 8px;
@@ -631,7 +631,7 @@ defineExpose({
 }
 
 .butler-input button:hover:not(:disabled) {
-  background: var(--primary-hover, #4f46e5);
+  background: var(--primary-hover, #0fc66f);
 }
 
 .butler-input button:disabled {

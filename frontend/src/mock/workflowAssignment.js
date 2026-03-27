@@ -75,6 +75,15 @@ export const ASSIGNMENT_RULES = {
   }
 }
 
+export const CategoryWorkflowTemplateMapping = {
+  FEATURE: 'superpower-feature-v1',
+  BUG_FIX: 'superpower-bugfix-v1',
+  REFACTORING: 'superpower-refactoring-v1',
+  DOCUMENTATION: 'superpower-documentation-v1',
+  TESTING: 'superpower-testing-v1',
+  DESIGN: 'superpower-design-v1'
+}
+
 /**
  * Keywords for category detection
  */
@@ -131,6 +140,10 @@ export function analyzeTaskCategory(title = '', description = '') {
  */
 export function getAssignmentRule(category) {
   return ASSIGNMENT_RULES[category] || ASSIGNMENT_RULES.FEATURE
+}
+
+export function getRecommendedWorkflowTemplateId(category) {
+  return CategoryWorkflowTemplateMapping[category] || CategoryWorkflowTemplateMapping.FEATURE
 }
 
 /**

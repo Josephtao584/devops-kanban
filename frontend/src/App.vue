@@ -88,22 +88,202 @@ const toggleSidebar = () => {
 /* Light theme only */
 
 :root {
+  --page-bg: #FAFAFA;
   --bg-primary: #ffffff;
-  --bg-secondary: #f5f5f5;
-  --bg-tertiary: #eeeeee;
+  --bg-secondary: #fcfdfd;
+  --bg-tertiary: #fafcfc;
   --navbar-bg: #ffffff;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --border-color: #e0e0e0;
-  --input-bg: #ffffff;
-  --input-text: #333333;
-  --scrollbar-thumb: #cccccc;
-  --scrollbar-thumb-hover: #999999;
-  --accent-color: #6366f1;
   --panel-bg: #ffffff;
-  --message-bg: #f3f4f6;
-  --text-muted: #999999;
-  --input-border: #d1d5db;
+  --message-bg: #fcfdfd;
+  --surface-tint: rgba(37, 198, 201, 0.02);
+  --surface-tint-strong: rgba(37, 198, 201, 0.05);
+
+  --warning-soft: rgba(234, 180, 69, 0.16);
+  --warning-strong: #E2A93B;
+  --success-soft: rgba(37, 198, 201, 0.10);
+  --success-strong: #1EA9AC;
+  --info-soft: rgba(37, 198, 201, 0.08);
+  --info-strong: #25C6C9;
+  --icon-secondary-soft: rgba(234, 180, 69, 0.16);
+  --icon-secondary-strong: #EAB445;
+  --todo-soft: rgba(234, 180, 69, 0.14);
+  --todo-strong: #B58A2E;
+  --done-soft: rgba(37, 198, 201, 0.05);
+  --done-strong: #1EA9AC;
+  --in-progress-soft: rgba(37, 198, 201, 0.04);
+  --in-progress-strong: #25C6C9;
+  --requirement-soft: rgba(37, 198, 201, 0.04);
+  --requirement-strong: #25C6C9;
+  --card-green-soft: rgba(37, 198, 201, 0.025);
+  --card-green-mid: rgba(37, 198, 201, 0.045);
+  --card-yellow-soft: rgba(234, 180, 69, 0.06);
+  --card-yellow-mid: rgba(234, 180, 69, 0.09);
+  --green-shadow-soft: rgba(37, 198, 201, 0.22);
+  --green-shadow-light: rgba(37, 198, 201, 0.18);
+  --yellow-shadow-soft: rgba(234, 180, 69, 0.18);
+  --teal-border-soft: rgba(37, 198, 201, 0.24);
+  --teal-hover-bg: rgba(37, 198, 201, 0.08);
+  --teal-hover-border: rgba(37, 198, 201, 0.26);
+  --teal-active-border: rgba(37, 198, 201, 0.28);
+  --teal-active-shadow: rgba(37, 198, 201, 0.24);
+  --teal-active-line: #25C6C9;
+  --green-badge-bg: rgba(37, 198, 201, 0.14);
+  --green-badge-text: #25C6C9;
+  --yellow-badge-bg: rgba(234, 180, 69, 0.16);
+  --yellow-badge-text: #B58A2E;
+  --teal-icon-bg: rgba(37, 198, 201, 0.12);
+  --yellow-icon-bg: rgba(234, 180, 69, 0.14);
+  --teal-chat-bg: rgba(37, 198, 201, 0.08);
+  --yellow-chat-bg: rgba(234, 180, 69, 0.14);
+  --teal-accent-weak: rgba(37, 198, 201, 0.015);
+  --teal-accent-mid: rgba(37, 198, 201, 0.035);
+  --teal-accent-strong: rgba(37, 198, 201, 0.06);
+  --yellow-accent-weak: rgba(234, 180, 69, 0.06);
+  --yellow-accent-mid: rgba(234, 180, 69, 0.08);
+  --yellow-accent-strong: rgba(234, 180, 69, 0.12);
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --danger-strong: #DC2626;
+  --neutral-soft: rgba(107, 114, 128, 0.14);
+  --neutral-strong: #6B7280;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --border-color: #d7e6de;
+  --input-bg: #ffffff;
+  --input-text: #1f2937;
+  --input-border: #d7e6de;
+  --scrollbar-thumb: #d9dde3;
+  --scrollbar-thumb-hover: #c8cdd5;
+  --accent-color: #25C6C9;
+  --accent-color-soft: rgba(37, 198, 201, 0.14);
+  --accent-color-strong: #1EA9AC;
+  --el-color-primary: #25C6C9;
+  --el-color-primary-light-3: #55d2d5;
+  --el-color-primary-light-5: #7fdddf;
+  --el-color-primary-light-7: #a8e8e9;
+  --el-color-primary-light-8: #c3eff0;
+  --el-color-primary-light-9: #e9f8f8;
+  --el-color-primary-dark-2: #1EA9AC;
+  --icon-primary: #25C6C9;
+  --icon-secondary: #EAB445;
+  --primary-color: #25C6C9;
+  --primary-hover: #1EA9AC;
+  --button-primary-bg: #25C6C9;
+  --button-primary-hover: #22B6B9;
+  --button-primary-text: #ffffff;
+  --button-secondary-bg: #ffffff;
+  --button-secondary-border: #d7e6de;
+  --button-secondary-text: #4b5563;
+  --button-secondary-hover-bg: rgba(37, 198, 201, 0.05);
+  --button-secondary-hover-border: rgba(37, 198, 201, 0.24);
+  --button-secondary-hover-text: #1EA9AC;
+  --hover-bg: rgba(37, 198, 201, 0.08);
+  --button-shadow-soft: 0 2px 8px rgba(37, 198, 201, 0.20);
+  --button-shadow-hover: 0 4px 10px rgba(37, 198, 201, 0.22);
+  --button-danger-bg: rgba(239, 68, 68, 0.06);
+  --button-danger-border: rgba(239, 68, 68, 0.14);
+  --button-danger-text: #dc2626;
+  --button-danger-hover-bg: rgba(239, 68, 68, 0.12);
+  --button-danger-hover-border: rgba(239, 68, 68, 0.22);
+  --button-danger-hover-text: #b91c1c;
+  --button-primary-soft-bg: rgba(37, 198, 201, 0.08);
+  --button-primary-soft-border: rgba(37, 198, 201, 0.18);
+  --button-primary-soft-text: #1EA9AC;
+  --button-primary-soft-hover-bg: rgba(37, 198, 201, 0.14);
+  --button-primary-soft-hover-border: rgba(37, 198, 201, 0.24);
+  --button-primary-soft-hover-text: #158e90;
+  --button-disabled-opacity: 0.55;
+  --button-outline-bg: #ffffff;
+  --button-outline-border: rgba(37, 198, 201, 0.18);
+  --button-outline-text: #1EA9AC;
+  --button-outline-hover-bg: rgba(37, 198, 201, 0.08);
+  --button-outline-hover-border: rgba(37, 198, 201, 0.28);
+  --button-outline-hover-text: #158e90;
+  --button-ghost-bg: transparent;
+  --button-ghost-hover-bg: rgba(37, 198, 201, 0.06);
+  --button-ghost-hover-text: #1EA9AC;
+  --button-primary-active-border: #1EA9AC;
+  --button-secondary-active-border: rgba(37, 198, 201, 0.22);
+  --button-neutral-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --button-primary-active-shadow: 0 0 0 1px rgba(37, 198, 201, 0.14);
+  --button-secondary-active-shadow: 0 0 0 1px rgba(37, 198, 201, 0.10);
+  --button-pill-radius: 8px;
+  --button-tight-padding-x: 10px;
+  --button-tight-padding-y: 4px;
+  --button-normal-padding-x: 12px;
+  --button-normal-padding-y: 5px;
+  --button-font-size: 12px;
+  --button-font-weight: 600;
+  --button-min-height: 28px;
+  --button-compact-height: 30px;
+  --button-compact-width: 88px;
+  --button-tag-radius: 999px;
+  --button-toolbar-gap: 6px;
+  --button-inline-gap: 4px;
+  --button-section-gap: 8px;
+  --button-light-bg: rgba(37, 198, 201, 0.05);
+  --button-light-border: rgba(37, 198, 201, 0.14);
+  --button-light-text: #1EA9AC;
+  --button-light-hover-bg: rgba(37, 198, 201, 0.10);
+  --button-light-hover-border: rgba(37, 198, 201, 0.20);
+  --button-light-hover-text: #158e90;
+  --button-surface-bg: #ffffff;
+  --button-surface-border: var(--border-color);
+  --button-surface-text: var(--text-secondary);
+  --button-surface-hover-bg: rgba(37, 198, 201, 0.05);
+  --button-surface-hover-border: rgba(37, 198, 201, 0.20);
+  --button-surface-hover-text: #1EA9AC;
+  --button-subtle-bg: rgba(31, 41, 55, 0.02);
+  --button-subtle-border: rgba(31, 41, 55, 0.06);
+  --button-subtle-text: #4b5563;
+  --button-subtle-hover-bg: rgba(37, 198, 201, 0.05);
+  --button-subtle-hover-border: rgba(37, 198, 201, 0.16);
+  --button-subtle-hover-text: #1EA9AC;
+  --button-primary-plain-bg: rgba(37, 198, 201, 0.08);
+  --button-primary-plain-border: rgba(37, 198, 201, 0.18);
+  --button-primary-plain-text: #1EA9AC;
+  --button-primary-plain-hover-bg: rgba(37, 198, 201, 0.14);
+  --button-primary-plain-hover-border: rgba(37, 198, 201, 0.28);
+  --button-primary-plain-hover-text: #158e90;
+  --button-focus-ring: 0 0 0 3px rgba(37, 198, 201, 0.12);
+  --button-danger-focus-ring: 0 0 0 3px rgba(239, 68, 68, 0.10);
+  --button-primary-gradient: #25C6C9;
+  --button-primary-gradient-hover: #1EA9AC;
+  --button-primary-shadow: none;
+  --button-primary-shadow-hover: none;
+  --button-primary-soft-gradient: rgba(37, 198, 201, 0.10);
+  --button-outline-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --button-outline-shadow-hover: 0 2px 6px rgba(37, 198, 201, 0.12);
+  --button-accent-border: rgba(37, 198, 201, 0.20);
+  --button-accent-fill: rgba(37, 198, 201, 0.10);
+  --button-accent-text: #1EA9AC;
+  --button-accent-fill-hover: rgba(37, 198, 201, 0.16);
+  --button-accent-border-hover: rgba(37, 198, 201, 0.28);
+  --button-accent-text-hover: #158e90;
+  --button-danger-accent-fill: rgba(239, 68, 68, 0.08);
+  --button-danger-accent-border: rgba(239, 68, 68, 0.16);
+  --button-danger-accent-text: #dc2626;
+  --button-danger-accent-fill-hover: rgba(239, 68, 68, 0.14);
+  --button-danger-accent-border-hover: rgba(239, 68, 68, 0.24);
+  --button-danger-accent-text-hover: #b91c1c;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --page-max-width: 1280px;
+  --page-max-width-narrow: 1200px;
+  --page-padding: 20px;
+  --page-gap: 16px;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --line-height-tight: 1.4;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.6;
 }
 
 * {
@@ -112,10 +292,25 @@ const toggleSidebar = () => {
   box-sizing: border-box;
 }
 
-#app {
+html,
+body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Microsoft YaHei', sans-serif;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+}
+
+body {
+  min-width: 1200px;
+}
+
+#app {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   min-height: 100vh;
-  background-color: var(--bg-primary);
+  background-color: var(--page-bg);
   color: var(--text-primary);
   display: flex;
 }
@@ -227,9 +422,9 @@ const toggleSidebar = () => {
 }
 
 .nav-item.router-link-active {
-  background: #6366f1;
+  background: var(--accent-color);
   color: white;
-  box-shadow: 0 2px 8px rgba(92, 92, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(24, 184, 106, 0.24);
 }
 
 /* Footer styles */

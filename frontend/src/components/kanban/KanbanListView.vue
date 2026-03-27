@@ -255,8 +255,7 @@ const formatElapsedTime = (taskId) => {
 .task-list-view {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
-  padding-bottom: 32px;
+  padding: 0 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -264,9 +263,10 @@ const formatElapsedTime = (taskId) => {
 
 /* Pending Tasks Section */
 .list-pending-section {
-  background: var(--el-bg-color);
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-light);
+  background: var(--panel-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -276,22 +276,21 @@ const formatElapsedTime = (taskId) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: var(--el-bg-color-page);
-  border-bottom: 1px solid var(--el-border-color-light);
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
+  gap: 10px;
 }
 
 .list-section-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.collapse-icon {
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+}.collapse-icon {
   transition: transform 0.2s;
   transform: rotate(90deg);
 }
@@ -301,58 +300,120 @@ const formatElapsedTime = (taskId) => {
 }
 
 .section-count {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-size: var(--font-size-xs);
+  color: var(--accent-color);
+  background: var(--accent-color-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 700;
 }
 
 .list-section-actions {
   display: flex;
-  gap: 8px;
-}
-
-.add-task-btn-list {
-  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  border: 1px solid var(--el-border-color);
-  background: var(--el-bg-color);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--el-text-color-regular);
-  transition: all 0.2s;
+  min-height: 30px;
+  gap: 6px;
 }
 
-.add-task-btn-list:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-
+.add-task-btn-list,
 .sync-btn-list {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  border: 1px solid var(--el-border-color);
-  background: var(--el-bg-color);
-  border-radius: 4px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--el-text-color-regular);
+  color: var(--text-secondary);
   transition: all 0.2s;
-}
-
+  line-height: 1;
+}.add-task-btn-list:hover,
 .sync-btn-list:hover {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: var(--hover-bg);
 }
 
+.add-task-btn-list svg,
+.sync-btn-list svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.list-status-filter {
+  flex-shrink: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-group) {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.list-status-filter :deep(.el-checkbox-button) {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner) {
+  height: 28px;
+  min-height: 28px;
+  min-width: 62px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  box-shadow: none;
+  background: var(--panel-bg);
+  color: var(--text-secondary);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
+  border-color: var(--button-primary-active-border);
+  background: var(--button-primary-gradient);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner:hover) {
+  border-color: var(--button-surface-hover-border);
+  color: var(--button-surface-hover-text);
+  background: var(--button-surface-hover-bg);
+}
+
+.list-status-filter :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner:hover) {
+  border-color: var(--button-primary-active-border);
+  background: var(--button-primary-gradient-hover);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow-hover);
+}
+
+.list-status-filter :deep(.el-checkbox-button:first-child .el-checkbox-button__inner),
+.list-status-filter :deep(.el-checkbox-button:last-child .el-checkbox-button__inner) {
+  border-radius: var(--radius-sm);
+}
+
+.list-status-filter :deep(.el-checkbox-button:not(:first-child) .el-checkbox-button__inner),
+.list-status-filter :deep(.el-checkbox-button + .el-checkbox-button) {
+  margin-left: 0;
+}
+
+.list-status-filter :deep(.el-checkbox-button__inner)::before {
+  display: none;
+}
 .list-active-section .list-section-header {
   cursor: pointer;
 }
@@ -368,8 +429,9 @@ const formatElapsedTime = (taskId) => {
 .list-pending-content {
   max-height: 800px;
   overflow-y: auto;
-  padding: 8px;
-  padding-bottom: 16px;
+  padding: 10px;
+  padding-bottom: 18px;
+  background: var(--bg-secondary);
 }
 
 .pending-draggable-list {
@@ -378,16 +440,17 @@ const formatElapsedTime = (taskId) => {
 
 .empty-pending-list {
   text-align: center;
-  padding: 20px;
-  color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  padding: 24px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 /* Active Tasks Section */
 .list-active-section {
-  background: var(--el-bg-color);
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-light);
+  background: var(--panel-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -398,10 +461,12 @@ const formatElapsedTime = (taskId) => {
 }
 
 .task-list-container {
-  max-height: 500px;
+  min-height: 420px;
+  max-height: clamp(620px, 68vh, 820px);
   overflow-y: auto;
-  padding: 8px;
-  padding-bottom: 16px;
+  padding: 10px;
+  padding-bottom: 18px;
+  background: var(--bg-secondary);
 }
 
 .tasks-draggable-list {
@@ -410,9 +475,19 @@ const formatElapsedTime = (taskId) => {
 
 .empty-list {
   text-align: center;
-  padding: 20px;
-  color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  padding: 24px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.task-list-container :deep(.task-item:last-child),
+.list-pending-content :deep(.task-item:last-child) {
+  margin-bottom: 0;
+}
+
+.task-list-container :deep(.task-item),
+.list-pending-content :deep(.task-item) {
+  box-shadow: none;
 }
 
 /* Drag and drop styles */

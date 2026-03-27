@@ -1,8 +1,8 @@
 export const agentConfig = {
-  CLAUDE: { color: '#8B5CF6', icon: 'Monitor', name: 'Claude' },
-  CODEX: { color: '#10B981', icon: 'VideoPlay', name: 'Codex' },
-  CURSOR: { color: '#F59E0B', icon: 'Edit', name: 'Cursor' },
-  GEMINI: { color: '#3B82F6', icon: 'Cpu', name: 'Gemini' }
+  CLAUDE: { color: '#25C6C9', icon: 'Monitor', name: 'Claude' },
+  CODEX: { color: '#25C6C9', icon: 'VideoPlay', name: 'Codex' },
+  CURSOR: { color: '#EAB445', icon: 'Edit', name: 'Cursor' },
+  GEMINI: { color: '#25C6C9', icon: 'Cpu', name: 'Gemini' }
 }
 
 export const roleConfig = {
@@ -22,10 +22,10 @@ export const roleConfig = {
 }
 
 export const nodeStatusConfig = {
-  DONE: { color: '#10B981', icon: '✓' },
-  IN_PROGRESS: { color: '#3B82F6', icon: '▶' },
-  PENDING: { color: '#6B7280', icon: '○' },
+  DONE: { color: '#25C6C9', icon: '✓' },
+  IN_PROGRESS: { color: '#25C6C9', icon: '▶' },
+  PENDING: { color: '#EAB445', icon: '○' },
   FAILED: { color: '#DC2626', icon: '✗' },
-  REJECTED: { color: '#F59E0B', icon: '↩' },
+  REJECTED: { color: '#EAB445', icon: '↩' },
   CANCELLED: { color: '#6B7280', icon: '⊘' }
 }

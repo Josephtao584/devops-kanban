@@ -1,8 +1,8 @@
 <template>
-  <div class="agent-config">
+  <div class="agent-config page-shell">
     <!-- 顶部操作栏 -->
-    <div class="header">
-      <h1>{{ $t('agent.title') }}</h1>
+    <div class="header page-header page-header--compact">
+      <h1 class="page-header__title">{{ $t('agent.title') }}</h1>
       <button class="btn btn-primary" data-testid="open-create-agent" @click="openAddForm">
         + {{ $t('agent.createAgent') }}
       </button>
@@ -96,7 +96,7 @@
             <div class="info-item">
               <span class="info-label">{{ $t('agent.role') }}</span>
               <span class="info-value">
-                <span class="role-badge-inline" :style="{ backgroundImage: getRoleConfig(selectedAgent.role || 'BACKEND_DEV').gradient }">
+                <span class="role-badge-inline">
                   {{ locale === 'zh' ? getRoleConfig(selectedAgent.role || 'BACKEND_DEV').name : getRoleConfig(selectedAgent.role || 'BACKEND_DEV').nameEn }}
                 </span>
               </span>
@@ -124,63 +124,6 @@
             </div>
           </div>
 
-          <!-- 执行统计 -->
-          <div class="stats-section">
-            <div class="stat-item running">
-              <span class="stat-value">{{ executionStats.running }}</span>
-              <span class="stat-label">{{ locale === 'zh' ? '执行中' : 'Running' }}</span>
-            </div>
-            <div class="stat-item success">
-              <span class="stat-value">{{ executionStats.success }}</span>
-              <span class="stat-label">{{ locale === 'zh' ? '已完成' : 'Success' }}</span>
-            </div>
-            <div class="stat-item failed">
-              <span class="stat-value">{{ executionStats.failed }}</span>
-              <span class="stat-label">{{ locale === 'zh' ? '失败' : 'Failed' }}</span>
-            </div>
-          </div>
-
-          <!-- 执行记录 -->
-          <div class="executions-section">
-            <div class="section-header">
-              <h3>{{ $t('agent.executionHistory') }}</h3>
-              <button class="btn btn-secondary btn-sm" @click="loadExecutions" :disabled="loadingExecutions">
-                {{ locale === 'zh' ? '刷新' : 'Refresh' }}
-              </button>
-            </div>
-            <div v-if="loadingExecutions" class="loading-state">
-              {{ $t('common.loading') }}
-            </div>
-            <div v-else-if="executions.length === 0" class="empty-state">
-              {{ $t('agent.noExecutions') }}
-            </div>
-            <div v-else class="executions-list">
-              <div
-                class="execution-item clickable"
-                v-for="execution in executions"
-                :key="execution.id"
-                @click="openExecutionDetail(execution)"
-              >
-                <div class="execution-main">
-                  <span class="task-title">{{ execution.taskTitle || `Task #${execution.taskId}` }}</span>
-                  <span class="task-status-badge" :class="`status-${execution.taskStatus?.toLowerCase()}`">
-                    {{ execution.taskStatus ? $t(`status.${execution.taskStatus}`) : '-' }}
-                  </span>
-                </div>
-                <div class="execution-meta">
-                  <span class="execution-status" :class="`status-${execution.status?.toLowerCase()}`">
-                    {{ $t(`execution.statuses.${execution.status}`) }}
-                  </span>
-                  <span class="execution-time">
-                    {{ formatDateTime(execution.startedAt) }}
-                    <template v-if="execution.completedAt">
-                      → {{ formatDateTime(execution.completedAt) }}
-                    </template>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -332,12 +275,6 @@
       {{ toast.message }}
     </div>
 
-    <!-- Execution Detail Drawer -->
-    <ExecutionDetailDrawer
-      :visible="showExecutionDetail"
-      :execution-id="selectedExecutionId"
-      @close="closeExecutionDetail"
-    />
   </div>
 </template>
 
@@ -347,7 +284,6 @@ import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
 import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
 import { getExecutionsByAgent } from '../api/execution'
-import ExecutionDetailDrawer from '../components/ExecutionDetailDrawer.vue'
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
@@ -358,35 +294,9 @@ const editingAgent = ref(null)
 
 // Selected agent for detail view
 const selectedAgent = ref(null)
-const executions = ref([])
-const loadingExecutions = ref(false)
-
-// Execution detail drawer state
-const showExecutionDetail = ref(false)
-const selectedExecutionId = ref(null)
 
 // Agent status tracking (for all agents)
 const agentStatuses = ref({})
-
-// Execution statistics
-const executionStats = computed(() => {
-  const stats = {
-    running: 0,
-    success: 0,
-    failed: 0,
-    total: executions.value.length
-  }
-  executions.value.forEach(e => {
-    if (e.status === 'RUNNING' || e.status === 'PENDING') {
-      stats.running++
-    } else if (e.status === 'SUCCESS') {
-      stats.success++
-    } else if (e.status === 'FAILED') {
-      stats.failed++
-    }
-  })
-  return stats
-})
 
 const DEFAULT_ENV_ENTRY = () => ({ key: '', value: '' })
 
@@ -574,43 +484,6 @@ const getAgentStatus = (agentId) => {
 
 const selectAgent = async (agent) => {
   selectedAgent.value = agent
-  executions.value = []
-  loadingExecutions.value = true
-  try {
-    const response = await getExecutionsByAgent(agent.id)
-    if (response.success && response.data) {
-      executions.value = response.data
-    }
-  } catch (e) {
-    console.error('Failed to load executions:', e)
-  } finally {
-    loadingExecutions.value = false
-  }
-}
-
-const loadExecutions = async () => {
-  if (!selectedAgent.value) return
-  loadingExecutions.value = true
-  try {
-    const response = await getExecutionsByAgent(selectedAgent.value.id)
-    if (response.success && response.data) {
-      executions.value = response.data
-    }
-  } catch (e) {
-    console.error('Failed to load executions:', e)
-  } finally {
-    loadingExecutions.value = false
-  }
-}
-
-const openExecutionDetail = (execution) => {
-  selectedExecutionId.value = execution.id
-  showExecutionDetail.value = true
-}
-
-const closeExecutionDetail = () => {
-  showExecutionDetail.value = false
-  selectedExecutionId.value = null
 }
 
 const openAddForm = () => {
@@ -724,63 +597,41 @@ const addPresetSkill = (skill) => {
   }
 }
 
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString(locale.value === 'zh' ? 'zh-CN' : 'en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
 onMounted(loadAgents)
 </script>
 
 <style scoped>
 .agent-config {
   padding: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-  background: var(--bg-secondary);
 }
 
-.header h1 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+.header .btn {
+  min-height: 36px;
 }
 
 /* Main content wrapper - left-right split */
 .main-content-wrapper {
   display: flex;
-  gap: 0;
+  gap: var(--page-gap);
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg-primary);
+  padding: var(--page-padding);
+  background: var(--bg-secondary);
 }
 
 /* Left panel - Agent list */
 .agent-list-panel {
-  width: 280px;
+  width: 300px;
   flex-shrink: 0;
-  background: var(--bg-primary);
-  border-right: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -790,56 +641,56 @@ onMounted(loadAgents)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  background: var(--bg-secondary);
+  background: var(--panel-bg);
 }
 
 .panel-header h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
 }
-
 .agent-count {
-  background: var(--accent-color);
-  color: white;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
+  background: var(--accent-color-soft);
+  color: var(--accent-color);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
 }
 
 .agent-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
-  background: var(--bg-primary);
+  padding: 10px;
+  background: var(--panel-bg);
 }
 
 .agent-list-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   background: var(--bg-primary);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-color);
 }
 
 .agent-list-item:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 .agent-list-item.active {
-  background: var(--bg-tertiary);
+  background: var(--hover-bg);
   border: 1px solid var(--accent-color);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.1);
 }
 
 .agent-item-info {
@@ -850,8 +701,8 @@ onMounted(loadAgents)
 }
 
 .agent-name {
-  font-weight: 500;
-  font-size: 13px;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -862,29 +713,28 @@ onMounted(loadAgents)
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 6px;
 }
 
 .role-tag {
   font-size: 10px;
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  background: rgba(31, 41, 55, 0.04);
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .enabled-badge {
   font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
   background: #d1fae5;
   color: #065f46;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.04em;
 }
 
 .enabled-badge.disabled {
@@ -958,11 +808,13 @@ onMounted(loadAgents)
 /* Right panel - Agent detail */
 .agent-detail-panel {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--panel-bg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .empty-detail {
@@ -972,11 +824,11 @@ onMounted(loadAgents)
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  background: var(--bg-secondary);
+  background: var(--panel-bg);
 }
 
 .empty-detail p {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -985,13 +837,14 @@ onMounted(loadAgents)
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  background: var(--panel-bg);
 }
 
 .detail-header {
-  padding: 12px 16px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  background: var(--bg-secondary);
+  background: var(--panel-bg);
 }
 
 .agent-title-row {
@@ -1007,29 +860,29 @@ onMounted(loadAgents)
 
 .agent-title-row h2 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
   color: var(--text-primary);
 }
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .header-actions .btn {
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
   transition: all 0.2s;
 }
 
 /* Info section */
 .info-section {
-  padding: 12px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--panel-bg);
 }
 
 .info-item {
@@ -1064,14 +917,15 @@ onMounted(loadAgents)
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  color: var(--accent-color);
+  background: rgba(37, 198, 201, 0.10);
+  border: 1px solid rgba(37, 198, 201, 0.16);
+  letter-spacing: 0.02em;
 }
 
 /* Skills section */
@@ -1098,223 +952,19 @@ onMounted(loadAgents)
 }
 
 .skill-tag {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  padding: 4px 10px;
-  border-radius: 6px;
+  background: rgba(31, 41, 55, 0.04);
+  color: rgba(75, 85, 99, 0.88);
+  padding: 3px 8px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(31, 41, 55, 0.06);
   transition: all 0.2s;
 }
 
 .skill-tag:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--border-color);
-}
-
-/* Stats section */
-.stats-section {
-  display: flex;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-}
-
-.stat-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--bg-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-}
-
-.stat-item:hover {
-  border-color: var(--accent-color);
-}
-
-.stat-item.running .stat-value {
-  color: #0284c7;
-}
-
-.stat-item.success .stat-value {
-  color: #16a34a;
-}
-
-.stat-item.failed .stat-value {
-  color: #dc2626;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-top: 4px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-/* Executions section */
-.executions-section {
-  padding: 12px 16px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--bg-primary);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  flex-shrink: 0;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.section-header h3 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.executions-list {
-  flex: 1;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-secondary);
-}
-
-.execution-item {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  transition: all 0.2s;
-}
-
-.execution-item.clickable {
-  cursor: pointer;
-}
-
-.execution-item.clickable:hover {
-  background-color: var(--bg-tertiary);
-}
-
-.execution-item:last-child {
-  border-bottom: none;
-}
-
-.execution-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.task-title {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 13px;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-right: 8px;
-}
-
-.task-status-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.task-status-badge.status-todo {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.task-status-badge.status-in_progress {
-  background: #bfdbfe;
-  color: #1e40af;
-}
-
-.task-status-badge.status-done {
-  background: #bbf7d0;
-  color: #166534;
-}
-
-.task-status-badge.status-blocked {
-  background: #fecaca;
-  color: #991b1b;
-}
-
-.execution-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.execution-status {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.execution-status.status-pending {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.execution-status.status-running {
-  background: #bae6fd;
-  color: #075985;
-}
-
-.execution-status.status-success,
-.execution-status.status-completed {
-  background: #bbf7d0;
-  color: #166534;
-}
-
-.execution-status.status-failed {
-  background: #fecaca;
-  color: #991b1b;
-}
-
-.execution-status.status-cancelled {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.execution-time {
-  color: var(--text-secondary);
-  font-weight: 500;
+  background: rgba(31, 41, 55, 0.05);
+  border-color: rgba(31, 41, 55, 0.08);
 }
 
 /* Toggle switch */
@@ -1714,12 +1364,4 @@ onMounted(loadAgents)
   background: #ef4444;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
 </style>

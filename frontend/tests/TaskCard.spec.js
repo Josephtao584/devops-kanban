@@ -40,6 +40,22 @@ describe('TaskCard', () => {
     expect(wrapper.text()).not.toContain('...')
   })
 
+  it('renders formatted description safely', () => {
+    const task = createTask({
+      description: '<script>alert(1)</script> **安全**\n- 条目'
+    })
+    const wrapper = mount(TaskCard, {
+      props: { task }
+    })
+
+    const description = wrapper.find('.task-description')
+    expect(description.exists()).toBe(true)
+    expect(description.html()).toContain('<strong>安全</strong>')
+    expect(description.html()).not.toContain('<script>alert(1)</script>')
+    expect(description.text()).toContain('alert(1)')
+    expect(description.text()).toContain('• 条目')
+  })
+
   it('displays correct priority label for CRITICAL', () => {
     const task = createTask({ priority: 'CRITICAL' })
     const wrapper = mount(TaskCard, {

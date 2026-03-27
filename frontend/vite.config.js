@@ -28,6 +28,50 @@ export default defineConfig(({ mode }) => {
     define: {
       global: 'globalThis'
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return undefined
+            }
+
+            if (id.includes('element-plus')) {
+              return 'vendor-element-plus'
+            }
+
+            if (id.includes('@element-plus/icons-vue')) {
+              return 'vendor-element-icons'
+            }
+
+            if (id.includes('vuedraggable') || id.includes('sortablejs')) {
+              return 'vendor-dnd'
+            }
+
+            if (id.includes('marked')) {
+              return 'vendor-markdown'
+            }
+
+            if (
+              id.includes('vue-router') ||
+              id.includes('vue-i18n') ||
+              id.includes('pinia') ||
+              id.includes('@vueuse/core') ||
+              id.includes('vue/dist') ||
+              id.includes('/vue/')
+            ) {
+              return 'vendor-vue'
+            }
+
+            if (id.includes('axios') || id.includes('sockjs-client') || id.includes('@stomp/stompjs')) {
+              return 'vendor-network'
+            }
+
+            return 'vendor-misc'
+          }
+        }
+      }
+    },
     test: {
       include: [
         'tests/**/*.{test,spec}.js',

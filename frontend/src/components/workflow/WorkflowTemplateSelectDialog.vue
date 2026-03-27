@@ -18,12 +18,17 @@
       {{ $t('workflowTemplate.emptyState') }}
     </div>
 
-    <div v-else class="workflow-template-select-dialog__list">
-      <label
-        v-for="template in templates"
-        :key="template.template_id"
-        class="workflow-template-select-dialog__option"
-      >
+    <div v-else>
+      <div v-if="recommendedSelectedTemplateName" class="workflow-template-select-dialog__hint">
+        {{ $t('workflowTemplate.recommendedTemplateHint') }}：{{ recommendedSelectedTemplateName }}
+      </div>
+
+      <div class="workflow-template-select-dialog__list">
+        <label
+          v-for="template in templates"
+          :key="template.template_id"
+          class="workflow-template-select-dialog__option"
+        >
         <input
           v-model="selectedTemplateId"
           type="radio"
@@ -36,7 +41,8 @@
             {{ $t('workflowTemplate.stepCount', { count: template.steps?.length || 0 }) }}
           </div>
         </div>
-      </label>
+        </label>
+      </div>
     </div>
 
     <div class="workflow-template-select-dialog__worktree-option">
@@ -59,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Warning } from '@element-plus/icons-vue'
 import { getWorkflowTemplates } from '../../api/workflowTemplate'
@@ -68,6 +74,10 @@ const props = defineProps({
   modelValue: {
     type: Boolean,
     default: false
+  },
+  recommendedTemplateId: {
+    type: String,
+    default: ''
   }
 })
 
@@ -80,6 +90,13 @@ const errorMessage = ref('')
 const selectedTemplateId = ref('')
 const autoCreateWorktree = ref(true)
 
+const getTemplateById = (templateId) => templates.value.find((template) => template.template_id === templateId) || null
+const recommendedSelectedTemplateName = computed(() => {
+  if (!props.recommendedTemplateId) return ''
+  if (selectedTemplateId.value !== props.recommendedTemplateId) return ''
+  return getTemplateById(props.recommendedTemplateId)?.name || ''
+})
+
 const loadTemplates = async () => {
   loading.value = true
   errorMessage.value = ''
@@ -91,7 +108,8 @@ const loadTemplates = async () => {
     }
 
     templates.value = Array.isArray(response.data) ? response.data : []
-    selectedTemplateId.value = templates.value[0]?.template_id || ''
+    const recommendedTemplate = templates.value.find((template) => template.template_id === props.recommendedTemplateId)
+    selectedTemplateId.value = recommendedTemplate?.template_id || templates.value[0]?.template_id || ''
   } catch (error) {
     templates.value = []
     errorMessage.value = error?.message || t('workflowTemplate.loadFailed')
@@ -129,6 +147,16 @@ watch(() => props.modelValue, (value) => {
 
 .workflow-template-select-dialog__state--error {
   color: var(--el-color-danger);
+}
+
+.workflow-template-select-dialog__hint {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary-dark-2);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .workflow-template-select-dialog__list {
