@@ -44,6 +44,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { marked } from 'marked'
 
 const props = defineProps({
   event: {
@@ -151,19 +152,17 @@ const formattedMessageContent = computed(() => {
   const content = props.event?.content || ''
   if (props.event?.kind !== 'message' || !content) return content
 
-  let formatted = content
+  const safeContent = content
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
-  formatted = formatted.replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
-  formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-  formatted = formatted.replace(/__(.*?)__/g, '<strong>$1</strong>')
-  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>')
-  formatted = formatted.replace(/\n/g, '<br>')
+  const rendered = marked.parse(safeContent, {
+    gfm: true,
+    breaks: true
+  })
 
-  return formatted
+  return typeof rendered === 'string' ? rendered : ''
 })
 </script>
 
@@ -221,7 +220,14 @@ const formattedMessageContent = computed(() => {
   padding-inline: 6px;
 }
 
-.event-content,
+.event-content {
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: normal;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
 .event-system-content {
   font-size: 13px;
   line-height: 1.75;
@@ -431,6 +437,38 @@ const formattedMessageContent = computed(() => {
   background: transparent;
   padding: 0;
   border-radius: 0;
+}
+
+.event-content :deep(p) {
+  margin: 0 0 8px;
+}
+
+.event-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.event-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.event-content :deep(th),
+.event-content :deep(td) {
+  padding: 8px 10px;
+  border: 1px solid #dbe4f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.event-content :deep(th) {
+  background: rgba(15, 23, 42, 0.06);
+  font-weight: 600;
+}
+
+.event-message.bubble-user .event-content :deep(th) {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .event-message.bubble-assistant {
