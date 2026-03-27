@@ -333,6 +333,7 @@
                 <option value="TODO">{{ $t('status.TODO') }}</option>
                 <option value="IN_PROGRESS">{{ $t('status.IN_PROGRESS') }}</option>
                 <option value="DONE">{{ $t('status.DONE') }}</option>
+                <option value="BLOCKED">{{ $t('status.BLOCKED') }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -2557,7 +2558,7 @@ onUnmounted(() => {
 }
 
 .chat-container {
-  width: 600px;
+  width: 720px;
   background: var(--panel-bg);
   border-left: 1px solid var(--border-color);
   display: flex;
