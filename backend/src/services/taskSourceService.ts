@@ -139,10 +139,15 @@ class TaskSourceService {
     for (const taskData of fetchedTasks) {
       const existing = await this.taskRepository.findByExternalId(taskData.external_id);
       if (existing) {
-        if (existing.project_id !== projectId) {
-          await this.taskRepository.update(existing.id, { project_id: projectId });
-        }
-        createdTasks.push({ ...existing, project_id: projectId });
+        const updatedTask = await this.taskRepository.update(existing.id, {
+          project_id: projectId,
+          title: taskData.title,
+          description: taskData.description ?? '',
+          external_url: typeof taskData.external_url === 'string' ? taskData.external_url : '',
+          labels: taskData.labels || [],
+          source: source.type,
+        });
+        createdTasks.push(updatedTask || { ...existing, project_id: projectId });
       } else {
         const newTask = await this.taskRepository.create({
           ...taskData,

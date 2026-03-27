@@ -26,7 +26,7 @@ export const ROLE_CONFIG = {
     name: '架构师',
     nameEn: 'Architect',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m10-11h-6m-6 0H1m15.5-6.5l-4.25 4.25m-4.5 4.5L4.5 19.5m15 0l-4.25-4.25m-4.5-4.5L6.5 4.5"/></svg>',
-    gradient: 'linear-gradient(135deg, #a78bfa, #8b5cf6)',
+    gradient: 'linear-gradient(135deg, #6EDBDD, #25C6C9)',
     description: '负责系统架构设计和技术选型',
     skills: ['系统设计', '技术选型', '架构评估', '微服务设计']
   },
@@ -34,7 +34,7 @@ export const ROLE_CONFIG = {
     name: '技术负责人',
     nameEn: 'Tech Lead',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
-    gradient: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+    gradient: 'linear-gradient(135deg, #F4D289, #EAB445)',
     description: '负责技术决策和团队协调',
     skills: ['技术决策', '代码审查', '团队协调', '技术方案设计']
   },

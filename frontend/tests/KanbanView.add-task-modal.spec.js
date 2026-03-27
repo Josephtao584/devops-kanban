@@ -239,4 +239,31 @@ describe('KanbanView add-task modal', () => {
     })
     expect(taskStore.updateTask.mock.calls[0][1]).not.toHaveProperty('autoAssignWorkflow')
   })
+
+  it('shows BLOCKED in the status dropdown and saves it for edited tasks', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const taskStore = useTaskStore()
+
+    await wrapper.vm.openTaskModal(mockTasks[0])
+    await flushPromises()
+
+    const selects = wrapper.findAll('.modal select')
+    const statusSelect = selects[0]
+    const optionValues = statusSelect.findAll('option').map((option) => option.element.value)
+    const optionLabels = statusSelect.findAll('option').map((option) => option.text())
+
+    expect(optionValues).toContain('BLOCKED')
+    expect(optionLabels).toContain('挂起')
+
+    await statusSelect.setValue('BLOCKED')
+    await wrapper.find('.modal .btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(taskStore.updateTask).toHaveBeenCalledTimes(1)
+    expect(taskStore.updateTask.mock.calls[0][1]).toMatchObject({
+      status: 'BLOCKED'
+    })
+  })
 })

@@ -3,6 +3,171 @@
  * Reusable CSS classes shared across multiple components
  */
 
+/* ==================== Page Layout ==================== */
+.page-shell {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--page-bg);
+}
+
+.page-shell--canvas {
+  background: var(--page-bg);
+}
+
+.page-shell--padded {
+  padding: var(--page-padding);
+}
+
+.page-shell__inner {
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+}
+
+.page-shell__inner--narrow {
+  max-width: var(--page-max-width-narrow);
+}
+
+.page-header,
+.page-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  flex-shrink: 0;
+}
+
+.page-header--compact {
+  padding: 14px 18px;
+}
+
+.page-header__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-header__title,
+.page-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.page-header__description,
+.page-description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
+}
+
+.page-header__actions,
+.page-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.page-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  flex-shrink: 0;
+}
+
+.page-filter-bar label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.page-filter-control {
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.page-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--page-padding);
+}
+
+.page-content--flush {
+  padding: 0;
+}
+
+.page-grid {
+  display: grid;
+  gap: var(--page-gap);
+}
+
+.page-grid--cards {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.surface-card,
+.surface-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.surface-card--hoverable,
+.surface-panel--hoverable {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.surface-card--hoverable:hover,
+.surface-panel--hoverable:hover {
+  border-color: rgba(24, 184, 106, 0.28);
+  box-shadow: var(--shadow-md);
+}
+
+.surface-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.empty-state-text,
+.loading-state-text {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.dialog-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* ==================== Worktree Button ==================== */
 .worktree-btn {
   display: inline-flex;
@@ -33,13 +198,13 @@
 }
 
 .worktree-btn.worktree-none:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: var(--accent-color-soft);
+  color: var(--accent-color);
 }
 
 .worktree-btn.worktree-created {
-  background: var(--el-color-success-light-9);
-  color: var(--el-color-success);
+  background: rgba(24, 184, 106, 0.14);
+  color: var(--accent-color);
 }
 
 .worktree-btn.worktree-created:hover {
@@ -82,8 +247,8 @@
 }
 
 .status-requirement {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: var(--accent-color-soft);
+  color: var(--accent-color);
 }
 
 .status-unknown {
@@ -96,7 +261,7 @@
 .status-in-progress-dot { background: var(--el-color-warning); box-shadow: 0 0 6px currentColor; }
 .status-done-dot { background: var(--el-color-success); box-shadow: 0 0 6px currentColor; }
 .status-blocked-dot { background: var(--el-color-danger); box-shadow: 0 0 6px currentColor; }
-.status-requirement-dot { background: var(--el-color-primary); box-shadow: 0 0 6px currentColor; }
+.status-requirement-dot { background: var(--accent-color); box-shadow: 0 0 6px currentColor; }
 
 /* ==================== Task Card ==================== */
 .task-card {
@@ -236,8 +401,8 @@
 }
 
 .action-btn:hover {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: var(--accent-color-soft);
+  color: var(--accent-color);
 }
 
 .action-btn.delete-btn:hover {

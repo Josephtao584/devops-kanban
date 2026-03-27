@@ -1,37 +1,38 @@
 <template>
-  <div class="project-list-view">
-    <div class="page-header">
-      <h1 class="page-title">{{ $t('project.title') }}</h1>
-      <el-button type="primary" @click="showCreateDialog">
-        <el-icon><Plus /></el-icon>
-        {{ $t('project.newProject') }}
-      </el-button>
-    </div>
+  <div class="project-list-view page-shell page-shell--canvas page-shell--padded">
+    <div class="page-shell__inner page-shell__inner--narrow">
+      <div class="page-header page-header--compact">
+        <h1 class="page-header__title page-title">{{ $t('project.title') }}</h1>
+        <el-button type="primary" @click="showCreateDialog">
+          <el-icon><Plus /></el-icon>
+          {{ $t('project.newProject') }}
+        </el-button>
+      </div>
 
-    <el-skeleton v-if="loading" :rows="5" animated />
+      <el-skeleton v-if="loading" :rows="5" animated />
 
-    <el-empty v-else-if="projects.length === 0" :description="$t('project.noProjects')">
-      <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
-    </el-empty>
+      <el-empty v-else-if="projects.length === 0" :description="$t('project.noProjects')">
+        <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
+      </el-empty>
 
-    <div v-else class="project-grid">
-      <ProjectCard
-        v-for="project in projects"
-        :key="project.id"
-        :project="project"
-        @click="openProject"
-        @edit="showEditDialog"
-        @delete="handleDelete"
+      <div v-else class="project-grid">
+        <ProjectCard
+          v-for="project in projects"
+          :key="project.id"
+          :project="project"
+          @click="openProject"
+          @edit="showEditDialog"
+          @delete="handleDelete"
+        />
+      </div>
+
+      <ProjectFormDialog
+        v-model="dialogVisible"
+        :project="editingProject"
+        :loading="submitting"
+        @submit="handleSubmit"
       />
     </div>
-
-    <!-- Create/Edit Dialog -->
-    <ProjectFormDialog
-      v-model="dialogVisible"
-      :project="editingProject"
-      :loading="submitting"
-      @submit="handleSubmit"
-    />
   </div>
 </template>
 
@@ -126,28 +127,37 @@ watch(() => dialogVisible.value, (newValue) => {
 
 <style scoped>
 .project-list-view {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  height: 100%;
   overflow-y: auto;
 }
 
-.page-header {
+.page-shell__inner {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100%;
 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
+.page-header {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.page-header :deep(.el-button--primary) {
+  background: var(--button-primary-gradient);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow);
+}
+
+.page-header :deep(.el-button--primary:hover) {
+  background: var(--button-primary-gradient-hover);
+  border-color: var(--button-primary-active-border);
+  color: var(--button-primary-text);
+  box-shadow: var(--button-primary-shadow-hover);
 }
 
 .project-grid {
-  margin-top: 24px;
   display: flex;
   flex-wrap: wrap;
   gap: 20px;

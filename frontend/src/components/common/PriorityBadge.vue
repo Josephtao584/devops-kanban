@@ -45,12 +45,13 @@ const displayText = computed(() => {
 .priority-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .priority-critical {
@@ -59,17 +60,17 @@ const displayText = computed(() => {
 }
 
 .priority-high {
-  background: rgba(249, 115, 22, 0.15);
-  color: #f97316;
+  background: rgba(234, 180, 69, 0.16);
+  color: #b98015;
 }
 
 .priority-medium {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
+  background: rgba(234, 180, 69, 0.12);
+  color: #b58a2e;
 }
 
 .priority-low {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: rgba(37, 198, 201, 0.12);
+  color: #1ea9ac;
 }
 </style>

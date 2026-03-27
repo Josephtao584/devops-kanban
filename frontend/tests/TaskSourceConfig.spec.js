@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 import TaskSourceConfig from '../src/views/TaskSourceConfig.vue'
 import i18n from '../src/locales'
 import { useProjectStore } from '../src/stores/projectStore'
@@ -133,5 +134,35 @@ describe('TaskSourceConfig', () => {
     wrapper.vm.formData.type = 'CODEHUB'
     expect(wrapper.vm.getFieldLabel('baseUrl', {})).toBe('API 地址')
     expect(wrapper.vm.getFieldPlaceholder('baseUrl', {})).toBe('https://codehub.huawei.com/api/v4')
+  })
+
+  it('renders sync preview descriptions safely', async () => {
+    const taskSourceStore = useTaskSourceStore()
+    taskSourceStore.showPreviewDialog = true
+    taskSourceStore.syncPreviewTasks = [
+      {
+        external_id: 'STORY-1',
+        title: '同步任务',
+        status: 'TODO',
+        labels: ['story'],
+        description: '<script>alert(1)</script> **重点**\n- 条目',
+        imported: false,
+        sourceName: 'CloudDevOps',
+        external_url: 'https://example.com/story/1'
+      }
+    ]
+    taskSourceStore.selectedSyncTasks = new Set(['STORY-1'])
+    taskSourceStore.syncError = ''
+
+    const wrapper = mountView()
+    await flushPromises()
+    await nextTick()
+
+    const description = wrapper.find('.item-description')
+    expect(description.exists()).toBe(true)
+    expect(description.html()).toContain('<strong>重点</strong>')
+    expect(description.html()).not.toContain('<script>alert(1)</script>')
+    expect(description.text()).toContain('alert(1)')
+    expect(description.text()).toContain('• 条目')
   })
 })

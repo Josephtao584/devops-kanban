@@ -143,6 +143,38 @@ describe('WorkflowTemplateSelectDialog', () => {
     ]])
   })
 
+  it('preselects the recommended template when it exists in the returned list', async () => {
+    getWorkflowTemplates.mockResolvedValue({
+      success: true,
+      data: [
+        firstTemplate,
+        secondTemplate
+      ]
+    })
+
+    const wrapper = mountDialog({ recommendedTemplateId: 'review-only-v1' })
+    await flushPromises()
+
+    const radios = wrapper.findAll('input[type="radio"]')
+    const confirmButton = getConfirmButton(wrapper)
+
+    expect(radios).toHaveLength(2)
+    expect(radios[0].element.checked).toBe(false)
+    expect(radios[1].element.checked).toBe(true)
+    expect(wrapper.text()).toContain('已根据任务类型推荐模板')
+    expect(wrapper.text()).toContain('审查工作流')
+    expect(confirmButton.attributes('disabled')).toBeUndefined()
+
+    await confirmButton.trigger('click')
+
+    expect(wrapper.emitted('confirm')).toEqual([[
+      {
+        templateId: 'review-only-v1',
+        autoCreateWorktree: true
+      }
+    ]])
+  })
+
   it('renders an empty state when no templates are available', async () => {
     getWorkflowTemplates.mockResolvedValue({
       success: true,

@@ -67,9 +67,7 @@
           <el-tag :type="priorityTagType" size="small">{{ taskPriorityText }}</el-tag>
         </div>
       </div>
-      <div class="task-description" v-if="task.description">
-        {{ task.description }}
-      </div>
+      <div class="task-description" v-if="task.description" v-html="formattedTaskDescription"></div>
     </div>
 
     <!-- Terminal output -->
@@ -140,6 +138,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Folder, Key } from '@element-plus/icons-vue'
+import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
 import { useSessionManager } from '../composables/useSessionManager'
 import { useWebSocketConnection } from '../composables/useWebSocketConnection'
 import { useMessageFilter } from '../composables/useMessageFilter'
@@ -257,6 +256,8 @@ const priorityTagType = computed(() => {
   }
   return typeMap[props.task.priority] || 'info'
 })
+
+const formattedTaskDescription = computed(() => formatTaskDescription(props.task?.description || ''))
 
 // Add output line with filtering using composable
 const addOutputLine = (data, stream, timestamp) => {
@@ -661,6 +662,26 @@ defineExpose({
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+}
+
+.task-description :deep(strong) {
+  color: var(--text-primary);
+}
+
+.task-description :deep(em) {
+  font-style: italic;
+}
+
+.task-description :deep(code) {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.task-description :deep(pre) {
+  margin: 4px 0;
+  font-family: monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
 }
 
 .terminal-output {

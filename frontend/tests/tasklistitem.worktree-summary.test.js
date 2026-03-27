@@ -131,6 +131,19 @@ describe('TaskListItem worktree summary', () => {
     expect(noneWrapper.find('.worktree-summary-delete-btn').exists()).toBe(false)
   })
 
+  it('renders formatted task description safely', () => {
+    const wrapper = mountTaskListItem({
+      description: '<img src=x onerror=alert(1)> **重点**\n`code`'
+    })
+
+    const description = wrapper.find('.task-description')
+    expect(description.exists()).toBe(true)
+    expect(description.html()).toContain('<strong>重点</strong>')
+    expect(description.html()).toContain('<code>code</code>')
+    expect(description.html()).not.toContain('<img')
+    expect(description.text()).toContain('重点')
+  })
+
   it('uses deleteWorktree when delete button is clicked', async () => {
     deleteWorktreeMock.mockImplementation(async (task, onUpdate) => {
       onUpdate?.(task)
