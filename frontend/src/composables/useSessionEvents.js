@@ -1,6 +1,195 @@
 import { ref } from 'vue'
 import { getSessionEvents } from '../api/session.js'
 
+function stringifyToolValue(value) {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function buildToolInputPreview(toolName, toolInput) {
+  if (toolInput == null) {
+    return ''
+  }
+
+  if (typeof toolInput === 'string') {
+    return toolInput
+  }
+
+  if (typeof toolInput !== 'object') {
+    return String(toolInput)
+  }
+
+  if (toolName === 'Read' && typeof toolInput.file_path === 'string') {
+    return `file_path: ${toolInput.file_path}`
+  }
+
+  if (toolName === 'Bash' && typeof toolInput.command === 'string') {
+    return `command: ${toolInput.command}`
+  }
+
+  if (toolName === 'Grep') {
+    const previewLines = []
+    if (typeof toolInput.pattern === 'string' && toolInput.pattern) {
+      previewLines.push(`pattern: ${toolInput.pattern}`)
+    }
+    if (typeof toolInput.path === 'string' && toolInput.path) {
+      previewLines.push(`path: ${toolInput.path}`)
+    }
+    if (typeof toolInput.glob === 'string' && toolInput.glob) {
+      previewLines.push(`glob: ${toolInput.glob}`)
+    }
+    return previewLines.join('\n')
+  }
+
+  if (toolName === 'Edit') {
+    const previewLines = []
+    if (typeof toolInput.file_path === 'string' && toolInput.file_path) {
+      previewLines.push(`file_path: ${toolInput.file_path}`)
+    }
+    if (typeof toolInput.old_string === 'string' && toolInput.old_string) {
+      previewLines.push(`old_string: ${toolInput.old_string.slice(0, 120)}`)
+    }
+    if (typeof toolInput.new_string === 'string' && toolInput.new_string) {
+      previewLines.push(`new_string: ${toolInput.new_string.slice(0, 120)}`)
+    }
+    return previewLines.join('\n')
+  }
+
+  const previewEntries = Object.entries(toolInput)
+    .filter(([, value]) => value != null && value !== '')
+    .slice(0, 3)
+    .map(([key, value]) => `${key}: ${stringifyToolValue(value)}`)
+
+  return previewEntries.join('\n')
+}
+
+function truncateText(value, maxLength = 240) {
+  if (typeof value !== 'string') {
+    return ''
+  }
+
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength)}…`
+}
+
+function shouldCollapseToolResult(text) {
+  if (typeof text !== 'string' || !text) {
+    return false
+  }
+
+  const lineCount = text.split('\n').length
+  return text.length > 280 || lineCount > 8
+}
+
+function buildToolResultSummary(text) {
+  if (typeof text !== 'string' || !text) {
+    return ''
+  }
+
+  const compact = text.trim()
+  return truncateText(compact, 280)
+}
+
+function buildToolMeta(toolName, toolInput) {
+  const toolInputPreview = buildToolInputPreview(toolName, toolInput)
+  return {
+    toolInputPreview,
+    toolCallCollapsedByDefault: true
+  }
+}
+
+function buildToolResultMeta(content) {
+  const toolResultText = typeof content === 'string' ? content : ''
+  return {
+    toolResultText,
+    toolResultSummary: buildToolResultSummary(toolResultText),
+    toolResultCollapsedByDefault: toolResultText !== ''
+  }
+}
+
+function buildToolDisplayLabel(toolName) {
+  if (typeof toolName === 'string' && toolName) {
+    return toolName
+  }
+  return '工具'
+}
+
+function buildRelatedToolName(toolUseId, toolCallMap) {
+  if (!toolUseId) {
+    return ''
+  }
+  return toolCallMap.get(toolUseId) || ''
+}
+
+function buildToolResultName(eventKind, toolName, toolUseId, toolCallMap) {
+  if (eventKind !== 'tool_result') {
+    return buildToolDisplayLabel(toolName)
+  }
+
+  const relatedToolName = buildRelatedToolName(toolUseId, toolCallMap)
+  return relatedToolName || buildToolDisplayLabel(toolName)
+}
+
+function buildToolResultMetadata(event, toolName, toolUseId, toolCallMap) {
+  const relatedToolName = buildRelatedToolName(toolUseId, toolCallMap)
+  return {
+    ...buildToolResultMeta(event?.content),
+    relatedToolName,
+    toolName: buildToolResultName(event?.kind, toolName, toolUseId, toolCallMap)
+  }
+}
+
+function normalizeEvent(event, toolCallMap) {
+  const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {}
+  const toolName = typeof payload.tool_name === 'string' && payload.tool_name
+    ? payload.tool_name
+    : typeof payload.name === 'string' && payload.name
+      ? payload.name
+      : event?.kind === 'tool_call' && typeof event?.content === 'string' && event.content
+        ? event.content
+        : ''
+  const toolCallId = typeof payload.tool_id === 'string' ? payload.tool_id : ''
+  const toolInput = Object.prototype.hasOwnProperty.call(payload, 'input') ? payload.input : null
+  const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id : ''
+  const toolIsError = payload.is_error === true
+
+  if (event?.kind === 'tool_call' && toolCallId) {
+    toolCallMap.set(toolCallId, buildToolDisplayLabel(toolName))
+  }
+
+  const toolMeta = buildToolMeta(toolName, toolInput)
+  const toolResultMeta = buildToolResultMetadata(event, toolName, toolUseId, toolCallMap)
+
+  return {
+    ...event,
+    payload,
+    toolName: toolResultMeta.toolName,
+    toolCallId,
+    toolInput,
+    ...toolMeta,
+    toolUseId,
+    toolIsError,
+    toolResultText: toolResultMeta.toolResultText,
+    toolResultSummary: toolResultMeta.toolResultSummary,
+    toolResultCollapsedByDefault: toolResultMeta.toolResultCollapsedByDefault,
+    relatedToolName: toolResultMeta.relatedToolName
+  }
+}
+
+function normalizeEvents(eventList) {
+  const toolCallMap = new Map()
+  return eventList.map((event) => normalizeEvent(event, toolCallMap))
+}
+
 export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
   const events = ref([])
   const lastSeq = ref(0)
@@ -14,8 +203,9 @@ export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
 
   function normalizeResponse(response) {
     const data = response?.data ?? response ?? {}
+    const rawEvents = Array.isArray(data.events) ? data.events : []
     return {
-      events: Array.isArray(data.events) ? data.events : [],
+      events: normalizeEvents(rawEvents),
       lastSeq: Number(data.last_seq ?? 0),
       hasMore: data.has_more === true
     }
@@ -37,7 +227,7 @@ export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
     })
 
     if (deduped.length > 0) {
-      events.value = [...events.value, ...deduped]
+      events.value = normalizeEvents([...events.value, ...deduped])
     }
   }
 
