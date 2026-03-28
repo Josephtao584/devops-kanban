@@ -25,6 +25,11 @@ const routes = [
     path: '/workflow-template',
     name: 'WorkflowTemplateConfig',
     component: () => import('../views/WorkflowTemplateConfig.vue')
+  },
+  {
+    path: '/skills',
+    name: 'SkillConfig',
+    component: () => import('../views/SkillConfig.vue')
   }
 ]
 
