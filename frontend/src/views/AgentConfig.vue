@@ -106,7 +106,7 @@
           <div class="skills-section">
             <span class="section-label">{{ $t('agent.skills') }}</span>
             <div class="skills-tags">
-              <span v-for="skill in (selectedAgent.skills || getRoleConfig(selectedAgent.role || 'BACKEND_DEV').skills)" :key="skill" class="skill-tag">
+              <span v-for="skill in getVisibleAgentSkills(selectedAgent)" :key="skill" class="skill-tag">
                 {{ skill }}
               </span>
             </div>
@@ -152,31 +152,20 @@
             <div class="form-group">
               <label>{{ $t('agent.skills') }}</label>
               <div class="skills-editor">
+                <select v-model="selectedSkillToAdd" class="skill-select">
+                  <option value="">{{ $t('agent.selectExistingSkill') }}</option>
+                  <option v-for="skill in availableSkillOptions" :key="skill" :value="skill">
+                    {{ skill }}
+                  </option>
+                </select>
+                <button type="button" class="btn btn-secondary btn-sm" @click="addSelectedSkill" :disabled="!selectedSkillToAdd">
+                  {{ $t('common.add') }}
+                </button>
                 <div class="skills-input-container">
                   <span v-for="(skill, index) in form.skills" :key="index" class="skill-tag-input">
                     {{ skill }}
                     <button type="button" class="remove-skill-btn" @click="removeSkill(index)">&times;</button>
                   </span>
-                  <input
-                    v-model="newSkill"
-                    type="text"
-                    :placeholder="$t('agent.skillPlaceholder')"
-                    @keydown.enter.prevent="addSkill"
-                    class="skill-input"
-                  />
-                  <button type="button" class="add-skill-btn" @click="addSkill" v-if="newSkill">+</button>
-                </div>
-                <div class="preset-skills">
-                  <span class="preset-label">{{ $t('agent.recommendedSkills') }}:</span>
-                  <button
-                    v-for="(skill, index) in presetSkills"
-                    :key="index"
-                    type="button"
-                    class="preset-skill-btn"
-                    @click="addPresetSkill(skill)"
-                  >
-                    + {{ skill }}
-                  </button>
                 </div>
               </div>
             </div>
@@ -218,11 +207,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
+import { useSkillStore } from '../stores/skillStore'
 import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
 import { getExecutionsByAgent } from '../api/execution'
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
+const skillStore = useSkillStore()
 
 const saving = ref(false)
 const showForm = ref(false)
@@ -243,23 +234,38 @@ const form = ref({
   skills: []
 })
 
-const newSkill = ref('')
+const selectedSkillToAdd = ref('')
+const availableSkills = computed(() => skillStore.skills.map(skill => skill.name))
+const availableSkillOptions = computed(() => availableSkills.value.filter(skill => !form.value.skills.includes(skill)))
 
 const setFormState = (agent) => {
+  const existingSkills = new Set(availableSkills.value)
+  const normalizedSkills = (agent?.skills || []).filter(skill => existingSkills.has(skill))
+
   form.value = {
     name: agent?.name || '',
     executorType: agent?.executorType || 'CLAUDE_CODE',
     role: agent?.role || 'BACKEND_DEV',
     description: agent?.description || '',
     enabled: agent?.enabled ?? true,
-    skills: agent?.skills || [...getRoleConfig(agent?.role || 'BACKEND_DEV').skills]
+    skills: normalizedSkills
   }
+  selectedSkillToAdd.value = ''
 }
 
 const formatExecutorType = (executorType) => {
   if (!executorType) return '-'
   return t(`agent.types.${executorType}`)
 }
+
+const getVisibleAgentSkills = (agent) => {
+  return (agent?.skills || []).filter(skill => availableSkills.value.includes(skill))
+}
+
+const buildAgentPayload = () => ({
+  ...form.value,
+  skills: form.value.skills.filter(skill => availableSkills.value.includes(skill))
+})
 
 const getResponseErrorMessage = (response, fallbackMessage) => {
   return response?.message || fallbackMessage
@@ -270,11 +276,6 @@ const resetFormState = () => {
 }
 
 resetFormState()
-
-// Get preset skills based on selected role
-const presetSkills = computed(() => {
-  return getRoleConfig(form.value.role || 'BACKEND_DEV').skills || []
-})
 
 // Get role options for select dropdown
 const roleOptions = computed(() => {
@@ -293,10 +294,11 @@ const showToast = (message, type = 'success') => {
 
 const loadAgents = async () => {
   try {
-    await agentStore.fetchAgents()
-    // Load statuses for all agents
+    await Promise.all([
+      agentStore.fetchAgents(),
+      skillStore.fetchSkills()
+    ])
     await loadAllAgentStatuses()
-    // Auto-select first agent if available
     if (agentStore.agents.length > 0 && !selectedAgent.value) {
       selectAgent(agentStore.agents[0])
     }
@@ -337,7 +339,6 @@ const selectAgent = async (agent) => {
 const openAddForm = () => {
   editingAgent.value = null
   resetFormState()
-  form.value.skills = [...presetSkills.value]
   showForm.value = true
 }
 
@@ -420,29 +421,22 @@ const confirmDelete = async () => {
 const closeForm = () => {
   showForm.value = false
   editingAgent.value = null
-  newSkill.value = ''
+  selectedSkillToAdd.value = ''
 }
 
 const onRoleChange = () => {
-  // When role changes, reset skills to the preset skills for that role
-  form.value.skills = [...presetSkills.value]
+  form.value.skills = form.value.skills.filter(skill => availableSkills.value.includes(skill))
 }
 
-const addSkill = () => {
-  if (newSkill.value && !form.value.skills.includes(newSkill.value)) {
-    form.value.skills = [...form.value.skills, newSkill.value]
-    newSkill.value = ''
+const addSelectedSkill = () => {
+  if (selectedSkillToAdd.value && !form.value.skills.includes(selectedSkillToAdd.value)) {
+    form.value.skills = [...form.value.skills, selectedSkillToAdd.value]
+    selectedSkillToAdd.value = ''
   }
 }
 
 const removeSkill = (index) => {
   form.value.skills = form.value.skills.filter((_, i) => i !== index)
-}
-
-const addPresetSkill = (skill) => {
-  if (!form.value.skills.includes(skill)) {
-    form.value.skills = [...form.value.skills, skill]
-  }
 }
 
 onMounted(loadAgents)
