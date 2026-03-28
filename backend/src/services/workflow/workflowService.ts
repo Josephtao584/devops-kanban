@@ -7,6 +7,7 @@ import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromTemplate, getWorkflowFromWorkflowId } from './workflows.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 import {WorkflowTemplateEntity} from "../../types/entities.js";
+import { syncWorkflowSkills } from './workflowSkillSync.js';
 
 
 function createValidationError(message: string) {
@@ -164,6 +165,9 @@ class WorkflowService {
 
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
     try {
+      // 同步 skills 到项目目录
+      await syncWorkflowSkills(workflowTemplate, task.execution_path);
+
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 
       const workflow = buildWorkflowFromTemplate(workflowTemplate, {
