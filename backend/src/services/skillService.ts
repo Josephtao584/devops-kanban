@@ -1,8 +1,7 @@
 import { SkillRepository } from '../repositories/skillRepository.js';
 import type { SkillEntity } from '../types/entities.js';
 import { existsSync, mkdirSync, rmSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { resolve } from 'node:path';
+import { dirname, relative, resolve, sep } from 'node:path';
 import AdmZip from 'adm-zip';
 
 class SkillService {
@@ -12,6 +11,17 @@ class SkillService {
   constructor(options: { storagePath?: string; skillRepo?: SkillRepository } = {}) {
     this.storagePath = options.storagePath || process.cwd();
     this.skillRepo = options.skillRepo || new SkillRepository({ storagePath: this.storagePath });
+  }
+
+  private ensurePathInSkillDir(skillName: string, targetPath: string): string {
+    const skillDir = this.getSkillDir(skillName);
+    const relativePath = relative(skillDir, targetPath);
+    if (relativePath === '..' || relativePath.startsWith(`..${sep}`)) {
+      const error: any = new Error('Invalid file path');
+      error.statusCode = 400;
+      throw error;
+    }
+    return skillDir;
   }
 
   async listSkills(): Promise<SkillEntity[]> {
@@ -78,11 +88,7 @@ class SkillService {
 
   async readSkillFile(skillName: string, filePath: string): Promise<string> {
     const fullPath = resolve(this.getSkillDir(skillName), filePath);
-    if (!fullPath.startsWith(this.getSkillDir(skillName))) {
-      const error: any = new Error('Invalid file path');
-      error.statusCode = 400;
-      throw error;
-    }
+    this.ensurePathInSkillDir(skillName, fullPath);
     if (!existsSync(fullPath)) {
       const error: any = new Error('File not found');
       error.statusCode = 404;
@@ -93,12 +99,7 @@ class SkillService {
 
   async writeSkillFile(skillName: string, filePath: string, content: string): Promise<void> {
     const fullPath = resolve(this.getSkillDir(skillName), filePath);
-    if (!fullPath.startsWith(this.getSkillDir(skillName))) {
-      const error: any = new Error('Invalid file path');
-      error.statusCode = 400;
-      throw error;
-    }
-    // Create parent directories if they don't exist
+    this.ensurePathInSkillDir(skillName, fullPath);
     const parentDir = dirname(fullPath);
     if (!existsSync(parentDir)) {
       mkdirSync(parentDir, { recursive: true });
@@ -116,12 +117,11 @@ class SkillService {
     const entries = zip.getEntries();
 
     for (const entry of entries) {
-      const entryPath = resolve(skillDir, entry.entryName);
-      if (!entryPath.startsWith(skillDir)) {
-        const error: any = new Error(`Invalid path in zip: ${entry.entryName}`);
-        error.statusCode = 400;
-        throw error;
+      if (entry.isDirectory) {
+        continue;
       }
+      const entryPath = resolve(skillDir, entry.entryName);
+      this.ensurePathInSkillDir(skillName, entryPath);
     }
 
     zip.extractAllTo(skillDir, true);

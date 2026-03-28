@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { useCrudStore } from '../composables/useCrudStore'
-import * as skillApi from '../api/skill'
+import { skillApi } from '../api/skill'
 
 export const useSkillStore = defineStore('skill', () => {
   const crud = useCrudStore({

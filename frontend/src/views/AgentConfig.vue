@@ -82,18 +82,6 @@
               <span class="info-value">{{ formatExecutorType(selectedAgent.executorType) }}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">{{ $t('agent.commandOverride') }}</span>
-              <span class="info-value description-text">{{ selectedAgent.commandOverride || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.args') }}</span>
-              <span class="info-value description-text">{{ formatArgs(selectedAgent.args) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.env') }}</span>
-              <span class="info-value description-text">{{ formatEnv(selectedAgent.env) }}</span>
-            </div>
-            <div class="info-item">
               <span class="info-label">{{ $t('agent.role') }}</span>
               <span class="info-value">
                 <span class="role-badge-inline">
@@ -153,58 +141,6 @@
             </div>
 
             <div class="form-group">
-              <label>{{ $t('agent.commandOverride') }}</label>
-              <input
-                v-model="form.commandOverride"
-                data-testid="agent-command-override-input"
-                type="text"
-                :placeholder="$t('agent.commandOverridePlaceholder')"
-              />
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('agent.args') }}</label>
-              <input
-                v-model="argsInput"
-                data-testid="agent-args-input"
-                type="text"
-                :placeholder="$t('agent.argsPlaceholder')"
-              />
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('agent.env') }}</label>
-              <div class="env-editor">
-                <div
-                  v-for="(entry, index) in envEntries"
-                  :key="`env-${index}`"
-                  class="env-row"
-                >
-                  <input
-                    :data-testid="`agent-env-key-${index}`"
-                    :value="entry.key"
-                    type="text"
-                    :placeholder="$t('agent.envKeyPlaceholder')"
-                    @input="updateEnvEntry(index, 'key', $event.target.value)"
-                  />
-                  <input
-                    :data-testid="`agent-env-value-${index}`"
-                    :value="entry.value"
-                    type="text"
-                    :placeholder="$t('agent.envValuePlaceholder')"
-                    @input="updateEnvEntry(index, 'value', $event.target.value)"
-                  />
-                  <button type="button" class="btn btn-secondary btn-sm" @click="removeEnvEntry(index)">
-                    {{ $t('common.delete') }}
-                  </button>
-                </div>
-                <button type="button" class="btn btn-secondary btn-sm" @click="addEnvEntry">
-                  + {{ $t('agent.addEnv') }}
-                </button>
-              </div>
-            </div>
-
-            <div class="form-group">
               <label>{{ $t('agent.role') }}</label>
               <select v-model="form.role" required @change="onRoleChange">
                 <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value">
@@ -225,7 +161,7 @@
                     v-model="newSkill"
                     type="text"
                     :placeholder="$t('agent.skillPlaceholder')"
-                    @keyup.enter="addSkill"
+                    @keydown.enter.prevent="addSkill"
                     class="skill-input"
                   />
                   <button type="button" class="add-skill-btn" @click="addSkill" v-if="newSkill">+</button>
@@ -298,63 +234,16 @@ const selectedAgent = ref(null)
 // Agent status tracking (for all agents)
 const agentStatuses = ref({})
 
-const DEFAULT_ENV_ENTRY = () => ({ key: '', value: '' })
-
 const form = ref({
   name: '',
   executorType: 'CLAUDE_CODE',
   role: 'BACKEND_DEV',
   description: '',
   enabled: true,
-  skills: [],
-  commandOverride: '',
-  args: [],
-  env: {}
+  skills: []
 })
 
-const argsInput = ref('')
-const envEntries = ref([DEFAULT_ENV_ENTRY()])
 const newSkill = ref('')
-
-const normalizeArgs = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(item => String(item).trim()).filter(Boolean)
-  }
-
-  if (typeof value !== 'string') {
-    return []
-  }
-
-  return value.split(',').map(item => item.trim()).filter(Boolean)
-}
-
-const buildEnvObject = (entries) => {
-  return entries.reduce((acc, entry) => {
-    const key = entry.key?.trim()
-    const value = entry.value?.trim()
-
-    if (!key) {
-      return acc
-    }
-
-    acc[key] = value || ''
-    return acc
-  }, {})
-}
-
-const toEnvEntries = (env) => {
-  const entries = Object.entries(env || {}).map(([key, value]) => ({
-    key,
-    value: String(value ?? '')
-  }))
-
-  return entries.length > 0 ? entries : [DEFAULT_ENV_ENTRY()]
-}
-
-const syncRuntimeConfigInputs = () => {
-  argsInput.value = (form.value.args || []).join(', ')
-  envEntries.value = toEnvEntries(form.value.env)
-}
 
 const setFormState = (agent) => {
   form.value = {
@@ -363,55 +252,14 @@ const setFormState = (agent) => {
     role: agent?.role || 'BACKEND_DEV',
     description: agent?.description || '',
     enabled: agent?.enabled ?? true,
-    skills: agent?.skills || [...getRoleConfig(agent?.role || 'BACKEND_DEV').skills],
-    commandOverride: agent?.commandOverride || '',
-    args: normalizeArgs(agent?.args || []),
-    env: { ...(agent?.env || {}) }
+    skills: agent?.skills || [...getRoleConfig(agent?.role || 'BACKEND_DEV').skills]
   }
-  syncRuntimeConfigInputs()
-}
-
-const updateEnvEntry = (index, field, value) => {
-  envEntries.value[index] = {
-    ...envEntries.value[index],
-    [field]: value
-  }
-}
-
-const addEnvEntry = () => {
-  envEntries.value = [...envEntries.value, DEFAULT_ENV_ENTRY()]
-}
-
-const removeEnvEntry = (index) => {
-  const nextEntries = envEntries.value.filter((_, entryIndex) => entryIndex !== index)
-  envEntries.value = nextEntries.length > 0 ? nextEntries : [DEFAULT_ENV_ENTRY()]
 }
 
 const formatExecutorType = (executorType) => {
   if (!executorType) return '-'
   return t(`agent.types.${executorType}`)
 }
-
-const formatArgs = (args) => {
-  const normalizedArgs = normalizeArgs(args)
-  return normalizedArgs.length > 0 ? normalizedArgs.join(', ') : '-'
-}
-
-const formatEnv = (env) => {
-  const entries = Object.entries(env || {})
-  if (entries.length === 0) {
-    return '-'
-  }
-
-  return entries.map(([key, value]) => `${key}=${value}`).join(', ')
-}
-
-const buildAgentPayload = () => ({
-  ...form.value,
-  commandOverride: form.value.commandOverride.trim() || null,
-  args: normalizeArgs(argsInput.value),
-  env: buildEnvObject(envEntries.value)
-})
 
 const getResponseErrorMessage = (response, fallbackMessage) => {
   return response?.message || fallbackMessage

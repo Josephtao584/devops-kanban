@@ -24,6 +24,7 @@ export default {
     back: '返回',
     close: '关闭',
     next: '下一步',
+    refresh: '刷新',
     required: '必填',
     optional: '可选'
   },
@@ -327,14 +328,6 @@ export default {
     pleaseConfigure: '请先添加团队成员',
     loadFailed: '加载成员失败',
     startSession: '开始会话',
-    commandOverride: '命令覆盖',
-    commandOverridePlaceholder: '留空则使用默认命令',
-    args: '命令参数',
-    argsPlaceholder: '使用逗号分隔参数，例如 --json, --verbose',
-    env: '环境变量',
-    envKeyPlaceholder: '变量名',
-    envValuePlaceholder: '变量值',
-    addEnv: '添加环境变量',
     types: {
       CLAUDE: 'Claude Code',
       CLAUDE_CODE: 'Claude Code',
@@ -593,8 +586,7 @@ export default {
     filesRefreshed: '文件列表已刷新',
     deleteConfirm: '确定要删除此技能吗？',
     editFile: '编辑文件',
-    fileContentPlaceholder: '输入文件内容',
-    title: '技能'
+    fileContentPlaceholder: '输入文件内容'
   },
   iteration: {
     title: '迭代',

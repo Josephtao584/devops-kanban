@@ -61,7 +61,7 @@
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.workflowTemplate') }}</span>
         </router-link>
 
-        <router-link to="/skills" class="nav-item" :title="$t('nav.skills')">
+        <router-link to="/skills" class="nav-item" :class="{ 'router-link-active': $route.path.startsWith('/skills') }" :title="$t('nav.skills')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
             <path d="M2 17l10 5 10-5"></path>

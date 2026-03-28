@@ -14,7 +14,7 @@ const mockSkillApi = vi.hoisted(() => ({
   uploadZip: vi.fn()
 }))
 
-vi.mock('../src/api/skill', () => mockSkillApi)
+vi.mock('../src/api/skill', () => ({ skillApi: mockSkillApi }))
 
 describe('skillStore', () => {
   beforeEach(() => {

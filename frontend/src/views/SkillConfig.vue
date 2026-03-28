@@ -310,29 +310,6 @@ const loadSkillFiles = async () => {
   }
 }
 
-const getMockSkillFiles = (skillName) => {
-  // Return mock files based on known skills
-  const skillFileMap = {
-    'brainstorming': [
-      { name: 'SKILL.md', path: 'SKILL.md', type: 'markdown' },
-      { name: 'spec-document-reviewer-prompt.md', path: 'spec-document-reviewer-prompt.md', type: 'markdown' },
-      { name: 'visual-companion.md', path: 'visual-companion.md', type: 'markdown' },
-      { name: 'scripts/helper.js', path: 'scripts/helper.js', type: 'script' },
-      { name: 'scripts/server.cjs', path: 'scripts/server.cjs', type: 'script' }
-    ],
-    'systematic-debugging': [
-      { name: 'SKILL.md', path: 'SKILL.md', type: 'markdown' }
-    ],
-    'writing-skills': [
-      { name: 'SKILL.md', path: 'SKILL.md', type: 'markdown' }
-    ]
-  }
-
-  return skillFileMap[skillName] || [
-    { name: 'SKILL.md', path: 'SKILL.md', type: 'markdown' }
-  ]
-}
-
 const getFileIcon = (filename) => {
   if (filename.endsWith('.md')) return '📄'
   if (filename.endsWith('.js') || filename.endsWith('.cjs')) return '📜'
@@ -383,7 +360,7 @@ const handleZipUpload = async (event) => {
 
   try {
     const arrayBuffer = await file.arrayBuffer()
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+    const base64 = arrayBufferToBase64(arrayBuffer)
     await skillStore.uploadSkillZip(selectedSkill.value.id, base64)
     await loadSkillFiles()
     showToast(t('skill.zipUploaded'))
@@ -394,6 +371,19 @@ const handleZipUpload = async (event) => {
 
   // Reset the input
   event.target.value = ''
+}
+
+const arrayBufferToBase64 = (arrayBuffer) => {
+  const bytes = new Uint8Array(arrayBuffer)
+  const chunkSize = 0x8000
+  let binary = ''
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary)
 }
 
 const truncateDescription = (description) => {
