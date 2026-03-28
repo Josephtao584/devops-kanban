@@ -98,3 +98,53 @@ test.test('PUT /:id rejects unknown skills', async () => {
   assert.equal(response.json().message, 'Unknown skills: ghost-skill');
   await app.close();
 });
+
+test.test('PUT /:id accepts existing skills', async () => {
+  const app = await buildApp();
+  const response = await app.inject({
+    method: 'PUT',
+    url: '/1',
+    payload: {
+      skills: ['brainstorming', 'systematic-debugging']
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json().data.skills, ['brainstorming', 'systematic-debugging']);
+  await app.close();
+});
+
+test.test('PUT /:id allows updates without skills field', async () => {
+  const app = await buildApp();
+  const response = await app.inject({
+    method: 'PUT',
+    url: '/1',
+    payload: {
+      description: 'updated desc'
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.description, 'updated desc');
+  await app.close();
+});
+
+test.test('POST / rejects non-array skills', async () => {
+  const app = await buildApp();
+  const response = await app.inject({
+    method: 'POST',
+    url: '/',
+    payload: {
+      name: 'agent',
+      executorType: 'CLAUDE_CODE',
+      role: 'BACKEND_DEV',
+      description: 'desc',
+      enabled: true,
+      skills: 'brainstorming'
+    }
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().message, 'skills must be an array of strings');
+  await app.close();
+});

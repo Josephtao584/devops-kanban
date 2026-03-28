@@ -51,18 +51,22 @@ class WorkflowService {
   workflowTemplateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
+  syncWorkflowSkillsFn: typeof syncWorkflowSkills;
+  workflowBuilder: typeof buildWorkflowFromTemplate;
 
   async _resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle, syncWorkflowSkillsFn, workflowBuilder }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     workflowTemplateService?: WorkflowTemplateService;
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
+    syncWorkflowSkillsFn?: typeof syncWorkflowSkills;
+    workflowBuilder?: typeof buildWorkflowFromTemplate;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
     this.taskRepo = taskRepo || new TaskRepository();
@@ -70,6 +74,8 @@ class WorkflowService {
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
     this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo });
+    this.syncWorkflowSkillsFn = syncWorkflowSkillsFn || syncWorkflowSkills;
+    this.workflowBuilder = workflowBuilder || buildWorkflowFromTemplate;
   }
 
   async startWorkflow(taskId: number, options: StartWorkflowOptions) {
@@ -166,11 +172,11 @@ class WorkflowService {
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
     try {
       // 同步 skills 到项目目录
-      await syncWorkflowSkills(workflowTemplate, task.execution_path);
+      await this.syncWorkflowSkillsFn(workflowTemplate, task.execution_path);
 
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 
-      const workflow = buildWorkflowFromTemplate(workflowTemplate, {
+      const workflow = this.workflowBuilder(workflowTemplate, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
         lifecycle: this.lifecycle
