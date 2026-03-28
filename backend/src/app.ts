@@ -53,6 +53,7 @@ export async function buildApp() {
         taskSources: '/api/task-sources',
         executions: '/api/executions',
         agents: '/api/agents',
+        skills: '/api/skills',
         workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',
