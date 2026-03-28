@@ -8,3 +8,4 @@ export { sessionRoutes } from './sessions.js';
 export { workflowRoutes } from './workflows.js';
 export { workflowTemplateRoutes } from './workflowTemplate.js';
 export { gitRoutes } from './git.js';
+export { skillRoutes } from './skills.js';
