@@ -60,6 +60,15 @@
           </svg>
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.workflowTemplate') }}</span>
         </router-link>
+
+        <router-link to="/skills" class="nav-item" :title="$t('nav.skills')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.skills') }}</span>
+        </router-link>
       </nav>
 
       <!-- 底部操作区 -->
