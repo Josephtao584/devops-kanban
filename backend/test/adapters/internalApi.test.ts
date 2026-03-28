@@ -464,7 +464,7 @@ test.test('InternalApiAdapter normalizes workitem rich text descriptions from li
     {
       external_id: 'EP-DETAIL',
       title: 'Detail-rich task',
-      description: '**unsafe** & **safe**\n\n- 一\n- 二',
+      description: '<b>unsafe</b> & **safe**\n\n- 一\n- 二',
       external_url: '',
       status: 'DONE',
       labels: [],

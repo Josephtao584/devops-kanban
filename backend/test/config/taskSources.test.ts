@@ -127,7 +127,7 @@ test.test('loadAdapterTypes includes metadata-only INTERNAL_API definitions with
 
   assert.deepEqual(internalApi, {
     key: 'INTERNAL_API',
-    name: 'Internal API',
+    name: 'CloudDevOps Story',
     description: '从内部 API 同步任务（列表 + 详情两段拉取模板）',
     configFields: {
       baseUrl: {
