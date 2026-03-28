@@ -293,10 +293,21 @@ const selectSkill = async (skill) => {
 const loadSkillFiles = async () => {
   if (!selectedSkill.value) return
 
-  // Mock file list based on skill name
-  // In a real implementation, this would call an API to list files
-  const mockFiles = getMockSkillFiles(selectedSkill.value.name)
-  skillFiles.value = mockFiles
+  try {
+    const files = await skillStore.fetchSkillFiles(selectedSkill.value.id)
+    skillFiles.value = files.map(path => {
+      const name = path.split('/').pop()
+      return {
+        name,
+        path,
+        type: name.endsWith('.md') ? 'markdown' : name.endsWith('.js') || name.endsWith('.cjs') ? 'script' : 'other'
+      }
+    })
+  } catch (e) {
+    console.error('Failed to load skill files:', e)
+    showToast(t('skill.loadFilesFailed'), 'error')
+    skillFiles.value = []
+  }
 }
 
 const getMockSkillFiles = (skillName) => {
@@ -340,25 +351,14 @@ const loadFilePreview = async (file) => {
   previewContent.value = ''
 
   try {
-    // Mock file content - in real implementation, would fetch from API
-    previewContent.value = getMockFileContent(file.name)
+    const result = await skillStore.fetchSkillFile(selectedSkill.value.id, file.path)
+    previewContent.value = result.content || ''
   } catch (e) {
     console.error('Failed to load file preview:', e)
     previewContent.value = ''
   } finally {
     loadingPreview.value = false
   }
-}
-
-const getMockFileContent = (filename) => {
-  const contents = {
-    'SKILL.md': '# Skill Name\n\nThis is the main skill definition file.\n\n## Overview\n\nDescribe what this skill does here.',
-    'spec-document-reviewer-prompt.md': '# Spec Document Reviewer Prompt\n\nReview the specification document and provide feedback.',
-    'visual-companion.md': '# Visual Companion\n\nVisual elements and diagrams for the skill.',
-    'scripts/helper.js': '// Helper functions\nmodule.exports = {\n  process: function(input) {\n    return input;\n  }\n};',
-    'scripts/server.cjs': '// Server implementation\nconst http = require(\'http\');\n// ... server code'
-  }
-  return contents[filename] || `Content of ${filename}`
 }
 
 const refreshFiles = async () => {
@@ -377,10 +377,21 @@ const handleZipUpload = async (event) => {
   // Check if it's a zip file
   if (!file.name.endsWith('.zip')) {
     showToast(t('skill.invalidFileType'), 'error')
+    event.target.value = ''
     return
   }
 
-  showToast(t('skill.zipUploadHint') + file.name)
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+    await skillStore.uploadSkillZip(selectedSkill.value.id, base64)
+    await loadSkillFiles()
+    showToast(t('skill.zipUploaded'))
+  } catch (e) {
+    console.error('Failed to upload zip:', e)
+    showToast(t('skill.zipUploadFailed'), 'error')
+  }
+
   // Reset the input
   event.target.value = ''
 }
@@ -498,10 +509,15 @@ const closeFileEdit = () => {
 const saveFileContent = async () => {
   savingFile.value = true
   try {
-    // In a real implementation, this would call an API to save the file
+    await skillStore.updateSkillFile(selectedSkill.value.id, editingFileName.value, editingFileContent.value)
+    // Refresh preview
+    if (selectedFile.value && selectedFile.value.name === editingFileName.value) {
+      previewContent.value = editingFileContent.value
+    }
     showToast(t('skill.fileSaved'))
     closeFileEdit()
   } catch (e) {
+    console.error('Failed to save file:', e)
     showToast(t('skill.fileSaveFailed'), 'error')
   } finally {
     savingFile.value = false

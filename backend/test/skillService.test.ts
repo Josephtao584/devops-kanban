@@ -69,3 +69,92 @@ test.test('deleteSkill returns false for non-existent id', async () => {
     assert.equal(deleted, false);
   });
 });
+
+test.test('writeSkillFile and readSkillFile work correctly', async () => {
+  await withIsolatedStorage(async (tempRoot) => {
+    const service = new SkillService({ storagePath: tempRoot });
+    await service.createSkill('test-skill');
+
+    // Write a file
+    await service.writeSkillFile('test-skill', 'SKILL.md', '# Test Skill\n\nContent here.');
+
+    // Read it back
+    const content = await service.readSkillFile('test-skill', 'SKILL.md');
+    assert.equal(content, '# Test Skill\n\nContent here.');
+  });
+});
+
+test.test('readSkillFile rejects path traversal', async () => {
+  await withIsolatedStorage(async (tempRoot) => {
+    const service = new SkillService({ storagePath: tempRoot });
+    await service.createSkill('test-skill');
+
+    await assert.rejects(
+      async () => service.readSkillFile('test-skill', '../../../etc/passwd'),
+      /Invalid file path/
+    );
+  });
+});
+
+test.test('writeSkillFile rejects path traversal', async () => {
+  await withIsolatedStorage(async (tempRoot) => {
+    const service = new SkillService({ storagePath: tempRoot });
+    await service.createSkill('test-skill');
+
+    await assert.rejects(
+      async () => service.writeSkillFile('test-skill', '../../../etc/passwd', 'malicious'),
+      /Invalid file path/
+    );
+  });
+});
+
+test.test('listSkillFiles returns all files in skill directory', async () => {
+  await withIsolatedStorage(async (tempRoot) => {
+    const service = new SkillService({ storagePath: tempRoot });
+    await service.createSkill('test-skill');
+
+    await service.writeSkillFile('test-skill', 'SKILL.md', '# Skill');
+    await service.writeSkillFile('test-skill', 'scripts/helper.js', 'module.exports = {}');
+
+    const files = await service.listSkillFiles('test-skill');
+
+    assert.ok(files.includes('SKILL.md'), 'should include SKILL.md');
+    assert.ok(files.includes('scripts/helper.js'), 'should include scripts/helper.js');
+    // With recursive readdir, directories are also listed, so we just verify expected files exist
+    assert.ok(files.length >= 2, 'should have at least 2 entries');
+  });
+});
+
+test.test('uploadSkillZip extracts zip contents', async () => {
+  await withIsolatedStorage(async (tempRoot) => {
+    const service = new SkillService({ storagePath: tempRoot });
+    await service.createSkill('test-skill');
+
+    const AdmZip = (await import('adm-zip')).default;
+    const zip = new AdmZip();
+    zip.addFile('SKILL.md', Buffer.from('# Zipped Skill\n\nContent'));
+    zip.addFile('README.txt', Buffer.from('Readme content'));
+    const zipBuffer = zip.toBuffer();
+
+    await service.uploadSkillZip('test-skill', zipBuffer);
+
+    const files = await service.listSkillFiles('test-skill');
+    assert.ok(files.includes('SKILL.md'), 'should include extracted SKILL.md');
+    assert.ok(files.includes('README.txt'), 'should include extracted README.txt');
+
+    const content = await service.readSkillFile('test-skill', 'SKILL.md');
+    assert.equal(content, '# Zipped Skill\n\nContent');
+  });
+});
+
+test.test('readSkillFile returns 404 for non-existent file', async () => {
+  await withIsolatedStorage(async (tempRoot) => {
+    const service = new SkillService({ storagePath: tempRoot });
+    await service.createSkill('test-skill');
+
+    await assert.rejects(
+      async () => service.readSkillFile('test-skill', 'nonexistent.md'),
+      /File not found/
+    );
+  });
+});

@@ -14,6 +14,38 @@ export const useSkillStore = defineStore('skill', () => {
     }
   })
 
+  const fetchSkillFiles = async (skillId) => {
+    const response = await skillApi.listFiles(skillId)
+    if (response.success) {
+      return response.data
+    }
+    throw new Error(response.message || 'Failed to fetch skill files')
+  }
+
+  const fetchSkillFile = async (skillId, filePath) => {
+    const response = await skillApi.getFile(skillId, filePath)
+    if (response.success) {
+      return response.data
+    }
+    throw new Error(response.message || 'Failed to fetch skill file')
+  }
+
+  const updateSkillFile = async (skillId, filePath, content) => {
+    const response = await skillApi.updateFile(skillId, filePath, content)
+    if (response.success) {
+      return response.data
+    }
+    throw new Error(response.message || 'Failed to update skill file')
+  }
+
+  const uploadSkillZip = async (skillId, zipBase64) => {
+    const response = await skillApi.uploadZip(skillId, zipBase64)
+    if (response.success) {
+      return response.data
+    }
+    throw new Error(response.message || 'Failed to upload skill zip')
+  }
+
   return {
     skills: crud.items,
     currentSkill: crud.currentItem,
@@ -26,6 +58,10 @@ export const useSkillStore = defineStore('skill', () => {
     deleteSkill: crud.deleteItem,
     setCurrentSkill: crud.setCurrentItem,
     clearSkills: crud.clearItems,
-    clearError: crud.clearError
+    clearError: crud.clearError,
+    fetchSkillFiles,
+    fetchSkillFile,
+    updateSkillFile,
+    uploadSkillZip
   }
 })

@@ -82,4 +82,81 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       return errorResponse(getErrorMessage(error, 'Failed to delete skill'));
     }
   });
+
+  fastify.get<{ Params: IdParams }>('/:id/files', async (request, reply) => {
+    try {
+      const skill = await skillService.getSkill(parseNumber(request.params.id));
+      if (!skill) {
+        reply.code(404);
+        return errorResponse('Skill not found');
+      }
+      const files = await skillService.listSkillFiles(skill.name);
+      return successResponse(files);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to list skill files'));
+    }
+  });
+
+  fastify.get<{ Params: IdParams & { '*': string } }>('/:id/files/*', async (request, reply) => {
+    try {
+      const skill = await skillService.getSkill(parseNumber(request.params.id));
+      if (!skill) {
+        reply.code(404);
+        return errorResponse('Skill not found');
+      }
+      const filePath = request.params['*'];
+      const content = await skillService.readSkillFile(skill.name, filePath);
+      return successResponse({ path: filePath, content });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to read skill file'));
+    }
+  });
+
+  fastify.put<{ Params: IdParams & { '*': string }; Body: { content: string } }>('/:id/files/*', async (request, reply) => {
+    try {
+      const skill = await skillService.getSkill(parseNumber(request.params.id));
+      if (!skill) {
+        reply.code(404);
+        return errorResponse('Skill not found');
+      }
+      const filePath = request.params['*'];
+      const { content } = request.body;
+      if (typeof content !== 'string') {
+        reply.code(400);
+        return errorResponse('content is required');
+      }
+      await skillService.writeSkillFile(skill.name, filePath, content);
+      return successResponse(null, 'File updated');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to write skill file'));
+    }
+  });
+
+  fastify.post<{ Params: IdParams; Body: { zip: string } }>('/:id/upload-zip', async (request, reply) => {
+    try {
+      const skill = await skillService.getSkill(parseNumber(request.params.id));
+      if (!skill) {
+        reply.code(404);
+        return errorResponse('Skill not found');
+      }
+      const { zip } = request.body;
+      if (!zip || typeof zip !== 'string') {
+        reply.code(400);
+        return errorResponse('zip base64 data is required');
+      }
+      const zipBuffer = Buffer.from(zip, 'base64');
+      await skillService.uploadSkillZip(skill.name, zipBuffer);
+      return successResponse(null, 'Zip uploaded and extracted');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to upload zip'));
+    }
+  });
 };

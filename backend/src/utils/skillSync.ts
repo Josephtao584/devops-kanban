@@ -1,5 +1,6 @@
 import { existsSync, cpSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { STORAGE_PATH } from '../config/index.js';
 
 export async function ensureSkillsInWorktree(skillNames: string[], projectPath: string): Promise<void> {
   if (!skillNames || skillNames.length === 0) {
@@ -15,7 +16,7 @@ export async function ensureSkillsInWorktree(skillNames: string[], projectPath: 
   }
 
   for (const skillName of skillNames) {
-    const sourceDir = resolve(process.cwd(), 'data', 'skills', skillName);
+    const sourceDir = resolve(STORAGE_PATH, 'skills', skillName);
     const targetDir = resolve(targetSkillsDir, skillName);
 
     // 已存在则跳过
