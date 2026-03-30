@@ -51,14 +51,14 @@ describe('AgentConfig', () => {
         role: 'BACKEND_DEV',
         description: 'desc',
         enabled: true,
-        skills: ['brainstorming']
+        skills: [1]
       }
     ]
     mockAgentStore.fetchAgents.mockResolvedValue({ success: true, data: mockAgentStore.agents })
     mockAgentStore.updateAgent.mockResolvedValue({ success: true, data: mockAgentStore.agents[0] })
     mockSkillStore.skills = [
-      { id: 1, name: 'brainstorming' },
-      { id: 2, name: 'systematic-debugging' }
+      { id: 1, identifier: 'brainstorming', name: '头脑风暴' },
+      { id: 2, identifier: 'systematic-debugging', name: '系统调试' }
     ]
     mockSkillStore.fetchSkills.mockResolvedValue({ success: true, data: mockSkillStore.skills })
     vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -86,7 +86,7 @@ describe('AgentConfig', () => {
     expect(mockSkillStore.fetchSkills).toHaveBeenCalledTimes(1)
     await wrapper.find('.agent-list-item').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('brainstorming')
+    expect(wrapper.text()).toContain('头脑风暴')
   })
 
   it('shows existing skills selector instead of freeform input', async () => {
@@ -105,14 +105,14 @@ describe('AgentConfig', () => {
     await openEditModal(wrapper)
 
     const select = wrapper.find('.skill-select')
-    await select.setValue('systematic-debugging')
+    await select.setValue(2) // select skill id 2 (systematic-debugging)
     await wrapper.find('.skills-editor .btn').trigger('click')
     await wrapper.get('[data-testid="agent-form"]').trigger('submit')
     await flushPromises()
 
     expect(mockAgentStore.updateAgent).toHaveBeenCalled()
     const payload = mockAgentStore.updateAgent.mock.calls[0][1]
-    expect(payload.skills).toEqual(['brainstorming', 'systematic-debugging'])
+    expect(payload.skills).toEqual([1, 2])
   })
 
   it('preserves unknown skills from existing agent data when editing', async () => {
@@ -124,7 +124,7 @@ describe('AgentConfig', () => {
         role: 'BACKEND_DEV',
         description: 'desc',
         enabled: true,
-        skills: ['brainstorming', 'ghost-skill']
+        skills: [1, 999]
       }
     ]
     mockAgentStore.fetchAgents.mockResolvedValue({ success: true, data: mockAgentStore.agents })
@@ -134,13 +134,14 @@ describe('AgentConfig', () => {
     await flushPromises()
     await openEditModal(wrapper)
 
-    expect(wrapper.text()).toContain('brainstorming')
-    expect(wrapper.text()).toContain('ghost-skill')
+    expect(wrapper.text()).toContain('头脑风暴')
+    // id 999 is not in skillStore, so it won't appear
+    expect(wrapper.text()).not.toContain('999')
 
     await wrapper.get('[data-testid="agent-form"]').trigger('submit')
     await flushPromises()
 
     const payload = mockAgentStore.updateAgent.mock.calls[0][1]
-    expect(payload.skills).toEqual(['brainstorming', 'ghost-skill'])
+    expect(payload.skills).toEqual([1, 999])
   })
 })

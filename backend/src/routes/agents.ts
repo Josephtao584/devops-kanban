@@ -24,8 +24,8 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'number');
 }
 
 function validateExecutorType(value: unknown) {
@@ -64,8 +64,8 @@ function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody
     throw createValidationError('enabled is required');
   }
 
-  if (!isStringArray(body.skills)) {
-    throw createValidationError('skills must be an array of strings');
+  if (!isNumberArray(body.skills)) {
+    throw createValidationError('skills must be an array of numbers');
   }
 }
 
@@ -94,15 +94,15 @@ function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody
     throw createValidationError('enabled must be a boolean');
   }
 
-  if ('skills' in body && body.skills !== undefined && !isStringArray(body.skills)) {
-    throw createValidationError('skills must be an array of strings');
+  if ('skills' in body && body.skills !== undefined && !isNumberArray(body.skills)) {
+    throw createValidationError('skills must be an array of numbers');
   }
 }
 
-async function validateExistingSkills(skillRepo: Pick<SkillRepository, 'findAll'>, skills: string[]) {
+async function validateExistingSkills(skillRepo: Pick<SkillRepository, 'findAll'>, skills: number[]) {
   const existingSkills = await skillRepo.findAll();
-  const validSkillNames = new Set(existingSkills.map(skill => skill.name));
-  const invalidSkills = skills.filter(skill => !validSkillNames.has(skill));
+  const validSkillIds = new Set(existingSkills.map(skill => skill.id));
+  const invalidSkills = skills.filter(skillId => !validSkillIds.has(skillId));
   if (invalidSkills.length > 0) {
     throw createValidationError(`Unknown skills: ${invalidSkills.join(', ')}`);
   }

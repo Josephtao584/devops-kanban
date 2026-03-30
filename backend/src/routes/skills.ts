@@ -3,12 +3,13 @@ import { SkillService } from '../services/skillService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
 import type { IdParams } from '../types/http/params.js';
+import { STORAGE_PATH } from '../config/index.js';
 
 type SkillRouteOptions = {
   skillService?: SkillService;
 };
 
-export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify, { skillService = new SkillService() } = {}) => {
+export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify, { skillService = new SkillService({ storagePath: STORAGE_PATH }) } = {}) => {
   fastify.get('/', async (request, reply) => {
     try {
       return successResponse(await skillService.listSkills());

@@ -12,7 +12,7 @@ type AgentRepoStub = {
 };
 
 type SkillRepoStub = {
-  findAll: () => Promise<Array<{ id: number; name: string }>>;
+  findAll: () => Promise<Array<{ id: number; identifier: string; name: string }>>;
 };
 
 function buildRepos() {
@@ -27,8 +27,8 @@ function buildRepos() {
   const skillRepo: SkillRepoStub = {
     async findAll() {
       return [
-        { id: 1, name: 'brainstorming' },
-        { id: 2, name: 'systematic-debugging' },
+        { id: 1, identifier: 'brainstorming', name: '头脑风暴' },
+        { id: 2, identifier: 'systematic-debugging', name: '系统调试' },
       ];
     },
   };
@@ -55,12 +55,12 @@ test.test('POST / rejects unknown skills', async () => {
       role: 'BACKEND_DEV',
       description: 'desc',
       enabled: true,
-      skills: ['ghost-skill']
+      skills: [999]
     }
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'Unknown skills: ghost-skill');
+  assert.equal(response.json().message, 'Unknown skills: 999');
   await app.close();
 });
 
@@ -75,12 +75,12 @@ test.test('POST / accepts existing skills', async () => {
       role: 'BACKEND_DEV',
       description: 'desc',
       enabled: true,
-      skills: ['brainstorming']
+      skills: [1]
     }
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().data.skills[0], 'brainstorming');
+  assert.equal(response.json().data.skills[0], 1);
   await app.close();
 });
 
@@ -90,12 +90,12 @@ test.test('PUT /:id rejects unknown skills', async () => {
     method: 'PUT',
     url: '/1',
     payload: {
-      skills: ['brainstorming', 'ghost-skill']
+      skills: [1, 999]
     }
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'Unknown skills: ghost-skill');
+  assert.equal(response.json().message, 'Unknown skills: 999');
   await app.close();
 });
 
@@ -105,12 +105,12 @@ test.test('PUT /:id accepts existing skills', async () => {
     method: 'PUT',
     url: '/1',
     payload: {
-      skills: ['brainstorming', 'systematic-debugging']
+      skills: [1, 2]
     }
   });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json().data.skills, ['brainstorming', 'systematic-debugging']);
+  assert.deepEqual(response.json().data.skills, [1, 2]);
   await app.close();
 });
 
@@ -140,11 +140,11 @@ test.test('POST / rejects non-array skills', async () => {
       role: 'BACKEND_DEV',
       description: 'desc',
       enabled: true,
-      skills: 'brainstorming'
+      skills: 1
     }
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'skills must be an array of strings');
+  assert.equal(response.json().message, 'skills must be an array of numbers');
   await app.close();
 });
