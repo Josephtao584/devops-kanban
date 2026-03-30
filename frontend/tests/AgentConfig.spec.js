@@ -115,7 +115,7 @@ describe('AgentConfig', () => {
     expect(payload.skills).toEqual(['brainstorming', 'systematic-debugging'])
   })
 
-  it('filters unknown skills from existing agent data', async () => {
+  it('preserves unknown skills from existing agent data when editing', async () => {
     mockAgentStore.agents = [
       {
         id: 1,
@@ -128,12 +128,19 @@ describe('AgentConfig', () => {
       }
     ]
     mockAgentStore.fetchAgents.mockResolvedValue({ success: true, data: mockAgentStore.agents })
+    mockAgentStore.updateAgent.mockResolvedValue({ success: true, data: mockAgentStore.agents[0] })
 
     const wrapper = mountView()
     await flushPromises()
     await openEditModal(wrapper)
 
     expect(wrapper.text()).toContain('brainstorming')
-    expect(wrapper.text()).not.toContain('ghost-skill')
+    expect(wrapper.text()).toContain('ghost-skill')
+
+    await wrapper.get('[data-testid="agent-form"]').trigger('submit')
+    await flushPromises()
+
+    const payload = mockAgentStore.updateAgent.mock.calls[0][1]
+    expect(payload.skills).toEqual(['brainstorming', 'ghost-skill'])
   })
 })
