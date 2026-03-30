@@ -239,8 +239,9 @@ const availableSkills = computed(() => skillStore.skills.map(skill => skill.name
 const availableSkillOptions = computed(() => availableSkills.value.filter(skill => !form.value.skills.includes(skill)))
 
 const setFormState = (agent) => {
-  const existingSkills = new Set(availableSkills.value)
-  const normalizedSkills = (agent?.skills || []).filter(skill => existingSkills.has(skill))
+  const normalizedSkills = Array.isArray(agent?.skills)
+    ? [...new Set(agent.skills.filter(skill => typeof skill === 'string' && skill.trim()))]
+    : []
 
   form.value = {
     name: agent?.name || '',
@@ -264,7 +265,7 @@ const getVisibleAgentSkills = (agent) => {
 
 const buildAgentPayload = () => ({
   ...form.value,
-  skills: form.value.skills.filter(skill => availableSkills.value.includes(skill))
+  skills: [...form.value.skills]
 })
 
 const getResponseErrorMessage = (response, fallbackMessage) => {
