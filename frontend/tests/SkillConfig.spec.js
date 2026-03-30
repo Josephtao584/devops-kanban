@@ -84,7 +84,7 @@ describe('SkillConfig', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.find('.file-item').trigger('click')
+    await wrapper.find('.el-tree-node__content').trigger('click')
     await flushPromises()
 
     expect(mockSkillStore.fetchSkillFile).toHaveBeenCalledWith(1, 'SKILL.md')
@@ -120,7 +120,7 @@ describe('SkillConfig', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.find('.file-item').trigger('click')
+    await wrapper.find('.el-tree-node__content').trigger('click')
     await flushPromises()
     await wrapper.find('.preview-header .btn').trigger('click')
     await wrapper.find('.file-editor').setValue('# New Content')
