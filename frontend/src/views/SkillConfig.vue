@@ -3,7 +3,7 @@
     <!-- 顶部操作栏 -->
     <div class="header page-header page-header--compact">
       <h1 class="page-header__title">{{ $t('skill.title') }}</h1>
-      <button class="btn btn-primary" data-testid="open-create-skill" @click="openAddForm">
+      <button class="btn btn-primary" data-testid="open-create-skill" @click="showCreateDialog = true">
         + {{ $t('skill.createSkill') }}
       </button>
     </div>
@@ -192,6 +192,34 @@
       </div>
     </div>
 
+    <!-- Create Skill from ZIP Modal -->
+    <div class="modal-overlay" v-if="showCreateDialog" @click.self="showCreateDialog = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>{{ $t('skill.createFromZip') }}</h2>
+          <button class="close-btn" @click="showCreateDialog = false">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-hint">{{ $t('skill.selectZipHint') }}</p>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" @click="showCreateDialog = false">
+              {{ $t('common.cancel') }}
+            </button>
+            <button type="button" class="btn btn-primary" @click="triggerCreateFromZip">
+              {{ $t('skill.selectZipFile') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <input
+      ref="createZipInputRef"
+      type="file"
+      accept=".zip"
+      style="display: none"
+      @change="handleCreateFromZip"
+    />
+
     <!-- Edit File Modal -->
     <div class="modal-overlay" v-if="showFileEdit" @click.self="closeFileEdit">
       <div class="modal modal--wide">
@@ -237,6 +265,7 @@ const skillStore = useSkillStore()
 
 const saving = ref(false)
 const showForm = ref(false)
+const showCreateDialog = ref(false)
 const editingSkill = ref(null)
 
 const selectedSkill = ref(null)
@@ -251,6 +280,7 @@ const editingFileContent = ref('')
 const savingFile = ref(false)
 
 const fileInputRef = ref(null)
+const createZipInputRef = ref(null)
 
 const form = ref({
   name: '',
@@ -401,6 +431,47 @@ const openAddForm = () => {
   editingSkill.value = null
   resetFormState()
   showForm.value = true
+}
+
+const triggerCreateFromZip = () => {
+  createZipInputRef.value?.click()
+}
+
+const handleCreateFromZip = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  if (!file.name.endsWith('.zip')) {
+    showToast(t('skill.invalidFileType'), 'error')
+    event.target.value = ''
+    return
+  }
+
+  saving.value = true
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const base64 = arrayBufferToBase64(arrayBuffer)
+    const response = await skillStore.createSkillFromZip(base64)
+
+    if (!response?.success) {
+      showToast(response?.message || t('skill.createFailed'), 'error')
+      return
+    }
+
+    await skillStore.fetchSkills()
+    const newSkill = skillStore.skills.find(s => s.name === response.data.name)
+    if (newSkill) {
+      selectedSkill.value = newSkill
+    }
+    showToast(t('skill.createdFromZip'))
+    showCreateDialog.value = false
+  } catch (e) {
+    console.error('Failed to create skill from zip:', e)
+    showToast(e?.message || t('skill.createFailed'), 'error')
+  } finally {
+    saving.value = false
+    event.target.value = ''
+  }
 }
 
 const openEditForm = () => {

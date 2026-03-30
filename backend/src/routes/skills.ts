@@ -53,6 +53,24 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
     }
   });
 
+  fastify.post<{ Body: { zip: string } }>('/from-zip', async (request, reply) => {
+    try {
+      const { zip } = request.body;
+      if (!zip || typeof zip !== 'string') {
+        reply.code(400);
+        return errorResponse('zip base64 data is required');
+      }
+      const zipBuffer = Buffer.from(zip, 'base64');
+      const skill = await skillService.createSkillFromZip(zipBuffer);
+      await skillService.extractSkillZip(skill.name, zipBuffer);
+      return successResponse(skill, 'Skill created from ZIP');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to create skill from ZIP'));
+    }
+  });
+
   fastify.put<{ Params: IdParams; Body: { description?: string } }>('/:id', async (request, reply) => {
     try {
       const { description } = request.body;
