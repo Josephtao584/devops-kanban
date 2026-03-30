@@ -140,7 +140,8 @@ describe('SkillConfig', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const deleteButton = wrapper.findAll('.header-actions .btn')[1]
+    const deleteButton = wrapper.findAll('.header-actions .btn').find((button) => button.text().includes('删除'))
+    expect(deleteButton).toBeTruthy()
     await deleteButton.trigger('click')
     await flushPromises()
 
