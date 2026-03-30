@@ -239,6 +239,7 @@
 
                 <div class="editor-field editor-field--full">
                   <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+                  <div class="editor-field__hint">{{ $t('workflowTemplate.deliveryPromptGuidance') }}</div>
                   <el-input
                     v-model="selectedStep.instructionPrompt"
                     type="textarea"
