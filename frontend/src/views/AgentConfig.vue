@@ -82,18 +82,6 @@
               <span class="info-value">{{ formatExecutorType(selectedAgent.executorType) }}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">{{ $t('agent.commandOverride') }}</span>
-              <span class="info-value description-text">{{ selectedAgent.commandOverride || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.args') }}</span>
-              <span class="info-value description-text">{{ formatArgs(selectedAgent.args) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.env') }}</span>
-              <span class="info-value description-text">{{ formatEnv(selectedAgent.env) }}</span>
-            </div>
-            <div class="info-item">
               <span class="info-label">{{ $t('agent.role') }}</span>
               <span class="info-value">
                 <span class="role-badge-inline">
@@ -118,7 +106,7 @@
           <div class="skills-section">
             <span class="section-label">{{ $t('agent.skills') }}</span>
             <div class="skills-tags">
-              <span v-for="skill in (selectedAgent.skills || getRoleConfig(selectedAgent.role || 'BACKEND_DEV').skills)" :key="skill" class="skill-tag">
+              <span v-for="skill in getVisibleAgentSkills(selectedAgent)" :key="skill" class="skill-tag">
                 {{ skill }}
               </span>
             </div>
@@ -153,58 +141,6 @@
             </div>
 
             <div class="form-group">
-              <label>{{ $t('agent.commandOverride') }}</label>
-              <input
-                v-model="form.commandOverride"
-                data-testid="agent-command-override-input"
-                type="text"
-                :placeholder="$t('agent.commandOverridePlaceholder')"
-              />
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('agent.args') }}</label>
-              <input
-                v-model="argsInput"
-                data-testid="agent-args-input"
-                type="text"
-                :placeholder="$t('agent.argsPlaceholder')"
-              />
-            </div>
-
-            <div class="form-group">
-              <label>{{ $t('agent.env') }}</label>
-              <div class="env-editor">
-                <div
-                  v-for="(entry, index) in envEntries"
-                  :key="`env-${index}`"
-                  class="env-row"
-                >
-                  <input
-                    :data-testid="`agent-env-key-${index}`"
-                    :value="entry.key"
-                    type="text"
-                    :placeholder="$t('agent.envKeyPlaceholder')"
-                    @input="updateEnvEntry(index, 'key', $event.target.value)"
-                  />
-                  <input
-                    :data-testid="`agent-env-value-${index}`"
-                    :value="entry.value"
-                    type="text"
-                    :placeholder="$t('agent.envValuePlaceholder')"
-                    @input="updateEnvEntry(index, 'value', $event.target.value)"
-                  />
-                  <button type="button" class="btn btn-secondary btn-sm" @click="removeEnvEntry(index)">
-                    {{ $t('common.delete') }}
-                  </button>
-                </div>
-                <button type="button" class="btn btn-secondary btn-sm" @click="addEnvEntry">
-                  + {{ $t('agent.addEnv') }}
-                </button>
-              </div>
-            </div>
-
-            <div class="form-group">
               <label>{{ $t('agent.role') }}</label>
               <select v-model="form.role" required @change="onRoleChange">
                 <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value">
@@ -216,31 +152,20 @@
             <div class="form-group">
               <label>{{ $t('agent.skills') }}</label>
               <div class="skills-editor">
+                <select v-model="selectedSkillToAdd" class="skill-select">
+                  <option value="">{{ $t('agent.selectExistingSkill') }}</option>
+                  <option v-for="skill in availableSkillOptions" :key="skill" :value="skill">
+                    {{ skillStore.skills.find(s => s.id === skill)?.name }}
+                  </option>
+                </select>
+                <button type="button" class="btn btn-secondary btn-sm" @click="addSelectedSkill" :disabled="!selectedSkillToAdd">
+                  {{ $t('common.add') }}
+                </button>
                 <div class="skills-input-container">
-                  <span v-for="(skill, index) in form.skills" :key="index" class="skill-tag-input">
-                    {{ skill }}
+                  <span v-for="(skillId, index) in form.skills" :key="index" class="skill-tag-input">
+                    {{ skillStore.skills.find(s => s.id === skillId)?.name }}
                     <button type="button" class="remove-skill-btn" @click="removeSkill(index)">&times;</button>
                   </span>
-                  <input
-                    v-model="newSkill"
-                    type="text"
-                    :placeholder="$t('agent.skillPlaceholder')"
-                    @keyup.enter="addSkill"
-                    class="skill-input"
-                  />
-                  <button type="button" class="add-skill-btn" @click="addSkill" v-if="newSkill">+</button>
-                </div>
-                <div class="preset-skills">
-                  <span class="preset-label">{{ $t('agent.recommendedSkills') }}:</span>
-                  <button
-                    v-for="(skill, index) in presetSkills"
-                    :key="index"
-                    type="button"
-                    class="preset-skill-btn"
-                    @click="addPresetSkill(skill)"
-                  >
-                    + {{ skill }}
-                  </button>
                 </div>
               </div>
             </div>
@@ -282,11 +207,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
+import { useSkillStore } from '../stores/skillStore'
 import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
 import { getExecutionsByAgent } from '../api/execution'
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
+const skillStore = useSkillStore()
 
 const saving = ref(false)
 const showForm = ref(false)
@@ -298,93 +225,38 @@ const selectedAgent = ref(null)
 // Agent status tracking (for all agents)
 const agentStatuses = ref({})
 
-const DEFAULT_ENV_ENTRY = () => ({ key: '', value: '' })
-
 const form = ref({
   name: '',
   executorType: 'CLAUDE_CODE',
   role: 'BACKEND_DEV',
   description: '',
   enabled: true,
-  skills: [],
-  commandOverride: '',
-  args: [],
-  env: {}
+  skills: []
 })
 
-const argsInput = ref('')
-const envEntries = ref([DEFAULT_ENV_ENTRY()])
-const newSkill = ref('')
-
-const normalizeArgs = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(item => String(item).trim()).filter(Boolean)
-  }
-
-  if (typeof value !== 'string') {
-    return []
-  }
-
-  return value.split(',').map(item => item.trim()).filter(Boolean)
-}
-
-const buildEnvObject = (entries) => {
-  return entries.reduce((acc, entry) => {
-    const key = entry.key?.trim()
-    const value = entry.value?.trim()
-
-    if (!key) {
-      return acc
-    }
-
-    acc[key] = value || ''
-    return acc
-  }, {})
-}
-
-const toEnvEntries = (env) => {
-  const entries = Object.entries(env || {}).map(([key, value]) => ({
-    key,
-    value: String(value ?? '')
-  }))
-
-  return entries.length > 0 ? entries : [DEFAULT_ENV_ENTRY()]
-}
-
-const syncRuntimeConfigInputs = () => {
-  argsInput.value = (form.value.args || []).join(', ')
-  envEntries.value = toEnvEntries(form.value.env)
-}
+const selectedSkillToAdd = ref('')
+const availableSkills = computed(() => skillStore.skills.map(skill => skill.id))
+const availableSkillOptions = computed(() => availableSkills.value.filter(id => !form.value.skills.includes(id)))
 
 const setFormState = (agent) => {
+  const normalizedSkills = Array.isArray(agent?.skills)
+    ? [...new Set(agent.skills.map(skill => {
+        if (typeof skill === 'number') return skill
+        // Legacy: name string → id lookup
+        const found = skillStore.skills.find(s => s.name === skill || s.identifier === skill)
+        return found ? found.id : null
+      }).filter(id => id !== null))]
+    : []
+
   form.value = {
     name: agent?.name || '',
     executorType: agent?.executorType || 'CLAUDE_CODE',
     role: agent?.role || 'BACKEND_DEV',
     description: agent?.description || '',
     enabled: agent?.enabled ?? true,
-    skills: agent?.skills || [...getRoleConfig(agent?.role || 'BACKEND_DEV').skills],
-    commandOverride: agent?.commandOverride || '',
-    args: normalizeArgs(agent?.args || []),
-    env: { ...(agent?.env || {}) }
+    skills: normalizedSkills
   }
-  syncRuntimeConfigInputs()
-}
-
-const updateEnvEntry = (index, field, value) => {
-  envEntries.value[index] = {
-    ...envEntries.value[index],
-    [field]: value
-  }
-}
-
-const addEnvEntry = () => {
-  envEntries.value = [...envEntries.value, DEFAULT_ENV_ENTRY()]
-}
-
-const removeEnvEntry = (index) => {
-  const nextEntries = envEntries.value.filter((_, entryIndex) => entryIndex !== index)
-  envEntries.value = nextEntries.length > 0 ? nextEntries : [DEFAULT_ENV_ENTRY()]
+  selectedSkillToAdd.value = ''
 }
 
 const formatExecutorType = (executorType) => {
@@ -392,25 +264,16 @@ const formatExecutorType = (executorType) => {
   return t(`agent.types.${executorType}`)
 }
 
-const formatArgs = (args) => {
-  const normalizedArgs = normalizeArgs(args)
-  return normalizedArgs.length > 0 ? normalizedArgs.join(', ') : '-'
-}
-
-const formatEnv = (env) => {
-  const entries = Object.entries(env || {})
-  if (entries.length === 0) {
-    return '-'
-  }
-
-  return entries.map(([key, value]) => `${key}=${value}`).join(', ')
+const getVisibleAgentSkills = (agent) => {
+  return (agent?.skills || []).map(skillId => {
+    const skill = skillStore.skills.find(s => s.id === skillId)
+    return skill ? skill.name : null
+  }).filter(name => name !== null)
 }
 
 const buildAgentPayload = () => ({
   ...form.value,
-  commandOverride: form.value.commandOverride.trim() || null,
-  args: normalizeArgs(argsInput.value),
-  env: buildEnvObject(envEntries.value)
+  skills: [...form.value.skills]
 })
 
 const getResponseErrorMessage = (response, fallbackMessage) => {
@@ -422,11 +285,6 @@ const resetFormState = () => {
 }
 
 resetFormState()
-
-// Get preset skills based on selected role
-const presetSkills = computed(() => {
-  return getRoleConfig(form.value.role || 'BACKEND_DEV').skills || []
-})
 
 // Get role options for select dropdown
 const roleOptions = computed(() => {
@@ -445,10 +303,11 @@ const showToast = (message, type = 'success') => {
 
 const loadAgents = async () => {
   try {
-    await agentStore.fetchAgents()
-    // Load statuses for all agents
+    await Promise.all([
+      agentStore.fetchAgents(),
+      skillStore.fetchSkills()
+    ])
     await loadAllAgentStatuses()
-    // Auto-select first agent if available
     if (agentStore.agents.length > 0 && !selectedAgent.value) {
       selectAgent(agentStore.agents[0])
     }
@@ -489,7 +348,6 @@ const selectAgent = async (agent) => {
 const openAddForm = () => {
   editingAgent.value = null
   resetFormState()
-  form.value.skills = [...presetSkills.value]
   showForm.value = true
 }
 
@@ -572,29 +430,22 @@ const confirmDelete = async () => {
 const closeForm = () => {
   showForm.value = false
   editingAgent.value = null
-  newSkill.value = ''
+  selectedSkillToAdd.value = ''
 }
 
 const onRoleChange = () => {
-  // When role changes, reset skills to the preset skills for that role
-  form.value.skills = [...presetSkills.value]
+  form.value.skills = form.value.skills.filter(id => availableSkills.value.includes(id))
 }
 
-const addSkill = () => {
-  if (newSkill.value && !form.value.skills.includes(newSkill.value)) {
-    form.value.skills = [...form.value.skills, newSkill.value]
-    newSkill.value = ''
+const addSelectedSkill = () => {
+  if (selectedSkillToAdd.value && !form.value.skills.includes(selectedSkillToAdd.value)) {
+    form.value.skills = [...form.value.skills, selectedSkillToAdd.value]
+    selectedSkillToAdd.value = ''
   }
 }
 
 const removeSkill = (index) => {
   form.value.skills = form.value.skills.filter((_, i) => i !== index)
-}
-
-const addPresetSkill = (skill) => {
-  if (!form.value.skills.includes(skill)) {
-    form.value.skills = [...form.value.skills, skill]
-  }
 }
 
 onMounted(loadAgents)

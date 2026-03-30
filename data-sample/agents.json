@@ -5,12 +5,7 @@
     "role": "ARCHITECT",
     "description": "系统架构设计专家11",
     "enabled": true,
-    "skills": [
-      "系统设计",
-      "技术选型",
-      "架构评估",
-      "微服务设计"
-    ],
+    "skills": [],
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-23T06:29:00.781Z",
     "executorType": "CLAUDE_CODE",
@@ -24,12 +19,7 @@
     "role": "BACKEND_DEV",
     "description": "后端开发专家",
     "enabled": true,
-    "skills": [
-      "Java",
-      "Spring Boot",
-      "RESTful API",
-      "数据库设计"
-    ],
+    "skills": [],
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-23T06:29:08.277Z",
     "executorType": "CLAUDE_CODE",
@@ -43,12 +33,7 @@
     "role": "FRONTEND_DEV",
     "description": "前端开发专家",
     "enabled": true,
-    "skills": [
-      "Vue.js",
-      "React",
-      "TypeScript",
-      "CSS/SCSS"
-    ],
+    "skills": [],
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-23T06:29:12.099Z",
     "executorType": "CLAUDE_CODE",
@@ -62,12 +47,7 @@
     "role": "QA_ENGINEER",
     "description": "测试工程师",
     "enabled": true,
-    "skills": [
-      "单元测试",
-      "集成测试",
-      "自动化测试",
-      "性能测试"
-    ],
+    "skills": [],
     "created_at": "2026-03-17T00:00:00",
     "updated_at": "2026-03-23T06:29:15.909Z",
     "executorType": "CLAUDE_CODE",

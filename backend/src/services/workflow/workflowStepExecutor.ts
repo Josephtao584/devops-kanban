@@ -41,7 +41,7 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
     throw new Error(`Agent ${agent.id} has unsupported executor type: ${String(agent.executorType)}`);
   }
 
-  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'string')) {
+  if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'number')) {
     throw new Error(`Agent ${agent.id} has invalid skills configuration`);
   }
 
@@ -86,7 +86,7 @@ export async function executeWorkflowStep({
   const executorConfig = buildExecutorConfig(agent);
 
   // 3. Build prompt
-  const prompt = assembleWorkflowPrompt({ step, state, inputData, upstreamStepIds });
+  const prompt = assembleWorkflowPrompt({ step, state, inputData, upstreamStepIds, agent });
 
   // 4. Execute
   const executor = registry.getExecutor(executorConfig.type);

@@ -6,7 +6,7 @@ export interface CreateAgentBody {
   role: string;
   description?: string;
   enabled: boolean;
-  skills: string[];
+  skills: number[];
 }
 
 export interface UpdateAgentBody {
@@ -15,5 +15,5 @@ export interface UpdateAgentBody {
   role?: string;
   description?: string;
   enabled?: boolean;
-  skills?: string[];
+  skills?: number[];
 }

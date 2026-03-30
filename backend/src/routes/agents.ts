@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { AgentRepository } from '../repositories/agentRepository.js';
+import { SkillRepository } from '../repositories/skillRepository.js';
 import type { CreateAgentBody, UpdateAgentBody, AgentExecutorType } from '../types/dto/agents.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
@@ -10,6 +11,7 @@ const SUPPORTED_EXECUTOR_TYPES: AgentExecutorType[] = ['CLAUDE_CODE', 'CODEX', '
 
 type AgentRouteOptions = {
   repo?: Pick<AgentRepository, 'findAll' | 'findById' | 'create' | 'update' | 'delete'>;
+  skillRepo?: Pick<SkillRepository, 'findAll'>;
 };
 
 function createValidationError(message: string) {
@@ -22,39 +24,13 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string');
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return isObjectRecord(value) && Object.values(value).every((item) => typeof item === 'string');
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'number');
 }
 
 function validateExecutorType(value: unknown) {
   if (typeof value !== 'string' || !SUPPORTED_EXECUTOR_TYPES.includes(value as AgentExecutorType)) {
     throw createValidationError(`Unsupported executor type: ${String(value)}`);
-  }
-}
-
-function validateCommandOverride(value: unknown) {
-  if (value === undefined || value === null) {
-    return;
-  }
-
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw createValidationError('commandOverride cannot be blank');
-  }
-}
-
-function validateArgs(value: unknown) {
-  if (!isStringArray(value)) {
-    throw createValidationError('args must be an array of strings');
-  }
-}
-
-function validateEnv(value: unknown) {
-  if (!isStringRecord(value)) {
-    throw createValidationError('env values must be strings');
   }
 }
 
@@ -88,21 +64,9 @@ function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody
     throw createValidationError('enabled is required');
   }
 
-  if (!isStringArray(body.skills)) {
-    throw createValidationError('skills must be an array of strings');
+  if (!isNumberArray(body.skills)) {
+    throw createValidationError('skills must be an array of numbers');
   }
-
-  if (body.args === undefined) {
-    throw createValidationError('args is required');
-  }
-  validateArgs(body.args);
-
-  if (body.env === undefined) {
-    throw createValidationError('env is required');
-  }
-  validateEnv(body.env);
-
-  validateCommandOverride(body.commandOverride);
 }
 
 function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody {
@@ -130,24 +94,21 @@ function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody
     throw createValidationError('enabled must be a boolean');
   }
 
-  if ('skills' in body && body.skills !== undefined && !isStringArray(body.skills)) {
-    throw createValidationError('skills must be an array of strings');
-  }
-
-  if ('commandOverride' in body) {
-    validateCommandOverride(body.commandOverride);
-  }
-
-  if ('args' in body && body.args !== undefined) {
-    validateArgs(body.args);
-  }
-
-  if ('env' in body && body.env !== undefined) {
-    validateEnv(body.env);
+  if ('skills' in body && body.skills !== undefined && !isNumberArray(body.skills)) {
+    throw createValidationError('skills must be an array of numbers');
   }
 }
 
-export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify, { repo = new AgentRepository() } = {}) => {
+async function validateExistingSkills(skillRepo: Pick<SkillRepository, 'findAll'>, skills: number[]) {
+  const existingSkills = await skillRepo.findAll();
+  const validSkillIds = new Set(existingSkills.map(skill => skill.id));
+  const invalidSkills = skills.filter(skillId => !validSkillIds.has(skillId));
+  if (invalidSkills.length > 0) {
+    throw createValidationError(`Unknown skills: ${invalidSkills.join(', ')}`);
+  }
+}
+
+export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify, { repo = new AgentRepository(), skillRepo = new SkillRepository() } = {}) => {
   fastify.get('/', async (request, reply) => {
     try {
       return successResponse(await repo.findAll());
@@ -176,6 +137,7 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
   fastify.post<{ Body: CreateAgentBody }>('/', async (request, reply) => {
     try {
       validateCreateAgentBody(request.body);
+      await validateExistingSkills(skillRepo, request.body.skills);
       const agent = await repo.create(request.body);
       return successResponse(agent, 'Agent created');
     } catch (error) {
@@ -188,6 +150,9 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
   fastify.put<{ Params: IdParams; Body: UpdateAgentBody }>('/:id', async (request, reply) => {
     try {
       validateUpdateAgentBody(request.body);
+      if (request.body.skills !== undefined) {
+        await validateExistingSkills(skillRepo, request.body.skills);
+      }
       const updated = await repo.update(parseNumber(request.params.id), request.body);
       if (!updated) {
         reply.code(404);

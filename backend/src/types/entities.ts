@@ -145,7 +145,7 @@ export interface AgentEntity {
   role: string;
   description?: string;
   enabled: boolean;
-  skills: string[];
+  skills: number[];
   created_at: string;
   updated_at: string;
 }
@@ -166,6 +166,15 @@ export interface ExecutionEntity {
   id: number;
   session_id?: number;
   task_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillEntity {
+  id: number;
+  identifier: string;
+  name: string;
+  description?: string;
   created_at: string;
   updated_at: string;
 }

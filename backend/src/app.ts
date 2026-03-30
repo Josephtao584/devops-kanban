@@ -12,6 +12,7 @@ import {
   iterationRoutes,
   projectRoutes,
   sessionRoutes,
+  skillRoutes,
   taskRoutes,
   taskSourceRoutes,
   workflowRoutes,
@@ -52,6 +53,7 @@ export async function buildApp() {
         taskSources: '/api/task-sources',
         executions: '/api/executions',
         agents: '/api/agents',
+        skills: '/api/skills',
         workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',
@@ -71,6 +73,7 @@ export async function buildApp() {
   fastify.register(workflowTemplateRoutes, { prefix: '/api/workflow-template' });
   fastify.register(iterationRoutes, { prefix: '/api/iterations' });
   fastify.register(gitRoutes, { prefix: '/api/git' });
+  fastify.register(skillRoutes, { prefix: '/api/skills' });
 
   return fastify;
 }
