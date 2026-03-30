@@ -11,6 +11,8 @@
       </div>
     </div>
 
+    <PlanSummary v-if="sessionId" :plan="plan" />
+
     <div v-if="!sessionId" class="panel-state panel-empty">
       <div class="panel-state-title">暂无会话记录</div>
       <div class="panel-state-text">当前步骤还没有生成可查看的执行会话。</div>
@@ -57,7 +59,9 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import SessionEventRenderer from '../session/SessionEventRenderer.vue'
+import PlanSummary from '../session/PlanSummary.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
+import { usePlanParser } from '../../composables/usePlanParser.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
 import { getSession, continueSession } from '../../api/session.js'
 
@@ -77,6 +81,7 @@ const props = defineProps({
 })
 
 const { events, isLoading, error, loadInitial, startPolling, stopPolling } = useSessionEvents()
+const { plan } = usePlanParser(events)
 const message = ref('')
 const isSending = ref(false)
 const sessionStatus = ref('')
