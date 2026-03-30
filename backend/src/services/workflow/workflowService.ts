@@ -7,7 +7,8 @@ import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromTemplate, getWorkflowFromWorkflowId } from './workflows.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 import {WorkflowTemplateEntity} from "../../types/entities.js";
-import { syncWorkflowSkills } from './workflowSkillSync.js';
+import { resolveWorkflowSkills } from './workflowSkillSync.js';
+import { prepareExecutionSkills } from './executorSkillPreparation.js';
 
 
 function createValidationError(message: string) {
@@ -51,21 +52,23 @@ class WorkflowService {
   workflowTemplateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
-  syncWorkflowSkillsFn: typeof syncWorkflowSkills;
+  resolveWorkflowSkillsFn: typeof resolveWorkflowSkills;
+  prepareExecutionSkillsFn: typeof prepareExecutionSkills;
   workflowBuilder: typeof buildWorkflowFromTemplate;
 
   async _resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle, syncWorkflowSkillsFn, workflowBuilder }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle, resolveWorkflowSkillsFn, prepareExecutionSkillsFn, workflowBuilder }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     workflowTemplateService?: WorkflowTemplateService;
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
-    syncWorkflowSkillsFn?: typeof syncWorkflowSkills;
+    resolveWorkflowSkillsFn?: typeof resolveWorkflowSkills;
+    prepareExecutionSkillsFn?: typeof prepareExecutionSkills;
     workflowBuilder?: typeof buildWorkflowFromTemplate;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
@@ -74,7 +77,8 @@ class WorkflowService {
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
     this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo });
-    this.syncWorkflowSkillsFn = syncWorkflowSkillsFn || syncWorkflowSkills;
+    this.resolveWorkflowSkillsFn = resolveWorkflowSkillsFn || resolveWorkflowSkills;
+    this.prepareExecutionSkillsFn = prepareExecutionSkillsFn || prepareExecutionSkills;
     this.workflowBuilder = workflowBuilder || buildWorkflowFromTemplate;
   }
 
@@ -171,8 +175,12 @@ class WorkflowService {
 
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
     try {
-      // 同步 skills 到项目目录
-      await this.syncWorkflowSkillsFn(workflowTemplate, task.execution_path);
+      const skillNames = await this.resolveWorkflowSkillsFn(workflowTemplate);
+      await this.prepareExecutionSkillsFn({
+        executorType: 'CLAUDE_CODE',
+        skillNames,
+        executionPath: task.execution_path,
+      });
 
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 

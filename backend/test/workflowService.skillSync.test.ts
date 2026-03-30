@@ -3,8 +3,9 @@ import * as assert from 'node:assert/strict';
 
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
 
-test.test('_executeWorkflow calls skill sync with execution path before workflow run', async () => {
-  const syncCalls: Array<{ templateId: string; projectPath: string }> = [];
+test.test('_executeWorkflow resolves skills then delegates to executor-aware preparation', async () => {
+  const resolveCalls: string[] = [];
+  const prepareCalls: Array<{ executorType: string; skillNames: string[]; executionPath: string }> = [];
   const workflowRunUpdates: Array<Record<string, unknown>> = [];
   const taskUpdates: Array<Record<string, unknown>> = [];
 
@@ -25,8 +26,16 @@ test.test('_executeWorkflow calls skill sync with execution path before workflow
       async onStepComplete() {},
       async onUnexpectedError() {},
     } as never,
-    syncWorkflowSkillsFn: async (template, projectPath) => {
-      syncCalls.push({ templateId: template.template_id, projectPath });
+    resolveWorkflowSkillsFn: async (template) => {
+      resolveCalls.push(template.template_id);
+      return ['brainstorming'];
+    },
+    prepareExecutionSkillsFn: async (input) => {
+      prepareCalls.push({
+        executorType: input.executorType,
+        skillNames: input.skillNames,
+        executionPath: input.executionPath,
+      });
     },
     workflowBuilder: (() => ({
       async createRun() {
@@ -64,8 +73,9 @@ test.test('_executeWorkflow calls skill sync with execution path before workflow
     }
   );
 
-  assert.deepEqual(syncCalls, [
-    { templateId: 'wf-template', projectPath: '/tmp/workflow-project' },
+  assert.deepEqual(resolveCalls, ['wf-template']);
+  assert.deepEqual(prepareCalls, [
+    { executorType: 'CLAUDE_CODE', skillNames: ['brainstorming'], executionPath: '/tmp/workflow-project' },
   ]);
   assert.ok(workflowRunUpdates.some(update => update.status === 'RUNNING'));
   assert.ok(taskUpdates.some(update => update.status === 'DONE'));
