@@ -1,6 +1,21 @@
-import { existsSync, cpSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { STORAGE_PATH } from '../config/index.js';
+
+function copyDirRecursive(src: string, dest: string): void {
+  mkdirSync(dest, { recursive: true });
+  const entries = readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = resolve(src, entry.name);
+    const destPath = resolve(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      const content = readFileSync(srcPath, 'utf-8');
+      writeFileSync(destPath, content, 'utf-8');
+    }
+  }
+}
 
 export async function ensureSkillsInWorktree(skillNames: string[], projectPath: string): Promise<void> {
   if (!skillNames || skillNames.length === 0) {
@@ -27,7 +42,7 @@ export async function ensureSkillsInWorktree(skillNames: string[], projectPath: 
 
     // 复制 skill 目录
     if (existsSync(sourceDir)) {
-      cpSync(sourceDir, targetDir, { recursive: true });
+      copyDirRecursive(sourceDir, targetDir);
       console.log(`[skillSync] Copied skill "${skillName}" to project: ${targetDir}`);
     } else {
       console.warn(`[skillSync] Skill "${skillName}" not found in data/skills, skipping`);
