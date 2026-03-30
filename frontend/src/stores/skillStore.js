@@ -46,6 +46,14 @@ export const useSkillStore = defineStore('skill', () => {
     throw new Error(response.message || 'Failed to upload skill zip')
   }
 
+  const createSkillFromZip = async (zipBase64) => {
+    const response = await skillApi.createFromZip(zipBase64)
+    if (response.success) {
+      return response
+    }
+    throw new Error(response.message || 'Failed to create skill from zip')
+  }
+
   return {
     skills: crud.items,
     currentSkill: crud.currentItem,
@@ -62,6 +70,7 @@ export const useSkillStore = defineStore('skill', () => {
     fetchSkillFiles,
     fetchSkillFile,
     updateSkillFile,
-    uploadSkillZip
+    uploadSkillZip,
+    createSkillFromZip
   }
 })
