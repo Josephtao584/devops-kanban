@@ -3,9 +3,14 @@
     <!-- 顶部操作栏 -->
     <div class="header page-header page-header--compact">
       <h1 class="page-header__title">{{ $t('skill.title') }}</h1>
-      <button class="btn btn-primary" data-testid="open-create-skill" @click="showCreateDialog = true">
-        + {{ $t('skill.createSkill') }}
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-secondary" data-testid="open-create-skill-from-zip" @click="showCreateDialog = true">
+          {{ $t('skill.createFromZip') }}
+        </button>
+        <button class="btn btn-primary" data-testid="open-create-skill" @click="openAddForm">
+          + {{ $t('skill.createSkill') }}
+        </button>
+      </div>
     </div>
 
     <!-- 主内容区：左右分栏 -->
