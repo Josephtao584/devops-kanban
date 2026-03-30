@@ -50,7 +50,7 @@ function buildAgent(overrides: Partial<WorkflowAgent> = {}): WorkflowAgent {
     name: '需求代理',
     role: '需求分析师',
     description: '负责需求分析与方案拆解',
-    skills: ['需求分析', '流程设计'],
+    skills: [1, 2],
     ...overrides,
   };
 }
@@ -100,7 +100,6 @@ test.test('assembleWorkflowPrompt builds first-step prompt with agent identity a
   assert.match(prompt, /代理名称：需求代理/);
   assert.match(prompt, /代理角色：需求分析师/);
   assert.match(prompt, /代理描述：负责需求分析与方案拆解/);
-  assert.match(prompt, /代理技能：.*需求分析.*流程设计/);
   assert.match(prompt, /代理角色是否匹配/);
   assert.match(prompt, /最后结果总结/);
   assertInOrder(prompt, ['原始需求标题：', '原始需求内容：', '当前执行代理：', '本步骤要求：']);
@@ -125,7 +124,6 @@ test.test('assembleWorkflowPrompt omits the entire current-agent section when no
   assert.doesNotMatch(prompt, /代理名称：/);
   assert.doesNotMatch(prompt, /代理角色：/);
   assert.doesNotMatch(prompt, /代理描述：/);
-  assert.doesNotMatch(prompt, /代理技能：/);
   assert.doesNotMatch(prompt, /代理角色是否匹配/);
   assertPromptIncludesLiteralLine(prompt, '本步骤要求：', '先完成需求分析和设计拆解。');
 });
@@ -144,7 +142,7 @@ test.test('assembleWorkflowPrompt places agent identity after upstream summaries
       name: '开发代理',
       role: '工程师',
       description: '负责实现与交付',
-      skills: ['TypeScript', '后端开发'],
+      skills: [3, 4],
     }),
   });
 
@@ -183,7 +181,7 @@ test.test('assembleWorkflowPrompt omits upstream summary section when summaries 
   assert.doesNotMatch(prompt, /上游步骤摘要：/);
 });
 
-test.test('assembleWorkflowPrompt omits agent description when description is missing and renders empty skills as 未提供', () => {
+test.test('assembleWorkflowPrompt omits agent description when description is missing', () => {
   const prompt = buildPrompt({
     agent: {
       name: '测试代理',
@@ -196,7 +194,6 @@ test.test('assembleWorkflowPrompt omits agent description when description is mi
   assert.match(prompt, /代理名称：测试代理/);
   assert.match(prompt, /代理角色：测试工程师/);
   assert.doesNotMatch(prompt, /代理描述：/);
-  assert.match(prompt, /代理技能：未提供/);
 });
 
 test.test('assembleWorkflowPrompt omits agent description when description is blank', () => {
@@ -205,11 +202,10 @@ test.test('assembleWorkflowPrompt omits agent description when description is bl
       name: '测试代理',
       role: '测试工程师',
       description: '   ',
-      skills: ['回归测试'],
+      skills: [5],
     }),
   });
 
   assert.match(prompt, /当前执行代理：/);
   assert.doesNotMatch(prompt, /代理描述：/);
-  assert.match(prompt, /代理技能：.*回归测试/);
 });

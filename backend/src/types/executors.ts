@@ -2,7 +2,7 @@ export type ExecutorType = 'CLAUDE_CODE' | 'CODEX' | 'OPENCODE';
 
 export interface ExecutorConfig {
   type: ExecutorType;
-  skills?: string[];
+  skills?: number[];
 }
 
 export interface ExecutorProcessHandle {

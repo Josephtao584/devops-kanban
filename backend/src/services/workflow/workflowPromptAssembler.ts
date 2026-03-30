@@ -2,7 +2,7 @@ type WorkflowAgent = {
   name: string;
   role: string;
   description?: string;
-  skills: string[];
+  skills: number[];
 };
 
 function extractUpstreamSummaries(inputData: Record<string, unknown> = {}, upstreamStepIds: string[] = []) {
@@ -33,16 +33,12 @@ function formatAgentIdentitySection(agent?: WorkflowAgent) {
   }
 
   const description = typeof agent.description === 'string' ? agent.description.trim() : '';
-  const skills = Array.isArray(agent.skills)
-    ? agent.skills.map((skill) => skill.trim()).filter(Boolean)
-    : [];
 
   return [
     '当前执行代理：',
     `代理名称：${agent.name}`,
     `代理角色：${agent.role}`,
     ...(description ? [`代理描述：${description}`] : []),
-    `代理技能：${skills.length > 0 ? skills.join('、') : '未提供'}`,
     '硬性约束：你当前正在以该代理身份执行本步骤。',
     '在分析、执行和总结时，必须保持与该代理角色和技能一致的上下文，不要偏离该代理的职责边界。',
   ].join('\n');

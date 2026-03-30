@@ -155,15 +155,15 @@
                 <select v-model="selectedSkillToAdd" class="skill-select">
                   <option value="">{{ $t('agent.selectExistingSkill') }}</option>
                   <option v-for="skill in availableSkillOptions" :key="skill" :value="skill">
-                    {{ skill }}
+                    {{ skillStore.skills.find(s => s.id === skill)?.name }}
                   </option>
                 </select>
                 <button type="button" class="btn btn-secondary btn-sm" @click="addSelectedSkill" :disabled="!selectedSkillToAdd">
                   {{ $t('common.add') }}
                 </button>
                 <div class="skills-input-container">
-                  <span v-for="(skill, index) in form.skills" :key="index" class="skill-tag-input">
-                    {{ skill }}
+                  <span v-for="(skillId, index) in form.skills" :key="index" class="skill-tag-input">
+                    {{ skillStore.skills.find(s => s.id === skillId)?.name }}
                     <button type="button" class="remove-skill-btn" @click="removeSkill(index)">&times;</button>
                   </span>
                 </div>
@@ -235,12 +235,17 @@ const form = ref({
 })
 
 const selectedSkillToAdd = ref('')
-const availableSkills = computed(() => skillStore.skills.map(skill => skill.name))
-const availableSkillOptions = computed(() => availableSkills.value.filter(skill => !form.value.skills.includes(skill)))
+const availableSkills = computed(() => skillStore.skills.map(skill => skill.id))
+const availableSkillOptions = computed(() => availableSkills.value.filter(id => !form.value.skills.includes(id)))
 
 const setFormState = (agent) => {
   const normalizedSkills = Array.isArray(agent?.skills)
-    ? [...new Set(agent.skills.filter(skill => typeof skill === 'string' && skill.trim()))]
+    ? [...new Set(agent.skills.map(skill => {
+        if (typeof skill === 'number') return skill
+        // Legacy: name string → id lookup
+        const found = skillStore.skills.find(s => s.name === skill || s.identifier === skill)
+        return found ? found.id : null
+      }).filter(id => id !== null))]
     : []
 
   form.value = {
@@ -260,7 +265,10 @@ const formatExecutorType = (executorType) => {
 }
 
 const getVisibleAgentSkills = (agent) => {
-  return (agent?.skills || []).filter(skill => availableSkills.value.includes(skill))
+  return (agent?.skills || []).map(skillId => {
+    const skill = skillStore.skills.find(s => s.id === skillId)
+    return skill ? skill.name : null
+  }).filter(name => name !== null)
 }
 
 const buildAgentPayload = () => ({
@@ -426,7 +434,7 @@ const closeForm = () => {
 }
 
 const onRoleChange = () => {
-  form.value.skills = form.value.skills.filter(skill => availableSkills.value.includes(skill))
+  form.value.skills = form.value.skills.filter(id => availableSkills.value.includes(id))
 }
 
 const addSelectedSkill = () => {
