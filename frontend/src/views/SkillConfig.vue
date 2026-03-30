@@ -105,18 +105,25 @@
 
             <!-- 文件浏览器 -->
             <div class="file-browser">
-              <div class="file-list">
-                <div
-                  v-for="file in skillFiles"
-                  :key="file.path"
-                  class="file-item"
-                  :class="{ 'active': selectedFile?.path === file.path }"
-                  @click="selectFile(file)"
+              <div class="file-tree-container">
+                <el-tree
+                  ref="fileTreeRef"
+                  :data="fileTreeData"
+                  :props="treeProps"
+                  node-key="id"
+                  :expand-on-click-node="false"
+                  :default-expand-all="true"
+                  highlight-current
+                  @node-click="handleTreeNodeClick"
                 >
-                  <span class="file-icon">{{ getFileIcon(file.name) }}</span>
-                  <span class="file-name">{{ file.name }}</span>
-                </div>
-                <div v-if="skillFiles.length === 0" class="empty-files">
+                  <template #default="{ node, data }">
+                    <span class="tree-node">
+                      <span class="node-icon">{{ data.isLeaf ? getFileIcon(node.label) : '📁' }}</span>
+                      <span class="node-label">{{ node.label }}</span>
+                    </span>
+                  </template>
+                </el-tree>
+                <div v-if="fileTreeData.length === 0" class="empty-files">
                   {{ $t('skill.noFiles') }}
                 </div>
               </div>
@@ -125,7 +132,7 @@
               <div class="file-preview">
                 <div v-if="selectedFile" class="preview-content">
                   <div class="preview-header">
-                    <span class="preview-filename">{{ selectedFile.name }}</span>
+                    <span class="preview-filename">{{ selectedFile.label }}</span>
                     <button class="btn btn-secondary btn-sm" @click="editFile">
                       {{ $t('common.edit') }}
                     </button>
@@ -269,7 +276,7 @@ const showCreateDialog = ref(false)
 const editingSkill = ref(null)
 
 const selectedSkill = ref(null)
-const skillFiles = ref([])
+const fileTreeData = ref([])
 const selectedFile = ref(null)
 const previewContent = ref('')
 const loadingPreview = ref(false)
@@ -281,6 +288,7 @@ const savingFile = ref(false)
 
 const fileInputRef = ref(null)
 const createZipInputRef = ref(null)
+const fileTreeRef = ref(null)
 
 const form = ref({
   name: '',
@@ -320,23 +328,94 @@ const selectSkill = async (skill) => {
   await loadSkillFiles()
 }
 
+const getFileType = (filename) => {
+  if (filename.endsWith('.md')) return 'markdown'
+  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'script'
+  if (filename.endsWith('.sh')) return 'shell'
+  if (filename.endsWith('.html')) return 'html'
+  return 'other'
+}
+
+/**
+ * 将扁平路径数组转换为目录树结构
+ */
+const buildFileTree = (files) => {
+  const root = { label: 'root', children: [], isLeaf: false, path: '' }
+
+  files.forEach(filePath => {
+    const parts = filePath.split('/')
+    let currentNode = root
+
+    parts.forEach((part, index) => {
+      const isFile = index === parts.length - 1
+      const fullPath = parts.slice(0, index + 1).join('/')
+
+      if (isFile) {
+        let existing = currentNode.children.find(c => c.path === fullPath)
+        if (!existing) {
+          existing = {
+            label: part,
+            path: fullPath,
+            isLeaf: true,
+            type: getFileType(part),
+            id: fullPath
+          }
+          currentNode.children.push(existing)
+        }
+      } else {
+        let folder = currentNode.children.find(c => c.path === fullPath)
+        if (!folder) {
+          folder = {
+            label: part,
+            path: fullPath,
+            isLeaf: false,
+            children: [],
+            id: fullPath
+          }
+          currentNode.children.push(folder)
+        }
+        currentNode = folder
+      }
+    })
+  })
+
+  // 排序：文件夹在前，文件在后
+  const sortChildren = (node) => {
+    if (node.children) {
+      node.children.sort((a, b) => {
+        if (a.isLeaf !== b.isLeaf) return a.isLeaf ? 1 : -1
+        return a.label.localeCompare(b.label)
+      })
+      node.children.forEach(sortChildren)
+    }
+  }
+  sortChildren(root)
+
+  return root.children
+}
+
+const treeProps = {
+  children: 'children',
+  label: 'label',
+  isLeaf: 'isLeaf'
+}
+
+const handleTreeNodeClick = (data) => {
+  if (data.isLeaf) {
+    selectFile(data)
+  }
+}
+
 const loadSkillFiles = async () => {
   if (!selectedSkill.value) return
 
   try {
     const files = await skillStore.fetchSkillFiles(selectedSkill.value.id)
-    skillFiles.value = files.map(path => {
-      const name = path.split('/').pop()
-      return {
-        name,
-        path,
-        type: name.endsWith('.md') ? 'markdown' : name.endsWith('.js') || name.endsWith('.cjs') ? 'script' : 'other'
-      }
-    })
+    fileTreeData.value = buildFileTree(files || [])
   } catch (e) {
     console.error('Failed to load skill files:', e)
     showToast(t('skill.loadFilesFailed'), 'error')
-    skillFiles.value = []
+    fileTreeData.value = []
   }
 }
 
@@ -540,7 +619,7 @@ const confirmDelete = async () => {
       selectSkill(skillStore.skills[0])
     } else {
       selectedSkill.value = null
-      skillFiles.value = []
+      fileTreeData.value = []
     }
 
     showToast(t('messages.deleted', { name: t('skill.title') }))
@@ -556,7 +635,7 @@ const closeForm = () => {
 
 const editFile = () => {
   if (!selectedFile.value) return
-  editingFileName.value = selectedFile.value.name
+  editingFileName.value = selectedFile.value.label
   editingFileContent.value = previewContent.value
   showFileEdit.value = true
 }
@@ -572,7 +651,7 @@ const saveFileContent = async () => {
   try {
     await skillStore.updateSkillFile(selectedSkill.value.id, editingFileName.value, editingFileContent.value)
     // Refresh preview
-    if (selectedFile.value && selectedFile.value.name === editingFileName.value) {
+    if (selectedFile.value && selectedFile.value.label === editingFileName.value) {
       previewContent.value = editingFileContent.value
     }
     showToast(t('skill.fileSaved'))
@@ -875,6 +954,38 @@ onMounted(loadSkills)
   padding: 8px;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-color);
+}
+
+.file-tree-container {
+  width: 240px;
+  min-width: 240px;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-icon {
+  font-size: 14px;
+}
+
+.node-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+:deep(.el-tree-node__content) {
+  height: 28px;
+}
+
+:deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background-color: rgba(64, 158, 255, 0.1);
 }
 
 .file-item {
