@@ -749,6 +749,20 @@ const saveTemplate = async () => {
 const handleDeleteTemplate = async () => {
   if ((!canDeleteSelected.value && !isDraftTemplate.value) || !template.value) return
 
+  try {
+    await ElMessageBox.confirm(
+      t('workflowTemplate.deleteTemplateConfirm'),
+      t('workflowTemplate.deleteTemplateConfirmTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
   deleting.value = true
   try {
     const deletedTemplateId = template.value.template_id
