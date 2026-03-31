@@ -3,6 +3,8 @@ export interface WorkflowTemplateStepInput {
   name: string;
   instructionPrompt: string;
   agentId: number;
+  // Suspend/resume configuration
+  requiresConfirmation?: boolean;
 }
 
 export interface CreateWorkflowTemplateInput {

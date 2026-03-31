@@ -5,3 +5,8 @@ export interface StartWorkflowBody {
   workflow_template_id?: string;
   workflow_template_snapshot?: WorkflowTemplateEntity;
 }
+
+export interface ResumeWorkflowBody {
+  approved: boolean;
+  comment?: string;
+}

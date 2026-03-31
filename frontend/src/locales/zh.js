@@ -307,7 +307,8 @@ export default {
     promptPreviewEmpty: '请为当前阶段补充提示词',
     startNode: '开始',
     endNode: '结束',
-    selectStepHint: '请先从上方工作流中选择一个阶段'
+    selectStepHint: '请先从上方工作流中选择一个阶段',
+    requiresConfirmation: '需要确认'
   },
   agent: {
     title: '我的团队',

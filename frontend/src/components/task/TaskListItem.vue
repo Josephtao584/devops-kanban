@@ -181,7 +181,7 @@
             刷新
           </button>
           <button
-            v-if="workflowStatus === 'running' && task.workflow_run_id"
+            v-if="(workflowStatus === 'running' || workflowStatus === 'suspended') && task.workflow_run_id"
             class="quick-action-btn quick-action-cancel"
             :disabled="cancelLoading"
             @click.stop="handleCancelWorkflow"
@@ -193,6 +193,18 @@
               <line x1="9" y1="9" x2="15" y2="15"></line>
             </svg>
             取消
+          </button>
+          <button
+            v-if="workflowStatus === 'suspended' && task.workflow_run_id"
+            class="quick-action-btn quick-action-resume"
+            :disabled="resumeLoading"
+            @click.stop="handleResumeWorkflow"
+            title="确认继续"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            确认继续
           </button>
           <button
             v-if="(workflowStatus === 'failed' || workflowStatus === 'cancelled') && task.workflow_run_id"
@@ -245,7 +257,7 @@ import { ElMessage } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
-import { getWorkflowRun, cancelWorkflow, retryWorkflow } from '../../api/workflow'
+import { getWorkflowRun, cancelWorkflow, retryWorkflow, resumeWorkflow } from '../../api/workflow'
 import {
   toTimelineWorkflow,
   getWorkflowProgress,
@@ -327,6 +339,7 @@ const realWorkflowRun = ref(null)
 const refreshLoading = ref(false)
 const cancelLoading = ref(false)
 const retryLoading = ref(false)
+const resumeLoading = ref(false)
 
 // Fetch real workflow run when task is expanded and has workflow_run_id
 watch(() => [props.workflowExpanded, props.task?.workflow_run_id], async ([expanded, runId]) => {
@@ -402,6 +415,25 @@ const handleRetryWorkflow = async () => {
     ElMessage.error('重试工作流失败')
   } finally {
     retryLoading.value = false
+  }
+}
+
+// Resume workflow (continue after suspension)
+const handleResumeWorkflow = async () => {
+  if (!props.task?.workflow_run_id) return
+  resumeLoading.value = true
+  try {
+    const response = await resumeWorkflow(props.task.workflow_run_id)
+    if (response.success) {
+      ElMessage.success('工作流已继续执行')
+      realWorkflowRun.value = response.data
+      emit('workflow-action', { action: 'resume', task: props.task })
+    }
+  } catch (error) {
+    console.error('Failed to resume workflow:', error)
+    ElMessage.error('继续工作流失败')
+  } finally {
+    resumeLoading.value = false
   }
 }
 
@@ -489,6 +521,7 @@ const workflowStatusText = computed(() => {
   const textMap = {
     'pending': '待启动',
     'running': '运行中',
+    'suspended': '等待确认',
     'paused': '已暂停',
     'done': '已完成',
     'failed': '已失败',
@@ -981,6 +1014,11 @@ const openWorktreeDirectory = () => {
   color: #6b7280;
 }
 
+.workflow-status.status-suspended {
+  background: #fef3c7;
+  color: #d97706;
+}
+
 /* Node detail */
 .node-detail {
   display: flex;
@@ -1208,6 +1246,18 @@ const openWorktreeDirectory = () => {
 .quick-actions .quick-action-btn.quick-action-retry:hover:not(:disabled) {
   background: #059669;
   border-color: #059669;
+  color: #fff;
+}
+
+.quick-actions .quick-action-btn.quick-action-resume {
+  color: #2563eb;
+  border-color: #bfdbfe;
+  background: #dbeafe;
+}
+
+.quick-actions .quick-action-btn.quick-action-resume:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
   color: #fff;
 }
 

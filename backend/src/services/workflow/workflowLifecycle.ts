@@ -361,6 +361,64 @@ class WorkflowLifecycle {
     });
   }
 
+  async onStepSuspend(
+    runId: number,
+    stepId: string,
+    suspendInfo: { reason: string; summary?: string },
+  ) {
+    const completedAt = new Date().toISOString();
+
+    // Update step status to SUSPENDED
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'SUSPENDED',
+      completed_at: completedAt,
+      suspend_reason: suspendInfo.reason,
+      summary: suspendInfo.summary || null,
+    });
+
+    // Update workflow run status to SUSPENDED
+    await this.workflowRunRepo.update(runId, {
+      status: 'SUSPENDED',
+      current_step: stepId,
+    });
+
+    // Update session status
+    const { step } = await this._getRunStep(runId, stepId);
+    if (step.session_id) {
+      await this.sessionRepo.update(step.session_id, {
+        status: 'SUSPENDED',
+        completed_at: completedAt,
+      });
+
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
+      if (latestSegment?.status === 'RUNNING') {
+        await this.sessionSegmentRepo.update(latestSegment.id, {
+          status: 'SUSPENDED',
+          completed_at: completedAt,
+        });
+      }
+    }
+
+    this._clearStepAttemptSegmentId(runId, stepId);
+  }
+
+  async onStepResume(
+    runId: number,
+    stepId: string,
+    resumeData: { approved: boolean; comment?: string },
+  ) {
+    // Update step confirmation info
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      confirmation_note: resumeData.comment || null,
+      confirmed_at: new Date().toISOString(),
+    });
+
+    // Update workflow run status to RUNNING
+    await this.workflowRunRepo.update(runId, {
+      status: 'RUNNING',
+    });
+  }
+
   async onStepCancel(runId: number, stepId: string) {
     await this._finalizeStepArtifacts(runId, stepId, 'CANCELLED', {
       error: 'Workflow cancelled',

@@ -45,6 +45,9 @@
                   <span class="workflow-chip" :class="step.agentStateClass">
                     {{ step.agentSummary }}
                   </span>
+                  <span v-if="step.requiresConfirmation" class="workflow-chip workflow-chip--warning">
+                    {{ $t('workflowTemplate.requiresConfirmation') }}
+                  </span>
                   <div v-if="step.skillNames.length" class="workflow-step-card__skills">
                     <span v-for="skill in step.skillNames" :key="skill" class="workflow-skill-tag">{{ skill }}</span>
                   </div>
@@ -175,6 +178,15 @@
               resize="vertical"
               :placeholder="$t('workflowTemplate.instructionPromptHint')"
             />
+          </div>
+
+          <div class="editor-field editor-field--full">
+            <div class="confirmation-header">
+              <el-switch
+                v-model="selectedStep.requiresConfirmation"
+                :active-text="$t('workflowTemplate.requiresConfirmation')"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -704,6 +716,29 @@ const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTe
 }
 
 .editor-field label {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.confirmation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.confirmation-prompt-field {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.confirmation-prompt-field label {
+  display: block;
+  margin-bottom: 8px;
   color: #475569;
   font-size: 13px;
   font-weight: 600;
