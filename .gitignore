@@ -38,6 +38,7 @@ target/
 ### Node.js ###
 node_modules/
 dist/
+package-lock.json
 frontend/playwright-report/
 frontend/test-results/
 
