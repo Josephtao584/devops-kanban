@@ -125,6 +125,9 @@
 
                     <div class="workflow-step-card__meta">
                       <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
+                      <div v-if="step.skillNames.length" class="workflow-step-card__skills">
+                        <span v-for="skill in step.skillNames" :key="skill" class="workflow-skill-tag">{{ skill }}</span>
+                      </div>
                     </div>
 
                     <div class="workflow-step-card__actions">
@@ -276,6 +279,7 @@ import {
   updateWorkflowTemplate
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
+import { useSkillStore } from '../stores/skillStore'
 import {
   MIN_WORKFLOW_TEMPLATE_STEPS,
   normalizeWorkflowStep,
@@ -298,6 +302,7 @@ import {
 const DEFAULT_TEMPLATE_ID = 'workflow-v1'
 
 const { t } = useI18n()
+const skillStore = useSkillStore()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -382,6 +387,7 @@ const previewSteps = computed(() => {
     let agentSummary = t('workflowTemplate.unassignedAgent')
     let agentStateClass = 'workflow-chip--info'
     let stateClass = 'state-ready'
+    let skillNames = []
 
     if (typeof sanitized.agentId === 'number') {
       if (isMissingAgent(sanitized)) {
@@ -393,8 +399,13 @@ const previewSteps = computed(() => {
         agentStateClass = 'workflow-chip--warning'
         stateClass = 'state-disabled'
       } else {
-        agentSummary = getAgentLabel(getAgentById(sanitized.agentId))
+        const agent = getAgentById(sanitized.agentId)
+        agentSummary = getAgentLabel(agent)
         agentStateClass = 'workflow-chip--neutral'
+        skillNames = (agent?.skills || []).map(skillId => {
+          const skill = skillStore.skills.find(s => s.id === skillId)
+          return skill?.name || skill?.identifier || null
+        }).filter(Boolean)
       }
     }
 
@@ -404,6 +415,7 @@ const previewSteps = computed(() => {
       agentSummary,
       agentStateClass,
       stateClass,
+      skillNames,
       hasWarning: isMissingAgent(sanitized) || isDisabledAgent(sanitized) || !sanitized.instructionPrompt
     }
   })
@@ -687,7 +699,7 @@ const loadPage = async () => {
   loadError.value = ''
 
   try {
-    await Promise.all([loadTemplateList(DEFAULT_TEMPLATE_ID), loadAgents()])
+    await Promise.all([loadTemplateList(DEFAULT_TEMPLATE_ID), loadAgents(), skillStore.fetchSkills()])
   } catch (error) {
     loadError.value = getErrorMessage(error, 'workflowTemplate.loadFailed')
   } finally {
@@ -1190,6 +1202,23 @@ onMounted(() => {
   background: var(--el-color-danger-light-9);
   border-color: var(--el-color-danger-light-5);
   color: var(--el-color-danger-dark-2);
+}
+
+.workflow-step-card__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.workflow-skill-tag {
+  display: inline-flex;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.15);
 }
 
 .step-editor-card {
