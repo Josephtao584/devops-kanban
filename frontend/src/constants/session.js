@@ -6,6 +6,7 @@ export const SESSION_STATUS = {
   RUNNING: 'RUNNING',
   IDLE: 'IDLE',
   STOPPED: 'STOPPED',
+  SUSPENDED: 'SUSPENDED',
   ERROR: 'ERROR',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
@@ -27,6 +28,7 @@ export const SESSION_ACTIVE_STATUSES = [
 export const SESSION_INPUT_STATUSES = [
   SESSION_STATUS.RUNNING,
   SESSION_STATUS.STOPPED,
+  SESSION_STATUS.SUSPENDED,
   SESSION_STATUS.COMPLETED,
   SESSION_STATUS.FAILED,
   SESSION_STATUS.CANCELLED
@@ -91,6 +93,7 @@ export function getSessionStatusClass(status) {
     [SESSION_STATUS.RUNNING]: 'status-running',
     [SESSION_STATUS.IDLE]: 'status-idle',
     [SESSION_STATUS.STOPPED]: 'status-stopped',
+    [SESSION_STATUS.SUSPENDED]: 'status-suspended',
     [SESSION_STATUS.ERROR]: 'status-error',
     [SESSION_STATUS.CREATED]: 'status-created',
     [SESSION_STATUS.COMPLETED]: 'status-completed',
