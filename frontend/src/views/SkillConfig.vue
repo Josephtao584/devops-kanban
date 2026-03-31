@@ -123,7 +123,7 @@
                 >
                   <template #default="{ node, data }">
                     <span class="tree-node">
-                      <span class="node-icon">{{ data.isLeaf ? getFileIcon(node.label) : '📁' }}</span>
+                      <span class="node-icon" :class="{ 'is-file': data.isLeaf, 'is-folder': !data.isLeaf }">{{ data.isLeaf ? getFileIcon(node.label) : '' }}</span>
                       <span class="node-label">{{ node.label }}</span>
                     </span>
                   </template>
@@ -138,9 +138,6 @@
                 <div v-if="selectedFile" class="preview-content">
                   <div class="preview-header">
                     <span class="preview-filename">{{ selectedFile.label }}</span>
-                    <button class="btn btn-secondary btn-sm" @click="editFile">
-                      {{ $t('common.edit') }}
-                    </button>
                   </div>
                   <pre class="preview-code" v-if="previewContent">{{ previewContent }}</pre>
                   <div v-else-if="loadingPreview" class="loading-preview">
@@ -232,34 +229,6 @@
       @change="handleCreateFromZip"
     />
 
-    <!-- Edit File Modal -->
-    <div class="modal-overlay" v-if="showFileEdit" @click.self="closeFileEdit">
-      <div class="modal modal--wide">
-        <div class="modal-header">
-          <h2>{{ $t('skill.editFile') }}: {{ editingFileName }}</h2>
-          <button class="close-btn" @click="closeFileEdit">&times;</button>
-        </div>
-
-        <div class="modal-body">
-          <textarea
-            v-model="editingFileContent"
-            class="file-editor"
-            :placeholder="$t('skill.fileContentPlaceholder')"
-            rows="15"
-          ></textarea>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" @click="closeFileEdit">
-              {{ $t('common.cancel') }}
-            </button>
-            <button type="button" class="btn btn-primary" :disabled="savingFile" @click="saveFileContent">
-              {{ savingFile ? $t('common.loading') : $t('common.save') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Toast Notification -->
     <div v-if="toast.show" class="toast" :class="toast.type">
       {{ toast.message }}
@@ -285,11 +254,6 @@ const fileTreeData = ref([])
 const selectedFile = ref(null)
 const previewContent = ref('')
 const loadingPreview = ref(false)
-
-const showFileEdit = ref(false)
-const editingFileName = ref('')
-const editingFileContent = ref('')
-const savingFile = ref(false)
 
 const fileInputRef = ref(null)
 const createZipInputRef = ref(null)
@@ -425,11 +389,11 @@ const loadSkillFiles = async () => {
 }
 
 const getFileIcon = (filename) => {
-  if (filename.endsWith('.md')) return '📄'
-  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return '📜'
-  if (filename.endsWith('.sh')) return '⚡'
-  if (filename.endsWith('.html')) return '🌐'
-  return '📎'
+  if (filename.endsWith('.md')) return 'md'
+  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'js'
+  if (filename.endsWith('.sh')) return 'sh'
+  if (filename.endsWith('.html')) return 'html'
+  return 'file'
 }
 
 const selectFile = async (file) => {
@@ -636,37 +600,6 @@ const confirmDelete = async () => {
 const closeForm = () => {
   showForm.value = false
   editingSkill.value = null
-}
-
-const editFile = () => {
-  if (!selectedFile.value) return
-  editingFileName.value = selectedFile.value.label
-  editingFileContent.value = previewContent.value
-  showFileEdit.value = true
-}
-
-const closeFileEdit = () => {
-  showFileEdit.value = false
-  editingFileName.value = ''
-  editingFileContent.value = ''
-}
-
-const saveFileContent = async () => {
-  savingFile.value = true
-  try {
-    await skillStore.updateSkillFile(selectedSkill.value.id, editingFileName.value, editingFileContent.value)
-    // Refresh preview
-    if (selectedFile.value && selectedFile.value.label === editingFileName.value) {
-      previewContent.value = editingFileContent.value
-    }
-    showToast(t('skill.fileSaved'))
-    closeFileEdit()
-  } catch (e) {
-    console.error('Failed to save file:', e)
-    showToast(t('skill.fileSaveFailed'), 'error')
-  } finally {
-    savingFile.value = false
-  }
 }
 
 onMounted(loadSkills)
@@ -977,7 +910,23 @@ onMounted(loadSkills)
 }
 
 .node-icon {
-  font-size: 14px;
+  font-size: 11px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.node-icon.is-file {
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.node-icon.is-folder {
+  min-width: 0;
 }
 
 .node-label {
@@ -1177,10 +1126,6 @@ onMounted(loadSkills)
   animation: slideUp 0.3s ease;
 }
 
-.modal--wide {
-  max-width: 700px;
-}
-
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -1266,25 +1211,6 @@ onMounted(loadSkills)
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-}
-
-.file-editor {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: monospace;
-  line-height: 1.6;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  resize: vertical;
-}
-
-.file-editor:focus {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);

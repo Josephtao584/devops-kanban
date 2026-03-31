@@ -11,8 +11,6 @@
       </div>
     </div>
 
-    <PlanSummary v-if="sessionId" :plan="plan" />
-
     <div v-if="!sessionId" class="panel-state panel-empty">
       <div class="panel-state-title">暂无会话记录</div>
       <div class="panel-state-text">当前步骤还没有生成可查看的执行会话。</div>
@@ -29,12 +27,24 @@
       <div class="panel-state-title">暂无事件</div>
       <div class="panel-state-text">这里会显示该步骤的执行输出和对话记录。</div>
     </div>
-    <div v-else ref="eventsContainer" class="panel-events panel-events--chat">
-      <SessionEventRenderer
-        v-for="event in events"
-        :key="event.id ?? event.seq"
-        :event="event"
-      />
+    <div v-else class="panel-events-wrapper">
+      <div ref="eventsContainer" class="panel-events panel-events--chat">
+        <SessionEventRenderer
+          v-for="event in events"
+          :key="event.id ?? event.seq"
+          :event="event"
+        />
+      </div>
+      <div class="panel-toolbar">
+        <label class="auto-scroll-check" @click.prevent="toggleAutoScroll">
+          <span class="check-box" :class="{ checked: autoScrollEnabled }">
+            <svg v-if="autoScrollEnabled" width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5l2.5 2.5L8 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="check-label">自动滚动</span>
+        </label>
+      </div>
     </div>
 
     <div v-if="sessionId && canInput" class="panel-input">
@@ -59,9 +69,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import SessionEventRenderer from '../session/SessionEventRenderer.vue'
-import PlanSummary from '../session/PlanSummary.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
-import { usePlanParser } from '../../composables/usePlanParser.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
 import { getSession, continueSession } from '../../api/session.js'
 
@@ -81,11 +89,11 @@ const props = defineProps({
 })
 
 const { events, isLoading, error, loadInitial, startPolling, stopPolling } = useSessionEvents()
-const { plan } = usePlanParser(events)
 const message = ref('')
 const isSending = ref(false)
 const sessionStatus = ref('')
 const eventsContainer = ref(null)
+const autoScrollEnabled = ref(true)
 
 const canInput = computed(() => SESSION_INPUT_STATUSES.includes(sessionStatus.value))
 const isBusy = computed(() => SESSION_BUSY_STATUSES.includes(sessionStatus.value))
@@ -104,10 +112,17 @@ const sessionStatusText = computed(() => {
 
 function scrollToBottom() {
   nextTick(() => {
-    if (eventsContainer.value) {
+    if (eventsContainer.value && autoScrollEnabled.value) {
       eventsContainer.value.scrollTop = eventsContainer.value.scrollHeight
     }
   })
+}
+
+function toggleAutoScroll() {
+  autoScrollEnabled.value = !autoScrollEnabled.value
+  if (autoScrollEnabled.value) {
+    scrollToBottom()
+  }
 }
 
 async function fetchSessionStatus() {
@@ -381,6 +396,57 @@ onBeforeUnmount(() => {
 .panel-input button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.panel-events-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 6px 4px 0;
+}
+
+.auto-scroll-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.auto-scroll-check:hover {
+  color: #374151;
+}
+
+.check-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d1d5db;
+  border-radius: 3px;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.check-box.checked {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.check-label {
+  line-height: 1;
 }
 </style>
 

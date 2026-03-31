@@ -110,27 +110,6 @@ describe('SkillConfig', () => {
     expect(mockSkillStore.fetchSkills).toHaveBeenCalledTimes(2)
   })
 
-  it('saves edited file content', async () => {
-    mockSkillStore.skills = [
-      { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
-    ]
-    mockSkillStore.fetchSkillFiles.mockResolvedValue(['SKILL.md'])
-    mockSkillStore.fetchSkillFile.mockResolvedValue({ path: 'SKILL.md', content: '# Old Content' })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper.find('.el-tree-node__content').trigger('click')
-    await flushPromises()
-    await wrapper.find('.preview-header .btn').trigger('click')
-    await wrapper.find('.file-editor').setValue('# New Content')
-    await wrapper.findAll('.modal .btn-primary')[0].trigger('click')
-    await flushPromises()
-
-    expect(mockSkillStore.updateSkillFile).toHaveBeenCalledWith(1, 'SKILL.md', '# New Content')
-    expect(wrapper.find('.preview-code').text()).toContain('# New Content')
-  })
-
   it('deletes the selected skill', async () => {
     mockSkillStore.skills = [
       { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
