@@ -73,7 +73,7 @@ class SessionService {
       throw error;
     }
 
-    if (session.status !== 'STOPPED' && session.status !== 'COMPLETED' && session.status !== 'FAILED' && session.status !== 'CANCELLED') {
+    if (session.status !== 'STOPPED' && session.status !== 'SUSPENDED' && session.status !== 'COMPLETED' && session.status !== 'FAILED' && session.status !== 'CANCELLED') {
       const error = new Error('Session is not in a resumable state') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
