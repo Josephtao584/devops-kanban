@@ -125,6 +125,9 @@
 
                     <div class="workflow-step-card__meta">
                       <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
+                      <span v-if="step.requiresConfirmation" class="workflow-chip workflow-chip--warning">
+                        {{ $t('workflowTemplate.requiresConfirmation') }}
+                      </span>
                     </div>
 
                     <div class="workflow-step-card__actions">
@@ -246,6 +249,15 @@
                     resize="vertical"
                     :placeholder="$t('workflowTemplate.instructionPromptHint')"
                   />
+                </div>
+
+                <div class="editor-field editor-field--full">
+                  <div class="confirmation-header">
+                    <el-switch
+                      v-model="selectedStep.requiresConfirmation"
+                      :active-text="$t('workflowTemplate.requiresConfirmation')"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1227,6 +1239,29 @@ onMounted(() => {
 }
 
 .editor-field label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.confirmation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.confirmation-prompt-field {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.confirmation-prompt-field label {
+  display: block;
+  margin-bottom: 8px;
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;

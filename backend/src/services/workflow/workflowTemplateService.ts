@@ -22,7 +22,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     throw createValidationError('Invalid workflow template steps');
   }
 
-  const { id, name, instructionPrompt, agentId } = step;
+  const { id, name, instructionPrompt, agentId, requiresConfirmation } = step;
 
   if (typeof id !== 'string' || !id.trim()) {
     throw createValidationError('step id must be a non-empty string');
@@ -40,11 +40,15 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     throw createValidationError('agentId must be a non-negative integer');
   }
 
+  // Handle requiresConfirmation - optional boolean
+  const normalizedRequiresConfirmation = requiresConfirmation === true;
+
   return {
     id: id.trim(),
     name: name.trim(),
     instructionPrompt: instructionPrompt.trim(),
     agentId,
+    requiresConfirmation: normalizedRequiresConfirmation,
   };
 }
 
