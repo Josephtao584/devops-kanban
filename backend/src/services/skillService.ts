@@ -91,7 +91,7 @@ class SkillService {
     return allEntries.filter(entry => {
       const fullPath = resolve(skillDir, entry);
       return existsSync(fullPath) && statSync(fullPath).isFile();
-    });
+    }).map(entry => entry.split(sep).join('/'));
   }
 
   async readSkillFile(skillName: string, filePath: string): Promise<string> {
