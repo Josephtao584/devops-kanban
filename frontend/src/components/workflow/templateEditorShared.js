@@ -4,7 +4,8 @@ export const normalizeWorkflowStep = (step = {}) => ({
   id: step.id ?? '',
   name: step.name ?? '',
   instructionPrompt: step.instructionPrompt ?? '',
-  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
+  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null,
+  requiresConfirmation: step.requiresConfirmation === true
 })
 
 export const normalizeWorkflowTemplate = (template, emptyValue = null) => {
@@ -20,14 +21,16 @@ export const sanitizeWorkflowStep = (step = {}) => ({
   id: (step.id || '').trim(),
   name: (step.name || '').trim(),
   instructionPrompt: (step.instructionPrompt || '').trim(),
-  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null
+  agentId: typeof step.agentId === 'number' && Number.isFinite(step.agentId) ? step.agentId : null,
+  requiresConfirmation: step.requiresConfirmation === true
 })
 
 export const createEmptyWorkflowStep = (defaultName = '') => ({
   id: '',
   name: defaultName,
   instructionPrompt: '',
-  agentId: null
+  agentId: null,
+  requiresConfirmation: false
 })
 
 export const insertWorkflowStep = (steps = [], targetIndex, position = 'after', step = createEmptyWorkflowStep()) => {
@@ -100,7 +103,8 @@ export const buildWorkflowStepsPayload = (steps = []) => {
       id: generatedId,
       name: normalizedStep.name,
       instructionPrompt: normalizedStep.instructionPrompt,
-      agentId: normalizedStep.agentId
+      agentId: normalizedStep.agentId,
+      requiresConfirmation: normalizedStep.requiresConfirmation
     }
   })
 }

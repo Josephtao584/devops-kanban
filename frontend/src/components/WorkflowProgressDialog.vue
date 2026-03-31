@@ -64,6 +64,34 @@
           <p class="error-text">{{ run.context.error }}</p>
         </div>
 
+        <!-- Suspended state confirmation -->
+        <div v-if="run.status === 'SUSPENDED' && suspendedStep" class="suspend-section">
+          <div class="suspend-header">
+            <el-icon class="suspend-icon"><Loading /></el-icon>
+            <span>步骤需要确认</span>
+          </div>
+          <div class="suspend-info">
+            <div class="suspend-step-name">
+              <strong>{{ suspendedStep.name }}</strong>
+            </div>
+            <div v-if="suspendedStep.suspend_reason" class="suspend-reason">
+              {{ suspendedStep.suspend_reason }}
+            </div>
+            <div v-if="suspendedStep.summary" class="suspend-summary">
+              <div class="summary-label">执行摘要：</div>
+              <div class="summary-content">{{ suspendedStep.summary }}</div>
+            </div>
+          </div>
+          <div class="suspend-actions">
+            <el-button type="primary" @click="handleResume(true)">
+              确认继续
+            </el-button>
+            <el-button type="danger" @click="handleResume(false)">
+              取消工作流
+            </el-button>
+          </div>
+        </div>
+
         <StepSessionPanel
           v-if="selectedStep?.session_id"
           :session-id="selectedStep.session_id"
@@ -95,8 +123,9 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
-import { getWorkflowRun, cancelWorkflow } from '../api/workflow.js'
+import { getWorkflowRun, cancelWorkflow, resumeWorkflow } from '../api/workflow.js'
 import StepSessionPanel from './workflow/StepSessionPanel.vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 
 const props = defineProps({
   modelValue: {
@@ -141,18 +170,24 @@ const statusClass = computed(() => {
 
 const statusIcon = computed(() => {
   if (!run.value) return ''
-  const icons = { PENDING: '⏳', RUNNING: '▶', COMPLETED: '✓', FAILED: '✗', CANCELLED: '⊘' }
+  const icons = { PENDING: '⏳', RUNNING: '▶', SUSPENDED: '⏸', COMPLETED: '✓', FAILED: '✗', CANCELLED: '⊘' }
   return icons[run.value.status] || ''
 })
 
 const statusText = computed(() => {
   if (!run.value) return ''
-  const texts = { PENDING: '等待中', RUNNING: '运行中', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
+  const texts = { PENDING: '等待中', RUNNING: '运行中', SUSPENDED: '等待确认', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
   return texts[run.value.status] || run.value.status
 })
 
-const canCancel = computed(() => run.value && (run.value.status === 'RUNNING' || run.value.status === 'PENDING'))
+const canCancel = computed(() => run.value && (run.value.status === 'RUNNING' || run.value.status === 'PENDING' || run.value.status === 'SUSPENDED'))
 const isTerminal = computed(() => run.value && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(run.value.status))
+
+// Find suspended step info
+const suspendedStep = computed(() => {
+  if (!run.value?.steps?.length || run.value.status !== 'SUSPENDED') return null
+  return run.value.steps.find((step) => step.status === 'SUSPENDED') || null
+})
 
 const selectedStep = computed(() => {
   if (!run.value?.steps?.length) return null
@@ -186,6 +221,7 @@ function handleSelectStep(step) {
 
 function stepStatusClass(step) {
   if (isStepRunning(step)) return 'step-running'
+  if (step.status === 'SUSPENDED') return 'step-suspended'
   return `step-${String(step.status || '').toLowerCase()}`
 }
 
@@ -193,14 +229,52 @@ function isStepRunning(step) {
   return step.status === 'RUNNING'
 }
 
+function isStepSuspended(step) {
+  return step.status === 'SUSPENDED'
+}
+
 function stepStatusText(step) {
-  const texts = { PENDING: '待处理', RUNNING: '进行中', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
+  const texts = { PENDING: '待处理', RUNNING: '进行中', SUSPENDED: '等待确认', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
   return texts[step.status] || step.status
 }
 
 function formatTime(isoStr) {
   if (!isoStr) return ''
   return new Date(isoStr).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+async function handleResume(approved) {
+  if (!props.workflowRunId) return
+
+  try {
+    const { value: comment } = await ElMessageBox.prompt(
+      approved ? '确认继续执行工作流？' : '确认取消工作流？',
+      approved ? '确认继续' : '确认取消',
+      {
+        confirmButtonText: approved ? '确认继续' : '确认取消',
+        cancelButtonText: '返回',
+        inputPlaceholder: '可输入备注（可选）',
+        type: 'info'
+      }
+    ).catch(() => ({ value: null }))
+
+    // If user clicked cancel on the messagebox
+    if (comment === null && !approved) return
+
+    const resumeData = { approved, comment: comment || undefined }
+    const response = await resumeWorkflow(props.workflowRunId, resumeData)
+
+    if (response.success) {
+      ElMessage.success(approved ? '工作流已继续执行' : '工作流已取消')
+      await fetchRun()
+    } else {
+      ElMessage.error(response.message || '操作失败')
+    }
+  } catch (err) {
+    // User cancelled the messagebox
+    if (err === 'cancel' || err === 'close') return
+    ElMessage.error(err.response?.data?.message || err.message || '操作失败')
+  }
 }
 
 async function fetchRun() {
@@ -322,6 +396,7 @@ watch(() => props.workflowRunId, () => {
 .run-status { font-weight: 600; font-size: 14px; }
 .run-status.status-pending { color: #6b7280; }
 .run-status.status-running { color: #3b82f6; }
+.run-status.status-suspended { color: #f59e0b; }
 .run-status.status-completed { color: #10b981; }
 .run-status.status-failed { color: #ef4444; }
 .run-status.status-cancelled { color: #f59e0b; }
@@ -341,6 +416,15 @@ watch(() => props.workflowRunId, () => {
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #fff;
+}
+
+.step-item.step-suspended {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.step-item.step-suspended .step-icon {
+  color: #f59e0b;
 }
 
 .step-item.clickable {
@@ -377,5 +461,76 @@ watch(() => props.workflowRunId, () => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.suspend-section {
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.suspend-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #d97706;
+  margin-bottom: 12px;
+}
+
+.suspend-icon {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.suspend-info {
+  margin-bottom: 16px;
+}
+
+.suspend-step-name {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.suspend-reason {
+  font-size: 13px;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.suspend-summary {
+  margin-top: 12px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.summary-content {
+  font-size: 13px;
+  color: #374151;
+  background: #f9fafb;
+  padding: 8px 12px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.suspend-actions {
+  display: flex;
+  gap: 12px;
 }
 </style>

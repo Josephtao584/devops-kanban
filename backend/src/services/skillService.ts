@@ -10,7 +10,7 @@ class SkillService {
 
   constructor(options: { storagePath?: string; skillRepo?: SkillRepository } = {}) {
     this.storagePath = options.storagePath || process.cwd();
-    this.skillRepo = options.skillRepo || new SkillRepository({ storagePath: this.storagePath });
+    this.skillRepo = options.skillRepo || new SkillRepository();
   }
 
   private ensurePathInSkillDir(skillName: string, targetPath: string): string {

@@ -23,6 +23,18 @@ const firstStepInputSchema = z.object({
   worktreePath: z.string(),
 });
 
+// Suspend/resume schemas for confirmation steps
+const resumeSchema = z.object({
+  approved: z.boolean(),
+  comment: z.string().optional(),
+});
+
+const suspendSchema = z.object({
+  reason: z.string(),
+  stepName: z.string(),
+  summary: z.string().optional(),
+});
+
 let _mastra: Mastra | null = null;
 let _initialized = false;
 
@@ -70,14 +82,18 @@ export function buildWorkflowFromTemplate(
   const steps = workflowTemplate.steps.map((templateStep, index) => {
     const isFirst = index === 0;
     const previousStepId = index > 0 ? workflowTemplate.steps[index - 1]?.id : null;
+    const requiresConfirmation = templateStep.requiresConfirmation ?? false;
 
     return createStep({
       id: templateStep.id,
       inputSchema: isFirst ? firstStepInputSchema : stepOutputSchema,
       outputSchema: stepOutputSchema,
       stateSchema: sharedStateSchema,
-      execute: async ({ inputData, state, abortSignal, abort }) => {
-        console.log(`[Workflow] Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}, workflowRun: ${options.runId}`);
+      // Add resume/suspend schemas for confirmation steps
+      resumeSchema: requiresConfirmation ? resumeSchema : undefined,
+      suspendSchema: requiresConfirmation ? suspendSchema : undefined,
+      execute: async ({ inputData, state, abortSignal, abort, resumeData, suspend, suspendData }) => {
+        console.log(`[Workflow] Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}, workflowRun: ${options.runId}, resumeData: ${!!resumeData}`);
 
         if (abortSignal) {
           abortSignal.addEventListener('abort', () => {
@@ -85,6 +101,27 @@ export function buildWorkflowFromTemplate(
           });
         }
 
+        // Type the resume data and suspend data
+        const typedResumeData = resumeData as { approved?: boolean; comment?: string } | undefined;
+        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string } | undefined;
+
+        // === Resume execution (user confirmed) ===
+        if (requiresConfirmation && typedResumeData?.approved) {
+          // Get previous result from suspendData, don't re-execute
+          const previousSummary = typedSuspendData?.summary || '';
+          console.log(`[Workflow] Step ${templateStep.id} resuming with approved=true, using suspendData.summary`);
+
+          const resumePayload: { approved: boolean; comment?: string } = { approved: true };
+          if (typedResumeData.comment !== undefined) {
+            resumePayload.comment = typedResumeData.comment;
+          }
+          await options.lifecycle.onStepResume(options.runId, templateStep.id, resumePayload);
+          await options.lifecycle.onStepComplete(options.runId, templateStep.id, { summary: previousSummary });
+
+          return { summary: previousSummary };
+        }
+
+        // === First execution ===
         let sessionId: number | undefined;
         let segmentId: number | undefined;
         const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
@@ -128,13 +165,29 @@ export function buildWorkflowFromTemplate(
             return { summary: '' };
           }
 
-          // Step completed successfully
+          // Check if confirmation is required
+          if (requiresConfirmation && !typedResumeData?.approved) {
+            const suspendReason = `请确认步骤 "${templateStep.name}" 是否完成`;
+
+            await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
+              reason: suspendReason,
+              summary: result.summary,
+            });
+
+            // Call Mastra suspend with result stored in suspendData
+            return await suspend({
+              reason: suspendReason,
+              stepName: templateStep.name,
+              summary: result.summary,
+            });
+          }
+
+          // Step completed successfully (no confirmation required)
           await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
 
           return result;
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          // Step failed
           await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
           throw err;
         }
@@ -151,6 +204,10 @@ export function buildWorkflowFromTemplate(
       onFinish: async (result) => {
         if (result.status === 'success') {
           await options.lifecycle.onWorkflowComplete(options.runId, result.result ?? {});
+        } else if (result.status === 'suspended') {
+          // Workflow suspended - lifecycle already handled in onStepSuspend
+          const suspendedSteps = (result as any).suspended as string[] | undefined;
+          console.log(`[Workflow] Workflow suspended at steps: ${suspendedSteps?.join(', ')}`);
         } else if (result.status === 'failed' || result.status === 'tripwire') {
           const errorMessage = result.error?.message || 'Workflow failed';
           await options.lifecycle.onWorkflowError(options.runId, errorMessage);

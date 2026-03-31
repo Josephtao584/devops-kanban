@@ -14,12 +14,19 @@
                 class="node-inline"
                 :class="[
                   `status-${node.status?.toLowerCase()}`,
-                  { 'is-current': node.id === currentNodeId && node.status === 'IN_PROGRESS', 'is-selected': node.id === currentNodeId }
+                  { 'is-current': node.id === currentNodeId && node.status === 'IN_PROGRESS', 'is-selected': node.id === currentNodeId, 'is-suspended': node.status === 'SUSPENDED' }
                 ]"
                 @click.stop="$emit('node-click', node)"
               >
                 <span class="node-status-dot"></span>
                 <span class="node-name-inline">{{ node.name }}</span>
+                <!-- Suspend icon -->
+                <span v-if="node.status === 'SUSPENDED'" class="node-suspend-icon" title="等待确认">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                  </svg>
+                </span>
               </button>
             </template>
           </div>
@@ -164,6 +171,11 @@ const sortedStages = computed(() => {
   border-left: 3px solid #94a3b8;
 }
 
+.node-inline.status-suspended {
+  border-left: 3px solid #f59e0b;
+  background: #fef3c7;
+}
+
 .node-status-dot {
   width: 8px;
   height: 8px;
@@ -175,11 +187,20 @@ const sortedStages = computed(() => {
 .status-in_progress .node-status-dot { background: #f59e0b; animation: blink 1.5s infinite; }
 .status-failed .node-status-dot { background: #ef4444; }
 .status-pending .node-status-dot { background: #94a3b8; }
+.status-suspended .node-status-dot { background: #f59e0b; animation: blink 1.5s infinite; }
 
 .node-name-inline {
   color: #334155;
   font-weight: 500;
   flex: 1;
+}
+
+.node-suspend-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #d97706;
+  flex-shrink: 0;
 }
 
 .stage-arrow {

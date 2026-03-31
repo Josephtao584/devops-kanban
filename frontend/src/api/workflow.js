@@ -5,3 +5,5 @@ export const getWorkflowRunsByTask = (taskId) => api.get('/workflows/runs', { pa
 export const getWorkflowRunSteps = (runId) => api.get(`/workflows/runs/${runId}/steps`)
 export const cancelWorkflow = (runId) => api.post(`/workflows/runs/${runId}/cancel`)
 export const retryWorkflow = (runId) => api.post(`/workflows/runs/${runId}/retry`)
+export const resumeWorkflow = (runId, data) => api.post(`/workflows/runs/${runId}/resume`, data)
+export const getSuspendInfo = (runId) => api.get(`/workflows/runs/${runId}/suspend-info`)
