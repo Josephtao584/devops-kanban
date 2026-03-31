@@ -7,8 +7,8 @@
     "status": "CONVERTED",
     "priority": "HIGH",
     "acceptance_criteria": "1. 可以创建新项目\n2. 可以编辑项目信息\n3. 可以删除项目\n4. 可以查看项目列表和详情",
-    "created_by": "张三",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "产品经理",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:38:28.168Z",
     "order": 0
   },
@@ -20,8 +20,8 @@
     "status": "CONVERTED",
     "priority": "HIGH",
     "acceptance_criteria": "1. 显示任务看板\n2. 支持拖拽改变状态\n3. 支持任务筛选",
-    "created_by": "张三",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "产品经理",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:38:28.169Z",
     "order": 1
   },
@@ -29,12 +29,12 @@
     "id": 3,
     "project_id": 1,
     "title": "AI 代理集成",
-    "description": "集成 AI 代理自动执行任务，支持多种 Agent",
+    "description": "集成 AI 代理自动执行任务，支持多种 Agent 类型",
     "status": "CONVERTED",
     "priority": "CRITICAL",
     "acceptance_criteria": "1. 支持 Claude Code 代理\n2. 支持任务自动执行\n3. 显示执行日志",
-    "created_by": "李四",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "技术负责人",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:38:28.170Z",
     "order": 2
   },
@@ -46,10 +46,10 @@
     "status": "NEW",
     "priority": "MEDIUM",
     "acceptance_criteria": "1. 建立 WebSocket 连接\n2. 支持实时日志输出\n3. 支持交互式命令",
-    "created_by": "王五",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "技术负责人",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:39:22.181Z",
-    "order": 0
+    "order": 3
   },
   {
     "id": 5,
@@ -59,10 +59,10 @@
     "status": "NEW",
     "priority": "CRITICAL",
     "acceptance_criteria": "1. 支持邮箱登录\n2. 支持 JWT 认证\n3. 支持角色权限",
-    "created_by": "赵六",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "产品经理",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:39:22.182Z",
-    "order": 1
+    "order": 0
   },
   {
     "id": 6,
@@ -72,10 +72,10 @@
     "status": "NEW",
     "priority": "HIGH",
     "acceptance_criteria": "1. 商品列表展示\n2. 商品详情编辑\n3. 库存预警",
-    "created_by": "赵六",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "产品经理",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:39:22.183Z",
-    "order": 2
+    "order": 1
   },
   {
     "id": 7,
@@ -85,10 +85,10 @@
     "status": "CONVERTED",
     "priority": "HIGH",
     "acceptance_criteria": "1. 支持 MySQL\n2. 支持 PostgreSQL\n3. 支持 MongoDB",
-    "created_by": "钱七",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "技术负责人",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:38:28.172Z",
-    "order": 6
+    "order": 0
   },
   {
     "id": 8,
@@ -98,9 +98,9 @@
     "status": "NEW",
     "priority": "MEDIUM",
     "acceptance_criteria": "1. 支持折线图、柱状图、饼图\n2. 支持自定义仪表盘\n3. 支持图表导出",
-    "created_by": "钱七",
-    "created_at": "2026-03-17T07:03:51.577170",
+    "created_by": "产品经理",
+    "created_at": "2026-03-17T07:03:51.577Z",
     "updated_at": "2026-03-18T06:39:22.184Z",
-    "order": 3
+    "order": 1
   }
 ]
