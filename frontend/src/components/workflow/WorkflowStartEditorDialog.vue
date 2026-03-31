@@ -45,6 +45,9 @@
                   <span class="workflow-chip" :class="step.agentStateClass">
                     {{ step.agentSummary }}
                   </span>
+                  <div v-if="step.skillNames.length" class="workflow-step-card__skills">
+                    <span v-for="skill in step.skillNames" :key="skill" class="workflow-skill-tag">{{ skill }}</span>
+                  </div>
                 </div>
 
                 <div class="workflow-step-card__actions">
@@ -189,6 +192,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, MoreFilled, Back, Right } from '@element-plus/icons-vue'
 import { getAgents } from '../../api/agent.js'
+import { useSkillStore } from '../../stores/skillStore'
 import {
   normalizeWorkflowStep,
   normalizeWorkflowTemplate,
@@ -216,6 +220,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
 const { t } = useI18n()
+const skillStore = useSkillStore()
 
 const agents = ref([])
 const agentsLoaded = ref(false)
@@ -248,7 +253,10 @@ watch(() => props.modelValue, async (visible) => {
 async function loadAgents () {
   agentsLoaded.value = false
   try {
-    const response = await getAgents()
+    const [response] = await Promise.all([
+      getAgents(),
+      skillStore.fetchSkills()
+    ])
     agents.value = response?.success && Array.isArray(response.data) ? response.data : []
   } catch (error) {
     agents.value = []
@@ -272,6 +280,7 @@ const previewSteps = computed(() => {
     let agentSummary = t('workflowTemplate.unassignedAgent')
     let agentStateClass = 'workflow-chip--info'
     let stateClass = 'state-ready'
+    let skillNames = []
 
     if (typeof sanitized.agentId === 'number') {
       if (isMissingAgent(sanitized)) {
@@ -283,8 +292,13 @@ const previewSteps = computed(() => {
         agentStateClass = 'workflow-chip--warning'
         stateClass = 'state-disabled'
       } else {
-        agentSummary = getAgentDisplayName(getAgentById(sanitized.agentId), t)
+        const agent = getAgentById(sanitized.agentId)
+        agentSummary = getAgentDisplayName(agent, t)
         agentStateClass = 'workflow-chip--neutral'
+        skillNames = (agent?.skills || []).map(skillId => {
+          const skill = skillStore.skills.find(s => s.id === skillId)
+          return skill?.name || skill?.identifier || null
+        }).filter(Boolean)
       }
     }
 
@@ -294,6 +308,7 @@ const previewSteps = computed(() => {
       agentSummary,
       agentStateClass,
       stateClass,
+      skillNames,
       hasWarning: isMissingAgent(sanitized) || isDisabledAgent(sanitized) || !sanitized.instructionPrompt
     }
   })
@@ -398,6 +413,23 @@ const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTe
 </script>
 
 <style scoped>
+.workflow-step-card__skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.workflow-skill-tag {
+  display: inline-flex;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
 .template-meta {
   margin-bottom: 16px;
 }
