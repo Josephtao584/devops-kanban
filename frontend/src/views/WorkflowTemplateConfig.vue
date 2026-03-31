@@ -1031,7 +1031,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: 600px;
+  max-width: 520px;
 }
 
 .meta-row {
