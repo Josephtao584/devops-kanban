@@ -1,4 +1,5 @@
 import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
+import { TaskRepository } from '../../repositories/taskRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SessionRepository } from '../../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
@@ -8,6 +9,7 @@ import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/wo
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
+  taskRepo: TaskRepository;
   agentRepo: AgentRepository;
   sessionRepo: SessionRepository;
   sessionSegmentRepo: SessionSegmentRepository;
@@ -16,18 +18,21 @@ class WorkflowLifecycle {
 
   constructor({
     workflowRunRepo,
+    taskRepo,
     agentRepo,
     sessionRepo,
     sessionSegmentRepo,
     sessionEventRepo,
   }: {
     workflowRunRepo?: WorkflowRunRepository;
+    taskRepo?: TaskRepository;
     agentRepo?: AgentRepository;
     sessionRepo?: SessionRepository;
     sessionSegmentRepo?: SessionSegmentRepository;
     sessionEventRepo?: SessionEventRepository;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
+    this.taskRepo = taskRepo || new TaskRepository();
     this.agentRepo = agentRepo || new AgentRepository();
     this.sessionRepo = sessionRepo || new SessionRepository();
     this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
@@ -377,6 +382,40 @@ class WorkflowLifecycle {
     }
 
     await this.onStepError(runId, step.step_id, errorMessage || 'Workflow failed');
+  }
+
+  async onWorkflowStart(runId: number) {
+    await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
+  }
+
+  async onWorkflowComplete(runId: number, result: Record<string, unknown>) {
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) return;
+
+    await this.workflowRunRepo.update(runId, {
+      status: 'COMPLETED',
+      context: result ?? {},
+      current_step: null,
+    });
+
+    if (run.task_id) {
+      await this.taskRepo.update(run.task_id, { status: 'DONE' });
+    }
+  }
+
+  async onWorkflowError(runId: number, errorMessage: string) {
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) return;
+
+    await this.workflowRunRepo.update(runId, {
+      status: 'FAILED',
+      context: { error: errorMessage },
+      current_step: null,
+    });
+
+    if (run.task_id) {
+      await this.taskRepo.update(run.task_id, { status: 'TODO' });
+    }
   }
 
 }

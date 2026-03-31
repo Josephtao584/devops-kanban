@@ -202,6 +202,11 @@ function createLifecycleHarness({
 
   const lifecycle = new WorkflowLifecycle({
     workflowRunRepo: workflowRunRepo as never,
+    taskRepo: {
+      async update(_id: number, _data: Record<string, unknown>) {
+        // no-op
+      },
+    } as never,
     agentRepo: agentRepo as never,
     sessionRepo: sessionRepo as never,
     sessionSegmentRepo: sessionSegmentRepo as never,
