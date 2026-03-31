@@ -112,6 +112,13 @@ fi
 echo -e "${GREEN}✓ 数据目录已就绪${NC}"
 
 echo ""
+echo -e "${YELLOW}配置 npm 镜像源...${NC}"
+npm config set registry https://registry.npmmirror.com
+npm config set strict-ssl false
+echo -e "${GREEN}✓ 镜像源：$(npm config get registry)${NC}"
+echo -e "${GREEN}✓ strict-ssl: false${NC}"
+
+echo ""
 echo -e "${YELLOW}检查端口占用...${NC}"
 cleanup_port "$FRONTEND_PORT" "前端服务 (Vite)"
 cleanup_port "$BACKEND_PORT" "后端服务 (Uvicorn)"
@@ -121,7 +128,7 @@ echo -e "${YELLOW}[1/2] 启动前端服务...${NC}"
 cd "$FRONTEND_DIR"
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}首次运行，安装前端依赖...${NC}"
-    npm install
+    npm install --loglevel=verbose --no-audit
 fi
 pkill -f "vite" 2>/dev/null || true
 FRONTEND_LOG="/tmp/kanban-frontend.log"
@@ -147,7 +154,7 @@ echo -e "${YELLOW}[2/2] 启动后端服务 (Node.js)...${NC}"
 cd "$BACKEND_DIR"
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}首次运行，安装后端依赖...${NC}"
-    npm install
+    npm install --loglevel=verbose --no-audit
 fi
 pkill -f "tsx watch src/main.ts" 2>/dev/null || true
 pkill -f "node dist/src/main.js" 2>/dev/null || true
