@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 
 import { AgentRepository } from '../src/repositories/agentRepository.js';
 import { SkillRepository } from '../src/repositories/skillRepository.js';
-import { resolveWorkflowSkills } from '../src/services/workflow/workflowSkillSync.ts';
+import { resolveWorkflowSkills } from '../src/services/workflow/workflowSkillSync.js';
 
 test.test('resolveWorkflowSkills collects deduplicated agent skills', async () => {
   const originalAgentFindById = AgentRepository.prototype.findById;
@@ -81,7 +81,7 @@ test.test('resolveWorkflowSkills returns empty array when workflow has no agents
     created_at: '',
     updated_at: '',
     steps: [
-      { id: 'a', name: 'A', instructionPrompt: 'A', agentId: undefined },
+      { id: 'a', name: 'A', instructionPrompt: 'A', agentId: undefined as unknown as number },
     ],
   });
 

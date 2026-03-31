@@ -260,6 +260,7 @@ export default {
     executor: '角色',
     instructionPrompt: '步骤提示词',
     instructionPromptHint: '输入当前步骤的专属执行提示词',
+    deliveryPromptGuidance: '建议在提示词中明确本阶段交付物清单，并将真实前端验证拆成独立阶段。summary 推荐包含：本步结论、已完成内容、交付物清单、未完成或范围外内容、风险与影响、阻塞与待确认问题、给下游步骤的交接建议。',
     retry: '重试',
     loadFailed: '加载工作流模板失败',
     loadAgentsFailed: '加载成员失败',

@@ -527,10 +527,12 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         encoding: 'utf-8',
       });
 
-      const changes = parsePorcelainStatus(statusOutput).map((file) => ({
-        path: file.path,
-        status: file.status,
-      }));
+      const changes = parsePorcelainStatus(statusOutput)
+        .filter(file => !file.path.startsWith('.claude/'))
+        .map((file) => ({
+          path: file.path,
+          status: file.status,
+        }));
 
       return successResponse(changes);
     } catch (error) {

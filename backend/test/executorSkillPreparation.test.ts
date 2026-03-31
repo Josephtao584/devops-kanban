@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { prepareExecutionSkills } from '../src/services/workflow/executorSkillPreparation.ts';
+import { prepareExecutionSkills } from '../src/services/workflow/executorSkillPreparation.js';
 
 const REAL_STORAGE_ROOT = '/Users/taowenpeng/IdeaProjects/devops-kanban/data';
 

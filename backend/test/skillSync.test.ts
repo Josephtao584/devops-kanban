@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { ensureSkillsInWorktree } from '../src/utils/skillSync.ts';
+import { ensureSkillsInWorktree } from '../src/utils/skillSync.js';
 
 const REAL_STORAGE_ROOT = '/Users/taowenpeng/IdeaProjects/devops-kanban/data';
 

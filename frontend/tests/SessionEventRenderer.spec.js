@@ -159,7 +159,7 @@ describe('SessionEventRenderer', () => {
       content: '## 代码审查报告\n\n**问题：** 无\n\n`HelloWorld.py`'
     })
 
-    expect(wrapper.html()).toContain('<strong>代码审查报告</strong>')
+    expect(wrapper.find('h2').text()).toBe('代码审查报告')
     expect(wrapper.html()).toContain('<strong>问题：</strong>')
     expect(wrapper.find('code').text()).toBe('HelloWorld.py')
   })
@@ -172,7 +172,8 @@ describe('SessionEventRenderer', () => {
       content: '- 第一项\n- 第二项'
     })
 
-    expect(wrapper.html()).toContain('<br>')
+    expect(wrapper.find('ul').exists()).toBe(true)
+    expect(wrapper.findAll('li')).toHaveLength(2)
     expect(wrapper.text()).toContain('第一项')
     expect(wrapper.text()).toContain('第二项')
   })
@@ -279,7 +280,7 @@ describe('SessionEventRenderer', () => {
       content: '## 标题\n\n**测试执行：**\n\n`HelloWorld.py`'
     })
 
-    expect(wrapper.html()).toContain('<strong>标题</strong>')
+    expect(wrapper.find('h2').text()).toBe('标题')
     expect(wrapper.html()).toContain('<strong>测试执行：</strong>')
     expect(wrapper.find('code').text()).toBe('HelloWorld.py')
   })
