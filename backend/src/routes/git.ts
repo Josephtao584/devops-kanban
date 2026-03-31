@@ -462,6 +462,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       await taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: `task/${taskId}`,
+        worktree_status: 'created',
       });
 
       return successResponse({
@@ -496,6 +497,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       await taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
+        worktree_status: 'none',
       });
 
       return successResponse({ success: true }, 'Worktree deleted');
