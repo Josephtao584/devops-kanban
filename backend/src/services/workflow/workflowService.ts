@@ -30,16 +30,6 @@ function toStepState(template: WorkflowTemplateEntity) {
   }));
 }
 
-function normalizeStepResult(result: unknown): Record<string, unknown> {
-  if (result && typeof result === 'object' && !Array.isArray(result)) {
-    return result as Record<string, unknown>;
-  }
-
-  return {
-    summary: typeof result === 'string' ? result : JSON.stringify(result ?? null),
-  };
-}
-
 type StartWorkflowOptions = {
   workflowTemplateId?: string | undefined;
   workflowTemplateSnapshot?: WorkflowTemplateEntity | undefined;
@@ -52,15 +42,12 @@ class WorkflowService {
   workflowTemplateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
-  resolveWorkflowSkillsFn: typeof resolveWorkflowSkills;
-  prepareExecutionSkillsFn: typeof prepareExecutionSkills;
-  workflowBuilder: typeof buildWorkflowFromTemplate;
 
   async _resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle, resolveWorkflowSkillsFn, prepareExecutionSkillsFn, workflowBuilder }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
@@ -76,10 +63,7 @@ class WorkflowService {
     this.projectRepo = projectRepo || new ProjectRepository();
     this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
-    this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo });
-    this.resolveWorkflowSkillsFn = resolveWorkflowSkillsFn || resolveWorkflowSkills;
-    this.prepareExecutionSkillsFn = prepareExecutionSkillsFn || prepareExecutionSkills;
-    this.workflowBuilder = workflowBuilder || buildWorkflowFromTemplate;
+    this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo, taskRepo: this.taskRepo });
   }
 
   async startWorkflow(taskId: number, options: StartWorkflowOptions) {
@@ -175,8 +159,8 @@ class WorkflowService {
 
   async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
     try {
-      const skillNames = await this.resolveWorkflowSkillsFn(workflowTemplate);
-      await this.prepareExecutionSkillsFn({
+      const skillNames = await resolveWorkflowSkills(workflowTemplate);
+      await prepareExecutionSkills({
         executorType: 'CLAUDE_CODE',
         skillNames,
         executionPath: task.execution_path,
@@ -184,7 +168,7 @@ class WorkflowService {
 
       await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
 
-      const workflow = this.workflowBuilder(workflowTemplate, {
+      const workflow = buildWorkflowFromTemplate(workflowTemplate, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
         lifecycle: this.lifecycle
@@ -195,10 +179,14 @@ class WorkflowService {
       const mastraRunId = mastraRun.runId;
 
       // Store the mastra_run_id for later retrieval
-      await this.workflowRunRepo.update(runId, { mastra_run_id: mastraRunId });
+      await this.workflowRunRepo.update(runId, { mastra_run_id: mastraRunId, status: 'RUNNING' });
       console.log(`[WorkflowService] Created Mastra run ${mastraRunId} for workflowRun ${runId}`);
 
-      const output = mastraRun.stream({
+      // Notify workflow start
+      await this.lifecycle.onWorkflowStart(runId);
+
+      // Fire-and-forget: start async without blocking
+      await mastraRun.startAsync({
         inputData: {
           taskId: task.id,
           taskTitle: task.title || 'Untitled Task',
@@ -212,36 +200,7 @@ class WorkflowService {
         },
       });
 
-      for await (const event of output.fullStream) {
-        if (event.type === 'workflow-step-result') {
-          const stepId = event.payload?.id;
-          const result = event.payload?.output ?? {};
-          if (stepId) {
-            await this.lifecycle.onStepComplete(runId, stepId, normalizeStepResult(result));
-          }
-        }
-      }
-
-      const result = await output.result;
-
-      if (result.status === 'success') {
-        await this.workflowRunRepo.update(runId, {
-          status: 'COMPLETED',
-          context: result.result ?? {},
-          current_step: null,
-        });
-        await this.taskRepo.update(task.id, { status: 'DONE' });
-      } else if (result.status === 'failed' || result.status === 'tripwire') {
-        await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
-        await this._resetTaskToTodo(task.id);
-      } else {
-        await this.workflowRunRepo.update(runId, {
-          status: 'FAILED',
-          context: { error: 'Workflow failed' },
-          current_step: null,
-        });
-        await this._resetTaskToTodo(task.id);
-      }
+      // Workflow lifecycle callbacks (onFinish/onError) handle final state updates
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.lifecycle.onUnexpectedError(runId, errorMessage).catch(() => {});
@@ -430,6 +389,9 @@ class WorkflowService {
     try {
       console.log(`[WorkflowService] Calling timeTravelStream for step: ${stepId}`);
 
+      // Notify workflow start
+      await this.lifecycle.onWorkflowStart(runId);
+
       const output = mastraRun.timeTravelStream({
         step: stepId,
         initialState: {
@@ -439,42 +401,14 @@ class WorkflowService {
         },
       });
 
-      for await (const event of output.fullStream) {
-        if (event.type === 'workflow-step-result') {
-          const eventStepId = event.payload?.id;
-          const result = event.payload?.output ?? {};
-          if (eventStepId) {
-            await this.lifecycle.onStepComplete(runId, eventStepId, normalizeStepResult(result));
-          }
-        }
-      }
-
+      // Wait for completion - lifecycle callbacks handle step events internally
       const result = await output.result;
 
       console.log(`[WorkflowService] timeTravel result status: ${result.status}`);
-
-      if (result.status === 'success') {
-        await this.workflowRunRepo.update(runId, {
-          status: 'COMPLETED',
-          context: result.result ?? {},
-          current_step: null,
-        });
-        await this.taskRepo.update(task.id, { status: 'DONE' });
-      } else {
-        await this.workflowRunRepo.update(runId, {
-          status: 'FAILED',
-          context: { error: 'Workflow retry failed' },
-          current_step: null,
-        });
-        await this._resetTaskToTodo(task.id);
-      }
+      // Workflow lifecycle callbacks (onFinish/onError) handle final state updates
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      await this.workflowRunRepo.update(runId, {
-        status: 'FAILED',
-        context: { error: errorMessage },
-        current_step: null,
-      }).catch(() => {});
+      await this.lifecycle.onWorkflowError(runId, errorMessage).catch(() => {});
       await this._resetTaskToTodo(task.id);
     }
   }

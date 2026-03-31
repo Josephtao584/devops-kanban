@@ -1,13 +1,9 @@
 import { BaseRepository } from './base.js';
-import type { BaseEntity } from './base.js';
-import type { ProjectCreateRecord, ProjectUpdateRecord } from '../types/persistence/projects.js';
 import type { ProjectEntity } from '../types/entities.ts';
 
-interface StoredProjectEntity extends ProjectEntity, BaseEntity {}
-
-class ProjectRepository extends BaseRepository<StoredProjectEntity, ProjectCreateRecord, ProjectUpdateRecord> {
-  constructor(storagePath?: string) {
-    super('projects.json', storagePath ? { storagePath } : undefined);
+class ProjectRepository extends BaseRepository<ProjectEntity> {
+  constructor() {
+    super('projects.json');
   }
 
   async exists(projectId: number): Promise<boolean> {
