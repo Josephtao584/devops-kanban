@@ -112,8 +112,7 @@ fi
 echo -e "${GREEN}✓ 数据目录已就绪${NC}"
 
 echo ""
-echo -e "${YELLOW}配置 npm 镜像源...${NC}"
-npm config set registry https://registry.npmmirror.com
+echo -e "${YELLOW}npm 配置...${NC}"
 npm config set strict-ssl false
 echo -e "${GREEN}✓ 镜像源：$(npm config get registry)${NC}"
 echo -e "${GREEN}✓ strict-ssl: false${NC}"
