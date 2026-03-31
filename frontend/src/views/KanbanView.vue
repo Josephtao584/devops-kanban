@@ -932,7 +932,6 @@ const handleWorkflowAction = (payload) => {
     } else {
       console.log('[KanbanView] no task, cannot start')
     }
-  } else if (action === 'pause') {
   } else if (action === 'diff') {
     if (selectedTask.value) {
       handleShowDiff({
