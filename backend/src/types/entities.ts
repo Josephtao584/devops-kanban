@@ -25,6 +25,7 @@ export interface TaskEntity {
   workflow_run_id?: number | null;
   worktree_path?: string | null;
   worktree_branch?: string | null;
+  worktree_status?: string | null;
   iteration_id?: number | null;
   source: string;
   labels?: string[];

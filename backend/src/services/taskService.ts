@@ -208,6 +208,7 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: branchName,
+        worktree_status: 'created',
       });
 
       return {
@@ -248,6 +249,7 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
+        worktree_status: 'none',
       });
 
       return { success: true, message: 'Worktree deleted' };
@@ -255,6 +257,7 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
+        worktree_status: 'none',
       });
       throw error;
     }
