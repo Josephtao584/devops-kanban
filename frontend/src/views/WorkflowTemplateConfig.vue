@@ -124,12 +124,16 @@
                     <div class="workflow-step-card__name">{{ step.name || $t('workflowTemplate.newStepDefaultName') }}</div>
 
                     <div class="workflow-step-card__meta">
-                      <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
-                      <span v-if="step.requiresConfirmation" class="workflow-chip workflow-chip--warning">
-                        {{ $t('workflowTemplate.requiresConfirmation') }}
-                      </span>
+                      <div class="workflow-step-card__chips">
+                        <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
+                        <span v-if="step.requiresConfirmation" class="workflow-chip workflow-chip--warning">
+                          {{ $t('workflowTemplate.requiresConfirmation') }}
+                        </span>
+                      </div>
                       <div v-if="step.skillNames.length" class="workflow-step-card__skills">
-                        <span v-for="skill in step.skillNames" :key="skill" class="workflow-skill-tag">{{ skill }}</span>
+                        <el-tooltip v-for="skill in step.skillNames" :key="skill.name" :content="skill.description" :disabled="!skill.description" placement="top">
+                          <span class="workflow-skill-tag">{{ skill.name }}</span>
+                        </el-tooltip>
                       </div>
                     </div>
 
@@ -416,8 +420,9 @@ const previewSteps = computed(() => {
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {
           const skill = skillStore.skills.find(s => s.id === skillId)
-          return skill?.name || skill?.identifier || null
-        }).filter(Boolean)
+          if (!skill) return null
+          return { name: skill.name || skill.identifier, description: skill.description || '' }
+        }).filter(s => s !== null)
       }
     }
 
@@ -1142,8 +1147,14 @@ onMounted(() => {
 .workflow-step-card__meta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
+}
+
+.workflow-step-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .workflow-step-card__actions {
@@ -1153,8 +1164,8 @@ onMounted(() => {
 
 .workflow-step-card__action-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 4px;
   width: 100%;
   justify-content: flex-start;
 }

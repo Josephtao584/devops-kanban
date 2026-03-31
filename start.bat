@@ -120,7 +120,7 @@ if not exist "node_modules" (
     )
 )
 
-start "DevOps Kanban - Frontend" cmd /c "npm run dev"
+start /b npm run dev > "%TEMP%\kanban-frontend.log" 2>&1
 echo [INFO] Waiting for frontend...
 
 set "FRONTEND_READY=0"
@@ -157,7 +157,7 @@ if not exist "node_modules" (
     )
 )
 
-start "DevOps Kanban - Backend" cmd /c "npm run dev"
+start /b npm run dev > "%TEMP%\kanban-backend.log" 2>&1
 echo [INFO] Waiting for backend...
 
 set "BACKEND_READY=0"
@@ -184,12 +184,13 @@ echo.
 echo   Frontend: http://localhost:!FRONTEND_PORT!
 echo   Backend:  http://localhost:!BACKEND_PORT!
 echo.
-echo   Close the popup windows to stop services
-echo   Run start.bat again to restart
+echo   Press Ctrl+C to stop all services
+echo   Logs: %TEMP%\kanban-frontend.log, %TEMP%\kanban-backend.log
 echo.
 
 echo [INFO] Opening browser...
 start "" "http://localhost:!FRONTEND_PORT!"
 
-echo Press any key to exit (services will keep running)...
-pause >nul
+:wait_loop
+ping -n 10 127.0.0.1 >nul
+goto wait_loop
