@@ -3,9 +3,14 @@
     <!-- 顶部操作栏 -->
     <div class="header page-header page-header--compact">
       <h1 class="page-header__title">{{ $t('skill.title') }}</h1>
-      <button class="btn btn-primary" data-testid="open-create-skill" @click="showCreateDialog = true">
-        + {{ $t('skill.createSkill') }}
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-secondary" data-testid="open-create-skill-from-zip" @click="showCreateDialog = true">
+          {{ $t('skill.createFromZip') }}
+        </button>
+        <button class="btn btn-primary" data-testid="open-create-skill" @click="openAddForm">
+          + {{ $t('skill.createSkill') }}
+        </button>
+      </div>
     </div>
 
     <!-- 主内容区：左右分栏 -->
@@ -105,18 +110,25 @@
 
             <!-- 文件浏览器 -->
             <div class="file-browser">
-              <div class="file-list">
-                <div
-                  v-for="file in skillFiles"
-                  :key="file.path"
-                  class="file-item"
-                  :class="{ 'active': selectedFile?.path === file.path }"
-                  @click="selectFile(file)"
+              <div class="file-tree-container">
+                <el-tree
+                  ref="fileTreeRef"
+                  :data="fileTreeData"
+                  :props="treeProps"
+                  node-key="id"
+                  :expand-on-click-node="false"
+                  :default-expand-all="true"
+                  highlight-current
+                  @node-click="handleTreeNodeClick"
                 >
-                  <span class="file-icon">{{ getFileIcon(file.name) }}</span>
-                  <span class="file-name">{{ file.name }}</span>
-                </div>
-                <div v-if="skillFiles.length === 0" class="empty-files">
+                  <template #default="{ node, data }">
+                    <span class="tree-node">
+                      <span class="node-icon" :class="{ 'is-file': data.isLeaf, 'is-folder': !data.isLeaf }">{{ data.isLeaf ? getFileIcon(node.label) : '' }}</span>
+                      <span class="node-label">{{ node.label }}</span>
+                    </span>
+                  </template>
+                </el-tree>
+                <div v-if="fileTreeData.length === 0" class="empty-files">
                   {{ $t('skill.noFiles') }}
                 </div>
               </div>
@@ -125,10 +137,7 @@
               <div class="file-preview">
                 <div v-if="selectedFile" class="preview-content">
                   <div class="preview-header">
-                    <span class="preview-filename">{{ selectedFile.name }}</span>
-                    <button class="btn btn-secondary btn-sm" @click="editFile">
-                      {{ $t('common.edit') }}
-                    </button>
+                    <span class="preview-filename">{{ selectedFile.label }}</span>
                   </div>
                   <pre class="preview-code" v-if="previewContent">{{ previewContent }}</pre>
                   <div v-else-if="loadingPreview" class="loading-preview">
@@ -220,34 +229,6 @@
       @change="handleCreateFromZip"
     />
 
-    <!-- Edit File Modal -->
-    <div class="modal-overlay" v-if="showFileEdit" @click.self="closeFileEdit">
-      <div class="modal modal--wide">
-        <div class="modal-header">
-          <h2>{{ $t('skill.editFile') }}: {{ editingFileName }}</h2>
-          <button class="close-btn" @click="closeFileEdit">&times;</button>
-        </div>
-
-        <div class="modal-body">
-          <textarea
-            v-model="editingFileContent"
-            class="file-editor"
-            :placeholder="$t('skill.fileContentPlaceholder')"
-            rows="15"
-          ></textarea>
-
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" @click="closeFileEdit">
-              {{ $t('common.cancel') }}
-            </button>
-            <button type="button" class="btn btn-primary" :disabled="savingFile" @click="saveFileContent">
-              {{ savingFile ? $t('common.loading') : $t('common.save') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Toast Notification -->
     <div v-if="toast.show" class="toast" :class="toast.type">
       {{ toast.message }}
@@ -269,18 +250,14 @@ const showCreateDialog = ref(false)
 const editingSkill = ref(null)
 
 const selectedSkill = ref(null)
-const skillFiles = ref([])
+const fileTreeData = ref([])
 const selectedFile = ref(null)
 const previewContent = ref('')
 const loadingPreview = ref(false)
 
-const showFileEdit = ref(false)
-const editingFileName = ref('')
-const editingFileContent = ref('')
-const savingFile = ref(false)
-
 const fileInputRef = ref(null)
 const createZipInputRef = ref(null)
+const fileTreeRef = ref(null)
 
 const form = ref({
   name: '',
@@ -320,32 +297,103 @@ const selectSkill = async (skill) => {
   await loadSkillFiles()
 }
 
+const getFileType = (filename) => {
+  if (filename.endsWith('.md')) return 'markdown'
+  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'script'
+  if (filename.endsWith('.sh')) return 'shell'
+  if (filename.endsWith('.html')) return 'html'
+  return 'other'
+}
+
+/**
+ * 将扁平路径数组转换为目录树结构
+ */
+const buildFileTree = (files) => {
+  const root = { label: 'root', children: [], isLeaf: false, path: '' }
+
+  files.forEach(filePath => {
+    const parts = filePath.split('/')
+    let currentNode = root
+
+    parts.forEach((part, index) => {
+      const isFile = index === parts.length - 1
+      const fullPath = parts.slice(0, index + 1).join('/')
+
+      if (isFile) {
+        let existing = currentNode.children.find(c => c.path === fullPath)
+        if (!existing) {
+          existing = {
+            label: part,
+            path: fullPath,
+            isLeaf: true,
+            type: getFileType(part),
+            id: fullPath
+          }
+          currentNode.children.push(existing)
+        }
+      } else {
+        let folder = currentNode.children.find(c => c.path === fullPath)
+        if (!folder) {
+          folder = {
+            label: part,
+            path: fullPath,
+            isLeaf: false,
+            children: [],
+            id: fullPath
+          }
+          currentNode.children.push(folder)
+        }
+        currentNode = folder
+      }
+    })
+  })
+
+  // 排序：文件夹在前，文件在后
+  const sortChildren = (node) => {
+    if (node.children) {
+      node.children.sort((a, b) => {
+        if (a.isLeaf !== b.isLeaf) return a.isLeaf ? 1 : -1
+        return a.label.localeCompare(b.label)
+      })
+      node.children.forEach(sortChildren)
+    }
+  }
+  sortChildren(root)
+
+  return root.children
+}
+
+const treeProps = {
+  children: 'children',
+  label: 'label',
+  isLeaf: 'isLeaf'
+}
+
+const handleTreeNodeClick = (data) => {
+  if (data.isLeaf) {
+    selectFile(data)
+  }
+}
+
 const loadSkillFiles = async () => {
   if (!selectedSkill.value) return
 
   try {
     const files = await skillStore.fetchSkillFiles(selectedSkill.value.id)
-    skillFiles.value = files.map(path => {
-      const name = path.split('/').pop()
-      return {
-        name,
-        path,
-        type: name.endsWith('.md') ? 'markdown' : name.endsWith('.js') || name.endsWith('.cjs') ? 'script' : 'other'
-      }
-    })
+    fileTreeData.value = buildFileTree(files || [])
   } catch (e) {
     console.error('Failed to load skill files:', e)
     showToast(t('skill.loadFilesFailed'), 'error')
-    skillFiles.value = []
+    fileTreeData.value = []
   }
 }
 
 const getFileIcon = (filename) => {
-  if (filename.endsWith('.md')) return '📄'
-  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return '📜'
-  if (filename.endsWith('.sh')) return '⚡'
-  if (filename.endsWith('.html')) return '🌐'
-  return '📎'
+  if (filename.endsWith('.md')) return 'md'
+  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'js'
+  if (filename.endsWith('.sh')) return 'sh'
+  if (filename.endsWith('.html')) return 'html'
+  return 'file'
 }
 
 const selectFile = async (file) => {
@@ -540,7 +588,7 @@ const confirmDelete = async () => {
       selectSkill(skillStore.skills[0])
     } else {
       selectedSkill.value = null
-      skillFiles.value = []
+      fileTreeData.value = []
     }
 
     showToast(t('messages.deleted', { name: t('skill.title') }))
@@ -552,37 +600,6 @@ const confirmDelete = async () => {
 const closeForm = () => {
   showForm.value = false
   editingSkill.value = null
-}
-
-const editFile = () => {
-  if (!selectedFile.value) return
-  editingFileName.value = selectedFile.value.name
-  editingFileContent.value = previewContent.value
-  showFileEdit.value = true
-}
-
-const closeFileEdit = () => {
-  showFileEdit.value = false
-  editingFileName.value = ''
-  editingFileContent.value = ''
-}
-
-const saveFileContent = async () => {
-  savingFile.value = true
-  try {
-    await skillStore.updateSkillFile(selectedSkill.value.id, editingFileName.value, editingFileContent.value)
-    // Refresh preview
-    if (selectedFile.value && selectedFile.value.name === editingFileName.value) {
-      previewContent.value = editingFileContent.value
-    }
-    showToast(t('skill.fileSaved'))
-    closeFileEdit()
-  } catch (e) {
-    console.error('Failed to save file:', e)
-    showToast(t('skill.fileSaveFailed'), 'error')
-  } finally {
-    savingFile.value = false
-  }
 }
 
 onMounted(loadSkills)
@@ -877,6 +894,54 @@ onMounted(loadSkills)
   border-right: 1px solid var(--border-color);
 }
 
+.file-tree-container {
+  width: 240px;
+  min-width: 240px;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-icon {
+  font-size: 11px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.node-icon.is-file {
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.node-icon.is-folder {
+  min-width: 0;
+}
+
+.node-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+:deep(.el-tree-node__content) {
+  height: 28px;
+}
+
+:deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background-color: rgba(64, 158, 255, 0.1);
+}
+
 .file-item {
   display: flex;
   align-items: center;
@@ -1061,10 +1126,6 @@ onMounted(loadSkills)
   animation: slideUp 0.3s ease;
 }
 
-.modal--wide {
-  max-width: 700px;
-}
-
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -1150,25 +1211,6 @@ onMounted(loadSkills)
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-}
-
-.file-editor {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: monospace;
-  line-height: 1.6;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  resize: vertical;
-}
-
-.file-editor:focus {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);

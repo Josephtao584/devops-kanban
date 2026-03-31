@@ -66,15 +66,6 @@
       >
         <el-icon><Document /></el-icon>
       </button>
-      <!-- 运行中状态：暂停按钮 -->
-      <button
-        v-if="node.status === 'IN_PROGRESS'"
-        class="action-btn pause-btn"
-        @click.stop="handlePause"
-        title="暂停任务"
-      >
-        <el-icon><VideoPause /></el-icon>
-      </button>
     </div>
   </div>
 </template>
@@ -83,7 +74,7 @@
 import { computed } from 'vue'
 import { nodeStatusConfig } from '@/constants/workflowPresentation'
 import {
-  Back, Warning, Document, VideoPause, Timer
+  Back, Warning, Document, Timer
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -105,7 +96,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select', 'pause', 'view-details'])
+const emit = defineEmits(['select', 'view-details'])
 
 // Compute if node is rejected
 const isRejected = computed(() => {
@@ -115,11 +106,6 @@ const isRejected = computed(() => {
 // Handle click event
 const handleClick = () => {
   emit('select', props.node)
-}
-
-// Handle pause button click
-const handlePause = () => {
-  emit('pause', props.node)
 }
 
 // Handle view details button click
@@ -451,13 +437,4 @@ const statusColor = computed(() => {
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
 }
 
-.pause-btn {
-  background: #f59e0b;
-  color: #fff;
-}
-
-.pause-btn:hover {
-  background: #d97706;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
-}
 </style>

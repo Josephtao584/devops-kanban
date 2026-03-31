@@ -109,7 +109,6 @@
                   :is-selected="isParentSelected(stage)"
                   :is-parent-node="true"
                   @select="handleParentSelect($event, stage)"
-                  @pause="$emit('pause-task', $event)"
                   @view-details="$emit('view-details', $event)"
                 />
                 <div class="parent-progress">
@@ -144,7 +143,6 @@
                     :is-current="node.id === workflow?.currentNodeId && node.status === 'IN_PROGRESS'"
                     :is-selected="node.id === selectedNodeId"
                     @select="$emit('select-node', $event)"
-                    @pause="$emit('pause-task', $event)"
                     @view-details="$emit('view-details', $event)"
                   />
                 </template>
@@ -204,7 +202,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select-node', 'start-workflow', 'pause-task', 'view-details'])
+const emit = defineEmits(['select-node', 'start-workflow', 'view-details'])
 
 // Collapse state
 const isCollapsed = ref(false)

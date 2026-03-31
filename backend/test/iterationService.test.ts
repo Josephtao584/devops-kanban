@@ -7,26 +7,39 @@ import * as path from 'node:path';
 import { IterationService } from '../src/services/iterationService.js';
 import { TaskRepository } from '../src/repositories/taskRepository.js';
 import { ProjectRepository } from '../src/repositories/projectRepository.js';
+import { IterationRepository } from '../src/repositories/iterationRepository.js';
+
+const origStorage = process.env.STORAGE_PATH;
 
 async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'iteration-service-test-'));
+  process.env.STORAGE_PATH = tempRoot;
   try {
     await run(tempRoot);
   } finally {
+    if (origStorage === undefined) {
+      delete process.env.STORAGE_PATH;
+    } else {
+      process.env.STORAGE_PATH = origStorage;
+    }
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 }
 
 test.test('create persists all supported iteration fields', async () => {
-  await withIsolatedStorage(async (tempRoot) => {
-    const projectRepo = new ProjectRepository(tempRoot);
-    const project = await projectRepo.create({ name: 'Alpha' });
-    const service = new IterationService({ storagePath: tempRoot });
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
 
     const iteration = await service.create({
       project_id: project.id,
       name: 'Sprint 12',
-      description: '稳定版本冲刺',
       goal: '完成发布前收尾',
       start_date: '2026-03-01',
       end_date: '2026-03-15',
@@ -35,7 +48,6 @@ test.test('create persists all supported iteration fields', async () => {
 
     assert.equal(iteration.project_id, project.id);
     assert.equal(iteration.name, 'Sprint 12');
-    assert.equal(iteration.description, '稳定版本冲刺');
     assert.equal(iteration.goal, '完成发布前收尾');
     assert.equal(iteration.start_date, '2026-03-01');
     assert.equal(iteration.end_date, '2026-03-15');
@@ -44,10 +56,15 @@ test.test('create persists all supported iteration fields', async () => {
 });
 
 test.test('update persists all editable iteration fields', async () => {
-  await withIsolatedStorage(async (tempRoot) => {
-    const projectRepo = new ProjectRepository(tempRoot);
-    const project = await projectRepo.create({ name: 'Alpha' });
-    const service = new IterationService({ storagePath: tempRoot });
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
     const created = await service.create({
       project_id: project.id,
       name: 'Sprint 12',
@@ -56,7 +73,6 @@ test.test('update persists all editable iteration fields', async () => {
 
     const updated = await service.update(created.id, {
       name: 'Sprint 12A',
-      description: '增加稳定性验证',
       goal: '完成验收并归档',
       start_date: '2026-03-02',
       end_date: '2026-03-18',
@@ -65,7 +81,6 @@ test.test('update persists all editable iteration fields', async () => {
 
     assert.ok(updated);
     assert.equal(updated?.name, 'Sprint 12A');
-    assert.equal(updated?.description, '增加稳定性验证');
     assert.equal(updated?.goal, '完成验收并归档');
     assert.equal(updated?.start_date, '2026-03-02');
     assert.equal(updated?.end_date, '2026-03-18');
@@ -74,23 +89,35 @@ test.test('update persists all editable iteration fields', async () => {
 });
 
 test.test('delete detaches tasks before removing iteration by default', async () => {
-  await withIsolatedStorage(async (tempRoot) => {
-    const projectRepo = new ProjectRepository(tempRoot);
-    const project = await projectRepo.create({ name: 'Alpha' });
-    const service = new IterationService({ storagePath: tempRoot });
-    const taskRepo = new TaskRepository(tempRoot);
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const taskRepo = new TaskRepository();
+    const iterRepo = new IterationRepository();
 
-    const iteration = await service.create({
+    const iteration = await iterRepo.create({
       project_id: project.id,
       name: 'Sprint 12',
+      goal: undefined,
       status: 'ACTIVE',
+      start_date: undefined,
+      end_date: undefined,
     });
 
     const task = await taskRepo.create({
       title: '完成联调',
+      description: undefined,
       project_id: project.id,
       iteration_id: iteration.id,
       status: 'TODO',
+      priority: 'MEDIUM',
+      source: 'MANUAL',
     });
 
     const deleted = await service.delete(iteration.id);
@@ -106,23 +133,35 @@ test.test('delete detaches tasks before removing iteration by default', async ()
 });
 
 test.test('delete removes linked tasks when deleteTasks is true', async () => {
-  await withIsolatedStorage(async (tempRoot) => {
-    const projectRepo = new ProjectRepository(tempRoot);
-    const project = await projectRepo.create({ name: 'Alpha' });
-    const service = new IterationService({ storagePath: tempRoot });
-    const taskRepo = new TaskRepository(tempRoot);
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const taskRepo = new TaskRepository();
+    const iterRepo = new IterationRepository();
 
-    const iteration = await service.create({
+    const iteration = await iterRepo.create({
       project_id: project.id,
       name: 'Sprint 12',
+      goal: undefined,
       status: 'ACTIVE',
+      start_date: undefined,
+      end_date: undefined,
     });
 
     const task = await taskRepo.create({
       title: '完成联调',
+      description: undefined,
       project_id: project.id,
       iteration_id: iteration.id,
       status: 'TODO',
+      priority: 'MEDIUM',
+      source: 'MANUAL',
     });
 
     const deleted = await service.delete(iteration.id, true);
@@ -137,8 +176,8 @@ test.test('delete removes linked tasks when deleteTasks is true', async () => {
 });
 
 test.test('delete returns false when iteration does not exist', async () => {
-  await withIsolatedStorage(async (tempRoot) => {
-    const service = new IterationService({ storagePath: tempRoot });
+  await withIsolatedStorage(async () => {
+    const service = new IterationService();
     const deleted = await service.delete(9999);
     assert.equal(deleted, false);
   });
