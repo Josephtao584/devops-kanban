@@ -209,6 +209,13 @@
             </div>
 
             <div v-if="selectedStep" class="step-editor-card">
+              <div class="step-editor-card__top-bar">
+                <el-switch
+                  v-model="selectedStep.requiresConfirmation"
+                  :active-text="$t('workflowTemplate.requiresConfirmation')"
+                />
+              </div>
+
               <div
                 v-if="isMissingAgent(selectedStep) || isDisabledAgent(selectedStep) || typeof selectedStep.agentId !== 'number'"
                 class="step-editor-state-row binding-state-row"
@@ -258,14 +265,6 @@
                   />
                 </div>
 
-                <div class="editor-field editor-field--full">
-                  <div class="confirmation-header">
-                    <el-switch
-                      v-model="selectedStep.requiresConfirmation"
-                      :active-text="$t('workflowTemplate.requiresConfirmation')"
-                    />
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1291,11 +1290,18 @@ onMounted(() => {
 }
 
 .step-editor-card {
+  position: relative;
   padding: 20px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   background: #fff;
   box-shadow: var(--shadow-sm);
+}
+
+.step-editor-card__top-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
 }
 
 .step-editor-card__header {
