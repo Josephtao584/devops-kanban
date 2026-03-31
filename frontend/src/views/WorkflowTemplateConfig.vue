@@ -209,7 +209,7 @@
             </div>
 
             <div v-if="selectedStep" class="step-editor-card">
-              <div class="step-editor-card__top-bar">
+              <div class="step-editor-card__switch">
                 <el-switch
                   v-model="selectedStep.requiresConfirmation"
                   :active-text="$t('workflowTemplate.requiresConfirmation')"
@@ -1298,10 +1298,10 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
-.step-editor-card__top-bar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
+.step-editor-card__switch {
+  position: absolute;
+  top: 20px;
+  right: 20px;
 }
 
 .step-editor-card__header {
