@@ -107,7 +107,9 @@ cd /d "%FRONTEND_DIR%"
 
 if not exist "node_modules" (
     echo [信息] 首次运行，安装前端依赖...
-    call npm install
+    for /f "delims=" %%r in ('npm config get registry 2^>nul') do set "NPM_REGISTRY=%%r"
+    echo       镜像源：!NPM_REGISTRY!
+    call npm install --progress=true
     if %errorlevel% neq 0 (
         echo [错误] 前端依赖安装失败
         pause
@@ -144,7 +146,9 @@ cd /d "%BACKEND_DIR%"
 
 if not exist "node_modules" (
     echo [信息] 首次运行，安装后端依赖...
-    call npm install
+    for /f "delims=" %%r in ('npm config get registry 2^>nul') do set "NPM_REGISTRY=%%r"
+    echo       镜像源：!NPM_REGISTRY!
+    call npm install --progress=true
     if %errorlevel% neq 0 (
         echo [错误] 后端依赖安装失败
         pause
