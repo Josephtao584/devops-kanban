@@ -118,7 +118,7 @@ cd /d "%FRONTEND_DIR%"
 
 if not exist "node_modules" (
     echo [信息] 首次运行，安装前端依赖...
-    call npm install --loglevel=verbose
+    call npm install --loglevel=verbose --no-audit
     if %errorlevel% neq 0 (
         echo [错误] 前端依赖安装失败
         pause
@@ -155,7 +155,7 @@ cd /d "%BACKEND_DIR%"
 
 if not exist "node_modules" (
     echo [信息] 首次运行，安装后端依赖...
-    call npm install --loglevel=verbose
+    call npm install --loglevel=verbose --no-audit
     if %errorlevel% neq 0 (
         echo [错误] 后端依赖安装失败
         pause
