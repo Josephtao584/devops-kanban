@@ -1,26 +1,73 @@
 import { IterationRepository } from '../repositories/iterationRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
-import { TaskRepository } from '../repositories/taskRepository.js';
+import { TaskRepository, type TaskStatusCounts } from '../repositories/taskRepository.js';
+import type { IterationEntity } from '../types/entities.ts';
 import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/iterations.js';
-import type { IterationCreateRecord, IterationUpdateRecord } from '../types/persistence/iterations.js';
+
+interface IterationWithStats extends IterationEntity {
+  task_count: number;
+  done_count: number;
+  todo_count: number;
+  in_progress_count: number;
+  blocked_count: number;
+  cancelled_count: number;
+  progress: number;
+}
 
 class IterationService {
   iterationRepo: IterationRepository;
   projectRepo: ProjectRepository;
   taskRepo: TaskRepository;
 
-  constructor(options: { storagePath?: string } = {}) {
-    this.iterationRepo = new IterationRepository(options.storagePath);
-    this.projectRepo = new ProjectRepository(options.storagePath);
-    this.taskRepo = new TaskRepository(options.storagePath);
+  constructor() {
+    this.iterationRepo = new IterationRepository();
+    this.projectRepo = new ProjectRepository();
+    this.taskRepo = new TaskRepository();
   }
 
   async getByProject(projectId: number) {
     return await this.iterationRepo.findByProject(projectId);
   }
 
-  async getByIdWithStats(iterationId: number) {
-    return await this.iterationRepo.findByIdWithStats(iterationId);
+  async getByIdWithStats(iterationId: number): Promise<IterationWithStats | null> {
+    const iteration = await this.iterationRepo.findById(iterationId);
+    if (!iteration) {
+      return null;
+    }
+
+    const tasks = await this.taskRepo.findByProject(iteration.project_id);
+    const iterationTasks = tasks.filter((task) => task.iteration_id === iterationId);
+
+    const counts: TaskStatusCounts = {
+      REQUIREMENTS: 0,
+      TODO: 0,
+      IN_PROGRESS: 0,
+      DONE: 0,
+      BLOCKED: 0,
+      CANCELLED: 0,
+    };
+
+    for (const task of iterationTasks) {
+      const status = task.status as keyof TaskStatusCounts;
+      if (status in counts) {
+        counts[status]++;
+      }
+    }
+
+    const total = iterationTasks.length;
+    const done = counts.DONE || 0;
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    return {
+      ...iteration,
+      task_count: total,
+      done_count: done,
+      todo_count: counts.TODO || 0,
+      in_progress_count: counts.IN_PROGRESS || 0,
+      blocked_count: counts.BLOCKED || 0,
+      cancelled_count: counts.CANCELLED || 0,
+      progress,
+    };
   }
 
   async getById(iterationId: number) {
@@ -28,7 +75,8 @@ class IterationService {
   }
 
   async getTasks(iterationId: number) {
-    return await this.iterationRepo.findTasks(iterationId);
+    const allTasks = await this.taskRepo.findAll();
+    return allTasks.filter((task) => task.iteration_id === iterationId);
   }
 
   async create(iterationData: CreateIterationInput) {
@@ -51,21 +99,18 @@ class IterationService {
       throw error;
     }
 
-    const createData: IterationCreateRecord = {
+    return await this.iterationRepo.create({
       project_id: iterationData.project_id,
       name: iterationData.name,
-      description: iterationData.description,
       goal: iterationData.goal,
       status: iterationData.status || 'PLANNED',
       start_date: iterationData.start_date,
       end_date: iterationData.end_date,
-    };
-
-    return await this.iterationRepo.create(createData);
+    });
   }
 
   async update(iterationId: number, iterationData: UpdateIterationInput) {
-    const updateData: IterationUpdateRecord = {};
+    const updateData: Record<string, unknown> = {};
     if (iterationData.project_id !== undefined) {
       updateData.project_id = iterationData.project_id;
     }
