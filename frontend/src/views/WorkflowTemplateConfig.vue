@@ -1035,8 +1035,9 @@ onMounted(() => {
 }
 
 .template-name-row :deep(.el-input) {
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 520px;
+  width: min(100%, 520px);
+  min-width: 320px;
 }
 
 .meta-row {
