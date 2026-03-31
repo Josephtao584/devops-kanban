@@ -125,15 +125,23 @@ Step 4: 测试验证 ──→ 开始执行
 
 ### 一键启动
 
+**macOS / Linux：**
+
 ```bash
 ./start.sh
+```
+
+**Windows：**
+
+```cmd
+start.bat
 ```
 
 启动后访问：
 - 前端：http://localhost:3000
 - 后端：http://localhost:8000
 
-`./start.sh` 会自动处理依赖安装和端口占用，适合首次运行。
+启动脚本会自动处理依赖安装和端口占用，适合首次运行。
 
 ### 手动启动
 
@@ -408,8 +416,8 @@ TODO ──→ IN_PROGRESS ──→ DONE
 ## 常见注意事项
 
 1. **API 响应格式**：后端统一返回 `{ success, message, data, error }`，前端使用前先判断 `response.success`。
-2. **数据目录**：后端默认通过 `STORAGE_PATH=../data` 读取项目根目录下的数据文件。建议从 `backend/` 目录启动，或使用 `./start.sh`。
-3. **端口约定**：前端默认 `3000`，后端默认 `8000`。`./start.sh` 会自动处理端口冲突。
+2. **数据目录**：后端默认通过 `STORAGE_PATH=../data` 读取项目根目录下的数据文件。建议使用启动脚本（macOS/Linux: `./start.sh`，Windows: `start.bat`）。
+3. **端口约定**：前端默认 `3000`，后端默认 `8000`。启动脚本会自动处理端口冲突。
 4. **Git Worktree 路径**：Worktree 存储在仓库的 `.worktrees/` 目录下（已自动添加到 `.gitignore`）。
 
 ## 贡献与许可
