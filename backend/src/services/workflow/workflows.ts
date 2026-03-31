@@ -95,39 +95,49 @@ export function buildWorkflowFromTemplate(
         sessionId = sessionInfo.sessionId;
         segmentId = sessionInfo.segmentId;
 
-        const result = await executeWorkflowStep({
-          stepId: templateStep.id,
-          worktreePath: state.worktreePath,
-          state,
-          inputData,
-          workflowTemplate,
-          abortSignal,
-          upstreamStepIds: previousStepId ? [previousStepId] : [],
-          onEvent: async (event) => {
-            await options?.lifecycle.sessionEventRepo.append({
-              session_id: sessionId,
-              segment_id: segmentId,
-              kind: event.kind,
-              role: event.role,
-              content: event.content,
-              payload: event.payload || {},
-            });
-          },
-          onProviderState: async (providerState) => {
-            if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
-              await options.lifecycle.sessionSegmentRepo.update(segmentId, {
-                provider_session_id: providerState.providerSessionId,
+        try {
+          const result = await executeWorkflowStep({
+            stepId: templateStep.id,
+            worktreePath: state.worktreePath,
+            state,
+            inputData,
+            workflowTemplate,
+            abortSignal,
+            upstreamStepIds: previousStepId ? [previousStepId] : [],
+            onEvent: async (event) => {
+              await options?.lifecycle.sessionEventRepo.append({
+                session_id: sessionId,
+                segment_id: segmentId,
+                kind: event.kind,
+                role: event.role,
+                content: event.content,
+                payload: event.payload || {},
               });
-            }
-          },
-        });
+            },
+            onProviderState: async (providerState) => {
+              if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
+                await options.lifecycle.sessionSegmentRepo.update(segmentId, {
+                  provider_session_id: providerState.providerSessionId,
+                });
+              }
+            },
+          });
 
-        if (abortSignal?.aborted) {
-          abort();
-          return { summary: '' };
+          if (abortSignal?.aborted) {
+            abort();
+            return { summary: '' };
+          }
+
+          // Step completed successfully
+          await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
+
+          return result;
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          // Step failed
+          await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
+          throw err;
         }
-
-        return result;
       },
     });
   });
@@ -137,6 +147,20 @@ export function buildWorkflowFromTemplate(
     inputSchema: firstStepInputSchema,
     outputSchema: stepOutputSchema,
     stateSchema: sharedStateSchema,
+    options: {
+      onFinish: async (result) => {
+        if (result.status === 'success') {
+          await options.lifecycle.onWorkflowComplete(options.runId, result.result ?? {});
+        } else if (result.status === 'failed' || result.status === 'tripwire') {
+          const errorMessage = result.error?.message || 'Workflow failed';
+          await options.lifecycle.onWorkflowError(options.runId, errorMessage);
+        }
+      },
+      onError: async (errorInfo) => {
+        const errorMessage = errorInfo.error?.message || 'Workflow failed';
+        await options.lifecycle.onWorkflowError(options.runId, errorMessage);
+      },
+    },
   });
 
   for (const step of steps) {
