@@ -77,10 +77,9 @@ echo [OK] 数据目录已就绪
 echo.
 
 :: ========================================
-:: 配置 npm 镜像源
+:: 配置 npm
 :: ========================================
-echo [信息] 配置 npm 镜像源...
-call npm config set registry https://registry.npmmirror.com
+echo [信息] 检查 npm 配置...
 call npm config set strict-ssl false
 for /f "delims=" %%r in ('npm config get registry 2^>nul') do set "NPM_REGISTRY=%%r"
 echo [OK] 镜像源：!NPM_REGISTRY!
