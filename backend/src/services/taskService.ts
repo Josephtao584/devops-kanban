@@ -34,24 +34,45 @@ class TaskService {
     this.repoRootResolver = repoRootResolver || (() => process.cwd());
   }
 
+  private _computeWorktreeStatus(task: TaskEntity | null): TaskEntity | null {
+    if (!task) return task;
+    if (task.worktree_path && fs.existsSync(task.worktree_path)) {
+      task.worktree_status = 'created';
+    } else if (task.worktree_path) {
+      task.worktree_status = 'none';
+    }
+    return task;
+  }
+
+  private _computeWorktreeStatuses(tasks: TaskEntity[]): TaskEntity[] {
+    for (const task of tasks) {
+      this._computeWorktreeStatus(task);
+    }
+    return tasks;
+  }
+
   async getAll() {
-    return await this.taskRepo.findAll();
+    return this._computeWorktreeStatuses(await this.taskRepo.findAll());
   }
 
   async getById(taskId: number) {
-    return await this.taskRepo.findById(taskId);
+    return this._computeWorktreeStatus(await this.taskRepo.findById(taskId));
   }
 
   async getByProject(projectId: number) {
-    return await this.taskRepo.findByProject(projectId);
+    return this._computeWorktreeStatuses(await this.taskRepo.findByProject(projectId));
   }
 
   async getByProjectAndIteration(projectId: number, iterationId: number | null) {
-    return await this.taskRepo.findByProjectAndIteration(projectId, iterationId);
+    return this._computeWorktreeStatuses(await this.taskRepo.findByProjectAndIteration(projectId, iterationId));
   }
 
   async getByProjectGrouped(projectId: number) {
-    return await this.taskRepo.groupByStatus(projectId);
+    const grouped = await this.taskRepo.groupByStatus(projectId);
+    for (const tasks of Object.values(grouped)) {
+      this._computeWorktreeStatuses(tasks);
+    }
+    return grouped;
   }
 
   async create(taskData: CreateTaskInput) {
@@ -129,7 +150,7 @@ class TaskService {
       throw error;
     }
 
-    return await this.taskRepo.findById(taskId);
+    return this._computeWorktreeStatus(await this.taskRepo.findById(taskId));
   }
 
   async exists(taskId: number) {
@@ -208,6 +229,7 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: branchName,
+        worktree_status: 'created',
       });
 
       return {
@@ -248,6 +270,7 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
+        worktree_status: 'none',
       });
 
       return { success: true, message: 'Worktree deleted' };
@@ -255,6 +278,7 @@ class TaskService {
       await this.taskRepo.update(taskId, {
         worktree_path: null,
         worktree_branch: null,
+        worktree_status: 'none',
       });
       throw error;
     }
