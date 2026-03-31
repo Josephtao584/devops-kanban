@@ -103,6 +103,7 @@ const sessionStatusText = computed(() => {
     PENDING: '待开始',
     RUNNING: '进行中',
     STOPPED: '已暂停',
+    SUSPENDED: '等待确认',
     COMPLETED: '已完成',
     FAILED: '失败',
     CANCELLED: '已取消'
@@ -293,6 +294,11 @@ onBeforeUnmount(() => {
 .panel-status.status-stopped {
   background: #fff4e5;
   color: #d97706;
+}
+
+.panel-status.status-suspended {
+  background: #fef3c7;
+  color: #f59e0b;
 }
 
 .panel-state {
