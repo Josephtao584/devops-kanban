@@ -111,9 +111,6 @@
           <section class="workflow-preview-section">
             <div class="section-heading-row">
               <div class="section-heading">{{ $t('workflowTemplate.workflowPreview') }}</div>
-              <el-button data-testid="add-step-button" type="primary" plain @click="addStep">
-                {{ $t('workflowTemplate.addStep') }}
-              </el-button>
             </div>
             <div class="workflow-preview-shell">
               <div class="workflow-preview-track">
@@ -244,7 +241,7 @@
               </div>
 
               <div class="step-editor-grid">
-                <div class="editor-field">
+                <div class="editor-field editor-field--full">
                   <label>{{ $t('workflowTemplate.stepName') }}</label>
                   <el-input
                     v-model="selectedStep.name"
@@ -264,19 +261,18 @@
                     />
                   </el-select>
                 </div>
+              </div>
 
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
-                  <div class="editor-field__hint">{{ $t('workflowTemplate.deliveryPromptGuidance') }}</div>
-                  <el-input
-                    v-model="selectedStep.instructionPrompt"
-                    type="textarea"
-                    :rows="6"
-                    resize="vertical"
-                    :placeholder="$t('workflowTemplate.instructionPromptHint')"
-                  />
-                </div>
-
+              <div class="editor-field editor-field--full editor-field--prompt">
+                <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+                <div class="editor-field__hint">{{ $t('workflowTemplate.deliveryPromptGuidance') }}</div>
+                <el-input
+                  v-model="selectedStep.instructionPrompt"
+                  type="textarea"
+                  :rows="6"
+                  resize="vertical"
+                  :placeholder="$t('workflowTemplate.instructionPromptHint')"
+                />
               </div>
             </div>
 
@@ -1376,7 +1372,7 @@ onMounted(() => {
 
 .step-editor-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
   max-width: 520px;
 }
@@ -1401,6 +1397,10 @@ onMounted(() => {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   line-height: var(--line-height-relaxed);
+}
+
+.editor-field--prompt {
+  margin-top: 12px;
 }
 
 .confirmation-header {
