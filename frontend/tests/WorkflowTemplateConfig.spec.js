@@ -299,10 +299,10 @@ function mountView() {
           setup(props, { slots, emit }) {
             return () => h('label', { class: 'el-switch-stub' }, [
               slots.default?.(),
-              h('input', {
-                type: 'checkbox',
-                checked: props.modelValue,
-                onChange: (e) => emit('update:modelValue', e.target.checked)
+              h('span', {
+                class: 'switch-value',
+                'data-checked': String(props.modelValue),
+                onClick: () => emit('update:modelValue', !props.modelValue)
               })
             ])
           }
@@ -1031,5 +1031,54 @@ describe('WorkflowTemplateConfig', () => {
       '需求设计'
     ])
     expect(getSelectedCardName(wrapper)).toBe('测试')
+  })
+
+  describe('copy template', () => {
+    it('creates a draft from the copied template with copied name and steps', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      const copyBtn = wrapper.find('[data-testid="copy-template-release-workflow-v1"]')
+      expect(copyBtn.exists()).toBe(true)
+
+      await copyBtn.trigger('click')
+      await flushPromises()
+
+      expect(createWorkflowTemplate).not.toHaveBeenCalled()
+
+      const draftId = wrapper.get('[data-testid="template-id"]').text()
+      expect(draftId).toContain('draft-')
+      expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('发布工作流 (副本)')
+      expect(getStepCards(wrapper)).toHaveLength(customTemplate.steps.length)
+      expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(true)
+    })
+
+    it('does not render a copy button on draft templates', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="create-template-button"]').trigger('click')
+      await flushPromises()
+
+      const draftId = wrapper.get('[data-testid="template-id"]').text()
+      expect(wrapper.find(`[data-testid="copy-template-${draftId}"]`).exists()).toBe(false)
+    })
+
+    it('does not change the originally selected template when copying another template', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
+      await flushPromises()
+
+      const copyBtn = wrapper.find('[data-testid="copy-template-workflow-v1"]')
+      await copyBtn.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="template-id"]').text()).toContain('draft-')
+      expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('通用复杂任务工作流 (副本)')
+      expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="template-item-workflow-v1"]').exists()).toBe(true)
+    })
   })
 })

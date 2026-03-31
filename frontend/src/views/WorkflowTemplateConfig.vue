@@ -49,6 +49,18 @@
               @click="selectTemplate(item.template_id)"
             >
               <span class="template-list-item__name">{{ item.name }}</span>
+              <span
+                v-if="!item.isDraft"
+                class="template-list-item__copy"
+                :data-testid="`copy-template-${item.template_id}`"
+                role="button"
+                tabindex="0"
+                :aria-label="$t('workflowTemplate.copyTemplate')"
+                @click.stop="handleCopyTemplate(item)"
+                @keydown.enter.stop="handleCopyTemplate(item)"
+              >
+                <el-icon :size="14"><CopyDocument /></el-icon>
+              </span>
             </button>
           </div>
         </template>
@@ -284,7 +296,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { CopyDocument, Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import {
   createWorkflowTemplate,
@@ -754,6 +766,15 @@ const handleCreateTemplate = () => {
   addDraftTemplate(createDraftTemplate())
 }
 
+const handleCopyTemplate = (sourceTemplate) => {
+  addDraftTemplate({
+    template_id: `draft-${Date.now()}`,
+    name: `${sourceTemplate.name} (副本)`,
+    isDraft: true,
+    steps: (sourceTemplate.steps || []).map(step => normalizeWorkflowStep(step))
+  })
+}
+
 const saveTemplate = async () => {
   if (!template.value) return
 
@@ -894,7 +915,9 @@ onMounted(() => {
 
 .template-list-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   gap: 4px;
   padding: 12px 14px;
@@ -921,6 +944,28 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.template-list-item__copy {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.template-list-item:hover .template-list-item__copy {
+  opacity: 1;
+}
+
+.template-list-item__copy:hover {
+  background: rgba(37, 198, 201, 0.12);
+  color: var(--accent-color);
 }
 
 .editor-header {
@@ -1007,12 +1052,12 @@ onMounted(() => {
 .meta-label {
   min-width: 88px;
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
 .meta-value {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   color: var(--text-primary);
   word-break: break-all;
 }
@@ -1033,7 +1078,7 @@ onMounted(() => {
   min-height: 32px;
 }
 .section-heading {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -1347,8 +1392,14 @@ onMounted(() => {
 
 .editor-field label {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
+}
+
+.editor-field__hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 .confirmation-header {
