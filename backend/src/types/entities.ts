@@ -91,6 +91,10 @@ export interface WorkflowStepEntity {
   error: string | null;
   session_id: number | null;
   summary: string | null;
+  // Suspend/resume fields
+  suspend_reason?: string | null;
+  confirmation_note?: string | null;
+  confirmed_at?: string | null;
 }
 
 export interface WorkflowTemplateStepEntity {
@@ -98,6 +102,8 @@ export interface WorkflowTemplateStepEntity {
   name: string;
   instructionPrompt: string;
   agentId: number;
+  // Suspend/resume configuration
+  requiresConfirmation?: boolean;
 }
 
 export interface WorkflowRunEntity {

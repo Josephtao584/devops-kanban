@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 
-import type { StartWorkflowBody } from '../types/dto/workflows.js';
+import type { StartWorkflowBody, ResumeWorkflowBody } from '../types/dto/workflows.js';
 import { WorkflowService } from '../services/workflow/workflowService.js';
 import type { IdParams } from '../types/http/params.js';
 import type { TaskIdQuery } from '../types/http/query.js';
@@ -94,6 +94,54 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       request.log.error(error);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to retry workflow'));
+    }
+  });
+
+  fastify.post<{ Params: IdParams; Body: ResumeWorkflowBody }>('/runs/:id/resume', async (request, reply) => {
+    try {
+      const body = request.body || {};
+      const approved = body.approved ?? true;
+      const resumeData: { approved: boolean; comment?: string } = { approved };
+      if (body.comment !== undefined) {
+        resumeData.comment = body.comment;
+      }
+      const run = await workflowService.resumeWorkflow(
+        parseNumber(request.params.id),
+        resumeData
+      );
+      return successResponse(run, 'Workflow resumed');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to resume workflow'));
+    }
+  });
+
+  fastify.get<{ Params: IdParams }>('/runs/:id/suspend-info', async (request, reply) => {
+    try {
+      const run = await workflowService.getWorkflowRun(parseNumber(request.params.id));
+      if (!run) {
+        reply.code(404);
+        return errorResponse('Workflow run not found');
+      }
+
+      if (run.status !== 'SUSPENDED') {
+        return successResponse(null);
+      }
+
+      // Find suspended step from steps
+      const suspendedStep = run.steps.find(s => s.status === 'SUSPENDED');
+
+      return successResponse({
+        step_id: suspendedStep?.step_id || null,
+        step_name: suspendedStep?.name || null,
+        reason: suspendedStep?.suspend_reason || null,
+        summary: suspendedStep?.summary || null,
+      });
+    } catch (error) {
+      request.log.error(error);
+      reply.code(500);
+      return errorResponse('Failed to get suspend info');
     }
   });
 };

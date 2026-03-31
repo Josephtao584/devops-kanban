@@ -76,7 +76,7 @@ class WorkflowService {
 
     const executionPath = await this._resolveExecutionPath(task);
     const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
-    if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING')) {
+    if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING' || existing.status === 'SUSPENDED')) {
       const error: any = new Error('Task already has an active workflow run');
       error.statusCode = 409;
       throw error;
@@ -235,7 +235,7 @@ class WorkflowService {
       throw error;
     }
 
-    if (run.status !== 'RUNNING' && run.status !== 'PENDING') {
+    if (run.status !== 'RUNNING' && run.status !== 'PENDING' && run.status !== 'SUSPENDED') {
       const error: any = new Error(`Cannot cancel workflow in status: ${run.status}`);
       error.statusCode = 400;
       throw error;
@@ -274,10 +274,10 @@ class WorkflowService {
     console.log(`[WorkflowService] Cancelling Mastra run ${mastraRunId}`);
     await mastraRun.cancel();
 
-    // Finalize running step
+    // Finalize running or suspended step
     const runningStep = (run.current_step
-      ? run.steps.find((candidate) => candidate.step_id === run.current_step && candidate.status === 'RUNNING')
-      : null) || run.steps.find((candidate) => candidate.status === 'RUNNING');
+      ? run.steps.find((candidate) => candidate.step_id === run.current_step && (candidate.status === 'RUNNING' || candidate.status === 'SUSPENDED'))
+      : null) || run.steps.find((candidate) => candidate.status === 'RUNNING' || candidate.status === 'SUSPENDED');
 
     if (runningStep) {
       await this.lifecycle.onStepCancel(runId, runningStep.step_id).catch(() => {});
@@ -286,6 +286,72 @@ class WorkflowService {
     const updatedRun = await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
     await this._resetTaskToTodo(run.task_id ?? 0);
     return updatedRun;
+  }
+
+  async resumeWorkflow(runId: number, resumeData: { approved: boolean; comment?: string }) {
+    console.log(`[WorkflowService] resumeWorkflow called for runId: ${runId}`);
+
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) {
+      const error: any = new Error('Workflow run not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (run.status !== 'SUSPENDED') {
+      const error: any = new Error(`Cannot resume workflow in status: ${run.status}`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Find suspended step from steps
+    const suspendedStep = run.steps.find(s => s.status === 'SUSPENDED');
+    if (!suspendedStep) {
+      const error: any = new Error('No suspended step found');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const template = run.workflow_template_snapshot;
+    if (!template) {
+      const error: any = new Error('Workflow template snapshot not found');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const mastraRunId = run.mastra_run_id;
+    if (!mastraRunId) {
+      const error: any = new Error('Mastra run ID not found');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Get the registered workflow
+    const workflow = getWorkflowFromWorkflowId(template.template_id);
+    if (!workflow) {
+      const error: any = new Error('Workflow not registered');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Get the existing Run instance
+    const mastraRun = await workflow.createRun({ runId: mastraRunId });
+
+    // Notify lifecycle about resume
+    await this.lifecycle.onStepResume(runId, suspendedStep.step_id, resumeData);
+
+    // Execute Mastra resume (non-blocking)
+    mastraRun.resume({
+      step: suspendedStep.step_id,
+      resumeData,
+    }).then((result: any) => {
+      console.log(`[Workflow] Resume result status: ${result?.status}`);
+    }).catch((err: Error) => {
+      console.error(`[Workflow] Resume error:`, err);
+      this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});
+    });
+
+    return await this.workflowRunRepo.findById(runId);
   }
 
   async retryWorkflow(runId: number) {

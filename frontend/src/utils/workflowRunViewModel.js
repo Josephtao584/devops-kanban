@@ -1,6 +1,7 @@
 const STATUS_MAP = {
   PENDING: 'PENDING',
   RUNNING: 'IN_PROGRESS',
+  SUSPENDED: 'SUSPENDED',
   COMPLETED: 'DONE',
   FAILED: 'FAILED',
   CANCELLED: 'CANCELLED',
@@ -31,6 +32,7 @@ export const getWorkflowProgress = (workflow) => {
 export const getWorkflowDisplayStatus = (run) => {
   if (!run) return 'pending'
   if (run.status === 'RUNNING' || run.status === 'PENDING') return 'running'
+  if (run.status === 'SUSPENDED') return 'suspended'
   if (run.status === 'COMPLETED') return 'done'
   if (run.status === 'FAILED') return 'failed'
   if (run.status === 'CANCELLED') return 'cancelled'
