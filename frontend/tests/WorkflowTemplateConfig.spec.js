@@ -421,7 +421,6 @@ describe('WorkflowTemplateConfig', () => {
     expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('新建模版')
     expect(getStepCards(wrapper)).toHaveLength(customTemplate.steps.length)
     expect(wrapper.find('.step-editor-card').exists()).toBe(true)
-    expect(wrapper.find('.step-editor-card__title').text()).toBe('需求设计')
     expect(wrapper.text()).toContain('Disabled Agent (已禁用)')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(true)
   })
@@ -696,12 +695,10 @@ describe('WorkflowTemplateConfig', () => {
     expect(wrapper.find('.step-editor-section').exists()).toBe(true)
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
     expect(wrapper.find('.step-editor-card').exists()).toBe(true)
-    expect(wrapper.find('.step-editor-card__title').text()).toBe('需求设计')
 
     await focusInlineEditor(wrapper, 1)
 
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
-    expect(wrapper.find('.step-editor-card__title').text()).toBe('测试')
   })
 
   it('updates card content from the inline editor and preserves template-level save flow', async () => {
@@ -751,7 +748,6 @@ describe('WorkflowTemplateConfig', () => {
     expect(getStepCards(wrapper)).toHaveLength(3)
     expect(getSelectedCardName(wrapper)).toBe('新阶段')
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
-    expect(wrapper.find('.step-editor-card__title').text()).toBe('新阶段')
     expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
       '需求设计',
       '新阶段',

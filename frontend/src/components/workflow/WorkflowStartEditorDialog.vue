@@ -133,14 +133,6 @@
       @close="closeStepDetails"
     >
       <div v-if="selectedStep" class="step-editor-card">
-        <div class="step-editor-card__header">
-          <div>
-            <div class="step-editor-card__title">
-              {{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}
-            </div>
-          </div>
-        </div>
-
         <div class="step-editor-state-row binding-state-row">
           <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
             {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}

@@ -209,12 +209,6 @@
             </div>
 
             <div v-if="selectedStep" class="step-editor-card">
-              <div class="step-editor-card__header">
-                <div>
-                  <div class="step-editor-card__title">{{ selectedStep.name || $t('workflowTemplate.newStepDefaultName') }}</div>
-                </div>
-              </div>
-
               <div
                 v-if="isMissingAgent(selectedStep) || isDisabledAgent(selectedStep) || typeof selectedStep.agentId !== 'number'"
                 class="step-editor-state-row binding-state-row"
