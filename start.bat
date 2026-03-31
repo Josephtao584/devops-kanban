@@ -77,6 +77,17 @@ echo [OK] 数据目录已就绪
 echo.
 
 :: ========================================
+:: 配置 npm 镜像源
+:: ========================================
+echo [信息] 配置 npm 镜像源...
+call npm config set registry https://registry.npmmirror.com
+call npm config set strict-ssl false
+for /f "delims=" %%r in ('npm config get registry 2^>nul') do set "NPM_REGISTRY=%%r"
+echo [OK] 镜像源：!NPM_REGISTRY!
+echo [OK] strict-ssl: false
+echo.
+
+:: ========================================
 :: 清理端口占用
 :: ========================================
 echo [信息] 检查端口占用...
@@ -107,9 +118,7 @@ cd /d "%FRONTEND_DIR%"
 
 if not exist "node_modules" (
     echo [信息] 首次运行，安装前端依赖...
-    for /f "delims=" %%r in ('npm config get registry 2^>nul') do set "NPM_REGISTRY=%%r"
-    echo       镜像源：!NPM_REGISTRY!
-    call npm install --loglevel=verbose
+    call npm install --loglevel=verbose --no-audit
     if %errorlevel% neq 0 (
         echo [错误] 前端依赖安装失败
         pause
@@ -146,9 +155,7 @@ cd /d "%BACKEND_DIR%"
 
 if not exist "node_modules" (
     echo [信息] 首次运行，安装后端依赖...
-    for /f "delims=" %%r in ('npm config get registry 2^>nul') do set "NPM_REGISTRY=%%r"
-    echo       镜像源：!NPM_REGISTRY!
-    call npm install --loglevel=verbose
+    call npm install --loglevel=verbose --no-audit
     if %errorlevel% neq 0 (
         echo [错误] 后端依赖安装失败
         pause
