@@ -1035,7 +1035,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
+  max-width: 600px;
 }
 
 .meta-row {
@@ -1336,7 +1336,7 @@ onMounted(() => {
 
 .step-editor-card {
   position: relative;
-  padding: 20px;
+  padding: 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   background: #fff;
@@ -1345,8 +1345,8 @@ onMounted(() => {
 
 .step-editor-card__switch {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 16px;
+  right: 16px;
 }
 
 .step-editor-card__header {
@@ -1377,7 +1377,8 @@ onMounted(() => {
 .step-editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
+  max-width: 520px;
 }
 
 .editor-field {
