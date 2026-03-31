@@ -582,7 +582,7 @@
 <script setup>
 import { h, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
@@ -622,6 +622,7 @@ import { useWorktree } from '../composables/useWorktree'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 
 const projectStore = useProjectStore()
@@ -932,7 +933,6 @@ const handleWorkflowAction = (payload) => {
     } else {
       console.log('[KanbanView] no task, cannot start')
     }
-  } else if (action === 'pause') {
   } else if (action === 'diff') {
     if (selectedTask.value) {
       handleShowDiff({
@@ -1105,6 +1105,7 @@ const getStatusText = (status) => {
 const handleProjectChange = async () => {
   selectedTask.value = null
   await onProjectChange()
+  router.replace(`/kanban/${selectedProjectId.value}`)
   updateColumnRefs()
 }
 
@@ -1433,6 +1434,9 @@ const loadActiveSession = async () => {
 onMounted(async () => {
   try {
     await initializeSelection()
+    if (selectedProjectId.value && route.params.projectId !== selectedProjectId.value) {
+      router.replace(`/kanban/${selectedProjectId.value}`)
+    }
   } catch (error) {
     console.error('Failed to fetch initial data:', error)
     ElMessage.error('加载数据失败')

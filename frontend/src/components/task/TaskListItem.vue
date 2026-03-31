@@ -142,13 +142,6 @@
             </svg>
             启动
           </button>
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'pause')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="6" y="4" width="4" height="16"></rect>
-              <rect x="14" y="4" width="4" height="16"></rect>
-            </svg>
-            暂停
-          </button>
           <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'commit')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>

@@ -29,15 +29,9 @@
             </div>
             <div class="agent-item-meta">
               <span class="role-tag">{{ locale === 'zh' ? getRoleConfig(agent.role || 'BACKEND_DEV').name : getRoleConfig(agent.role || 'BACKEND_DEV').nameEn }}</span>
-              <div class="status-row">
-                <span class="agent-status-indicator" :class="getAgentStatus(agent.id)">
-                  <span class="status-dot"></span>
-                  <span class="status-text">{{ $t(`agent.status.${getAgentStatus(agent.id)}`) }}</span>
-                </span>
-                <span class="enabled-badge" :class="{ 'disabled': !agent.enabled }">
-                  {{ agent.enabled ? $t('common.enabled') : $t('common.disabled') }}
-                </span>
-              </div>
+              <span class="enabled-badge" :class="{ 'disabled': !agent.enabled }">
+                {{ agent.enabled ? $t('common.enabled') : $t('common.disabled') }}
+              </span>
             </div>
           </div>
           <div v-if="agentStore.agents.length === 0" class="empty-list">
@@ -209,7 +203,6 @@ import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
 import { useSkillStore } from '../stores/skillStore'
 import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
-import { getExecutionsByAgent } from '../api/execution'
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
@@ -221,9 +214,6 @@ const editingAgent = ref(null)
 
 // Selected agent for detail view
 const selectedAgent = ref(null)
-
-// Agent status tracking (for all agents)
-const agentStatuses = ref({})
 
 const form = ref({
   name: '',
@@ -307,38 +297,12 @@ const loadAgents = async () => {
       agentStore.fetchAgents(),
       skillStore.fetchSkills()
     ])
-    await loadAllAgentStatuses()
     if (agentStore.agents.length > 0 && !selectedAgent.value) {
       selectAgent(agentStore.agents[0])
     }
   } catch (e) {
     console.error('Failed to load agents:', e)
   }
-}
-
-// Load execution statuses for all agents
-const loadAllAgentStatuses = async () => {
-  const statuses = {}
-  for (const agent of agentStore.agents) {
-    try {
-      const response = await getExecutionsByAgent(agent.id)
-      if (response.success && response.data) {
-        // Check if any execution is RUNNING
-        const hasRunning = response.data.some(e => e.status === 'RUNNING' || e.status === 'PENDING')
-        statuses[agent.id] = hasRunning ? 'working' : 'idle'
-      } else {
-        statuses[agent.id] = 'idle'
-      }
-    } catch (e) {
-      statuses[agent.id] = 'idle'
-    }
-  }
-  agentStatuses.value = statuses
-}
-
-// Get agent status (working or idle)
-const getAgentStatus = (agentId) => {
-  return agentStatuses.value[agentId] || 'idle'
 }
 
 const selectAgent = async (agent) => {
@@ -591,62 +555,6 @@ onMounted(loadAgents)
 .enabled-badge.disabled {
   background: #fee2e2;
   color: #991b1b;
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.agent-status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 9px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.agent-status-indicator.idle {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.agent-status-indicator.working {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.agent-status-indicator.idle .status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-secondary);
-}
-
-.agent-status-indicator.working .status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.status-text {
-  font-weight: 500;
 }
 
 .empty-list, .loading-state {

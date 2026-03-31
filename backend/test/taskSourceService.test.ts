@@ -57,7 +57,7 @@ async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
 }
 
 test.test('TaskSourceService sync refreshes source-owned task fields without overwriting planning fields', async () => {
-  await withIsolatedStorage(async (tempRoot) => {
+  await withIsolatedStorage(async (_tempRoot) => {
     const sourceRepo = new TaskSourceRepository();
     const taskRepo = new TaskRepository();
     const service = new TaskSourceService();
