@@ -121,7 +121,9 @@ echo -e "${YELLOW}[1/2] 启动前端服务...${NC}"
 cd "$FRONTEND_DIR"
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}首次运行，安装前端依赖...${NC}"
-    npm install
+    REGISTRY=$(npm config get registry 2>/dev/null)
+    echo -e "${BLUE}  镜像源：${REGISTRY}${NC}"
+    npm install --progress=true
 fi
 pkill -f "vite" 2>/dev/null || true
 FRONTEND_LOG="/tmp/kanban-frontend.log"
@@ -147,7 +149,9 @@ echo -e "${YELLOW}[2/2] 启动后端服务 (Node.js)...${NC}"
 cd "$BACKEND_DIR"
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}首次运行，安装后端依赖...${NC}"
-    npm install
+    REGISTRY=$(npm config get registry 2>/dev/null)
+    echo -e "${BLUE}  镜像源：${REGISTRY}${NC}"
+    npm install --progress=true
 fi
 pkill -f "tsx watch src/main.ts" 2>/dev/null || true
 pkill -f "node dist/src/main.js" 2>/dev/null || true
