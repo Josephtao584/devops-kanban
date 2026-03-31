@@ -105,82 +105,96 @@
             </div>
             <div class="workflow-preview-shell">
               <div class="workflow-preview-track">
-                <template v-for="(step, index) in previewSteps" :key="step.localKey">
-                  <div v-if="index > 0" class="workflow-connector" aria-hidden="true"></div>
-                  <div
-                    class="workflow-step-card"
-                    :class="{
-                      'is-selected': selectedStepIndex === index,
-                      'has-warning': step.hasWarning,
-                      'state-missing': step.stateClass === 'state-missing',
-                      'state-disabled': step.stateClass === 'state-disabled'
-                    }"
-                    @click="selectStep(index)"
-                  >
-                    <div class="workflow-step-card__top">
-                      <span class="workflow-step-card__order">{{ index + 1 }}</span>
-                    </div>
-
-                    <div class="workflow-step-card__name">{{ step.name || $t('workflowTemplate.newStepDefaultName') }}</div>
-
-                    <div class="workflow-step-card__meta">
-                      <div class="workflow-step-card__chips">
-                        <span class="workflow-chip" :class="step.agentStateClass">{{ step.agentSummary }}</span>
-                        <span v-if="step.requiresConfirmation" class="workflow-chip workflow-chip--warning">
-                          {{ $t('workflowTemplate.requiresConfirmation') }}
-                        </span>
+                <div
+                  v-if="previewSteps.length > 0"
+                  class="workflow-connector--insert"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="$t('workflowTemplate.insertStepBefore')"
+                  @click="insertStep(0, 'before')"
+                  @keydown.enter="insertStep(0, 'before')"
+                >
+                  <span class="workflow-connector__line"></span>
+                  <span class="workflow-connector__btn"><el-icon><Plus /></el-icon></span>
+                </div>
+                <draggable
+                  :list="template.steps"
+                  item-key="id"
+                  :animation="200"
+                  ghost-class="step-ghost"
+                  class="workflow-draggable-track"
+                  @end="onStepDragEnd"
+                >
+                  <template #item="{ element, index }">
+                    <div class="workflow-step-wrapper">
+                      <div
+                        v-if="index > 0"
+                        class="workflow-connector--insert"
+                        role="button"
+                        tabindex="0"
+                        :aria-label="$t('workflowTemplate.insertStepBefore')"
+                        @click="insertStep(index, 'before')"
+                        @keydown.enter="insertStep(index, 'before')"
+                      >
+                        <span class="workflow-connector__line"></span>
+                        <span class="workflow-connector__btn"><el-icon><Plus /></el-icon></span>
                       </div>
-                      <div v-if="step.skillNames.length" class="workflow-step-card__skills">
-                        <el-tooltip v-for="skill in step.skillNames" :key="skill.name" :content="skill.description" :disabled="!skill.description" placement="top">
-                          <span class="workflow-skill-tag">{{ skill.name }}</span>
-                        </el-tooltip>
-                      </div>
-                    </div>
-
-                    <div class="workflow-step-card__actions">
-                      <div class="workflow-step-card__action-row">
-                        <el-tooltip :content="$t('workflowTemplate.insertStepBefore')" placement="top">
-                          <el-button
-                            data-testid="insert-step-before-button"
-                            class="workflow-step-card__icon-button"
-                            size="small"
-                            :aria-label="$t('workflowTemplate.insertStepBefore')"
-                            :title="$t('workflowTemplate.insertStepBefore')"
-                            @click.stop="insertStep(index, 'before')"
-                          >
-                            <el-icon><Back /></el-icon>
-                          </el-button>
-                        </el-tooltip>
-                        <el-tooltip :content="$t('workflowTemplate.insertStepAfter')" placement="top">
-                          <el-button
-                            data-testid="insert-step-after-button"
-                            class="workflow-step-card__icon-button"
-                            size="small"
-                            :aria-label="$t('workflowTemplate.insertStepAfter')"
-                            :title="$t('workflowTemplate.insertStepAfter')"
-                            @click.stop="insertStep(index, 'after')"
-                          >
-                            <el-icon><Right /></el-icon>
-                          </el-button>
-                        </el-tooltip>
+                      <div
+                        class="workflow-step-card"
+                        :class="{
+                          'is-selected': selectedStepIndex === index,
+                          'has-warning': previewSteps[index]?.hasWarning,
+                          'state-missing': previewSteps[index]?.stateClass === 'state-missing',
+                          'state-disabled': previewSteps[index]?.stateClass === 'state-disabled'
+                        }"
+                        @click="selectStep(index)"
+                      >
                         <el-tooltip :content="$t('workflowTemplate.deleteStep')" placement="top">
-                          <el-button
-                            data-testid="delete-step-button"
-                            class="workflow-step-card__icon-button"
-                            size="small"
-                            type="danger"
+                          <button
+                            class="workflow-step-card__delete"
                             :disabled="!canDeleteStep"
                             :aria-label="$t('workflowTemplate.deleteStep')"
-                            :title="$t('workflowTemplate.deleteStep')"
                             @click.stop="confirmRemoveStep(index)"
                           >
                             <el-icon><Delete /></el-icon>
-                          </el-button>
+                          </button>
                         </el-tooltip>
+
+                        <div class="workflow-step-card__top">
+                          <span class="workflow-step-card__order">{{ index + 1 }}</span>
+                        </div>
+
+                        <div class="workflow-step-card__name">{{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}</div>
+
+                        <div class="workflow-step-card__meta">
+                          <div class="workflow-step-card__chips">
+                            <span class="workflow-chip" :class="previewSteps[index]?.agentStateClass">{{ previewSteps[index]?.agentSummary }}</span>
+                            <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-chip workflow-chip--warning">
+                              {{ $t('workflowTemplate.requiresConfirmation') }}
+                            </span>
+                          </div>
+                          <div v-if="previewSteps[index]?.skillNames?.length" class="workflow-step-card__skills">
+                            <el-tooltip v-for="skill in previewSteps[index].skillNames" :key="skill.name" :content="skill.description" :disabled="!skill.description" placement="top">
+                              <span class="workflow-skill-tag">{{ skill.name }}</span>
+                            </el-tooltip>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </template>
+                  </template>
+                </draggable>
+                <div
+                  v-if="previewSteps.length > 0"
+                  class="workflow-connector--insert"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="$t('workflowTemplate.insertStepAfter')"
+                  @click="insertStep(previewSteps.length - 1, 'after')"
+                  @keydown.enter="insertStep(previewSteps.length - 1, 'after')"
+                >
+                  <span class="workflow-connector__line"></span>
+                  <span class="workflow-connector__btn"><el-icon><Plus /></el-icon></span>
+                </div>
               </div>
             </div>
           </section>
@@ -192,15 +206,6 @@
           <section class="step-editor-section">
             <div class="section-heading-row">
               <div class="section-heading">{{ $t('workflowTemplate.stepEditor') }}</div>
-              <el-button
-                v-if="selectedStep"
-                text
-                type="danger"
-                :disabled="!canDeleteStep"
-                @click="confirmRemoveStep(selectedStepIndex)"
-              >
-                {{ $t('workflowTemplate.deleteStep') }}
-              </el-button>
             </div>
 
             <div v-if="selectedStep" class="step-editor-card">
@@ -286,7 +291,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Back, Right } from '@element-plus/icons-vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
+import draggable from 'vuedraggable'
 import {
   createWorkflowTemplate,
   deleteWorkflowTemplate,
@@ -490,6 +496,18 @@ const removeStep = (index) => {
   template.value.steps = steps
   selectedStepIndex.value = resolveSelectedStepIndexAfterRemoval(selectedStepIndex.value, index, steps.length)
   syncSelectedStepIndex()
+}
+
+const onStepDragEnd = (evt) => {
+  const { oldIndex, newIndex } = evt
+  if (oldIndex === newIndex) return
+  if (selectedStepIndex.value === oldIndex) {
+    selectedStepIndex.value = newIndex
+  } else if (oldIndex < selectedStepIndex.value && newIndex >= selectedStepIndex.value) {
+    selectedStepIndex.value -= 1
+  } else if (oldIndex > selectedStepIndex.value && newIndex <= selectedStepIndex.value) {
+    selectedStepIndex.value += 1
+  }
 }
 
 const confirmRemoveStep = async (index) => {
@@ -1048,42 +1066,74 @@ onMounted(() => {
   padding: 4px;
 }
 
-.workflow-connector {
-  position: relative;
-  width: 40px;
-  flex-shrink: 0;
+.workflow-draggable-track {
+  display: flex;
+  align-items: stretch;
+  min-width: max-content;
 }
 
-.workflow-connector::before {
-  content: '';
+.workflow-step-wrapper {
+  display: flex;
+  align-items: stretch;
+}
+
+.step-ghost {
+  opacity: 0.4;
+  background: rgba(37, 198, 201, 0.08);
+  border: 1px dashed var(--accent-color);
+}
+
+.workflow-connector--insert {
+  position: relative;
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.workflow-connector__line {
   position: absolute;
-  left: 8px;
-  right: 14px;
+  left: 0;
+  right: 0;
   top: 50%;
   height: 1px;
   background: var(--border-color);
   transform: translateY(-50%);
 }
 
-.workflow-connector::after {
-  content: '';
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  width: 0;
-  height: 0;
-  border-left: 6px solid var(--border-color);
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  transform: translateY(-50%);
+.workflow-connector__btn {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.workflow-connector--insert:hover .workflow-connector__btn {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 198, 201, 0.3);
+  transform: scale(1.1);
 }
 
 .workflow-step-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
   width: 236px;
-  min-height: 176px;
+  min-height: 130px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
@@ -1157,40 +1207,42 @@ onMounted(() => {
   gap: 4px;
 }
 
-.workflow-step-card__actions {
+.workflow-step-card__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   display: flex;
-  margin-top: auto;
-}
-
-.workflow-step-card__action-row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
-  width: 100%;
-  justify-content: flex-start;
-}
-
-.workflow-step-card__action-row :deep(.el-tooltip) {
-  display: inline-flex;
-}
-
-.workflow-step-card__action-row :deep(.el-button) {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  margin-left: 0;
-  padding: 0;
-  flex: 0 0 auto;
-}
-
-.workflow-step-card__action-row :deep(.el-button .el-icon) {
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.18);
   font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.workflow-step-card__icon-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+.workflow-step-card__delete:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.workflow-step-card__delete:active {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.18);
+}
+
+.workflow-step-card__delete:disabled {
+  color: rgba(0, 0, 0, 0.08);
+  cursor: not-allowed;
+}
+
+.workflow-step-card__delete :deep(.el-icon) {
+  font-size: 14px;
 }
 
 .workflow-chip {

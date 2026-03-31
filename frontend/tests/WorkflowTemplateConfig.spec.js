@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, inject, nextTick, provide, ref, toRef } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import WorkflowTemplateConfig from '../src/views/WorkflowTemplateConfig.vue'
 import i18n from '../src/locales'
@@ -12,6 +12,25 @@ import {
   updateWorkflowTemplate
 } from '../src/api/workflowTemplate'
 import { getAgents } from '../src/api/agent'
+
+vi.mock('vuedraggable', () => ({
+  default: defineComponent({
+    name: 'DraggableStub',
+    props: {
+      list: { type: Array, default: () => [] },
+      itemKey: { type: String, default: 'id' }
+    },
+    emits: ['end', 'update:modelValue'],
+    setup(props, { slots }) {
+      return () => {
+        const items = props.list || []
+        return h('div', { class: 'draggable-stub' }, items.map((element, index) =>
+          slots.item ? slots.item({ element, index }) : null
+        ))
+      }
+    }
+  })
+}))
 
 vi.mock('../src/api/workflowTemplate', () => ({
   createWorkflowTemplate: vi.fn(),
@@ -25,7 +44,12 @@ vi.mock('../src/api/agent', () => ({
   getAgents: vi.fn()
 }))
 
-const TABLE_DATA_KEY = Symbol('table-data')
+vi.mock('../src/stores/skillStore', () => ({
+  useSkillStore: vi.fn().mockReturnValue({
+    skills: [],
+    fetchSkills: vi.fn().mockResolvedValue(undefined)
+  })
+}))
 
 const defaultTemplate = {
   template_id: 'workflow-v1',
@@ -216,38 +240,6 @@ const ElTagStub = defineComponent({
   }
 })
 
-const ElTableStub = defineComponent({
-  name: 'ElTableStub',
-  props: {
-    data: {
-      type: Array,
-      default: () => []
-    }
-  },
-  setup(props, { slots }) {
-    provide(TABLE_DATA_KEY, toRef(props, 'data'))
-    return () => h('div', { class: 'el-table-stub' }, slots.default?.())
-  }
-})
-
-const ElTableColumnStub = defineComponent({
-  name: 'ElTableColumnStub',
-  props: {
-    prop: { type: String, default: '' },
-    label: { type: String, default: '' }
-  },
-  setup(props, { slots }) {
-    const rows = inject(TABLE_DATA_KEY, ref([]))
-
-    return () => h('div', { class: 'el-table-column-stub', 'data-label': props.label },
-      (rows.value || []).map((row, index) => h('div', {
-        class: 'el-table-cell-stub',
-        'data-row-index': String(index)
-      }, slots.default ? slots.default({ row }) : String(row?.[props.prop] ?? '')))
-    )
-  }
-})
-
 const flushPromises = async () => {
   await Promise.resolve()
   await Promise.resolve()
@@ -297,8 +289,24 @@ function mountView() {
         'el-select': ElSelectStub,
         'el-option': ElOptionStub,
         'el-tag': ElTagStub,
-        'el-table': ElTableStub,
-        'el-table-column': ElTableColumnStub
+        'el-switch': defineComponent({
+          name: 'ElSwitchStub',
+          props: {
+            modelValue: { type: Boolean, default: false },
+            activeText: { type: String, default: '' }
+          },
+          emits: ['update:modelValue'],
+          setup(props, { slots, emit }) {
+            return () => h('label', { class: 'el-switch-stub' }, [
+              slots.default?.(),
+              h('input', {
+                type: 'checkbox',
+                checked: props.modelValue,
+                onChange: (e) => emit('update:modelValue', e.target.checked)
+              })
+            ])
+          }
+        })
       }
     }
   })
@@ -311,9 +319,8 @@ const selectReleaseTemplate = async (wrapper) => {
 
 const getStepCards = (wrapper) => wrapper.findAll('.workflow-step-card')
 const getSelectedStepCard = (wrapper) => wrapper.find('.workflow-step-card.is-selected')
-const getInsertBeforeButtons = (wrapper) => wrapper.findAll('[data-testid="insert-step-before-button"]')
-const getInsertAfterButtons = (wrapper) => wrapper.findAll('[data-testid="insert-step-after-button"]')
-const getDeleteStepButtons = (wrapper) => wrapper.findAll('[data-testid="delete-step-button"]')
+const getConnectors = (wrapper) => wrapper.findAll('.workflow-connector--insert')
+const getDeleteStepButtons = (wrapper) => wrapper.findAll('.workflow-step-card__delete')
 const getInlineStepNameInput = (wrapper) => wrapper.findAll('input').find((input) => input.attributes('data-testid') !== 'template-name-input')
 
 const focusInlineEditor = async (wrapper, index = 0) => {
@@ -673,12 +680,12 @@ describe('WorkflowTemplateConfig', () => {
     expect(wrapper.find('.step-editor-section').exists()).toBe(true)
     expect(getStepCards(wrapper)).toHaveLength(2)
 
+    const connectors = getConnectors(wrapper)
+    expect(connectors.length).toBeGreaterThanOrEqual(3)
+
     const firstCard = getStepCards(wrapper)[0]
-    expect(firstCard.findAll('.el-tooltip-stub')).toHaveLength(3)
-    expect(firstCard.find('[data-testid="insert-step-before-button"]').attributes('aria-label')).toBe('前插阶段')
-    expect(firstCard.find('[data-testid="insert-step-after-button"]').attributes('aria-label')).toBe('后插阶段')
-    expect(firstCard.find('[data-testid="delete-step-button"]').attributes('aria-label')).toBe('删除阶段')
-    expect(firstCard.find('[data-testid="open-step-details-button"]').exists()).toBe(false)
+    expect(firstCard.find('.workflow-step-card__delete').exists()).toBe(true)
+    expect(firstCard.find('.workflow-step-card__delete').attributes('aria-label')).toBe('删除阶段')
   })
 
   it('keeps editing inline below the cards when card actions are present', async () => {
@@ -731,12 +738,14 @@ describe('WorkflowTemplateConfig', () => {
     })
   })
 
-  it('inserts a new step before a card and opens details for the inserted step', async () => {
+  it('inserts a new step before a card via connector and selects the inserted step', async () => {
     const wrapper = mountView()
     await flushPromises()
     await selectReleaseTemplate(wrapper)
 
-    await getInsertBeforeButtons(wrapper)[1].trigger('click')
+    const connectors = getConnectors(wrapper)
+    const betweenConnector = connectors[1]
+    await betweenConnector.trigger('click')
     await flushPromises()
 
     expect(getStepCards(wrapper)).toHaveLength(3)
@@ -750,7 +759,7 @@ describe('WorkflowTemplateConfig', () => {
     ])
   })
 
-  it('inserts a new step after a card and keeps template-page validation rules intact', async () => {
+  it('inserts a new step after a card via trailing connector and keeps template-page validation rules intact', async () => {
     updateWorkflowTemplate.mockImplementation(async (payload) => ({
       success: true,
       data: payload
@@ -760,7 +769,9 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
     await selectReleaseTemplate(wrapper)
 
-    await getInsertAfterButtons(wrapper)[0].trigger('click')
+    const connectors = getConnectors(wrapper)
+    const trailingConnector = connectors[connectors.length - 1]
+    await trailingConnector.trigger('click')
     await flushPromises()
 
     expect(getStepCards(wrapper)).toHaveLength(3)
@@ -778,12 +789,12 @@ describe('WorkflowTemplateConfig', () => {
     expect(updateWorkflowTemplate).toHaveBeenCalledTimes(1)
     expect(updateWorkflowTemplate.mock.calls[0][0].steps.map((step) => step.name)).toEqual([
       '需求设计',
-      '回归验证',
-      '测试'
+      '测试',
+      '回归验证'
     ])
   })
 
-  it('deletes the selected middle step and keeps the previous step selected with the min-step rule of two', async () => {
+  it('deletes the selected middle step via card delete button and keeps the previous step selected with the min-step rule of two', async () => {
     const templateWithThreeSteps = createTemplateWithSteps([
       namedStep('requirement-design', '需求设计', '先完成需求分析。', 1),
       namedStep('implementation', '实现', '完成代码实现。', 3),
@@ -802,7 +813,9 @@ describe('WorkflowTemplateConfig', () => {
     await selectReleaseTemplate(wrapper)
     await getStepCards(wrapper)[1].trigger('click')
     await flushPromises()
-    await getDeleteStepButtons(wrapper)[1].trigger('click')
+
+    const deleteButtons = getDeleteStepButtons(wrapper)
+    await deleteButtons[1].trigger('click')
     await flushPromises()
 
     expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1)
@@ -812,7 +825,7 @@ describe('WorkflowTemplateConfig', () => {
     expect(wrapper.text()).toContain('模版至少保留 2 个阶段')
   })
 
-  it('blocks deleting when only two steps remain and keeps the selected step unchanged', async () => {
+  it('blocks deleting steps when only two steps remain and keeps the selected step unchanged', async () => {
     const wrapper = mountView()
     await flushPromises()
     await selectReleaseTemplate(wrapper)
@@ -862,5 +875,165 @@ describe('WorkflowTemplateConfig', () => {
     expect(getWorkflowTemplateById).toHaveBeenLastCalledWith('workflow-v1')
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
+  })
+
+  it('renders delete buttons always visible with light icon style', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    const deleteButtons = getDeleteStepButtons(wrapper)
+    expect(deleteButtons).toHaveLength(2)
+
+    for (const button of deleteButtons) {
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('disabled')).toBeDefined()
+    }
+  })
+
+  it('renders connectors between cards with insert-before and insert-after actions', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    const connectors = getConnectors(wrapper)
+    expect(connectors.length).toBeGreaterThanOrEqual(3)
+
+    const leadingConnector = connectors[0]
+    expect(leadingConnector.attributes('aria-label')).toBe('前插阶段')
+
+    const trailingConnector = connectors[connectors.length - 1]
+    expect(trailingConnector.attributes('aria-label')).toBe('后插阶段')
+  })
+
+  it('renders the draggable track wrapping step cards', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    const draggableStub = wrapper.find('.draggable-stub')
+    expect(draggableStub.exists()).toBe(true)
+    expect(getStepCards(wrapper)).toHaveLength(2)
+  })
+
+  it('renders leading connector that inserts before the first card', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    const connectors = getConnectors(wrapper)
+    const leadingConnector = connectors[0]
+    await leadingConnector.trigger('click')
+    await flushPromises()
+
+    expect(getStepCards(wrapper)).toHaveLength(3)
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
+      '新阶段',
+      '需求设计',
+      '测试'
+    ])
+    expect(getSelectedCardName(wrapper)).toBe('新阶段')
+  })
+
+  it('renders trailing connector that inserts after the last card', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    const connectors = getConnectors(wrapper)
+    const trailingConnector = connectors[connectors.length - 1]
+    await trailingConnector.trigger('click')
+    await flushPromises()
+
+    expect(getStepCards(wrapper)).toHaveLength(3)
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
+      '需求设计',
+      '测试',
+      '新阶段'
+    ])
+    expect(getSelectedCardName(wrapper)).toBe('新阶段')
+  })
+
+  it('reorders steps when drag end handler moves selected step', async () => {
+    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+      success: true,
+      data: payload
+    }))
+
+    const templateWithThreeSteps = createTemplateWithSteps([
+      namedStep('requirement-design', '需求设计', '先完成需求分析。', 1),
+      namedStep('implementation', '实现', '完成代码实现。', 3),
+      namedStep('testing', '测试', '执行测试。', 3)
+    ])
+    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+      const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithThreeSteps
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(template))
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
+      '需求设计',
+      '实现',
+      '测试'
+    ])
+
+    await getStepCards(wrapper)[1].trigger('click')
+    await flushPromises()
+    expect(getSelectedCardName(wrapper)).toBe('实现')
+
+    const steps = wrapper.vm.template.steps
+    const [moved] = steps.splice(1, 1)
+    steps.splice(0, 0, moved)
+    wrapper.vm.onStepDragEnd({ oldIndex: 1, newIndex: 0 })
+    await flushPromises()
+
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
+      '实现',
+      '需求设计',
+      '测试'
+    ])
+    expect(getSelectedCardName(wrapper)).toBe('实现')
+  })
+
+  it('updates selectedStepIndex correctly when a step before the selected one is dragged forward', async () => {
+    const templateWithThreeSteps = createTemplateWithSteps([
+      namedStep('requirement-design', '需求设计', '先完成需求分析。', 1),
+      namedStep('implementation', '实现', '完成代码实现。', 3),
+      namedStep('testing', '测试', '执行测试。', 3)
+    ])
+    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+      const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithThreeSteps
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(template))
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await selectReleaseTemplate(wrapper)
+
+    await getStepCards(wrapper)[2].trigger('click')
+    await flushPromises()
+    expect(getSelectedCardName(wrapper)).toBe('测试')
+
+    const steps = wrapper.vm.template.steps
+    const [moved] = steps.splice(0, 1)
+    steps.splice(2, 0, moved)
+    wrapper.vm.onStepDragEnd({ oldIndex: 0, newIndex: 2 })
+    await flushPromises()
+
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
+      '实现',
+      '测试',
+      '需求设计'
+    ])
+    expect(getSelectedCardName(wrapper)).toBe('测试')
   })
 })

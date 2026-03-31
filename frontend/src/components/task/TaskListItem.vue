@@ -218,6 +218,15 @@
             </svg>
             重试
           </button>
+          <el-checkbox
+            v-if="task.workflow_run_id && !isWorkflowTerminal"
+            v-model="pollingEnabled"
+            class="auto-refresh-checkbox"
+            size="small"
+            @change="handleAutoRefreshChange"
+          >
+            自动刷新
+          </el-checkbox>
         </div>
 
         <div class="workflow-section worktree-summary">
@@ -257,6 +266,7 @@ import { ElMessage } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
+import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
 import { getWorkflowRun, cancelWorkflow, retryWorkflow, resumeWorkflow } from '../../api/workflow'
 import {
   toTimelineWorkflow,
@@ -341,21 +351,51 @@ const cancelLoading = ref(false)
 const retryLoading = ref(false)
 const resumeLoading = ref(false)
 
-// Fetch real workflow run when task is expanded and has workflow_run_id
+// Check if workflow run is in a terminal state
+const isWorkflowTerminal = computed(() => {
+  if (!realWorkflowRun.value) return false
+  return ['COMPLETED', 'FAILED', 'CANCELLED'].includes(realWorkflowRun.value.status)
+})
+
+// Fetch workflow run data (used by both manual refresh and polling)
+const fetchWorkflowRun = async () => {
+  if (!props.task?.workflow_run_id) return
+  try {
+    const response = await getWorkflowRun(props.task.workflow_run_id)
+    if (response.success) {
+      realWorkflowRun.value = response.data
+    }
+  } catch (error) {
+    console.error('Failed to fetch workflow run:', error)
+  }
+}
+
+// Polling composable for auto-refresh
+const { pollingEnabled, isPolling, startPolling, stopPolling, togglePolling } = useWorkflowRunPolling({
+  fetchFn: fetchWorkflowRun,
+  isTerminal: () => isWorkflowTerminal.value,
+  interval: 3000
+})
+
+// Fetch workflow run when expanded and start/stop polling accordingly
 watch(() => [props.workflowExpanded, props.task?.workflow_run_id], async ([expanded, runId]) => {
   if (expanded && runId) {
-    try {
-      const response = await getWorkflowRun(runId)
-      if (response.success) {
-        realWorkflowRun.value = response.data
-      }
-    } catch (error) {
-      console.error('Failed to fetch workflow run:', error)
+    await fetchWorkflowRun()
+    if (!isWorkflowTerminal.value && pollingEnabled.value) {
+      startPolling()
     }
   } else {
     realWorkflowRun.value = null
+    stopPolling()
   }
 }, { immediate: true })
+
+// Stop polling when workflow reaches terminal state
+watch(isWorkflowTerminal, (terminal) => {
+  if (terminal) {
+    stopPolling()
+  }
+})
 
 // Clear realWorkflowRun when task becomes DONE
 watch(() => props.task?.status, (newStatus) => {
@@ -364,19 +404,22 @@ watch(() => props.task?.status, (newStatus) => {
   }
 })
 
-// Refresh workflow run
+// Manual refresh
 const refreshWorkflowRun = async () => {
   if (!props.task?.workflow_run_id) return
   refreshLoading.value = true
   try {
-    const response = await getWorkflowRun(props.task.workflow_run_id)
-    if (response.success) {
-      realWorkflowRun.value = response.data
-    }
-  } catch (error) {
-    console.error('Failed to refresh workflow run:', error)
+    await fetchWorkflowRun()
   } finally {
     refreshLoading.value = false
+  }
+}
+
+// Handle auto-refresh checkbox change
+const handleAutoRefreshChange = (enabled) => {
+  togglePolling(enabled)
+  if (enabled && !isWorkflowTerminal.value) {
+    startPolling()
   }
 }
 
@@ -409,6 +452,7 @@ const handleRetryWorkflow = async () => {
       ElMessage.success('工作流重试已开始')
       realWorkflowRun.value = response.data
       emit('workflow-action', { action: 'retry', task: props.task })
+      if (pollingEnabled.value) startPolling()
     }
   } catch (error) {
     console.error('Failed to retry workflow:', error)
@@ -428,6 +472,7 @@ const handleResumeWorkflow = async () => {
       ElMessage.success('工作流已继续执行')
       realWorkflowRun.value = response.data
       emit('workflow-action', { action: 'resume', task: props.task })
+      if (pollingEnabled.value) startPolling()
     }
   } catch (error) {
     console.error('Failed to resume workflow:', error)
@@ -1335,5 +1380,21 @@ const openWorktreeDirectory = () => {
 .status-blocked {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
+}
+
+/* Auto-refresh checkbox */
+.auto-refresh-checkbox {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  height: 32px;
+}
+
+.auto-refresh-checkbox :deep(.el-checkbox__label) {
+  font-size: 11px;
+  padding-left: 4px;
 }
 </style>

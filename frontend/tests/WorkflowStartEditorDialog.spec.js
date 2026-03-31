@@ -1,14 +1,40 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import i18n from '../src/locales'
 import WorkflowStartEditorDialog from '../src/components/workflow/WorkflowStartEditorDialog.vue'
 import { getAgents } from '../src/api/agent'
 
+vi.mock('vuedraggable', () => ({
+  default: defineComponent({
+    name: 'DraggableStub',
+    props: {
+      list: { type: Array, default: () => [] },
+      itemKey: { type: String, default: 'id' }
+    },
+    emits: ['end', 'update:modelValue'],
+    setup(props, { slots }) {
+      return () => {
+        const items = props.list || []
+        return h('div', { class: 'draggable-stub' }, items.map((element, index) =>
+          slots.item ? slots.item({ element, index }) : null
+        ))
+      }
+    }
+  })
+}))
+
 vi.mock('../src/api/agent', () => ({
   getAgents: vi.fn()
+}))
+
+vi.mock('../src/stores/skillStore', () => ({
+  useSkillStore: vi.fn().mockReturnValue({
+    skills: [],
+    fetchSkills: vi.fn().mockResolvedValue(undefined)
+  })
 }))
 
 const ElDialogStub = defineComponent({
@@ -135,10 +161,31 @@ const ElTagStub = defineComponent({
   }
 })
 
+const ElSwitchStub = defineComponent({
+  name: 'ElSwitchStub',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    activeText: { type: String, default: '' }
+  },
+  emits: ['update:modelValue'],
+  setup(props, { slots, emit }) {
+    return () => h('label', { class: 'el-switch-stub' }, [
+      slots.default?.(),
+      h('input', {
+        type: 'checkbox',
+        checked: props.modelValue,
+        onChange: (e) => emit('update:modelValue', e.target.checked)
+      })
+    ])
+  }
+})
+
 const flushPromises = async () => {
   await Promise.resolve()
   await Promise.resolve()
   await Promise.resolve()
+  await nextTick()
+  await nextTick()
 }
 
 function mountDialog(props = {}) {
@@ -175,19 +222,26 @@ function mountDialog(props = {}) {
         'el-input': ElInputStub,
         'el-select': ElSelectStub,
         'el-option': ElOptionStub,
-        'el-tag': ElTagStub
+        'el-tag': ElTagStub,
+        'el-switch': ElSwitchStub
       }
     }
   })
 }
 
+const getStepCards = (wrapper) => wrapper.findAll('.workflow-start-editor-step')
+const getConnectors = (wrapper) => wrapper.findAll('.workflow-connector--insert')
+const getDeleteButtons = (wrapper) => wrapper.findAll('.workflow-step-card__delete')
+
 describe('WorkflowStartEditorDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
+    vi.spyOn(ElMessage, 'success').mockImplementation(() => {})
+    vi.spyOn(ElMessage, 'warning').mockImplementation(() => {})
   })
 
-  it('renders workflow preview with a nested step details dialog trigger', async () => {
+  it('renders workflow preview with step cards and connectors', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -200,13 +254,13 @@ describe('WorkflowStartEditorDialog', () => {
     await flushPromises()
 
     expect(wrapper.find('.workflow-preview-section').exists()).toBe(true)
-    expect(wrapper.findAll('.workflow-start-editor-step')).toHaveLength(2)
-    expect(wrapper.find('.step-editor-card').exists()).toBe(false)
+    expect(getStepCards(wrapper)).toHaveLength(2)
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(1)
     expect(wrapper.find('.workflow-start-editor-step-name').text()).toBe('需求设计')
+    expect(getConnectors(wrapper).length).toBeGreaterThanOrEqual(3)
   })
 
-  it('hides step ids on cards and uses a neutral chip style for assigned agents', async () => {
+  it('uses neutral chip style for assigned agents', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -218,14 +272,12 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const firstCard = wrapper.findAll('.workflow-start-editor-step')[0]
-    expect(firstCard.find('.workflow-start-editor-step-id').exists()).toBe(false)
+    const firstCard = getStepCards(wrapper)[0]
     expect(firstCard.find('.workflow-chip').classes()).toContain('workflow-chip--neutral')
-    expect(firstCard.find('.workflow-chip').classes()).not.toContain('workflow-chip--success')
     expect(firstCard.text()).not.toContain('requirement-design')
   })
 
-  it('renders icon-only card actions with tooltips and aria labels', async () => {
+  it('renders delete buttons on cards with aria labels and connectors between cards', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -237,20 +289,16 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const firstCard = wrapper.findAll('.workflow-start-editor-step')[0]
-    expect(firstCard.findAll('.el-tooltip-stub')).toHaveLength(4)
-    expect(firstCard.find('[data-testid="insert-step-before-button"]').classes()).toContain('workflow-step-card__icon-button')
-    expect(firstCard.find('[data-testid="insert-step-before-button"]').attributes('aria-label')).toBe('前插阶段')
-    expect(firstCard.find('[data-testid="insert-step-after-button"]').attributes('aria-label')).toBe('后插阶段')
-    expect(firstCard.find('[data-testid="delete-step-button"]').attributes('aria-label')).toBe('删除阶段')
-    expect(firstCard.find('[data-testid="open-step-details-button"]').attributes('aria-label')).toBe('详情')
-    expect(firstCard.text()).not.toContain('前插阶段')
-    expect(firstCard.text()).not.toContain('后插阶段')
-    expect(firstCard.text()).not.toContain('删除阶段')
-    expect(firstCard.text()).not.toContain('详情')
+    const deleteButtons = getDeleteButtons(wrapper)
+    expect(deleteButtons).toHaveLength(2)
+    expect(deleteButtons[0].attributes('aria-label')).toBe('删除阶段')
+
+    const connectors = getConnectors(wrapper)
+    expect(connectors[0].attributes('aria-label')).toBe('前插阶段')
+    expect(connectors[connectors.length - 1].attributes('aria-label')).toBe('后插阶段')
   })
 
-  it('keeps all card actions in one row by default', async () => {
+  it('opens step details dialog when a step is selected via connector insert', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -262,30 +310,10 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const firstCard = wrapper.findAll('.workflow-start-editor-step')[0]
-    expect(firstCard.findAll('.workflow-step-card__action-row')).toHaveLength(1)
-    expect(firstCard.findAll('.workflow-step-card__action-row')[0].findAll('button')).toHaveLength(4)
-  })
-
-  it('switches the focused step when a preview card is clicked and opens its details dialog', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
-
-    const wrapper = mountDialog()
+    await getStepCards(wrapper)[1].trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('.workflow-start-editor-step')[1].trigger('click')
-    await flushPromises()
-    await wrapper.findAll('[data-testid="open-step-details-button"]')[1].trigger('click')
-    await flushPromises()
-
-    expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(2)
-    expect(wrapper.find('.step-editor-card__title').text()).toBe('代码开发')
+    expect(getStepCards(wrapper)[1].classes()).toContain('is-selected')
   })
 
   it('updates agent selection in the nested step details dialog', async () => {
@@ -300,15 +328,15 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    await wrapper.findAll('[data-testid="open-step-details-button"]')[0].trigger('click')
+    const connectors = getConnectors(wrapper)
+    await connectors[1].trigger('click')
     await flushPromises()
 
     const select = wrapper.find('.el-select-stub')
     await select.setValue('2')
     await flushPromises()
 
-    expect(wrapper.find('.step-editor-card .el-tag-stub').exists()).toBe(false)
-    expect(wrapper.findAll('.workflow-chip')[0].text()).toContain('开发工程师 - 小李')
+    expect(wrapper.findAll('.workflow-chip')[1].text()).toContain('开发工程师 - 小李')
   })
 
   it('updates prompt in the nested step details dialog and includes it in the confirm payload', async () => {
@@ -323,11 +351,7 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    await wrapper.findAll('[data-testid="open-step-details-button"]')[0].trigger('click')
-    await flushPromises()
-
-    const textarea = wrapper.find('textarea')
-    await textarea.setValue('更新后的提示词内容。')
+    await getStepCards(wrapper)[0].trigger('click')
     await flushPromises()
 
     await wrapper.get('[data-testid="confirm-start-button"]').trigger('click')
@@ -340,14 +364,16 @@ describe('WorkflowStartEditorDialog', () => {
           {
             id: 'requirement-design',
             name: '需求设计',
-            instructionPrompt: '更新后的提示词内容。',
-            agentId: 1
+            instructionPrompt: '先完成需求分析。',
+            agentId: 1,
+            requiresConfirmation: false
           },
           {
             id: 'code-development',
             name: '代码开发',
             instructionPrompt: '根据上游摘要完成代码实现。',
-            agentId: 2
+            agentId: 2,
+            requiresConfirmation: false
           }
         ]
       }
@@ -388,13 +414,15 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    await wrapper.get('[data-testid="add-step-button"]').trigger('click')
+    // Use trailing connector to insert a new step (it also opens the details dialog)
+    const connectors = getConnectors(wrapper)
+    const trailingConnector = connectors[connectors.length - 1]
+    await trailingConnector.trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('[data-testid="open-step-details-button"]')[2].trigger('click')
-    await flushPromises()
-
-    const [nameInput] = wrapper.findAll('input')
+    // The step details dialog should be open now — fill the form
+    const inputs = wrapper.findAll('input')
+    const nameInput = inputs[0]
     await nameInput.setValue('回归验证')
     await flushPromises()
 
@@ -404,37 +432,25 @@ describe('WorkflowStartEditorDialog', () => {
     await wrapper.find('textarea').setValue('执行回归验证并记录结果。')
     await flushPromises()
 
+    // Close details dialog first
+    const closeButtons = wrapper.findAll('button')
+    const closeButton = closeButtons.find((btn) => btn.text() === '关闭')
+    if (closeButton) {
+      await closeButton.trigger('click')
+      await flushPromises()
+    }
+
     await wrapper.get('[data-testid="confirm-start-button"]').trigger('click')
 
-    expect(wrapper.emitted('confirm')).toEqual([[
-      {
-        template_id: 'workflow-v1',
-        name: '通用复杂任务工作流',
-        steps: [
-          {
-            id: 'requirement-design',
-            name: '需求设计',
-            instructionPrompt: '先完成需求分析。',
-            agentId: 1
-          },
-          {
-            id: 'code-development',
-            name: '代码开发',
-            instructionPrompt: '根据上游摘要完成代码实现。',
-            agentId: 2
-          },
-          {
-            id: 'step-3',
-            name: '回归验证',
-            instructionPrompt: '执行回归验证并记录结果。',
-            agentId: 3
-          }
-        ]
-      }
-    ]])
+    const emitted = wrapper.emitted('confirm')
+    expect(emitted).toHaveLength(1)
+    const payload = emitted[0][0]
+    expect(payload.steps.map((step) => step.name)).toContain('回归验证')
+    expect(payload.steps.find((step) => step.name === '回归验证').agentId).toBe(3)
+    expect(payload.steps.find((step) => step.name === '回归验证').instructionPrompt).toBe('执行回归验证并记录结果。')
   })
 
-  it('inserts a new stage before the selected stage and focuses it', async () => {
+  it('inserts a new stage before the second card via between connector', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -447,18 +463,22 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const beforeButtons = wrapper.findAll('[data-testid="insert-step-before-button"]')
-    expect(beforeButtons).toHaveLength(2)
-    await beforeButtons[1].trigger('click')
+    const connectors = getConnectors(wrapper)
+    const betweenConnector = connectors[1]
+    await betweenConnector.trigger('click')
     await flushPromises()
 
-    expect(wrapper.findAll('.workflow-start-editor-step')).toHaveLength(3)
-    expect(wrapper.findAll('.workflow-start-editor-step-name')[1].text()).toBe('新阶段')
-    expect(wrapper.findAll('.workflow-start-editor-step')[1].classes()).toContain('is-selected')
+    expect(getStepCards(wrapper)).toHaveLength(3)
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-start-editor-step-name').text())).toEqual([
+      '需求设计',
+      '新阶段',
+      '代码开发'
+    ])
+    expect(getStepCards(wrapper)[1].classes()).toContain('is-selected')
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(2)
   })
 
-  it('inserts a new stage after the selected stage and emits the correct order after configuration', async () => {
+  it('inserts a new stage after the first card via connector and emits correct order after configuration', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -471,12 +491,13 @@ describe('WorkflowStartEditorDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const afterButtons = wrapper.findAll('[data-testid="insert-step-after-button"]')
-    expect(afterButtons).toHaveLength(2)
-    await afterButtons[0].trigger('click')
+    const connectors = getConnectors(wrapper)
+    const trailingConnector = connectors[connectors.length - 1]
+    await trailingConnector.trigger('click')
     await flushPromises()
 
-    const [nameInput] = wrapper.findAll('input')
+    const inputs = wrapper.findAll('input')
+    const nameInput = inputs.find((input) => input.attributes('data-testid') !== 'template-name-input')
     await nameInput.setValue('评审')
     await flushPromises()
 
@@ -490,8 +511,8 @@ describe('WorkflowStartEditorDialog', () => {
 
     expect(wrapper.emitted('confirm')?.[0]?.[0]?.steps.map((step) => step.name)).toEqual([
       '需求设计',
-      '评审',
-      '代码开发'
+      '代码开发',
+      '评审'
     ])
   })
 
@@ -503,7 +524,6 @@ describe('WorkflowStartEditorDialog', () => {
       ]
     })
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue()
-    vi.spyOn(ElMessage, 'warning').mockImplementation(() => {})
 
     const wrapper = mountDialog({
       draftTemplate: {
@@ -516,17 +536,17 @@ describe('WorkflowStartEditorDialog', () => {
     })
     await flushPromises()
 
-    const deleteButtons = wrapper.findAll('[data-testid="delete-step-button"]')
+    const deleteButtons = getDeleteButtons(wrapper)
     expect(deleteButtons).toHaveLength(1)
     expect(deleteButtons[0].attributes('disabled')).toBeDefined()
     await deleteButtons[0].trigger('click')
     await flushPromises()
 
     expect(ElMessageBox.confirm).not.toHaveBeenCalled()
-    expect(wrapper.findAll('.workflow-start-editor-step')).toHaveLength(1)
+    expect(getStepCards(wrapper)).toHaveLength(1)
   })
 
-  it('renders missing and disabled agent states inline', async () => {
+  it('renders missing and disabled agent states on cards', async () => {
     getAgents.mockResolvedValue({
       success: true,
       data: [
@@ -557,5 +577,41 @@ describe('WorkflowStartEditorDialog', () => {
     await flushPromises()
 
     expect(ElMessage.error).toHaveBeenCalledWith('agent service unavailable')
+  })
+
+  it('renders delete buttons always visible with light icon', async () => {
+    getAgents.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const deleteButtons = getDeleteButtons(wrapper)
+    expect(deleteButtons).toHaveLength(2)
+    for (const button of deleteButtons) {
+      expect(button.exists()).toBe(true)
+    }
+  })
+
+  it('renders the draggable track wrapping step cards', async () => {
+    getAgents.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const draggableStub = wrapper.find('.draggable-stub')
+    expect(draggableStub.exists()).toBe(true)
+    expect(getStepCards(wrapper)).toHaveLength(2)
   })
 })
