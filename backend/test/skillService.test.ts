@@ -130,8 +130,8 @@ test.test('uploadSkillZip extracts zip contents', async () => {
     const service = new SkillService({ storagePath: tempRoot });
     await service.createSkill('test-skill');
 
-    const AdmZip = (await import('adm-zip')).default;
-    const zip = new AdmZip();
+    const AdmZipModule = await import('adm-zip');
+    const zip = new (AdmZipModule as unknown as { default: typeof import('adm-zip') }).default();
     zip.addFile('SKILL.md', Buffer.from('# Zipped Skill\n\nContent'));
     zip.addFile('README.txt', Buffer.from('Readme content'));
     const zipBuffer = zip.toBuffer();
