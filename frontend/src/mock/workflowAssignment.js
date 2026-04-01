@@ -26,10 +26,7 @@ export const CategoryLabels = {
  * Agent type mapping
  */
 export const AgentTypeMapping = {
-  CLAUDE: { color: '#8B5CF6', icon: '🤖', name: 'Claude' },
-  CODEX: { color: '#10B981', icon: '💻', name: 'Codex' },
-  CURSOR: { color: '#F59E0B', icon: '✨', name: 'Cursor' },
-  GEMINI: { color: '#3B82F6', icon: '🔮', name: 'Gemini' }
+  CLAUDE: { color: '#8B5CF6', icon: '🤖', name: 'Claude' }
 }
 
 /**
@@ -39,7 +36,7 @@ export const AgentTypeMapping = {
 export const ASSIGNMENT_RULES = {
   FEATURE: {
     preferredStage: 'development',
-    preferredAgentType: 'CODEX',
+    preferredAgentType: 'CLAUDE',
     role: '开发工程师',
     description: 'New feature development task'
   },
@@ -51,7 +48,7 @@ export const ASSIGNMENT_RULES = {
   },
   REFACTORING: {
     preferredStage: 'development',
-    preferredAgentType: 'CODEX',
+    preferredAgentType: 'CLAUDE',
     role: '开发工程师',
     description: 'Code refactoring task'
   },
@@ -69,7 +66,7 @@ export const ASSIGNMENT_RULES = {
   },
   DESIGN: {
     preferredStage: 'design',
-    preferredAgentType: 'CURSOR',
+    preferredAgentType: 'CLAUDE',
     role: '设计师',
     description: 'UI/UX design task'
   }

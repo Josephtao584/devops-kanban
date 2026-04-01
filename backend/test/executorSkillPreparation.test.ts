@@ -38,26 +38,11 @@ test.test('prepareExecutionSkills copies skills for CLAUDE_CODE', async () => {
   });
 });
 
-test.test('prepareExecutionSkills is no-op for CODEX', async () => {
-  await withTempProject(async (skillName, projectRoot) => {
+test.test('prepareExecutionSkills is no-op when no skills provided', async () => {
+  await withTempProject(async (_skillName, projectRoot) => {
     await prepareExecutionSkills({
-      executorType: 'CODEX',
-      skillNames: [skillName],
-      executionPath: projectRoot,
-    });
-
-    await assert.rejects(
-      fs.access(path.join(projectRoot, '.claude', 'skills')),
-      /ENOENT/
-    );
-  });
-});
-
-test.test('prepareExecutionSkills is no-op for OPENCODE', async () => {
-  await withTempProject(async (skillName, projectRoot) => {
-    await prepareExecutionSkills({
-      executorType: 'OPENCODE',
-      skillNames: [skillName],
+      executorType: 'CLAUDE_CODE',
+      skillNames: [],
       executionPath: projectRoot,
     });
 

@@ -7,7 +7,7 @@ import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
 
-const SUPPORTED_EXECUTOR_TYPES: AgentExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
+const SUPPORTED_EXECUTOR_TYPES: AgentExecutorType[] = ['CLAUDE_CODE'];
 
 type AgentRouteOptions = {
   repo?: Pick<AgentRepository, 'findAll' | 'findById' | 'create' | 'update' | 'delete'>;

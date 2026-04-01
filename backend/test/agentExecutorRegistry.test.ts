@@ -3,9 +3,9 @@ import * as assert from 'node:assert/strict';
 import { AgentExecutorRegistry } from '../src/services/workflow/agentExecutorRegistry.js';
 import type { ExecutorType } from '../src/types/executors.js';
 
-const supportedExecutorTypes: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
+const supportedExecutorTypes: ExecutorType[] = ['CLAUDE_CODE'];
 
-test.test('AgentExecutorRegistry resolves CLAUDE_CODE, CODEX, and OPENCODE executors', () => {
+test.test('AgentExecutorRegistry resolves CLAUDE_CODE executor', () => {
   const registry = new AgentExecutorRegistry();
   for (const type of supportedExecutorTypes) {
     assert.ok(registry.getExecutor(type));

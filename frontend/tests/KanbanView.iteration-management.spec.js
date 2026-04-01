@@ -49,6 +49,9 @@ vi.mock('vue-router', () => ({
     params: {
       projectId: '1'
     }
+  }),
+  useRouter: () => ({
+    replace: vi.fn()
   })
 }))
 
