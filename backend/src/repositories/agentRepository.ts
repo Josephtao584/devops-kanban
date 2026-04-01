@@ -10,6 +10,7 @@ class AgentRepository extends BaseRepository<AgentEntity> {
     return {
       ...row,
       skills: row.skills ? JSON.parse(row.skills as string) : [],
+      enabled: Boolean(row.enabled),
     } as AgentEntity;
   }
 
