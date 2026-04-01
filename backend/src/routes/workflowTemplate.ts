@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 
 import { WorkflowTemplateService } from '../services/workflow/workflowTemplateService.js';
 import type { WorkflowTemplateEntity } from '../types/entities.js';
-import type { CreateWorkflowTemplateInput, UpdateWorkflowTemplateInput } from '../types/dto/workflowTemplates.js';
+import type { CreateWorkflowTemplateInput, UpdateWorkflowTemplateInput, ReorderWorkflowTemplatesInput } from '../types/dto/workflowTemplates.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { getErrorMessage, getStatusCode } from '../utils/http.js';
 
@@ -12,6 +12,7 @@ type WorkflowTemplateRouteService = {
   createTemplate(template: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>): Promise<WorkflowTemplateEntity>;
   updateTemplate(templateId: string, template: Partial<Omit<WorkflowTemplateEntity, 'id' | 'template_id' | 'created_at' | 'updated_at'>>): Promise<WorkflowTemplateEntity | null>;
   deleteTemplate(templateId: string): Promise<void>;
+  reorderTemplates(updates: Array<{ id: number; order: number }>): Promise<WorkflowTemplateEntity[]>;
 };
 
 type WorkflowTemplateRouteOptions = { service?: WorkflowTemplateRouteService };
@@ -50,6 +51,23 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
       request.log.error(error);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create workflow template'));
+    }
+  });
+
+  fastify.put<{ Body: ReorderWorkflowTemplatesInput }>('/reorder', async (request, reply) => {
+    try {
+      const { updates } = request.body;
+      if (!Array.isArray(updates)) {
+        reply.code(400);
+        return errorResponse('Updates must be an array');
+      }
+
+      const results = await service.reorderTemplates(updates);
+      return successResponse(results, 'Workflow templates reordered');
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to reorder workflow templates'));
     }
   });
 
