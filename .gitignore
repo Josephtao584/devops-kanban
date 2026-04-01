@@ -58,4 +58,4 @@ backend/*.log
 backend/data/
 __pycache__/
 .worktrees/
-.claude/worktrees/
+.claude/
