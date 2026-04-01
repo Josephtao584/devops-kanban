@@ -107,6 +107,7 @@ exit 1
             ...process.env,
             PATH: `${fakeBinPath}:${process.env.PATH ?? ''}`,
             FAKE_START_ROOT: rootPath,
+            KANBAN_LOG_DIR: rootPath,
             FRONTEND_READY: options?.frontendReady === false ? '0' : '1',
             BACKEND_READY: options?.backendReady === false ? '0' : '1',
             NODE_VERSION_MODE: options?.nodeVersionMode ?? 'normal',
@@ -152,7 +153,7 @@ test.test('start script initializes data before launching frontend dev server', 
 test.test('start script prints the actual frontend timeout log path', async () => {
   await withStartScriptFixture(async ({ run }) => {
     const result = await run({ frontendReady: false });
-    assert.match(result.stdout, /\/tmp\/kanban-frontend\.log/);
+    assert.match(result.stdout, /kanban-frontend\.log/);
   });
 });
 
