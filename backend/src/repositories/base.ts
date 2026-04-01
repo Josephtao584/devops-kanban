@@ -122,7 +122,8 @@ class BaseRepository<T extends BaseEntity> {
       args: [...values as InValue[], now, entityId],
     });
 
-    return { ...existing, ...Object.fromEntries(definedEntries), updated_at: now } as T;
+    // Re-fetch to get properly parsed row (e.g. JSON fields parsed correctly)
+    return await this.findById(entityId);
   }
 
   /**

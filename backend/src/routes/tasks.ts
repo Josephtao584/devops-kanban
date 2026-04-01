@@ -69,9 +69,21 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.put<{ Params: IdParams }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams; Body: UpdateTaskInput }>('/:id', async (request, reply) => {
     try {
-      const updated = await taskService.update(parseNumber(request.params.id), request.body as UpdateTaskInput);
+      const body = request.body;
+      const taskData: UpdateTaskInput = {};
+      const allowedKeys: (keyof UpdateTaskInput)[] = [
+        'title', 'description', 'project_id', 'iteration_id', 'status',
+        'priority', 'assignee', 'due_date', 'external_id', 'workflow_run_id',
+        'worktree_path', 'worktree_branch', 'order',
+      ];
+      for (const key of allowedKeys) {
+        if ((body as any)[key] !== undefined) {
+          (taskData as any)[key] = (body as any)[key];
+        }
+      }
+      const updated = await taskService.update(parseNumber(request.params.id), taskData);
       if (!updated) {
         reply.code(404);
         return errorResponse('Task not found');

@@ -21,4 +21,10 @@ export async function initDatabase(): Promise<void> {
   if (!hasOrderColumn) {
     await client.execute('ALTER TABLE workflow_templates ADD COLUMN "order" INTEGER');
   }
+
+  const iterationColumns = await client.execute('PRAGMA table_info(iterations)');
+  const hasDescriptionColumn = iterationColumns.rows.some((row) => row.name === 'description');
+  if (!hasDescriptionColumn) {
+    await client.execute('ALTER TABLE iterations ADD COLUMN description TEXT');
+  }
 }

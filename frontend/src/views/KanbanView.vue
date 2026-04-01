@@ -1208,16 +1208,16 @@ const handleIterationClick = (iteration) => {
 }
 
 const handleDeleteIteration = async (iteration) => {
-  let deleteTasks = false
+  const deleteTasksRef = ref(false)
 
   try {
     await ElMessageBox.confirm(
       h('div', { class: 'iteration-delete-confirm' }, [
         h('p', t('iteration.deleteConfirmMessage', { name: iteration.name })),
         h(ElCheckbox, {
-          modelValue: deleteTasks,
+          modelValue: deleteTasksRef.value,
           'onUpdate:modelValue': (value) => {
-            deleteTasks = value
+            deleteTasksRef.value = value
           }
         }, () => t('iteration.deleteTasksCheckbox'))
       ]),
@@ -1236,7 +1236,7 @@ const handleDeleteIteration = async (iteration) => {
   let deleted = false
 
   try {
-    const response = await iterationStore.deleteIteration(iteration.id, { deleteTasks })
+    const response = await iterationStore.deleteIteration(iteration.id, { deleteTasks: deleteTasksRef.value })
     if (!response?.success) {
       throw new Error(response?.message || response?.error || t('iteration.deleteFailed'))
     }

@@ -104,6 +104,7 @@ test.test('delete detaches tasks before removing iteration by default', async ()
     const iteration = await iterRepo.create({
       project_id: project.id,
       name: 'Sprint 12',
+      description: undefined,
       goal: undefined,
       status: 'ACTIVE',
       start_date: undefined,
@@ -148,6 +149,7 @@ test.test('delete removes linked tasks when deleteTasks is true', async () => {
     const iteration = await iterRepo.create({
       project_id: project.id,
       name: 'Sprint 12',
+      description: undefined,
       goal: undefined,
       status: 'ACTIVE',
       start_date: undefined,
