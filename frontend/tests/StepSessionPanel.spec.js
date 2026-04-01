@@ -78,7 +78,6 @@ describe('StepSessionPanel', () => {
     const wrapper = mount(StepSessionPanel, {
       props: {
         sessionId: 102,
-        sessionStatus: 'RUNNING',
         stepName: '代码开发'
       },
       global: {
@@ -213,7 +212,6 @@ describe('StepSessionPanel', () => {
     const wrapper = mount(StepSessionPanel, {
       props: {
         sessionId: null,
-        sessionStatus: 'PENDING',
         stepName: '测试'
       },
       global: {

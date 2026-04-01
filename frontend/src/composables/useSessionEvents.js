@@ -81,15 +81,6 @@ function truncateText(value, maxLength = 240) {
   return `${value.slice(0, maxLength)}…`
 }
 
-function shouldCollapseToolResult(text) {
-  if (typeof text !== 'string' || !text) {
-    return false
-  }
-
-  const lineCount = text.split('\n').length
-  return text.length > 280 || lineCount > 8
-}
-
 function buildToolResultSummary(text) {
   if (typeof text !== 'string' || !text) {
     return ''

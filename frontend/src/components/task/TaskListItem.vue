@@ -537,19 +537,6 @@ const workflowProgress = computed(() => {
   return getWorkflowProgress(workflowData.value)
 })
 
-// Status text helper
-const getStatusText = (status) => {
-  const statusMap = {
-    'DONE': '已完成',
-    'IN_PROGRESS': '进行中',
-    'PENDING': '待处理',
-    'FAILED': '失败',
-    'REJECTED': '已打回',
-    'TODO': '待办'
-  }
-  return statusMap[status] || status
-}
-
 // Workflow status computation
 const workflowStatus = computed(() => {
   if (realWorkflowRun.value) {

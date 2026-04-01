@@ -54,9 +54,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
-import { useStatusStyle } from '../../composables/useStatusStyle'
 import TaskListItem from '../task/TaskListItem.vue'
 
 const props = defineProps({
@@ -108,26 +106,7 @@ const props = defineProps({
 
 const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'workflow-action'])
 
-const { t } = useI18n()
-const { getStatusClass } = useStatusStyle()
-
-// Default empty text based on status
 const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
-
-const defaultEmptyText = computed(() => {
-  const emptyTextMap = {
-    TODO: t('task.noTodoTasks'),
-    IN_PROGRESS: t('task.noTasks'),
-    DONE: t('task.noDoneTasks'),
-    BLOCKED: t('task.noTasks'),
-    REQUIREMENTS: t('requirement.noRequirements')
-  }
-  return emptyTextMap[props.status] || t('task.noTasks')
-})
-
-const displayEmptyText = computed(() => {
-  return props.emptyText || defaultEmptyText.value
-})
 
 const isTaskRunning = (taskId) => {
   return props.runningTaskIds?.has?.(taskId) || false

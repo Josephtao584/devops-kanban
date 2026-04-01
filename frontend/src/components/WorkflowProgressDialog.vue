@@ -229,10 +229,6 @@ function isStepRunning(step) {
   return step.status === 'RUNNING'
 }
 
-function isStepSuspended(step) {
-  return step.status === 'SUSPENDED'
-}
-
 function stepStatusText(step) {
   const texts = { PENDING: '待处理', RUNNING: '进行中', SUSPENDED: '等待确认', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
   return texts[step.status] || step.status
