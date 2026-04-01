@@ -1,0 +1,210 @@
+import { getDbClient } from './client.js';
+
+/**
+ * Initialize all database tables.
+ * Creates tables if they don't exist.
+ */
+export async function initDatabase(): Promise<void> {
+  const client = getDbClient();
+
+  await client.executeMultiple(`
+    -- projects: 项目表
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      git_url TEXT,
+      local_path TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- iterations: 迭代表
+    CREATE TABLE IF NOT EXISTS iterations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      name TEXT NOT NULL,
+      goal TEXT,
+      status TEXT NOT NULL,
+      start_date TEXT,
+      end_date TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_iterations_project_id ON iterations(project_id);
+
+    -- skills: 技能表
+    CREATE TABLE IF NOT EXISTS skills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      identifier TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_skills_identifier ON skills(identifier);
+
+    -- agents: 代理表
+    CREATE TABLE IF NOT EXISTS agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      executorType TEXT NOT NULL,
+      role TEXT NOT NULL,
+      description TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      skills TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- workflow_templates: 工作流模板表
+    CREATE TABLE IF NOT EXISTS workflow_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      steps TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_workflow_templates_template_id ON workflow_templates(template_id);
+
+    -- workflow_runs: 工作流执行记录表
+    CREATE TABLE IF NOT EXISTS workflow_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      workflow_template_id TEXT NOT NULL,
+      workflow_template_snapshot TEXT NOT NULL DEFAULT '{}',
+      mastra_run_id TEXT,
+      status TEXT NOT NULL,
+      current_step TEXT,
+      steps TEXT NOT NULL DEFAULT '[]',
+      worktree_path TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      context TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_workflow_runs_task_id ON workflow_runs(task_id);
+    CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
+
+    -- tasks: 任务表
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      status TEXT NOT NULL DEFAULT 'TODO',
+      priority TEXT NOT NULL DEFAULT 'MEDIUM',
+      assignee TEXT,
+      due_date TEXT,
+      "order" INTEGER,
+      external_id TEXT,
+      external_url TEXT,
+      workflow_run_id INTEGER REFERENCES workflow_runs(id),
+      worktree_path TEXT,
+      worktree_branch TEXT,
+      iteration_id INTEGER REFERENCES iterations(id),
+      source TEXT NOT NULL DEFAULT 'internal',
+      labels TEXT DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_iteration_id ON tasks(iteration_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_external_id ON tasks(external_id);
+
+    -- sessions: 会话表
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES tasks(id),
+      workflow_run_id INTEGER REFERENCES workflow_runs(id),
+      workflow_step_id TEXT,
+      status TEXT,
+      worktree_path TEXT,
+      branch TEXT,
+      initial_prompt TEXT,
+      agent_id INTEGER REFERENCES agents(id),
+      executor_type TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_task_id ON sessions(task_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+
+    -- session_segments: 会话片段表
+    CREATE TABLE IF NOT EXISTS session_segments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES sessions(id),
+      segment_index INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      executor_type TEXT NOT NULL,
+      agent_id INTEGER REFERENCES agents(id),
+      provider_session_id TEXT,
+      resume_token TEXT,
+      checkpoint_ref TEXT,
+      trigger_type TEXT NOT NULL,
+      parent_segment_id INTEGER REFERENCES session_segments(id),
+      started_at TEXT,
+      completed_at TEXT,
+      metadata TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_segments_session_id ON session_segments(session_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_segments_unique ON session_segments(session_id, segment_index);
+
+    -- session_events: 会话事件表
+    CREATE TABLE IF NOT EXISTS session_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES sessions(id),
+      segment_id INTEGER NOT NULL REFERENCES session_segments(id),
+      seq INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_events_session_id ON session_events(session_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_session_events_unique ON session_events(session_id, seq);
+
+    -- task_sources: 任务来源表
+    CREATE TABLE IF NOT EXISTS task_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      project_id INTEGER NOT NULL REFERENCES projects(id),
+      config TEXT NOT NULL DEFAULT '{}',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_sync_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_task_sources_project_id ON task_sources(project_id);
+
+    -- executions: 执行记录表
+    CREATE TABLE IF NOT EXISTS executions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER REFERENCES sessions(id),
+      task_id INTEGER REFERENCES tasks(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_executions_session_id ON executions(session_id);
+    CREATE INDEX IF NOT EXISTS idx_executions_task_id ON executions(task_id);
+  `);
+}
