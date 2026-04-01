@@ -15,4 +15,10 @@ export async function initDatabase(): Promise<void> {
 
   // Execute all DDL statements
   await client.executeMultiple(schemaSql);
+
+  const workflowTemplateColumns = await client.execute('PRAGMA table_info(workflow_templates)');
+  const hasOrderColumn = workflowTemplateColumns.rows.some((row) => row.name === 'order');
+  if (!hasOrderColumn) {
+    await client.execute('ALTER TABLE workflow_templates ADD COLUMN "order" INTEGER');
+  }
 }

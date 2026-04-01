@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS workflow_templates (
   template_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   steps TEXT NOT NULL DEFAULT '[]',
+  "order" INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
