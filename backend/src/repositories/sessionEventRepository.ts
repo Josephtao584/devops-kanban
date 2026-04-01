@@ -1,20 +1,27 @@
 import { BaseRepository } from './base.js';
+import type { InValue } from '@libsql/client';
 import type { SessionEventEntity } from '../types/entities.ts';
 
 type CreateSessionEventRecord = Omit<SessionEventEntity, 'id' | 'seq' | 'created_at' | 'updated_at'>;
 
-const sessionEventWriteQueues = new Map<string, Promise<void>>();
-
 class SessionEventRepository extends BaseRepository<SessionEventEntity> {
   constructor() {
-    super('session_events.json');
+    super('session_events');
   }
 
-  private async queueMutation<T>(operation: () => Promise<T>): Promise<T> {
-    const previous = sessionEventWriteQueues.get(this.filepath) ?? Promise.resolve();
-    const next = previous.catch(() => undefined).then(operation);
-    sessionEventWriteQueues.set(this.filepath, next.then(() => undefined, () => undefined));
-    return await next;
+  protected override parseRow(row: Record<string, unknown>): SessionEventEntity {
+    return {
+      ...row,
+      payload: row.payload ? JSON.parse(row.payload as string) : {},
+    } as SessionEventEntity;
+  }
+
+  protected override serializeRow(entity: Partial<SessionEventEntity>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...entity };
+    if (entity.payload !== undefined) {
+      result.payload = JSON.stringify(entity.payload);
+    }
+    return result;
   }
 
   override async create(event: CreateSessionEventRecord): Promise<SessionEventEntity> {
@@ -22,58 +29,71 @@ class SessionEventRepository extends BaseRepository<SessionEventEntity> {
   }
 
   async append(event: CreateSessionEventRecord): Promise<SessionEventEntity> {
-    return await this.queueMutation(async () => {
-      const data = await this._loadAll();
-      const newId = this._getNextId(data);
-      const nextSeq = data.reduce(
-        (maxSeq, item) => (item.session_id === event.session_id ? Math.max(maxSeq, item.seq) : maxSeq),
-        0,
-      ) + 1;
+    const txn = await this.client.transaction('write');
+    try {
+      // Get max seq in transaction
+      const maxResult = await txn.execute({
+        sql: 'SELECT MAX(seq) as max_seq FROM session_events WHERE session_id = ?',
+        args: [event.session_id],
+      });
+      const nextSeq = (Number(maxResult.rows[0]?.max_seq) || 0) + 1;
       const now = new Date().toISOString();
 
-      const entity: SessionEventEntity = {
-        ...event,
-        id: newId,
-        seq: nextSeq,
-        created_at: now,
-        updated_at: now,
-      };
+      // Insert with computed seq
+      const serialized = this.serializeRow(event as Partial<SessionEventEntity>);
+      const columns = Object.keys(serialized);
+      const values = Object.values(serialized);
 
-      data.push(entity);
-      await this._saveAll(data);
-      return entity;
-    });
+      const insertResult = await txn.execute({
+        sql: `INSERT INTO session_events (${columns.join(', ')}, seq, created_at, updated_at) VALUES (${columns.map(() => '?').join(', ')}, ?, ?, ?)`,
+        args: [...values as InValue[], nextSeq, now, now],
+      });
+
+      await txn.commit();
+
+      // Fetch the created record
+      const created = await this.findById(Number(insertResult.lastInsertRowid));
+      if (!created) {
+        throw new Error('Failed to fetch created session event');
+      }
+      return created;
+    } catch (error) {
+      await txn.rollback();
+      throw error;
+    } finally {
+      txn.close();
+    }
   }
 
   async listBySessionId(
     sessionId: number,
     options: { afterSeq?: number; limit?: number } = {},
   ): Promise<SessionEventEntity[]> {
-    const data = await this._loadAll();
-    const filtered = data
-      .filter((item) => item.session_id === sessionId)
-      .sort((left, right) => left.seq - right.seq || left.id - right.id)
-      .filter((event) => options.afterSeq === undefined || event.seq > options.afterSeq);
+    let sql = 'SELECT * FROM session_events WHERE session_id = ?';
+    const args: (number | string)[] = [sessionId];
 
-    if (options.limit === undefined) {
-      return filtered;
+    if (options.afterSeq !== undefined) {
+      sql += ' AND seq > ?';
+      args.push(options.afterSeq);
     }
 
-    return filtered.slice(0, options.limit);
-  }
+    sql += ' ORDER BY seq, id';
 
-  override async update(eventId: number, update: Partial<Omit<SessionEventEntity, 'id' | 'session_id' | 'segment_id' | 'seq' | 'created_at' | 'updated_at'>>): Promise<SessionEventEntity | null> {
-    return await this.queueMutation(async () => await super.update(eventId, update));
-  }
+    if (options.limit !== undefined) {
+      sql += ' LIMIT ?';
+      args.push(options.limit);
+    }
 
-  override async delete(eventId: number): Promise<boolean> {
-    return await this.queueMutation(async () => await super.delete(eventId));
+    const result = await this.client.execute({ sql, args });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async getLastSeq(sessionId: number): Promise<number> {
-    const events = await this.listBySessionId(sessionId);
-    const lastEvent = events[events.length - 1];
-    return lastEvent?.seq ?? 0;
+    const result = await this.client.execute({
+      sql: 'SELECT MAX(seq) as max_seq FROM session_events WHERE session_id = ?',
+      args: [sessionId],
+    });
+    return Number(result.rows[0]?.max_seq) || 0;
   }
 }
 

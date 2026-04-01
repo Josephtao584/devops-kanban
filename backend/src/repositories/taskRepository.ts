@@ -12,21 +12,46 @@ interface TaskStatusCounts {
 
 class TaskRepository extends BaseRepository<TaskEntity> {
   constructor() {
-    super('tasks.json');
+    super('tasks');
+  }
+
+  protected override parseRow(row: Record<string, unknown>): TaskEntity {
+    return {
+      ...row,
+      labels: row.labels ? JSON.parse(row.labels as string) : undefined,
+    } as TaskEntity;
+  }
+
+  protected override serializeRow(entity: Partial<TaskEntity>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...entity };
+    if (entity.labels !== undefined) {
+      result.labels = JSON.stringify(entity.labels);
+    }
+    return result;
   }
 
   async findByProject(projectId: number): Promise<TaskEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.project_id === projectId);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE project_id = ?',
+      args: [projectId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async findByProjectAndStatus(projectId: number, status: string): Promise<TaskEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.project_id === projectId && item.status === status);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE project_id = ? AND status = ?',
+      args: [projectId, status],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async countByProject(projectId: number): Promise<TaskStatusCounts> {
-    const tasks = await this.findByProject(projectId);
+    const result = await this.client.execute({
+      sql: `SELECT status, COUNT(*) as count FROM tasks WHERE project_id = ? GROUP BY status`,
+      args: [projectId],
+    });
+
     const counts: TaskStatusCounts = {
       REQUIREMENTS: 0,
       TODO: 0,
@@ -36,10 +61,10 @@ class TaskRepository extends BaseRepository<TaskEntity> {
       CANCELLED: 0,
     };
 
-    for (const task of tasks) {
-      const status = task.status as keyof TaskStatusCounts;
+    for (const row of result.rows) {
+      const status = row.status as keyof TaskStatusCounts;
       if (status in counts) {
-        counts[status]++;
+        counts[status] = Number(row.count);
       }
     }
 
@@ -47,16 +72,19 @@ class TaskRepository extends BaseRepository<TaskEntity> {
   }
 
   async deleteByProject(projectId: number): Promise<number> {
-    const data = await this._loadAll();
-    const initialLength = data.length;
-    const filtered = data.filter((item) => item.project_id !== projectId);
-    await this._saveAll(filtered);
-    return initialLength - filtered.length;
+    const result = await this.client.execute({
+      sql: 'DELETE FROM tasks WHERE project_id = ?',
+      args: [projectId],
+    });
+    return result.rowsAffected;
   }
 
   async findByStatus(status: string): Promise<TaskEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.status === status);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE status = ?',
+      args: [status],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async groupByStatus(projectId: number): Promise<Record<keyof TaskStatusCounts, TaskEntity[]>> {
@@ -81,58 +109,52 @@ class TaskRepository extends BaseRepository<TaskEntity> {
   }
 
   async findByIteration(iterationId: number): Promise<TaskEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.iteration_id === iterationId);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE iteration_id = ?',
+      args: [iterationId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async clearIteration(iterationId: number): Promise<number> {
-    const data = await this._loadAll();
     const now = new Date().toISOString();
-    let updatedCount = 0;
-
-    const nextData = data.map((item) => {
-      if (item.iteration_id !== iterationId) {
-        return item;
-      }
-
-      updatedCount += 1;
-      return {
-        ...item,
-        iteration_id: null,
-        updated_at: now,
-      };
+    const result = await this.client.execute({
+      sql: 'UPDATE tasks SET iteration_id = NULL, updated_at = ? WHERE iteration_id = ?',
+      args: [now, iterationId],
     });
-
-    if (updatedCount > 0) {
-      await this._saveAll(nextData);
-    }
-
-    return updatedCount;
+    return result.rowsAffected;
   }
 
   async deleteByIteration(iterationId: number): Promise<number> {
-    const data = await this._loadAll();
-    const filtered = data.filter((item) => item.iteration_id !== iterationId);
-    const deletedCount = data.length - filtered.length;
-
-    if (deletedCount > 0) {
-      await this._saveAll(filtered);
-    }
-
-    return deletedCount;
+    const result = await this.client.execute({
+      sql: 'DELETE FROM tasks WHERE iteration_id = ?',
+      args: [iterationId],
+    });
+    return result.rowsAffected;
   }
 
   async findByProjectAndIteration(projectId: number, iterationId: number | null | undefined): Promise<TaskEntity[]> {
-    const tasks = await this.findByProject(projectId);
     if (iterationId === null || iterationId === undefined) {
-      return tasks.filter((task) => !task.iteration_id);
+      const result = await this.client.execute({
+        sql: 'SELECT * FROM tasks WHERE project_id = ? AND iteration_id IS NULL',
+        args: [projectId],
+      });
+      return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
     }
-    return tasks.filter((task) => task.iteration_id === iterationId);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE project_id = ? AND iteration_id = ?',
+      args: [projectId, iterationId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async findByExternalId(externalId: string): Promise<TaskEntity | null> {
-    const data = await this._loadAll();
-    return data.find((item) => item.external_id === externalId) || null;
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE external_id = ?',
+      args: [externalId],
+    });
+    if (result.rows.length === 0) return null;
+    return this.parseRow(result.rows[0] as Record<string, unknown>);
   }
 }
 

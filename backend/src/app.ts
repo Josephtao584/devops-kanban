@@ -6,6 +6,7 @@ import * as config from './config/index.js';
 import corsPlugin from './middleware/cors.js';
 import errorHandlerPlugin from './middleware/errorHandler.js';
 import { initWorkflows } from './services/workflow/workflows.js';
+import { initDatabase } from './db/index.js';
 import {
   agentRoutes,
   executionRoutes,
@@ -21,6 +22,9 @@ import {
 } from './routes/index.js';
 
 export async function buildApp() {
+  // Initialize database tables
+  await initDatabase();
+
   // Initialize Mastra workflow engine
   await initWorkflows();
 
