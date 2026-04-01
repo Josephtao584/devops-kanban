@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useSessionManager } from '../useSessionManager'
 
 /**
@@ -16,7 +16,7 @@ export function useWorkflowManager({
   const workflowVersion = ref(0)
 
   // Session manager
-  const { createSession, startSession, setSession, clearSession } = useSessionManager()
+  const { setSession } = useSessionManager()
 
 
   /**

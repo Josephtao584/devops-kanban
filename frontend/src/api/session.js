@@ -19,12 +19,6 @@ export const getSessionHistory = (taskId, includeOutput = true) => api.get(`/ses
   }
 })
 
-// Create a new session (NOTE: Sessions are created by Workflow system, this is a placeholder)
-export const createSession = (taskId, agentId) => api.post('/sessions', {
-  task_id: Number(taskId),
-  agent_id: Number(agentId)
-})
-
 // Get session by ID
 export const getSession = (id) => api.get(`/sessions/${id}`)
 
@@ -58,7 +52,6 @@ export default {
   getSessionsByTask,
   getActiveSessionByTask,
   getSessionHistory,
-  createSession,
   getSession,
   getSessionOutput,
   startSession,

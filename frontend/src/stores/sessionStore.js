@@ -11,8 +11,6 @@ export const useSessionStore = defineStore('session', () => {
     apiMethods: {
       getAll: 'getSessionsByTask',
       getById: 'getSession',
-      create: 'createSession',
-      update: 'updateSession', // Not used but required by crud
       delete: 'deleteSession'
     }
   })
@@ -35,7 +33,10 @@ export const useSessionStore = defineStore('session', () => {
   const sessionsByTask = computed(() => {
     const grouped = {}
     crud.items.value.forEach(session => {
-      const taskId = session.taskId
+      const taskId = session.task_id ?? session.taskId
+      if (taskId == null) {
+        return
+      }
       if (!grouped[taskId]) {
         grouped[taskId] = []
       }
@@ -245,7 +246,6 @@ export const useSessionStore = defineStore('session', () => {
     sessionsByTask,
     runningSessions,
     // Actions from crud
-    createSession: crud.create,
     fetchSession: crud.fetchById,
     deleteSession: crud.deleteItem,
     // Session-specific actions

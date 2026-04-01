@@ -614,6 +614,7 @@ import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
 import { analyzeTaskCategory, getRecommendedWorkflowTemplateId } from '../mock/workflowAssignment'
 import { reorderTasks, startTask, deleteTask } from '../api/task.js'
+import { getActiveSessionByTask } from '../api/session.js'
 import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
@@ -1352,12 +1353,13 @@ const onDragEnd = async (evt) => {
 
 const onSessionCreated = async (session) => {
   activeSession.value = session
+  const taskId = session.task_id ?? session.taskId
   if (session.status === 'RUNNING' || session.status === 'IDLE') {
-    startTaskTimer(session.taskId)
+    startTaskTimer(taskId)
   }
-  if (session.taskId) {
+  if (taskId) {
     try {
-      const updatedTask = await taskStore.fetchTask(session.taskId)
+      const updatedTask = await taskStore.fetchTask(taskId)
       if (updatedTask && selectedTask.value?.id === updatedTask.id) {
         selectedTask.value = updatedTask
         updateColumnRefs()
