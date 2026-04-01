@@ -113,6 +113,10 @@ class WorkflowService {
     return run;
   }
 
+  async deleteByTaskId(taskId: number): Promise<void> {
+    await this.workflowRunRepo.deleteByTaskId(taskId);
+  }
+
   async _loadTemplate(templateId: string): Promise<WorkflowTemplateEntity> {
     const template = await this.workflowTemplateService.getTemplateById(templateId);
     if (!template) {

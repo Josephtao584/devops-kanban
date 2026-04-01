@@ -44,6 +44,13 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     return await this.findLatestByTaskId(taskId);
   }
 
+  async deleteByTaskId(taskId: number): Promise<void> {
+    await this.client.execute({
+      sql: 'DELETE FROM workflow_runs WHERE task_id = ?',
+      args: [taskId],
+    });
+  }
+
   async findAllByTaskId(taskId: number): Promise<WorkflowRunEntity[]> {
     const result = await this.client.execute({
       sql: 'SELECT * FROM workflow_runs WHERE task_id = ?',

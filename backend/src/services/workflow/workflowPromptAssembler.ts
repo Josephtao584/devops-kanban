@@ -59,9 +59,14 @@ function assembleWorkflowPrompt({
 }) {
   const upstreamSummaries = extractUpstreamSummaries(inputData, upstreamStepIds);
   const agentIdentitySection = formatAgentIdentitySection(agent);
-  const summaryInstruction = agent
+
+  // When step's instructionPrompt already contains summary format instructions,
+  // skip the generic summary instruction to avoid conflicts
+  const hasCustomSummaryInstruction = /summary\s*(必须|需要|要求|只|格式|包含)/.test(step.instructionPrompt);
+  const defaultSummaryInstruction = agent
     ? '总结中说明本步骤做了什么、是否修改了文件、主要结果、代理角色是否匹配，以及在不匹配时说明偏差或风险。'
     : '总结中说明本步骤做了什么、是否修改了文件、以及主要结果。';
+  const summaryInstruction = hasCustomSummaryInstruction ? '' : defaultSummaryInstruction;
 
   return [
     `当前步骤：${step.name}`,
