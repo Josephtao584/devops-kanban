@@ -8,6 +8,7 @@ import { getDbClient } from './client.js';
  */
 export async function initDatabase(): Promise<void> {
   const client = getDbClient();
+  await client.execute('PRAGMA busy_timeout = 5000');
 
   // Read schema.sql file
   const schemaPath = join(import.meta.dirname, 'schema.sql');
