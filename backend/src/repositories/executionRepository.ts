@@ -3,27 +3,32 @@ import type { ExecutionEntity } from '../types/entities.js';
 
 class ExecutionRepository extends BaseRepository<ExecutionEntity> {
   constructor() {
-    super('executions.json');
+    super('executions');
   }
 
   async getBySession(sessionId: number): Promise<ExecutionEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.session_id === sessionId);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM executions WHERE session_id = ?',
+      args: [sessionId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async getByTask(taskId: number): Promise<ExecutionEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.task_id === taskId);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM executions WHERE task_id = ?',
+      args: [taskId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async getLatestBySession(sessionId: number): Promise<ExecutionEntity | null> {
-    const executions = await this.getBySession(sessionId);
-    if (!executions.length) {
-      return null;
-    }
-    return executions.reduce((latest, current) =>
-      current.created_at > latest.created_at ? current : latest,
-    );
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM executions WHERE session_id = ? ORDER BY created_at DESC LIMIT 1',
+      args: [sessionId],
+    });
+    if (result.rows.length === 0) return null;
+    return this.parseRow(result.rows[0] as Record<string, unknown>);
   }
 }
 

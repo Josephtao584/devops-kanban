@@ -1,149 +1,147 @@
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-import { STORAGE_PATH } from '../config/index.js';
+import { getDbClient } from '../db/client.js';
+import type { Client, InValue } from '@libsql/client';
 
+/**
+ * Base entity interface that all entities must extend.
+ */
 interface BaseEntity {
   id: number;
   created_at: string;
   updated_at: string;
 }
 
+/**
+ * Base repository class that provides CRUD operations over database tables.
+ * Replaces the previous JSON file-based implementation with LibSQL database.
+ */
 class BaseRepository<T extends BaseEntity> {
-  fileName: string;
-  filepath: string;
-  initializationPromise: Promise<void>;
+  tableName: string;
+  protected client: Client;
 
-  // Global write queue shared by all repository instances to prevent concurrent file corruption
-  private static globalWriteQueue: Promise<void> = Promise.resolve();
-
-  constructor(fileName: string, { storagePath = STORAGE_PATH as string }: { storagePath?: string } = {}) {
-    this.fileName = fileName;
-    this.filepath = path.join(storagePath, fileName);
-    this.initializationPromise = this._ensureFileExists();
-  }
-
-  async _ensureFileExists() {
-    await fs.mkdir(path.dirname(this.filepath), { recursive: true });
-    try {
-      await fs.writeFile(this.filepath, '[]', { encoding: 'utf-8', flag: 'wx' });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        throw error;
-      }
-    }
-  }
-
-  async _loadAll(): Promise<T[]> {
-    return await this._serializeMutation(async () => {
-      await this.initializationPromise;
-      try {
-        const data = await fs.readFile(this.filepath, 'utf-8');
-        try {
-          return JSON.parse(data) as T[];
-        } catch (parseError) {
-          console.error(`[BaseRepo._loadAll] JSON parse error for ${this.fileName}:`, parseError);
-          console.error(`[BaseRepo._loadAll] File content:`);
-          console.error(data);
-          return [];
-        }
-      } catch (readError) {
-        console.error(`[BaseRepo._loadAll] ERROR reading ${this.fileName}:`, readError);
-        return [];
-      }
-    });
-  }
-
-  async _saveAll(data: T[]) {
-    await this._serializeMutation(async () => {
-      await this.initializationPromise;
-      await fs.mkdir(path.dirname(this.filepath), { recursive: true });
-      await fs.writeFile(this.filepath, JSON.stringify(data, null, 2), 'utf-8');
-    });
-  }
-
-  _getNextId(data: T[]) {
-    if (!data.length) {
-      return 1;
-    }
-    return Math.max(...data.map((item) => Number(item.id) || 0)) + 1;
+  constructor(tableName: string) {
+    this.tableName = tableName;
+    this.client = getDbClient();
   }
 
   /**
-   * Serialize a mutation operation through the global write queue.
-   * This ensures all write operations across all repositories are sequential,
-   * preventing JSON file corruption from concurrent writes.
+   * Parse a database row into an entity.
+   * Override this method in subclasses to handle JSON fields.
    */
-  protected async _serializeMutation<R>(mutation: () => Promise<R>): Promise<R> {
-    const pendingMutation = BaseRepository.globalWriteQueue.then(async () => {
-      return await mutation();
-    });
-    BaseRepository.globalWriteQueue = pendingMutation.then(() => undefined, () => undefined);
-    return await pendingMutation;
+  protected parseRow(row: Record<string, unknown>): T {
+    return row as T;
   }
 
+  /**
+   * Serialize an entity for database insertion/update.
+   * Override this method in subclasses to handle JSON fields.
+   */
+  protected serializeRow(entity: Partial<T>): Record<string, unknown> {
+    return { ...entity } as Record<string, unknown>;
+  }
+
+  /**
+   * Get the column names for this table (excluding auto-managed fields).
+   * Override in subclasses if needed.
+   */
+  protected getColumnNames(): string[] {
+    return [];
+  }
+
+  /**
+   * Retrieve all records from the table.
+   */
   async findAll(): Promise<T[]> {
-    return await this._loadAll();
+    const result = await this.client.execute(`SELECT * FROM ${this.tableName}`);
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
+  /**
+   * Find a record by its ID.
+   */
   async findById(entityId: number): Promise<T | null> {
-    const data = await this._loadAll();
-    return data.find((item) => Number(item.id) === entityId) || null;
+    const result = await this.client.execute({
+      sql: `SELECT * FROM ${this.tableName} WHERE id = ?`,
+      args: [entityId],
+    });
+    if (result.rows.length === 0) return null;
+    return this.parseRow(result.rows[0] as Record<string, unknown>);
   }
 
-  async create(entityData: Omit<T, keyof BaseEntity>): Promise<T> {
-    const data = await this._loadAll();
-    const newId = this._getNextId(data);
+  /**
+   * Create a new record.
+   */
+  async create(entityData: Omit<T, 'id' | 'created_at' | 'updated_at'>): Promise<T> {
     const now = new Date().toISOString();
+    const data = this.serializeRow(entityData as Partial<T>);
 
-    const entity = {
-      ...entityData,
-      id: newId,
-      created_at: now,
-      updated_at: now,
-    } as T;
-
-    data.push(entity);
-    await this._saveAll(data);
-    return entity;
-  }
-
-  async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
-    const data = await this._loadAll();
-    const index = data.findIndex((item) => Number(item.id) === entityId);
-
-    if (index === -1) {
-      return null;
-    }
-
-    // Filter out id and undefined values from update data to prevent type coercion issues
-    const definedEntries = Object.entries(entityData).filter(
-      ([key, value]) => key !== 'id' && value !== undefined
+    // Filter out undefined values
+    const definedEntries = Object.entries(data).filter(
+      ([, value]) => value !== undefined
     );
-    const updateData = {
-      ...Object.fromEntries(definedEntries),
-      updated_at: new Date().toISOString(),
-    };
+    const columns = definedEntries.map(([key]) => key);
+    const values = definedEntries.map(([, value]) => value);
+    const placeholders = columns.map(() => '?').join(', ');
 
-    data[index] = { ...data[index], ...updateData } as T;
-    await this._saveAll(data);
-    return data[index];
-  }
+    const sql = `INSERT INTO ${this.tableName} (${columns.join(', ')}, created_at, updated_at) VALUES (${placeholders}, ?, ?)`;
+    const result = await this.client.execute({
+      sql,
+      args: [...values as InValue[], now, now],
+    });
 
-  async delete(entityId: number): Promise<boolean> {
-    const data = await this._loadAll();
-    const initialLength = data.length;
-    const filtered = data.filter((item) => Number(item.id) !== entityId);
-
-    if (filtered.length < initialLength) {
-      await this._saveAll(filtered);
-      return true;
+    // Fetch the created record to get all fields with correct defaults
+    const created = await this.findById(Number(result.lastInsertRowid));
+    if (!created) {
+      throw new Error(`Failed to fetch created record with id ${result.lastInsertRowid}`);
     }
-    return false;
+    return created;
   }
 
+  /**
+   * Update an existing record.
+   */
+  async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
+    const existing = await this.findById(entityId);
+    if (!existing) return null;
+
+    const now = new Date().toISOString();
+    const data = this.serializeRow(entityData as Partial<T>);
+
+    // Filter out id, undefined values, and auto-managed fields
+    const definedEntries = Object.entries(data).filter(
+      ([key, value]) => key !== 'id' && key !== 'created_at' && key !== 'updated_at' && value !== undefined
+    );
+
+    if (definedEntries.length === 0) return existing;
+
+    const setClauses = definedEntries.map(([key]) => `${key} = ?`);
+    const values = definedEntries.map(([, value]) => value);
+
+    const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')}, updated_at = ? WHERE id = ?`;
+    await this.client.execute({
+      sql,
+      args: [...values as InValue[], now, entityId],
+    });
+
+    return { ...existing, ...Object.fromEntries(definedEntries), updated_at: now } as T;
+  }
+
+  /**
+   * Delete a record by its ID.
+   */
+  async delete(entityId: number): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `DELETE FROM ${this.tableName} WHERE id = ?`,
+      args: [entityId],
+    });
+    return result.rowsAffected > 0;
+  }
+
+  /**
+   * Count all records in the table.
+   */
   async count(): Promise<number> {
-    const data = await this._loadAll();
-    return data.length;
+    const result = await this.client.execute(`SELECT COUNT(*) as count FROM ${this.tableName}`);
+    return Number(result.rows[0]?.count ?? 0);
   }
 }
 
