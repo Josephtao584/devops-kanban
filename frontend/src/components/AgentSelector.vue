@@ -48,7 +48,7 @@
           :disabled="!selectedAgentId || starting"
           @click="confirmSelect"
         >
-          {{ starting ? $t('agent.startingSession', '启动中...') : $t('agent.startSession') }}
+          {{ starting ? $t('common.loading') : $t('common.confirm') }}
         </el-button>
       </div>
     </template>

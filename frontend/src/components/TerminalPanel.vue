@@ -80,7 +80,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { ArrowUp, ArrowDown, Close, VideoPause } from '@element-plus/icons-vue'
-import { sendSessionInput, stopSession, getSessionOutput } from '../api/session'
+import { getSessionOutput } from '../api/session'
 import wsService from '../services/websocket'
 
 const props = defineProps({

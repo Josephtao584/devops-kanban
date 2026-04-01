@@ -17,23 +17,9 @@ export function useSessionManager() {
     }
   }
 
-  async function createSession(taskId, agentId) {
-    if (!agentId) {
-      return null
-    }
-
-    if (session.value) {
-      return session.value
-    }
-
-    try {
-      const newSession = await sessionStore.createSession(taskId, agentId)
-      session.value = newSession
-      return session.value
-    } catch (e) {
-      toast.error(e.message || 'Failed to create session')
-      return null
-    }
+  async function createSession() {
+    toast.error('Sessions are created by the workflow when a task starts')
+    return null
   }
 
   async function deleteSession() {
