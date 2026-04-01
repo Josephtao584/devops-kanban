@@ -53,12 +53,12 @@
         </router-link>
 
         <router-link to="/workflow-template" class="nav-item" :title="$t('nav.workflowTemplate')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="5" cy="6" r="2"></circle>
-            <circle cx="19" cy="6" r="2"></circle>
-            <circle cx="12" cy="18" r="2"></circle>
-            <path d="M7 6h10"></path>
-            <path d="M7 8v4l5-4 5 4v-4"></path>
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(-90deg)">
+            <circle cx="4" cy="4" r="2"></circle>
+            <circle cx="20" cy="4" r="2"></circle>
+            <circle cx="4" cy="20" r="2"></circle>
+            <circle cx="20" cy="20" r="2"></circle>
+            <polyline points="4 6 4 4 20 4 20 20 4 20 4 18"></polyline>
           </svg>
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.workflowTemplate') }}</span>
         </router-link>
