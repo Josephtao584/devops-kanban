@@ -25,7 +25,7 @@ vi.mock('vuedraggable', () => ({
     emits: ['end', 'update:modelValue'],
     setup(props, { slots }) {
       return () => {
-        const items = props.list || props.modelValue || []
+        const items = props.list?.length ? props.list : (props.modelValue || [])
         return h('div', { class: 'draggable-stub' }, items.map((element, index) =>
           slots.item ? slots.item({ element, index }) : null
         ))

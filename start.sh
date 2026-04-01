@@ -113,7 +113,7 @@ if [ ! -d "node_modules" ]; then
     npm install --loglevel=verbose --no-audit
 fi
 pkill -f "vite" 2>/dev/null || true
-FRONTEND_LOG="/tmp/kanban-frontend.log"
+FRONTEND_LOG="${KANBAN_LOG_DIR:-/tmp}/kanban-frontend.log"
 npm run dev > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
@@ -140,7 +140,7 @@ if [ ! -d "node_modules" ]; then
 fi
 pkill -f "tsx watch src/main.ts" 2>/dev/null || true
 pkill -f "node dist/src/main.js" 2>/dev/null || true
-npm run dev > /tmp/kanban-backend.log 2>&1 &
+npm run dev > "${KANBAN_LOG_DIR:-/tmp}/kanban-backend.log" 2>&1 &
 BACKEND_PID=$!
 
 echo -e "${YELLOW}等待后端服务启动...${NC}"
