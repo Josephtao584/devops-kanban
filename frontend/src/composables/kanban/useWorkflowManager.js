@@ -1,5 +1,4 @@
 import { ref } from 'vue'
-import { useSessionManager } from '../useSessionManager'
 
 /**
  * Composable for managing workflow state and interactions
@@ -14,10 +13,6 @@ export function useWorkflowManager({
   const selectedNode = ref(null)
   const showNodeDialog = ref(false)
   const workflowVersion = ref(0)
-
-  // Session manager
-  const { setSession } = useSessionManager()
-
 
   /**
    * Handle node selection
@@ -60,15 +55,6 @@ export function useWorkflowManager({
   }
 
   /**
-   * Handle session created event from WorkflowNodeCard
-   */
-  async function onNodeSessionCreated({ node, session }) {
-    if (session) {
-      setSession(session)
-    }
-  }
-
-  /**
    * Start workflow for selected task
    */
   async function onStartWorkflow() {
@@ -88,7 +74,6 @@ export function useWorkflowManager({
     onNodeViewDetails,
     handleButlerControl,
     handleViewWorkflow,
-    onNodeSessionCreated,
     onStartWorkflow
   }
 }
