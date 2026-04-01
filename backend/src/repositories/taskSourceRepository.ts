@@ -10,6 +10,7 @@ class TaskSourceRepository extends BaseRepository<TaskSourceEntity> {
     return {
       ...row,
       config: row.config ? JSON.parse(row.config as string) : {},
+      enabled: !!row.enabled,
     } as TaskSourceEntity;
   }
 
