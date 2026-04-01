@@ -87,28 +87,11 @@ else
 fi
 
 DATA_DIR="$PROJECT_ROOT/data"
-DATA_SAMPLE_DIR="$PROJECT_ROOT/data-sample"
 if [ ! -d "$DATA_DIR" ]; then
-    if [ -d "$DATA_SAMPLE_DIR" ]; then
-        echo -e "${YELLOW}初始化后端数据：将 data-sample 复制到 data...${NC}"
-        cp -R "$DATA_SAMPLE_DIR" "$DATA_DIR"
-        echo -e "${GREEN}✓ 已初始化 data 目录${NC}"
-    else
-        echo -e "${YELLOW}未找到 data-sample，已创建空 data 目录...${NC}"
-        mkdir -p "$DATA_DIR"
-        echo -e "${GREEN}✓ 已创建 data 目录${NC}"
-    fi
+    echo -e "${YELLOW}首次运行，创建 data 目录...${NC}"
+    mkdir -p "$DATA_DIR"
+    echo -e "${GREEN}✓ 已创建 data 目录，后端启动时将自动初始化数据库和种子数据${NC}"
 fi
-
-for file in projects.json tasks.json agents.json sessions.json executions.json task_sources.json skills.json; do
-    if [ ! -f "$DATA_DIR/$file" ]; then
-        printf '[]' > "$DATA_DIR/$file"
-    fi
-done
-if [ ! -d "$DATA_DIR/skills" ]; then
-    mkdir -p "$DATA_DIR/skills"
-fi
-
 echo -e "${GREEN}✓ 数据目录已就绪${NC}"
 
 echo ""
