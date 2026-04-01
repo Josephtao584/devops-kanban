@@ -707,7 +707,6 @@ const {
   onNodeViewDetails,
   handleButlerControl,
   handleViewWorkflow,
-  onNodeSessionCreated,
   onStartWorkflow
 } = useWorkflowManager({
   selectedTask,
