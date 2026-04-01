@@ -129,8 +129,6 @@
               <label>{{ $t('agent.agentType') }}</label>
               <select v-model="form.executorType" data-testid="agent-executor-type-select" required>
                 <option value="CLAUDE_CODE">{{ $t('agent.types.CLAUDE_CODE') }}</option>
-                <option value="CODEX">{{ $t('agent.types.CODEX') }}</option>
-                <option value="OPENCODE">{{ $t('agent.types.OPENCODE') }}</option>
               </select>
             </div>
 

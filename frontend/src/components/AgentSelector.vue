@@ -63,8 +63,6 @@ import {
   Loading,
   Check,
   Monitor,
-  Cpu,
-  Connection,
   User
 } from '@element-plus/icons-vue'
 import { getAgents } from '../api/agent'
@@ -142,8 +140,6 @@ const loadAgents = async () => {
 const getAgentIcon = (executorType) => {
   const icons = {
     CLAUDE_CODE: Monitor,
-    CODEX: Cpu,
-    OPENCODE: Connection,
     DEFAULT: User
   }
   return icons[executorType] || icons.DEFAULT

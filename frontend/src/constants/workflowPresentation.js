@@ -1,8 +1,5 @@
 export const agentConfig = {
-  CLAUDE: { color: '#25C6C9', icon: 'Monitor', name: 'Claude' },
-  CODEX: { color: '#25C6C9', icon: 'VideoPlay', name: 'Codex' },
-  CURSOR: { color: '#EAB445', icon: 'Edit', name: 'Cursor' },
-  GEMINI: { color: '#25C6C9', icon: 'Cpu', name: 'Gemini' }
+  CLAUDE: { color: '#25C6C9', icon: 'Monitor', name: 'Claude' }
 }
 
 export const roleConfig = {
