@@ -33,7 +33,7 @@ interface ExecuteWorkflowStepInput {
 }
 
 function isExecutorType(value: unknown): value is ExecutorType {
-  return value === 'CLAUDE_CODE' || value === 'CODEX' || value === 'OPENCODE';
+  return value === 'CLAUDE_CODE';
 }
 
 function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {

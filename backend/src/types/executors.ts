@@ -1,4 +1,4 @@
-export type ExecutorType = 'CLAUDE_CODE' | 'CODEX' | 'OPENCODE';
+export type ExecutorType = 'CLAUDE_CODE';
 
 export interface ExecutorConfig {
   type: ExecutorType;

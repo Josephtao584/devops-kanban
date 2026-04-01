@@ -1,4 +1,4 @@
-export type AgentExecutorType = 'CLAUDE_CODE' | 'CODEX' | 'OPENCODE';
+export type AgentExecutorType = 'CLAUDE_CODE';
 
 export interface CreateAgentBody {
   name: string;

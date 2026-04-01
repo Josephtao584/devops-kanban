@@ -16,15 +16,8 @@ async function prepareExecutionSkills({ executorType, skillNames, executionPath 
     return;
   }
 
-  switch (executorType) {
-    case 'CLAUDE_CODE':
-      await prepareClaudeCodeSkills(skillNames, executionPath);
-      return;
-    case 'CODEX':
-    case 'OPENCODE':
-      return;
-    default:
-      return;
+  if (executorType === 'CLAUDE_CODE') {
+    await prepareClaudeCodeSkills(skillNames, executionPath);
   }
 }
 
