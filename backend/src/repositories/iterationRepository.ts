@@ -3,12 +3,15 @@ import type { IterationEntity } from '../types/entities.ts';
 
 class IterationRepository extends BaseRepository<IterationEntity> {
   constructor() {
-    super('iterations.json');
+    super('iterations');
   }
 
   async findByProject(projectId: number): Promise<IterationEntity[]> {
-    const data = await this._loadAll();
-    return data.filter((item) => item.project_id === projectId);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM iterations WHERE project_id = ?',
+      args: [projectId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async exists(iterationId: number): Promise<boolean> {
@@ -17,11 +20,11 @@ class IterationRepository extends BaseRepository<IterationEntity> {
   }
 
   async deleteByProject(projectId: number): Promise<number> {
-    const data = await this._loadAll();
-    const initialLength = data.length;
-    const filtered = data.filter((item) => item.project_id !== projectId);
-    await this._saveAll(filtered);
-    return initialLength - filtered.length;
+    const result = await this.client.execute({
+      sql: 'DELETE FROM iterations WHERE project_id = ?',
+      args: [projectId],
+    });
+    return result.rowsAffected;
   }
 }
 

@@ -3,7 +3,7 @@ import type { SkillEntity } from '../types/entities.js';
 
 class SkillRepository extends BaseRepository<SkillEntity> {
   constructor() {
-    super('skills.json');
+    super('skills');
   }
 }
 

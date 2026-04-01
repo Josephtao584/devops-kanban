@@ -1,65 +1,81 @@
 import { BaseRepository } from './base.js';
+import type { InValue } from '@libsql/client';
 import type { SessionSegmentEntity } from '../types/entities.ts';
 
 type CreateSessionSegmentRecord = Omit<SessionSegmentEntity, 'id' | 'segment_index' | 'created_at' | 'updated_at'>;
 
-const sessionSegmentWriteQueues = new Map<string, Promise<void>>();
-
 class SessionSegmentRepository extends BaseRepository<SessionSegmentEntity> {
   constructor() {
-    super('session_segments.json');
+    super('session_segments');
   }
 
-  private async queueMutation<T>(operation: () => Promise<T>): Promise<T> {
-    const previous = sessionSegmentWriteQueues.get(this.filepath) ?? Promise.resolve();
-    const next = previous.catch(() => undefined).then(operation);
-    sessionSegmentWriteQueues.set(this.filepath, next.then(() => undefined, () => undefined));
-    return await next;
+  protected override parseRow(row: Record<string, unknown>): SessionSegmentEntity {
+    return {
+      ...row,
+      metadata: row.metadata ? JSON.parse(row.metadata as string) : undefined,
+    } as SessionSegmentEntity;
+  }
+
+  protected override serializeRow(entity: Partial<SessionSegmentEntity>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...entity };
+    if (entity.metadata !== undefined) {
+      result.metadata = JSON.stringify(entity.metadata);
+    }
+    return result;
   }
 
   async findBySessionId(sessionId: number): Promise<SessionSegmentEntity[]> {
-    const data = await this._loadAll();
-    return data
-      .filter((item) => item.session_id === sessionId)
-      .sort((left, right) => left.segment_index - right.segment_index || left.id - right.id);
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM session_segments WHERE session_id = ? ORDER BY segment_index, id',
+      args: [sessionId],
+    });
+    return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
   async findLatestBySessionId(sessionId: number): Promise<SessionSegmentEntity | null> {
-    const segments = await this.findBySessionId(sessionId);
-    const latestSegment = segments[segments.length - 1];
-    return latestSegment ?? null;
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM session_segments WHERE session_id = ? ORDER BY segment_index DESC LIMIT 1',
+      args: [sessionId],
+    });
+    if (result.rows.length === 0) return null;
+    return this.parseRow(result.rows[0] as Record<string, unknown>);
   }
 
   override async create(segment: CreateSessionSegmentRecord): Promise<SessionSegmentEntity> {
-    return await this.queueMutation(async () => {
-      const data = await this._loadAll();
-      const newId = this._getNextId(data);
-      const nextSegmentIndex = data.reduce(
-        (maxIndex, item) => (item.session_id === segment.session_id ? Math.max(maxIndex, item.segment_index) : maxIndex),
-        0,
-      ) + 1;
+    const txn = await this.client.transaction('write');
+    try {
+      // Get max segment_index in transaction
+      const maxResult = await txn.execute({
+        sql: 'SELECT MAX(segment_index) as max_index FROM session_segments WHERE session_id = ?',
+        args: [segment.session_id],
+      });
+      const nextSegmentIndex = (Number(maxResult.rows[0]?.max_index) || 0) + 1;
       const now = new Date().toISOString();
 
-      const entity: SessionSegmentEntity = {
-        ...segment,
-        id: newId,
-        segment_index: nextSegmentIndex,
-        created_at: now,
-        updated_at: now,
-      };
+      // Insert with computed segment_index
+      const serialized = this.serializeRow(segment as Partial<SessionSegmentEntity>);
+      const columns = Object.keys(serialized);
+      const values = Object.values(serialized);
 
-      data.push(entity);
-      await this._saveAll(data);
-      return entity;
-    });
-  }
+      const insertResult = await txn.execute({
+        sql: `INSERT INTO session_segments (${columns.join(', ')}, segment_index, created_at, updated_at) VALUES (${columns.map(() => '?').join(', ')}, ?, ?, ?)`,
+        args: [...values as InValue[], nextSegmentIndex, now, now],
+      });
 
-  override async update(segmentId: number, update: Partial<Omit<SessionSegmentEntity, 'id' | 'session_id' | 'segment_index' | 'created_at' | 'updated_at'>>): Promise<SessionSegmentEntity | null> {
-    return await this.queueMutation(async () => await super.update(segmentId, update));
-  }
+      await txn.commit();
 
-  override async delete(segmentId: number): Promise<boolean> {
-    return await this.queueMutation(async () => await super.delete(segmentId));
+      // Fetch the created record
+      const created = await this.findById(Number(insertResult.lastInsertRowid));
+      if (!created) {
+        throw new Error('Failed to fetch created session segment');
+      }
+      return created;
+    } catch (error) {
+      await txn.rollback();
+      throw error;
+    } finally {
+      txn.close();
+    }
   }
 }
 

@@ -3,7 +3,22 @@ import type { AgentEntity } from '../types/entities.js';
 
 class AgentRepository extends BaseRepository<AgentEntity> {
   constructor() {
-    super('agents.json');
+    super('agents');
+  }
+
+  protected override parseRow(row: Record<string, unknown>): AgentEntity {
+    return {
+      ...row,
+      skills: row.skills ? JSON.parse(row.skills as string) : [],
+    } as AgentEntity;
+  }
+
+  protected override serializeRow(entity: Partial<AgentEntity>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...entity };
+    if (entity.skills !== undefined) {
+      result.skills = JSON.stringify(entity.skills);
+    }
+    return result;
   }
 }
 
