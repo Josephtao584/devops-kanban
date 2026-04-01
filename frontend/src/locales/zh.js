@@ -332,13 +332,7 @@ export default {
     loadFailed: '加载成员失败',
     startSession: '开始会话',
     types: {
-      CLAUDE: 'Claude Code',
-      CLAUDE_CODE: 'Claude Code',
-      CODEX: 'OpenAI Codex',
-      OPENCODE: 'OpenCode',
-      CURSOR: 'Cursor',
-      GEMINI: 'Gemini',
-      CUSTOM: '自定义'
+      CLAUDE_CODE: 'Claude Code'
     },
     commandHint: '使用 {prompt} 作为任务提示的占位符',
     skills: '技能',

@@ -76,6 +76,9 @@ vi.mock('vue-router', () => ({
     params: {
       projectId: '1'
     }
+  }),
+  useRouter: () => ({
+    replace: vi.fn()
   })
 }))
 
@@ -427,13 +430,15 @@ describe('KanbanView workflow start entrypoint', () => {
             id: 'triage',
             name: '问题定位',
             instructionPrompt: '先确认问题范围，并记录复现条件。',
-            agentId: 11
+            agentId: 11,
+            requiresConfirmation: false
           },
           {
             id: 'fix',
             name: '实施修复',
             instructionPrompt: '完成最小修复。',
-            agentId: 12
+            agentId: 12,
+            requiresConfirmation: false
           }
         ]
       }
@@ -482,13 +487,15 @@ describe('KanbanView workflow start entrypoint', () => {
             id: 'triage',
             name: '问题定位',
             instructionPrompt: '先确认问题范围，并记录复现条件。',
-            agentId: 11
+            agentId: 11,
+            requiresConfirmation: false
           },
           {
             id: 'fix',
             name: '实施修复',
             instructionPrompt: '完成最小修复。',
-            agentId: 12
+            agentId: 12,
+            requiresConfirmation: false
           }
         ]
       }

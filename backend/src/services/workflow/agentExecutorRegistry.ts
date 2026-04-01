@@ -1,6 +1,4 @@
 import { ClaudeCodeExecutor } from './executors/claudeCodeExecutor.js';
-import { CodexExecutor } from './executors/codexExecutor.js';
-import { OpenCodeExecutor } from './executors/opencodeExecutor.js';
 import type { Executor, ExecutorMap, ExecutorType } from '../../types/executors.js';
 
 class AgentExecutorRegistry {
@@ -9,8 +7,6 @@ class AgentExecutorRegistry {
   constructor({ executors }: { executors?: ExecutorMap } = {}) {
     this.executors = executors || {
       CLAUDE_CODE: new ClaudeCodeExecutor(),
-      CODEX: new CodexExecutor(),
-      OPENCODE: new OpenCodeExecutor(),
     };
   }
 

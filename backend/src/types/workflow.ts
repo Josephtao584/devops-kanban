@@ -32,7 +32,7 @@ export interface WorkflowAgentRecord {
   skills: string[];
 }
 
-export const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE', 'CODEX', 'OPENCODE'];
+export const SUPPORTED_EXECUTOR_TYPES: ExecutorType[] = ['CLAUDE_CODE'];
 
 export function isSupportedExecutorType(value: unknown): value is ExecutorType {
   return typeof value === 'string' && SUPPORTED_EXECUTOR_TYPES.includes(value as ExecutorType);
