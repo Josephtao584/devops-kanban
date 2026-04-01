@@ -124,6 +124,12 @@
             >
               {{ workflowStatusText }}
             </span>
+            <span v-if="workflowStartTime" class="workflow-time">
+              开始: {{ workflowStartTime }}
+            </span>
+            <span v-if="workflowEndTime" class="workflow-time">
+              结束: {{ workflowEndTime }}
+            </span>
           </div>
           <InlineWorkflowPanel
             v-if="workflowData"
@@ -575,6 +581,42 @@ const workflowStatusText = computed(() => {
   return textMap[workflowStatus.value] || '待启动'
 })
 
+const formatDateTime = (isoString) => {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+const workflowStartTime = computed(() => {
+  const steps = realWorkflowRun.value?.steps
+  if (!steps || steps.length === 0) return null
+  // Find the earliest started_at across all steps
+  const startTimes = steps
+    .map(s => s.started_at)
+    .filter(t => t)
+    .map(t => new Date(t).getTime())
+  if (startTimes.length === 0) return null
+  return formatDateTime(new Date(Math.min(...startTimes)).toISOString())
+})
+
+const workflowEndTime = computed(() => {
+  const steps = realWorkflowRun.value?.steps
+  if (!steps || steps.length === 0) return null
+  // Find the latest completed_at across all steps
+  const endTimes = steps
+    .map(s => s.completed_at)
+    .filter(t => t)
+    .map(t => new Date(t).getTime())
+  if (endTimes.length === 0) return null
+  return formatDateTime(new Date(Math.max(...endTimes)).toISOString())
+})
+
 // Handle node click
 const handleNodeClick = (node) => {
   emit('workflow-action', { action: 'node-click', node, task: props.task })
@@ -993,6 +1035,20 @@ const openWorktreeDirectory = () => {
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workflow-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.workflow-time-end {
+  background: #ecfdf5;
+  color: #059669;
 }
 
 .workflow-panel-title {
