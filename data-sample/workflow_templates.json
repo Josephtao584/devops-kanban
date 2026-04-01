@@ -184,5 +184,53 @@
     ],
     "created_at": "2026-03-30T00:00:00.000Z",
     "updated_at": "2026-03-31T01:05:14.558Z"
+  },
+  {
+    "id": 5,
+    "template_id": "frontend-dev-v1",
+    "name": "前端开发：通用功能交付",
+    "steps": [
+      {
+        "id": "frontend-requirement-and-prototype",
+        "name": "需求分析与原型绘制",
+        "instructionPrompt": "理解原始需求，产出可预览的页面原型。交付物：1）需求分析写入 docs/workflow/01-requirement-analysis.md，含交互流程、页面状态矩阵、边界场景和非目标；2）用项目现有 UI 框架搭建页面原型到源码目录，模拟数据填充，覆盖正常态、空状态、加载态、错误态。不实现真实业务逻辑，不引入新依赖。summary 只引用文件路径，不重复内容。",
+        "agentId": 3,
+        "requiresConfirmation": true
+      },
+      {
+        "id": "frontend-solution-design",
+        "name": "方案设计",
+        "instructionPrompt": "基于上游原型和需求分析，输出可执行的前端技术方案。交付物写入 docs/workflow/02-solution-design.md，含组件结构、状态管理、接口依赖、实施顺序、回退策略和验收标准。不写实现代码，不遗漏空状态和错误态。summary 只引用文件路径。",
+        "agentId": 1
+      },
+      {
+        "id": "frontend-test-design",
+        "name": "测试先行设计",
+        "requiresConfirmation": true,
+        "instructionPrompt": "基于原型和方案，先定义失败测试和页面走查清单。交付物：1）测试用例写入 docs/workflow/03-test-cases.md，含编号、名称、类型、步骤、预期结果和优先级；2）自动化测试代码写在项目测试目录。覆盖核心路径、边界和异常场景。summary 只引用文件路径。",
+        "agentId": 4
+      },
+      {
+        "id": "frontend-implementation",
+        "name": "前端功能实现",
+        "instructionPrompt": "基于方案和测试清单，将原型转化为完整功能实现。交付物：1）实现说明写入 docs/workflow/04-implementation-notes.md，含修改文件清单、新增组件、接口变更和关键决策；2）功能代码写在源码目录。替换模拟数据为真实接口，实现完整业务逻辑和异常处理，不扩展需求，不混入无关重构。summary 只引用文件路径。",
+        "agentId": 3
+      },
+      {
+        "id": "frontend-test-execution",
+        "name": "测试执行与结果记录",
+        "instructionPrompt": "按测试清单逐条执行，记录每条用例结果。交付物写入 docs/workflow/05-test-report.md，含逐条结果表（编号、名称、预期、实际、通过/失败）、失败原因分析、未执行项说明、汇总统计（通过/失败/未执行数）。不跳过用例，不把未执行标为通过。summary 只引用文件路径和汇总数字。",
+        "agentId": 4
+      },
+      {
+        "id": "frontend-delivery-review",
+        "name": "交付评审",
+        "instructionPrompt": "综合各阶段交付物和测试结果，判断是否具备交付条件。交付物写入 docs/workflow/06-delivery-review.md，含交付物完整性检查、验收达成情况、测试关键发现、阻塞问题与风险、最终结论。不只复述上游 summary，不隐藏失败风险，给出明确结论。summary 只引用文件路径和评审结论。",
+        "agentId": 1,
+        "requiresConfirmation": true
+      }
+    ],
+    "created_at": "2026-04-01T00:00:00.000Z",
+    "updated_at": "2026-04-01T00:00:00.000Z"
   }
 ]

@@ -9,7 +9,8 @@ import {
   deleteWorkflowTemplate,
   getWorkflowTemplateById,
   getWorkflowTemplates,
-  updateWorkflowTemplate
+  updateWorkflowTemplate,
+  reorderWorkflowTemplates
 } from '../src/api/workflowTemplate'
 import { getAgents } from '../src/api/agent'
 
@@ -18,12 +19,13 @@ vi.mock('vuedraggable', () => ({
     name: 'DraggableStub',
     props: {
       list: { type: Array, default: () => [] },
+      modelValue: { type: Array, default: () => [] },
       itemKey: { type: String, default: 'id' }
     },
     emits: ['end', 'update:modelValue'],
     setup(props, { slots }) {
       return () => {
-        const items = props.list || []
+        const items = props.list || props.modelValue || []
         return h('div', { class: 'draggable-stub' }, items.map((element, index) =>
           slots.item ? slots.item({ element, index }) : null
         ))
@@ -37,7 +39,8 @@ vi.mock('../src/api/workflowTemplate', () => ({
   deleteWorkflowTemplate: vi.fn(),
   getWorkflowTemplateById: vi.fn(),
   getWorkflowTemplates: vi.fn(),
-  updateWorkflowTemplate: vi.fn()
+  updateWorkflowTemplate: vi.fn(),
+  reorderWorkflowTemplates: vi.fn()
 }))
 
 vi.mock('../src/api/agent', () => ({
@@ -1079,6 +1082,59 @@ describe('WorkflowTemplateConfig', () => {
       expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('通用复杂任务工作流 (副本)')
       expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="template-item-workflow-v1"]').exists()).toBe(true)
+    })
+  })
+
+  describe('template list reorder', () => {
+    it('calls reorderWorkflowTemplates when template is dragged to a new position', async () => {
+      reorderWorkflowTemplates.mockResolvedValue({ success: true, data: [] })
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      const templateItems = wrapper.findAll('[data-testid^="template-item-"]')
+      expect(templateItems).toHaveLength(2)
+
+      // Simulate reorder: move customTemplate (index 1) to index 0
+      const templates = wrapper.vm.templates
+      const [moved] = templates.splice(1, 1)
+      templates.splice(0, 0, moved)
+
+      await wrapper.vm.onTemplateDragEnd({ oldIndex: 1, newIndex: 0 })
+      await flushPromises()
+
+      expect(reorderWorkflowTemplates).toHaveBeenCalledTimes(1)
+      const calledWith = reorderWorkflowTemplates.mock.calls[0][0]
+      expect(calledWith).toHaveLength(2)
+      expect(calledWith[0].template_id).toBe('release-workflow-v1')
+      expect(calledWith[1].template_id).toBe('workflow-v1')
+    })
+
+    it('skips API call when drag does not change position', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.vm.onTemplateDragEnd({ oldIndex: 0, newIndex: 0 })
+      await flushPromises()
+
+      expect(reorderWorkflowTemplates).not.toHaveBeenCalled()
+    })
+
+    it('reloads template list when reorder API fails', async () => {
+      reorderWorkflowTemplates.mockRejectedValue(new Error('Network error'))
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      const templates = wrapper.vm.templates
+      const [moved] = templates.splice(1, 1)
+      templates.splice(0, 0, moved)
+
+      await wrapper.vm.onTemplateDragEnd({ oldIndex: 1, newIndex: 0 })
+      await flushPromises()
+
+      // Should have called getWorkflowTemplates again to reload
+      expect(getWorkflowTemplates).toHaveBeenCalledTimes(2)
     })
   })
 })

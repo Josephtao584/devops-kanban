@@ -18,3 +18,7 @@ export interface UpdateWorkflowTemplateInput {
   name: string;
   steps: WorkflowTemplateStepInput[];
 }
+
+export interface ReorderWorkflowTemplatesInput {
+  updates: Array<{ id: number; order: number }>;
+}

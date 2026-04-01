@@ -39,29 +39,38 @@
           </div>
 
           <div v-else class="template-list">
-            <button
-              v-for="item in templates"
-              :key="item.template_id"
-              :data-testid="`template-item-${item.template_id}`"
-              type="button"
-              class="template-list-item"
-              :class="{ 'is-active': item.template_id === selectedTemplateId }"
-              @click="selectTemplate(item.template_id)"
+            <draggable
+              v-model="templates"
+              item-key="template_id"
+              class="template-draggable-list"
+              :animation="200"
+              ghost-class="template-ghost"
+              @end="onTemplateDragEnd"
             >
-              <span class="template-list-item__name">{{ item.name }}</span>
-              <span
-                v-if="!item.isDraft"
-                class="template-list-item__copy"
-                :data-testid="`copy-template-${item.template_id}`"
-                role="button"
-                tabindex="0"
-                :aria-label="$t('workflowTemplate.copyTemplate')"
-                @click.stop="handleCopyTemplate(item)"
-                @keydown.enter.stop="handleCopyTemplate(item)"
-              >
-                <el-icon :size="14"><CopyDocument /></el-icon>
-              </span>
-            </button>
+              <template #item="{ element: item }">
+                <button
+                  :data-testid="`template-item-${item.template_id}`"
+                  type="button"
+                  class="template-list-item"
+                  :class="{ 'is-active': item.template_id === selectedTemplateId }"
+                  @click="selectTemplate(item.template_id)"
+                >
+                  <span class="template-list-item__name">{{ item.name }}</span>
+                  <span
+                    v-if="!item.isDraft"
+                    class="template-list-item__copy"
+                    :data-testid="`copy-template-${item.template_id}`"
+                    role="button"
+                    tabindex="0"
+                    :aria-label="$t('workflowTemplate.copyTemplate')"
+                    @click.stop="handleCopyTemplate(item)"
+                    @keydown.enter.stop="handleCopyTemplate(item)"
+                  >
+                    <el-icon :size="14"><CopyDocument /></el-icon>
+                  </span>
+                </button>
+              </template>
+            </draggable>
           </div>
         </template>
       </el-card>
@@ -299,7 +308,8 @@ import {
   deleteWorkflowTemplate,
   getWorkflowTemplateById,
   getWorkflowTemplates,
-  updateWorkflowTemplate
+  updateWorkflowTemplate,
+  reorderWorkflowTemplates
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
 import { useSkillStore } from '../stores/skillStore'
@@ -508,6 +518,18 @@ const onStepDragEnd = (evt) => {
     selectedStepIndex.value -= 1
   } else if (oldIndex > selectedStepIndex.value && newIndex <= selectedStepIndex.value) {
     selectedStepIndex.value += 1
+  }
+}
+
+const onTemplateDragEnd = async (evt) => {
+  const { oldIndex, newIndex } = evt
+  if (oldIndex === newIndex) return
+
+  try {
+    await reorderWorkflowTemplates(templates.value)
+  } catch (error) {
+    ElMessage.error(t('workflowTemplate.reorderFailed'))
+    await loadTemplateList(selectedTemplateId.value)
   }
 }
 
@@ -1121,6 +1143,20 @@ onMounted(() => {
   opacity: 0.4;
   background: rgba(37, 198, 201, 0.08);
   border: 1px dashed var(--accent-color);
+}
+
+.template-draggable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+
+.template-ghost {
+  opacity: 0.4;
+  background: rgba(37, 198, 201, 0.08);
+  border: 1px dashed var(--accent-color) !important;
 }
 
 .workflow-connector--insert {
