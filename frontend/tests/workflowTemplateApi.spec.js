@@ -142,4 +142,43 @@ describe('workflow template api helpers', () => {
       }
     ])
   })
+
+  it('sends reorder request with filtered non-draft templates', async () => {
+    expect(typeof workflowTemplateApi.reorderWorkflowTemplates).toBe('function')
+
+    const seen = []
+    const interceptor = api.interceptors.request.use((config) => {
+      seen.push({
+        url: config.url,
+        method: config.method,
+        data: config.data
+      })
+      return Promise.reject(new Error('stop request'))
+    })
+
+    const templates = [
+      { id: 1, template_id: 'workflow-v1', name: 'Default' },
+      { id: 2, template_id: 'release-v1', name: 'Release' },
+      { isDraft: true, template_id: 'draft-1', name: 'Draft' }
+    ]
+
+    try {
+      await expect(workflowTemplateApi.reorderWorkflowTemplates(templates)).rejects.toThrow('stop request')
+    } finally {
+      api.interceptors.request.eject(interceptor)
+    }
+
+    expect(seen).toEqual([
+      {
+        url: '/workflow-template/reorder',
+        method: 'put',
+        data: {
+          updates: [
+            { id: 1, order: 0 },
+            { id: 2, order: 1 }
+          ]
+        }
+      }
+    ])
+  })
 })

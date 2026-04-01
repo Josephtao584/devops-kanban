@@ -254,6 +254,7 @@ export default {
     name: '模板名称',
     createTemplate: '新建模板',
     copyTemplate: '复制模板',
+    reorderFailed: '模板排序失败',
     newTemplateDefaultName: '新建模版',
     defaultTemplateHint: '默认模板可编辑，但不能删除。',
     stepName: '步骤名称',

@@ -91,7 +91,10 @@ class WorkflowTemplateService {
   }
 
   async getTemplates(): Promise<WorkflowTemplateEntity[]> {
-    return await this.workflowTemplateRepo.findAll();
+    const templates = await this.workflowTemplateRepo.findAll();
+    return templates
+      .map((t, index) => ({ ...t, order: t.order ?? index }))
+      .sort((a, b) => a.order - b.order);
   }
 
   async getTemplateById(templateId: string): Promise<WorkflowTemplateEntity | null> {
@@ -133,6 +136,19 @@ class WorkflowTemplateService {
     }
 
     await this.workflowTemplateRepo.delete(existing.id);
+  }
+
+  async reorderTemplates(updates: Array<{ id: number; order: number }>): Promise<WorkflowTemplateEntity[]> {
+    const results: WorkflowTemplateEntity[] = [];
+    for (const update of updates) {
+      if (update.id != null && update.order !== undefined) {
+        const updated = await this.workflowTemplateRepo.update(update.id, { order: update.order });
+        if (updated) {
+          results.push(updated);
+        }
+      }
+    }
+    return results;
   }
 }
 
