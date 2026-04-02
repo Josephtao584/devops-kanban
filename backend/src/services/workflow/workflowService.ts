@@ -294,16 +294,35 @@ class WorkflowService {
     }
   }
 
+
+  _normalizeRunState(run: any) {
+    if (!run) {
+      return run;
+    }
+
+    const hasSuspendedStep = Array.isArray(run.steps) && run.steps.some((step: any) => step.status === 'SUSPENDED');
+    if (run.status === 'SUSPENDED' && !hasSuspendedStep) {
+      return {
+        ...run,
+        status: 'RUNNING',
+      };
+    }
+
+    return run;
+  }
+
+
   async getWorkflowRun(runId: number) {
-    return await this.workflowRunRepo.findById(runId);
+    return this._normalizeRunState(await this.workflowRunRepo.findById(runId));
   }
 
   async getWorkflowRunByTask(taskId: number) {
-    return await this.workflowRunRepo.findByTaskId(taskId);
+    return this._normalizeRunState(await this.workflowRunRepo.findByTaskId(taskId));
   }
 
   async getAllRunsByTask(taskId: number) {
-    return await this.workflowRunRepo.findAllByTaskId(taskId);
+    const runs = await this.workflowRunRepo.findAllByTaskId(taskId);
+    return runs.map((run) => this._normalizeRunState(run));
   }
 
   async cancelWorkflow(runId: number) {

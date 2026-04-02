@@ -5,6 +5,16 @@ type WorkflowAgent = {
   skills: number[];
 };
 
+const MAX_UPSTREAM_SUMMARY_LENGTH = 1200;
+
+function normalizeSummaryText(summary: string) {
+  const collapsed = summary.replace(/```[\s\S]*?```/g, '[code block omitted]').replace(/\n{3,}/g, '\n\n').trim();
+  if (collapsed.length <= MAX_UPSTREAM_SUMMARY_LENGTH) {
+    return collapsed;
+  }
+  return `${collapsed.slice(0, MAX_UPSTREAM_SUMMARY_LENGTH).trim()}\n...[truncated]`;
+}
+
 function extractUpstreamSummaries(inputData: Record<string, unknown> = {}, upstreamStepIds: string[] = []) {
   if (!Array.isArray(upstreamStepIds) || upstreamStepIds.length === 0) {
     return [] as Array<{ stepId: string; summary: string }>;
@@ -12,7 +22,7 @@ function extractUpstreamSummaries(inputData: Record<string, unknown> = {}, upstr
 
   const directSummary = inputData.summary;
   if (upstreamStepIds.length === 1 && typeof directSummary === 'string' && directSummary.trim()) {
-    return [{ stepId: upstreamStepIds[0]!, summary: directSummary.trim() }];
+    return [{ stepId: upstreamStepIds[0]!, summary: normalizeSummaryText(directSummary.trim()) }];
   }
 
   return upstreamStepIds
@@ -22,7 +32,7 @@ function extractUpstreamSummaries(inputData: Record<string, unknown> = {}, upstr
       if (typeof summary !== 'string' || !summary.trim()) {
         return null;
       }
-      return { stepId, summary: summary.trim() };
+      return { stepId, summary: normalizeSummaryText(summary.trim()) };
     })
     .filter((item): item is { stepId: string; summary: string } => item !== null);
 }
