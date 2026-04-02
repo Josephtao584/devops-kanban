@@ -19,6 +19,7 @@ import {
   workflowRoutes,
   workflowTemplateRoutes,
   gitRoutes,
+  mcpServerRoutes,
 } from './routes/index.js';
 
 export async function buildApp() {
@@ -66,6 +67,7 @@ export async function buildApp() {
         executions: '/api/executions',
         agents: '/api/agents',
         skills: '/api/skills',
+        mcpServers: '/api/mcp-servers',
         workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',
@@ -86,6 +88,7 @@ export async function buildApp() {
   fastify.register(iterationRoutes, { prefix: '/api/iterations' });
   fastify.register(gitRoutes, { prefix: '/api/git' });
   fastify.register(skillRoutes, { prefix: '/api/skills' });
+  fastify.register(mcpServerRoutes, { prefix: '/api/mcp-servers' });
 
   return fastify;
 }

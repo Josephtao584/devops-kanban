@@ -3,6 +3,7 @@ export type ExecutorType = 'CLAUDE_CODE';
 export interface ExecutorConfig {
   type: ExecutorType;
   skills?: number[];
+  mcpServers?: number[];
 }
 
 export interface ExecutorProcessHandle {

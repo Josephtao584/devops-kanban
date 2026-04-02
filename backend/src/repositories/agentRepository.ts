@@ -10,6 +10,7 @@ class AgentRepository extends BaseRepository<AgentEntity> {
     return {
       ...row,
       skills: row.skills ? JSON.parse(row.skills as string) : [],
+      mcpServers: row.mcp_servers ? JSON.parse(row.mcp_servers as string) : [],
       enabled: Boolean(row.enabled),
     } as AgentEntity;
   }
@@ -18,6 +19,9 @@ class AgentRepository extends BaseRepository<AgentEntity> {
     const result: Record<string, unknown> = { ...entity };
     if (entity.skills !== undefined) {
       result.skills = JSON.stringify(entity.skills);
+    }
+    if (entity.mcpServers !== undefined) {
+      result.mcp_servers = JSON.stringify(entity.mcpServers);
     }
     return result;
   }

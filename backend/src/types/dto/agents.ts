@@ -7,6 +7,7 @@ export interface CreateAgentBody {
   description?: string;
   enabled: boolean;
   skills: number[];
+  mcpServers: number[];
 }
 
 export interface UpdateAgentBody {
@@ -16,4 +17,5 @@ export interface UpdateAgentBody {
   description?: string;
   enabled?: boolean;
   skills?: number[];
+  mcpServers?: number[];
 }
