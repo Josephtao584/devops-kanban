@@ -117,7 +117,7 @@
                   :props="treeProps"
                   node-key="id"
                   :expand-on-click-node="false"
-                  :default-expand-all="true"
+                  :default-expand-all="false"
                   highlight-current
                   @node-click="handleTreeNodeClick"
                 >
