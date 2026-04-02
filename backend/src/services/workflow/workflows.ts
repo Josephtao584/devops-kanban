@@ -131,7 +131,8 @@ export function buildWorkflowFromTemplate(
         const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
         if (!sessionInfo) {
           console.log(`[Workflow] Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
-          return abort();
+          abort();
+          return { summary: '' };
         }
 
         sessionId = sessionInfo.sessionId;
