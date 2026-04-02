@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:clean": "tsx scripts/db-reset.ts --clean-only",
-    "db:seed": "tsx scripts/db-reset.ts --seed-only"
+    "db:seed": "tsx scripts/db-reset.ts --seed-only",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:migrate:check": "tsx scripts/db-migrate.ts --check"
   },
   "keywords": [
     "kanban",
