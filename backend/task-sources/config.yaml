@@ -64,8 +64,8 @@ adapterTypes:
       rejectUnauthorized:
         type: boolean
         required: false
-        description: "是否拒绝自签名证书（默认 true，设为 false 以接受自签名证书）"
-        default: true
+        description: "是否拒绝自签名证书（默认 false，接受自签名证书）"
+        default: false
 
   - key: CODEHUB
     name: CodeHub Issues
@@ -84,6 +84,11 @@ adapterTypes:
         required: false
         description: "CodeHub API base URL"
         default: "https://git.com/api/v4"
+      rejectUnauthorized:
+        type: boolean
+        required: false
+        description: "是否拒绝自签名证书（默认 false，接受自签名证书）"
+        default: false
     request:
       baseUrl: "{baseUrl}"
       path: "/projects/{project_id}/issues"
@@ -130,6 +135,11 @@ adapterTypes:
         type: array
         required: false
         description: "按标签筛选"
+      rejectUnauthorized:
+        type: boolean
+        required: false
+        description: "是否拒绝自签名证书（默认 false，接受自签名证书）"
+        default: false
     request:
       baseUrl: "https://api.github.com"
       path: "/repos/{repo}/issues"

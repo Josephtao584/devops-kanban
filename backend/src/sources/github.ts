@@ -44,6 +44,11 @@ class GitHubAdapter extends TaskSourceAdapter {
         required: false,
         description: 'Filter by labels',
       },
+      rejectUnauthorized: {
+        type: 'boolean',
+        required: false,
+        description: '是否拒绝自签名证书（默认 false，接受自签名证书）',
+      },
     },
   };
 
@@ -52,6 +57,7 @@ class GitHubAdapter extends TaskSourceAdapter {
   token: string | undefined;
   labels: string[] | undefined;
   state: string;
+  rejectUnauthorized: boolean;
 
   constructor(source: TaskSourceLike) {
     super(source);
@@ -61,6 +67,7 @@ class GitHubAdapter extends TaskSourceAdapter {
     this.token = typeof config.token === 'string' ? config.token : undefined;
     this.state = typeof config.state === 'string' ? config.state : 'open';
     this.labels = Array.isArray(config.labels) ? config.labels.filter((label): label is string => typeof label === 'string') : undefined;
+    this.rejectUnauthorized = config.rejectUnauthorized !== false;
   }
 
   _normalizeRepo(repo: unknown): string {
@@ -93,14 +100,16 @@ class GitHubAdapter extends TaskSourceAdapter {
         url.searchParams.set('labels', this.labels.join(','));
       }
 
-      const options = {
+      const options: Record<string, unknown> = {
         hostname: url.hostname,
         path: url.pathname + url.search,
         headers: this._getHeaders(),
         method: 'GET',
+        rejectUnauthorized: this.rejectUnauthorized,
       };
 
-      const req = httpsRequest(options, (res: IncomingMessage) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const req = (httpsRequest as any)(options, (res: IncomingMessage) => {
         let data = '';
 
         res.on('data', (chunk: Buffer | string) => {
