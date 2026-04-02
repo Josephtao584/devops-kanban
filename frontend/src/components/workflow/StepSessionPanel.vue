@@ -30,7 +30,7 @@
     <div v-else class="panel-events-wrapper">
       <div ref="eventsContainer" class="panel-events panel-events--chat">
         <SessionEventRenderer
-          v-for="event in events"
+          v-for="event in displayedEvents"
           :key="event.id ?? event.seq"
           :event="event"
         />
@@ -43,6 +43,14 @@
             </svg>
           </span>
           <span class="check-label">自动滚动</span>
+        </label>
+        <label class="auto-scroll-check" @click.prevent="hideToolMessages = !hideToolMessages">
+          <span class="check-box" :class="{ checked: hideToolMessages }">
+            <svg v-if="hideToolMessages" width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5l2.5 2.5L8 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="check-label">隐藏工具消息</span>
         </label>
       </div>
     </div>
@@ -94,6 +102,12 @@ const isSending = ref(false)
 const sessionStatus = ref('')
 const eventsContainer = ref(null)
 const autoScrollEnabled = ref(true)
+const hideToolMessages = ref(false)
+
+const displayedEvents = computed(() => {
+  if (!hideToolMessages.value) return events.value
+  return events.value.filter(e => e.kind !== 'tool_call' && e.kind !== 'tool_result')
+})
 
 const canInput = computed(() => SESSION_INPUT_STATUSES.includes(sessionStatus.value))
 const isBusy = computed(() => SESSION_BUSY_STATUSES.includes(sessionStatus.value))
@@ -418,6 +432,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-end;
   padding: 6px 4px 0;
+  gap: 12px;
 }
 
 .auto-scroll-check {

@@ -307,6 +307,66 @@ describe('StepSessionPanel', () => {
     expect(wrapper.find('.panel-events--chat').exists()).toBe(true)
   })
 
+  it('hides tool messages when the hide-tool checkbox is checked', async () => {
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 4, hasMore: false })
+    eventsRef.value = [
+      { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} },
+      { id: 2, seq: 2, kind: 'tool_call', role: 'tool', content: 'call', payload: {} },
+      { id: 3, seq: 3, kind: 'tool_result', role: 'tool', content: 'result', payload: {} },
+      { id: 4, seq: 4, kind: 'message', role: 'assistant', content: 'done', payload: {} }
+    ]
+
+    const wrapper = mount(StepSessionPanel, {
+      props: { sessionId: 102, stepName: '代码开发' },
+      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(4)
+
+    const labels = wrapper.findAll('.auto-scroll-check')
+    const hideToolLabel = labels.find(l => l.text().includes('隐藏工具消息'))
+    expect(hideToolLabel).toBeTruthy()
+    const hideToolCheck = hideToolLabel.find('.check-box')
+    expect(hideToolCheck.classes()).not.toContain('checked')
+
+    await hideToolLabel.trigger('click')
+    await flushPromises()
+
+    expect(hideToolCheck.classes()).toContain('checked')
+    const remaining = wrapper.findAll('.session-event-renderer-stub')
+    expect(remaining).toHaveLength(2)
+    expect(remaining.map(e => e.attributes('data-kind'))).toEqual(['message', 'message'])
+  })
+
+  it('restores tool messages when the hide-tool checkbox is unchecked', async () => {
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 3, hasMore: false })
+    eventsRef.value = [
+      { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hi', payload: {} },
+      { id: 2, seq: 2, kind: 'tool_call', role: 'tool', content: 'call', payload: {} },
+      { id: 3, seq: 3, kind: 'tool_result', role: 'tool', content: 'result', payload: {} }
+    ]
+
+    const wrapper = mount(StepSessionPanel, {
+      props: { sessionId: 102, stepName: '代码开发' },
+      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
+    })
+
+    await flushPromises()
+
+    const labels = wrapper.findAll('.auto-scroll-check')
+    const hideToolLabel = labels.find(l => l.text().includes('隐藏工具消息'))
+
+    await hideToolLabel.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
+
+    await hideToolLabel.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(3)
+  })
+
   it('keeps metadata subordinate to the conversation title', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
