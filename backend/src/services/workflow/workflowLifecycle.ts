@@ -4,6 +4,7 @@ import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SessionRepository } from '../../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepository.js';
 import { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
+import { WorkflowInstanceRepository } from '../../repositories/workflowInstanceRepository.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
 
@@ -14,6 +15,7 @@ class WorkflowLifecycle {
   sessionRepo: SessionRepository;
   sessionSegmentRepo: SessionSegmentRepository;
   sessionEventRepo: SessionEventRepository;
+  instanceRepo: WorkflowInstanceRepository;
   _stepAttemptSegmentIds: Map<string, number | null>;
 
   constructor({
@@ -23,6 +25,7 @@ class WorkflowLifecycle {
     sessionRepo,
     sessionSegmentRepo,
     sessionEventRepo,
+    instanceRepo,
   }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
@@ -30,6 +33,7 @@ class WorkflowLifecycle {
     sessionRepo?: SessionRepository;
     sessionSegmentRepo?: SessionSegmentRepository;
     sessionEventRepo?: SessionEventRepository;
+    instanceRepo?: WorkflowInstanceRepository;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
     this.taskRepo = taskRepo || new TaskRepository();
@@ -37,6 +41,7 @@ class WorkflowLifecycle {
     this.sessionRepo = sessionRepo || new SessionRepository();
     this.sessionSegmentRepo = sessionSegmentRepo || new SessionSegmentRepository();
     this.sessionEventRepo = sessionEventRepo || new SessionEventRepository();
+    this.instanceRepo = instanceRepo || new WorkflowInstanceRepository();
     this._stepAttemptSegmentIds = new Map();
   }
 
@@ -76,11 +81,11 @@ class WorkflowLifecycle {
       throw new Error(`Workflow run not found: ${runId}`);
     }
 
-    const template = run.workflow_template_snapshot;
-    if (!template) {
-      throw new Error(`Workflow template not found for run: ${runId}`);
+    const instance = await this.instanceRepo.findByInstanceId(run.workflow_instance_id);
+    if (!instance) {
+      throw new Error(`Workflow instance not found for run: ${runId}`);
     }
-    const stepBinding = template.steps.find((candidate) => candidate.id === stepId) || null;
+    const stepBinding = instance.steps.find((candidate) => candidate.id === stepId) || null;
     if (!stepBinding) {
       throw new Error(`Workflow template step not found: ${stepId}`);
     }

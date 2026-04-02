@@ -5,7 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep } from './workflowStepExecutor.js';
-import type { WorkflowTemplateEntity } from '../../types/entities.js';
+import type { WorkflowInstanceEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
 
 const sharedStateSchema = z.object({
@@ -78,14 +78,14 @@ export function hasWorkflow(workflowId: string): boolean {
   }
 }
 
-export function buildWorkflowFromTemplate(
-  workflowTemplate: WorkflowTemplateEntity,
+export function buildWorkflowFromInstance(
+  workflowInstance: WorkflowInstanceEntity,
   options: BuildWorkflowOptions,
 ) {
 
-  const steps = workflowTemplate.steps.map((templateStep, index) => {
+  const steps = workflowInstance.steps.map((templateStep, index) => {
     const isFirst = index === 0;
-    const previousStepId = index > 0 ? workflowTemplate.steps[index - 1]?.id : null;
+    const previousStepId = index > 0 ? workflowInstance.steps[index - 1]?.id : null;
     const requiresConfirmation = templateStep.requiresConfirmation ?? false;
 
     return createStep({
@@ -144,7 +144,7 @@ export function buildWorkflowFromTemplate(
             worktreePath: state.worktreePath,
             state,
             inputData,
-            workflowTemplate,
+            workflowInstance,
             abortSignal,
             upstreamStepIds: previousStepId ? [previousStepId] : [],
             onEvent: async (event) => {
@@ -202,7 +202,7 @@ export function buildWorkflowFromTemplate(
   });
 
   let workflow = createWorkflow({
-    id: workflowTemplate.template_id,
+    id: workflowInstance.instance_id,
     inputSchema: firstStepInputSchema,
     outputSchema: stepOutputSchema,
     stateSchema: sharedStateSchema,

@@ -16,6 +16,7 @@ const TABLES_IN_ORDER = [
   'sessions',
   'executions',
   'workflow_runs',
+  'workflow_instances',
   'tasks',
   'task_sources',
   'iterations',
@@ -40,8 +41,8 @@ export async function resetDatabase(options: ResetOptions = {}): Promise<void> {
   if (dryRun) {
     console.log('[DRY RUN] Database reset operations:');
     if (!seedOnly) {
-      console.log('  - Truncate all tables');
-      console.log('  - Reset AUTOINCREMENT counters');
+      console.log('  - Drop all tables');
+      console.log('  - Recreate tables with fresh schema');
     }
     if (!cleanOnly) {
       console.log('  - Insert seed data');
@@ -49,37 +50,23 @@ export async function resetDatabase(options: ResetOptions = {}): Promise<void> {
     return;
   }
 
-  // Step 1: Ensure tables exist (must happen before cleaning data)
-  await initDatabase();
-
-  // Step 2: Clean data (always clean before seeding to avoid UNIQUE constraint errors)
-  if (!seedOnly) {
-    console.log('Cleaning database...');
-  } else {
-    console.log('Cleaning existing data before seeding...');
-  }
-
-  // Disable foreign key checks during cleanup (existing databases may have FK constraints)
+  // Disable foreign key checks during reset
   await client.execute('PRAGMA foreign_keys = OFF');
 
-  const deleteStatements = TABLES_IN_ORDER.map(
-    table => `DELETE FROM ${table}`
-  );
+  // Step 1: Drop all existing tables (ensures fresh schema)
+  if (!seedOnly) {
+    console.log('Dropping all tables...');
+    const dropStatements = TABLES_IN_ORDER.map(
+      table => `DROP TABLE IF EXISTS ${table}`
+    );
+    await client.batch(dropStatements.map(sql => ({ sql })), 'write');
+    console.log('Tables dropped.');
+  }
 
-  // Add statements to reset auto-increment IDs
-  const resetStatements = TABLES_IN_ORDER.map(
-    table => `DELETE FROM sqlite_sequence WHERE name = '${table}'`
-  );
-
-  await client.batch([
-    ...deleteStatements.map(sql => ({ sql })),
-    ...resetStatements.map(sql => ({ sql })),
-  ], 'write');
-
-  // Re-enable foreign key checks (though new schema has no FKs)
-  await client.execute('PRAGMA foreign_keys = ON');
-
-  console.log('Database cleaned.');
+  // Step 2: Recreate tables with fresh schema
+  console.log('Creating tables...');
+  await initDatabase();
+  console.log('Tables created.');
 
   // Step 3: Insert seed data (unless --clean-only)
   if (!cleanOnly) {
@@ -88,11 +75,15 @@ export async function resetDatabase(options: ResetOptions = {}): Promise<void> {
     console.log('Sample data inserted.');
   }
 
+  // Re-enable foreign key checks
+  await client.execute('PRAGMA foreign_keys = ON');
+
   console.log('Database reset completed.');
 }
 
 /**
  * Truncate all tables without seeding.
+ * Drops and recreates all tables.
  */
 export async function truncateDatabase(): Promise<void> {
   await resetDatabase({ cleanOnly: true });
@@ -129,15 +120,15 @@ async function main() {
 Usage: npm run db:reset [options]
 
 Options:
-  --clean-only   Only clean data, don't seed
-  --seed-only    Only seed data, don't clean
+  --clean-only   Drop and recreate tables without seeding
+  --seed-only    Only seed data, don't drop tables
   --dry-run      Show what would be done without executing
   --help, -h     Show this help message
 
 Examples:
-  npm run db:reset              # Full reset: clean + seed
-  npm run db:reset -- --clean-only  # Only clean data
-  npm run db:reset -- --seed-only   # Only seed data
+  npm run db:reset              # Full reset: drop tables + recreate + seed
+  npm run db:reset -- --clean-only  # Drop tables and recreate (no seed data)
+  npm run db:reset -- --seed-only   # Only seed data (keep existing tables)
   npm run db:reset -- --dry-run     # Preview operations
 `);
     process.exit(0);

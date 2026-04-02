@@ -110,8 +110,7 @@ export interface WorkflowTemplateStepEntity {
 export interface WorkflowRunEntity {
   id: number;
   task_id: number;
-  workflow_template_id: string;
-  workflow_template_snapshot: WorkflowTemplateEntity;
+  workflow_instance_id: string;
   mastra_run_id: string | null;
   status: string;
   current_step: string | null;
@@ -119,6 +118,17 @@ export interface WorkflowRunEntity {
   worktree_path: string;
   branch: string;
   context: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowInstanceEntity {
+  id: number;
+  instance_id: string;
+  template_id: string;
+  template_version: string;
+  name: string;
+  steps: WorkflowTemplateStepEntity[];
   created_at: string;
   updated_at: string;
 }

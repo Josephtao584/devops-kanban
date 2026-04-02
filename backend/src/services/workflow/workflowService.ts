@@ -3,11 +3,11 @@ import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
-import { WorkflowTemplateService } from './workflowTemplateService.js';
+import { WorkflowInstanceService } from '../workflowInstanceService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
-import { buildWorkflowFromTemplate, getMastra, getWorkflowFromWorkflowId } from './workflows.js';
+import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
 import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
-import { WorkflowStepEntity, WorkflowTemplateEntity } from '../../types/entities.js';
+import { WorkflowInstanceEntity } from '../../types/entities.js';
 import { resolveWorkflowSkills } from './workflowSkillSync.js';
 import { prepareExecutionSkills } from './executorSkillPreparation.js';
 
@@ -17,8 +17,8 @@ function createValidationError(message: string) {
 }
 
 
-function toStepState(template: WorkflowTemplateEntity) {
-  return template.steps.map((step) => ({
+function toStepState(instance: WorkflowInstanceEntity) {
+  return instance.steps.map((step) => ({
     step_id: step.id,
     name: step.name,
     status: 'PENDING',
@@ -32,37 +32,33 @@ function toStepState(template: WorkflowTemplateEntity) {
 }
 
 type StartWorkflowOptions = {
-  workflowTemplateId?: string | undefined;
-  workflowTemplateSnapshot?: WorkflowTemplateEntity | undefined;
+  workflowTemplateId: string;
 };
 
 class WorkflowService {
   workflowRunRepo: WorkflowRunRepository;
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
-  workflowTemplateService: WorkflowTemplateService;
+  instanceService: WorkflowInstanceService;
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
 
-  async _resetTaskToTodo(taskId: number) {
+  private async resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, workflowTemplateService, agentRepo, lifecycle }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, agentRepo, lifecycle }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
-    workflowTemplateService?: WorkflowTemplateService;
+    instanceService?: WorkflowInstanceService;
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
-    resolveWorkflowSkillsFn?: typeof resolveWorkflowSkills;
-    prepareExecutionSkillsFn?: typeof prepareExecutionSkills;
-    workflowBuilder?: typeof buildWorkflowFromTemplate;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
-    this.workflowTemplateService = workflowTemplateService || new WorkflowTemplateService();
+    this.instanceService = instanceService || new WorkflowInstanceService();
     this.agentRepo = agentRepo || new AgentRepository();
     this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo, taskRepo: this.taskRepo });
   }
@@ -75,7 +71,7 @@ class WorkflowService {
       throw error;
     }
 
-    const executionPath = await this._resolveExecutionPath(task);
+    const executionPath = await this.resolveExecutionPath(task);
     const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING' || existing.status === 'SUSPENDED')) {
       const error: any = new Error('Task already has an active workflow run');
@@ -83,31 +79,28 @@ class WorkflowService {
       throw error;
     }
 
-    const workflowTemplateId = options.workflowTemplateId;
-    const workflowTemplateSnapshot = options.workflowTemplateSnapshot;
-
-    if (!workflowTemplateSnapshot && !workflowTemplateId?.trim()) {
-      throw createValidationError('workflow template id or snapshot is required');
+    if (!options.workflowTemplateId?.trim()) {
+      throw createValidationError('workflow template id is required');
     }
 
-    const template = workflowTemplateSnapshot ?? await this._loadTemplate(workflowTemplateId ?? '');
-    await this._validateTemplateAgents(template);
+    // Create WorkflowInstance (immutable snapshot)
+    const instance = await this.instanceService.createFromTemplate(options.workflowTemplateId);
+    await this.validateInstanceAgents(instance);
 
     const run = await this.workflowRunRepo.create({
       task_id: taskId,
-      workflow_template_id: workflowTemplateId?.trim() || template.template_id,
-      workflow_template_snapshot: template,
+      workflow_instance_id: instance.instance_id,
       mastra_run_id: null,
       status: 'PENDING',
       current_step: null,
-      steps: toStepState(template),
+      steps: toStepState(instance),
       worktree_path: executionPath,
       branch: task.worktree_branch || `task/${taskId}`,
       context: {},
     });
 
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
-    this._executeWorkflow(run.id, { ...task, execution_path: executionPath }, template).catch((err) => {
+    this.executeWorkflow(run.id, { ...task, execution_path: executionPath }, instance).catch((err) => {
       console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
     });
 
@@ -118,16 +111,8 @@ class WorkflowService {
     await this.workflowRunRepo.deleteByTaskId(taskId);
   }
 
-  async _loadTemplate(templateId: string): Promise<WorkflowTemplateEntity> {
-    const template = await this.workflowTemplateService.getTemplateById(templateId);
-    if (!template) {
-      throw createValidationError(`Workflow template not found: ${templateId}`);
-    }
-    return template;
-  }
-
-  async _validateTemplateAgents(template: WorkflowTemplateEntity) {
-    for (const step of template.steps) {
+  private async validateInstanceAgents(instance: WorkflowInstanceEntity) {
+    for (const step of instance.steps) {
       if (!Number.isFinite(step.agentId)) {
         throw createValidationError(`Step "${step.name}" has no agent assigned`);
       }
@@ -147,7 +132,7 @@ class WorkflowService {
     }
   }
 
-  async _resolveExecutionPath(task: { id: number; project_id: number; worktree_path?: string | null }) {
+  private async resolveExecutionPath(task: { project_id: number; worktree_path?: string | null }) {
     if (task.worktree_path && existsSync(task.worktree_path)) {
       return task.worktree_path;
     }
@@ -162,95 +147,74 @@ class WorkflowService {
     throw error;
   }
 
-  _getOrRegisterWorkflow(
-    runId: number,
-    template: WorkflowTemplateEntity,
-    task: { id: number; project_id: number; execution_path: string },
-  ) {
-    const workflow = getWorkflowFromWorkflowId(template.template_id);
-    if (workflow) {
-      return workflow;
+  private async getMastraRunContext(runId: number) {
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) {
+      const error: any = new Error('Workflow run not found');
+      error.statusCode = 404;
+      throw error;
     }
 
-    return buildWorkflowFromTemplate(template, {
-      runId,
-      task,
-      lifecycle: this.lifecycle,
-    });
-  }
-
-  async _loadMastraSnapshot(workflowName: string, mastraRunId: string) {
-    const workflowsStore = await getMastra().getStorage()?.getStore('workflows');
-    return await workflowsStore?.loadWorkflowSnapshot({
-      workflowName,
-      runId: mastraRunId,
-    });
-  }
-
-  async _takeOverStaleMastraRun(
-    runId: number,
-    run: { mastra_run_id: string | null; workflow_template_snapshot: WorkflowTemplateEntity; context: Record<string, unknown> },
-  ) {
     const mastraRunId = run.mastra_run_id;
     if (!mastraRunId) {
-      return null;
+      const error: any = new Error('Mastra run ID not found');
+      error.statusCode = 400;
+      throw error;
     }
 
-    const workflowName = run.workflow_template_snapshot.template_id;
-    const workflow = getWorkflowFromWorkflowId(workflowName);
-    const inMemoryRun = workflow?.runs.get(mastraRunId);
-    const snapshot = await this._loadMastraSnapshot(workflowName, mastraRunId);
-
-    if (!snapshot || snapshot.status !== 'running' || inMemoryRun) {
-      return snapshot;
+    const task = await this.taskRepo.findById(run.task_id ?? 0);
+    if (!task) {
+      const error: any = new Error('Task not found');
+      error.statusCode = 404;
+      throw error;
     }
 
-    const workflowsStore = await getMastra().getStorage()?.getStore('workflows');
-    await workflowsStore?.persistWorkflowSnapshot({
-      workflowName,
-      runId: mastraRunId,
-      snapshot: {
-        ...snapshot,
-        status: 'failed',
-        error: snapshot.error || {
-          name: 'StaleWorkflowRunError',
-          message: 'Recovered stale running workflow after backend restart',
-        },
-      },
-    });
+    const executionPath = run.worktree_path || await this.resolveExecutionPath(task);
+    const { workflow } = await this.getOrRegisterWorkflowByInstanceId(
+      run.workflow_instance_id,
+      runId,
+      { id: task.id, project_id: task.project_id, execution_path: executionPath },
+    );
 
-    await this.workflowRunRepo.update(runId, {
-      context: {
-        ...run.context,
-        stale_mastra_run_id: mastraRunId,
-        stale_mastra_takeover_at: new Date().toISOString(),
-      },
-    });
+    const mastraRun = await workflow.createRun({ runId: mastraRunId });
 
-    return await this._loadMastraSnapshot(workflowName, mastraRunId);
+    return { run, task, executionPath, workflow, mastraRun };
   }
 
-  async _executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, workflowTemplate: WorkflowTemplateEntity) {
+  private async getOrRegisterWorkflowByInstanceId(
+    instanceId: string,
+    runId: number,
+    task: { id: number; project_id: number; execution_path: string },
+  ): Promise<any> {
+    const workflow = getWorkflowFromWorkflowId(instanceId);
+    if (workflow) {
+        console.log('Type of then:', typeof workflow.then)
+      return { workflow: workflow } as any;
+    }
+    const workflowInstance = await this.instanceService.getByInstanceId(instanceId);
+
+    if (!workflowInstance) {
+        const error: any = new Error('Workflow instance not found');
+        error.statusCode = 404;
+        throw error;
+    }
+    return { workflow: buildWorkflowFromInstance(workflowInstance, {
+        runId,
+        task,
+        lifecycle: this.lifecycle,
+    }) } as any;
+  }
+
+  private async executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, instance: WorkflowInstanceEntity) {
     try {
-      const skillNames = await resolveWorkflowSkills(workflowTemplate);
+      const skillNames = await resolveWorkflowSkills(instance);
       await prepareExecutionSkills({
         executorType: 'CLAUDE_CODE',
         skillNames,
         executionPath: task.execution_path,
       });
 
-      const existingRun = await this.workflowRunRepo.findById(runId);
-      await this.workflowRunRepo.update(runId, {
-        status: 'RUNNING',
-        context: {
-          ...(existingRun?.context || {}),
-          error: null,
-          stale_mastra_run_id: null,
-          stale_mastra_takeover_at: null,
-        },
-      });
-
-      const workflow = buildWorkflowFromTemplate(workflowTemplate, {
+      const workflow = buildWorkflowFromInstance(instance, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
         lifecycle: this.lifecycle
@@ -260,7 +224,7 @@ class WorkflowService {
       const mastraRun = await workflow.createRun();
       const mastraRunId = mastraRun.runId;
 
-      // Store the mastra_run_id for later retrieval
+      // Store the mastra_run_id and mark as running
       await this.workflowRunRepo.update(runId, { mastra_run_id: mastraRunId, status: 'RUNNING' });
       console.log(`[WorkflowService] Created Mastra run ${mastraRunId} for workflowRun ${runId}`);
 
@@ -291,39 +255,17 @@ class WorkflowService {
         context: { error: errorMessage },
         current_step: null,
       }).catch(() => {});
-      await this._resetTaskToTodo(task.id);
+      await this.resetTaskToTodo(task.id);
     }
-  }
-
-
-  _normalizeRunState(run: any) {
-    if (!run) {
-      return run;
-    }
-
-    const hasSuspendedStep = Array.isArray(run.steps) && run.steps.some((step: any) => step.status === 'SUSPENDED');
-    if (run.status === 'SUSPENDED' && !hasSuspendedStep) {
-      return {
-        ...run,
-        status: 'RUNNING',
-      };
-    }
-
-    return run;
   }
 
 
   async getWorkflowRun(runId: number) {
-    return this._normalizeRunState(await this.workflowRunRepo.findById(runId));
-  }
-
-  async getWorkflowRunByTask(taskId: number) {
-    return this._normalizeRunState(await this.workflowRunRepo.findByTaskId(taskId));
+    return this.workflowRunRepo.findById(runId);
   }
 
   async getAllRunsByTask(taskId: number) {
-    const runs = await this.workflowRunRepo.findAllByTaskId(taskId);
-    return runs.map((run) => this._normalizeRunState(run));
+    return this.workflowRunRepo.findAllByTaskId(taskId);
   }
 
   async cancelWorkflow(runId: number) {
@@ -342,41 +284,10 @@ class WorkflowService {
       throw error;
     }
 
-    const mastraRunId = run.mastra_run_id;
-    if (!mastraRunId) {
-      const error: any = new Error('Mastra run ID not found');
-      error.statusCode = 400;
-      throw error;
-    }
+    const { mastraRun } = await this.getMastraRunContext(runId);
 
-    const template = run.workflow_template_snapshot;
-    if (!template) {
-      const error: any = new Error('Workflow template snapshot not found');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const task = await this.taskRepo.findById(run.task_id ?? 0);
-    if (!task) {
-      const error: any = new Error('Task not found');
-      error.statusCode = 404;
-      throw error;
-    }
-
-    const executionPath = run.worktree_path || await this._resolveExecutionPath(task);
-    const workflow = this._getOrRegisterWorkflow(runId, template, {
-      id: task.id,
-      project_id: task.project_id,
-      execution_path: executionPath,
-    });
-
-    const mastraRun = workflow.runs.get(mastraRunId);
-    if (mastraRun) {
-      console.log(`[WorkflowService] Cancelling Mastra run ${mastraRunId}`);
-      await mastraRun.cancel();
-    } else {
-      console.log(`[WorkflowService] Mastra run ${mastraRunId} not in memory, skipping Mastra cancel`);
-    }
+    console.log(`[WorkflowService] Cancelling Mastra run ${run.mastra_run_id}`);
+    await mastraRun.cancel();
 
     // Finalize running or suspended step
     const runningStep = (run.current_step
@@ -388,7 +299,7 @@ class WorkflowService {
     }
 
     const updatedRun = await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
-    await this._resetTaskToTodo(run.task_id ?? 0);
+    await this.resetTaskToTodo(run.task_id ?? 0);
     return updatedRun;
   }
 
@@ -416,44 +327,7 @@ class WorkflowService {
       throw error;
     }
 
-    const template = run.workflow_template_snapshot;
-    if (!template) {
-      const error: any = new Error('Workflow template snapshot not found');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const mastraRunId = run.mastra_run_id;
-    if (!mastraRunId) {
-      const error: any = new Error('Mastra run ID not found');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const task = await this.taskRepo.findById(run.task_id ?? 0);
-    if (!task) {
-      const error: any = new Error('Task not found');
-      error.statusCode = 404;
-      throw error;
-    }
-
-    const executionPath = run.worktree_path || await this._resolveExecutionPath(task);
-    const workflow = this._getOrRegisterWorkflow(runId, template, {
-      id: task.id,
-      project_id: task.project_id,
-      execution_path: executionPath,
-    });
-
-    await this._takeOverStaleMastraRun(runId, run);
-    await this.workflowRunRepo.update(runId, {
-      context: {
-        ...run.context,
-        error: null,
-        stale_mastra_run_id: null,
-        stale_mastra_takeover_at: null,
-      },
-    });
-    const mastraRun = await workflow.createRun({ runId: mastraRunId });
+    const { mastraRun } = await this.getMastraRunContext(runId);
 
     await this.lifecycle.onStepResume(runId, suspendedStep.step_id, resumeData);
 
@@ -486,20 +360,6 @@ class WorkflowService {
       throw error;
     }
 
-    const mastraRunId = run.mastra_run_id;
-    if (!mastraRunId) {
-      const error: any = new Error('Mastra run ID not found');
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const template = run.workflow_template_snapshot;
-    if (!template) {
-      const error: any = new Error('Workflow template snapshot not found');
-      error.statusCode = 400;
-      throw error;
-    }
-
     // Find the step to retry from:
     // 1. The step that was running when cancelled
     // 2. Or the first failed step
@@ -517,38 +377,10 @@ class WorkflowService {
 
     console.log(`[WorkflowService] Retrying from step: ${retryStep.step_id}`);
 
-    // Get task info
-    const task = await this.taskRepo.findById(run.task_id ?? 0);
-    if (!task) {
-      const error: any = new Error('Task not found');
-      error.statusCode = 404;
-      throw error;
-    }
-
-    const executionPath = run.worktree_path || await this._resolveExecutionPath(task);
-
-    const workflow = this._getOrRegisterWorkflow(runId, template, {
-      id: task.id,
-      project_id: task.project_id,
-      execution_path: executionPath,
-    });
-
-    const persistedMastraSnapshot = await this._takeOverStaleMastraRun(runId, run);
-    const persistedMastraRun = await workflow.getWorkflowRunById(mastraRunId, { withNestedWorkflows: false });
-    if ((persistedMastraSnapshot?.status === 'running' || persistedMastraRun?.status === 'running')) {
-      const error: any = new Error('Workflow run is still running in Mastra storage and cannot be retried yet');
-      error.statusCode = 409;
-      throw error;
-    }
+    const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId);
 
     await this.workflowRunRepo.update(runId, {
-      status: 'RUNNING',
-      context: {
-        ...run.context,
-        error: null,
-        stale_mastra_run_id: null,
-        stale_mastra_takeover_at: null,
-      },
+      status: 'RUNNING'
     });
 
     await this.workflowRunRepo.updateStep(runId, retryStep.step_id, {
@@ -558,50 +390,42 @@ class WorkflowService {
       error: null,
     });
 
-    const mastraRun = await workflow.createRun({ runId: mastraRunId });
     if (!mastraRun) {
       const error: any = new Error('Mastra run instance not found');
       error.statusCode = 400;
       throw error;
     }
 
+    // Load instance for retry
+    const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
+    if (!instance) {
+      const error: any = new Error('Workflow instance not found');
+      error.statusCode = 404;
+      throw error;
+    }
+
     // Execute retry in background (non-blocking)
-    this._executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath, template, run.steps).catch((err) => {
+    this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath).catch((err) => {
       console.error(`[Workflow] Fatal error in retry run #${runId}:`, err);
     });
 
     return await this.workflowRunRepo.findById(runId);
   }
 
-  async _executeRetry(
+  private async executeRetry(
     runId: number,
     mastraRun: any,
     stepId: string,
     task: WorkflowTaskRecord,
-    executionPath: string,
-    template: WorkflowTemplateEntity,
-    steps: WorkflowStepEntity[],
+    executionPath: string
   ) {
     try {
       console.log(`[WorkflowService] Calling timeTravelStream for step: ${stepId}`);
 
       await this.lifecycle.onWorkflowStart(runId);
 
-      const stepIndex = template.steps.findIndex(candidate => candidate.id === stepId);
-      const inputData = stepIndex <= 0
-        ? {
-          taskId: task.id,
-          taskTitle: task.title || 'Untitled Task',
-          taskDescription: task.description || '',
-          worktreePath: executionPath,
-        }
-        : {
-          summary: steps[stepIndex - 1]?.summary || '',
-        };
-
       const output = mastraRun.timeTravelStream({
         step: stepId,
-        inputData,
         initialState: {
           taskTitle: task.title || 'Untitled Task',
           taskDescription: task.description || '',
@@ -617,7 +441,7 @@ class WorkflowService {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.lifecycle.onWorkflowError(runId, errorMessage).catch(() => {});
-      await this._resetTaskToTodo(task.id);
+      await this.resetTaskToTodo(task.id);
     }
   }
 }

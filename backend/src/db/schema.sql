@@ -63,12 +63,26 @@ CREATE TABLE IF NOT EXISTS workflow_templates (
 
 CREATE INDEX IF NOT EXISTS idx_workflow_templates_template_id ON workflow_templates(template_id);
 
+-- workflow_instances: 工作流实例表（不可变副本）
+CREATE TABLE IF NOT EXISTS workflow_instances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  instance_id TEXT NOT NULL UNIQUE,
+  template_id TEXT NOT NULL,
+  template_version TEXT NOT NULL,
+  name TEXT NOT NULL,
+  steps TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_instances_instance_id ON workflow_instances(instance_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_instances_template_id ON workflow_instances(template_id);
+
 -- workflow_runs: 工作流执行记录表
 CREATE TABLE IF NOT EXISTS workflow_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id INTEGER NOT NULL,
-  workflow_template_id TEXT NOT NULL,
-  workflow_template_snapshot TEXT NOT NULL DEFAULT '{}',
+  workflow_instance_id TEXT NOT NULL,
   mastra_run_id TEXT,
   status TEXT NOT NULL,
   current_step TEXT,
@@ -82,6 +96,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
 
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_task_id ON workflow_runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
+CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_instance_id ON workflow_runs(workflow_instance_id);
 
 -- tasks: 任务表
 CREATE TABLE IF NOT EXISTS tasks (

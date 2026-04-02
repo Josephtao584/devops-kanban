@@ -1,13 +1,15 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { buildWorkflowFromTemplate, initWorkflows } from '../src/services/workflow/workflows.js';
+import { buildWorkflowFromInstance, initWorkflows } from '../src/services/workflow/workflows.js';
 
-function buildTemplate(templateId: string) {
+function buildInstance(instanceId: string) {
   return {
     id: 1,
-    template_id: templateId,
-    name: 'Workflow Template',
+    instance_id: instanceId,
+    template_id: 'template-1',
+    template_version: '2026-03-22T00:00:00.000Z',
+    name: 'Workflow Instance',
     created_at: '2026-03-22T00:00:00.000Z',
     updated_at: '2026-03-22T00:00:00.000Z',
     steps: [
@@ -29,7 +31,7 @@ test.test('workflow aborts when onStepStart skips execution', async () => {
   let onWorkflowCompleteCalls = 0;
   let onWorkflowErrorCalls = 0;
 
-  const workflow = buildWorkflowFromTemplate(buildTemplate(`workflow-abort-${Date.now()}`), {
+  const workflow = buildWorkflowFromInstance(buildInstance(`workflow-abort-${Date.now()}`), {
     runId: 1,
     task: { id: 7, project_id: 3, execution_path: '/tmp/task-7' },
     lifecycle: {

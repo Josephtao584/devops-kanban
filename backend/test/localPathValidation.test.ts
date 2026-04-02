@@ -1,17 +1,17 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
 import { TaskService } from '../src/services/taskService.js';
 
 // ---------------------------------------------------------------------------
-// _resolveExecutionPath tests (WorkflowService)
+// resolveExecutionPath tests (WorkflowService)
 // ---------------------------------------------------------------------------
 
-test.describe('_resolveExecutionPath', () => {
+test.describe('resolveExecutionPath', () => {
   test.test('returns task worktree_path when path exists on disk', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wfe-test-'));
     try {
@@ -21,7 +21,7 @@ test.describe('_resolveExecutionPath', () => {
         } as never,
       });
 
-      const result = await service._resolveExecutionPath({
+      const result = await (service as any).resolveExecutionPath({
         id: 1,
         project_id: 10,
         worktree_path: tmpDir,
@@ -44,7 +44,7 @@ test.describe('_resolveExecutionPath', () => {
         } as never,
       });
 
-      const result = await service._resolveExecutionPath({
+      const result = await (service as any).resolveExecutionPath({
         id: 1,
         project_id: 10,
         worktree_path: null,
@@ -64,7 +64,7 @@ test.describe('_resolveExecutionPath', () => {
     });
 
     await assert.rejects(
-      () => service._resolveExecutionPath({
+      () => (service as any).resolveExecutionPath({
         id: 1,
         project_id: 10,
         worktree_path: '/nonexistent/path/that/does/not/exist',
@@ -85,7 +85,7 @@ test.describe('_resolveExecutionPath', () => {
     });
 
     await assert.rejects(
-      () => service._resolveExecutionPath({
+      () => (service as any).resolveExecutionPath({
         id: 1,
         project_id: 10,
         worktree_path: null,
@@ -106,7 +106,7 @@ test.describe('_resolveExecutionPath', () => {
     });
 
     await assert.rejects(
-      () => service._resolveExecutionPath({
+      () => (service as any).resolveExecutionPath({
         id: 1,
         project_id: 10,
         worktree_path: null,

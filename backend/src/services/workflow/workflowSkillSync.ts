@@ -1,13 +1,13 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SkillRepository } from '../../repositories/skillRepository.js';
-import type { WorkflowTemplateEntity } from '../../types/entities.js';
+import type { WorkflowInstanceEntity } from '../../types/entities.js';
 
 const agentRepo = new AgentRepository();
 const skillRepo = new SkillRepository();
 
-async function resolveWorkflowSkills(workflowTemplate: WorkflowTemplateEntity): Promise<string[]> {
+async function resolveWorkflowSkills(workflow: WorkflowInstanceEntity): Promise<string[]> {
   const agentIds = [...new Set(
-    workflowTemplate.steps
+    workflow.steps
       .map(s => s.agentId)
       .filter((id): id is number => id !== undefined)
   )];

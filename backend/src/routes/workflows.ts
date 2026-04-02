@@ -12,15 +12,14 @@ const workflowService = new WorkflowService();
 const workflowRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: StartWorkflowBody }>('/run', async (request, reply) => {
     try {
-      const { task_id, workflow_template_id, workflow_template_snapshot } = request.body || {};
+      const { task_id, workflow_template_id } = request.body || {};
       if (!task_id) {
         reply.code(400);
         return errorResponse('task_id is required');
       }
 
       const run = await workflowService.startWorkflow(parseNumber(String(task_id)), {
-        workflowTemplateId: workflow_template_id,
-        workflowTemplateSnapshot: workflow_template_snapshot,
+        workflowTemplateId: workflow_template_id
       });
       return successResponse(run, 'Workflow started');
     } catch (error) {

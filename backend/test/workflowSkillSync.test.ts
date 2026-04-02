@@ -4,6 +4,7 @@ import * as assert from 'node:assert/strict';
 import { AgentRepository } from '../src/repositories/agentRepository.js';
 import { SkillRepository } from '../src/repositories/skillRepository.js';
 import { resolveWorkflowSkills } from '../src/services/workflow/workflowSkillSync.js';
+import type { WorkflowInstanceEntity } from '../src/types/entities.js';
 
 test.test('resolveWorkflowSkills collects deduplicated agent skills', async () => {
   const originalAgentFindById = AgentRepository.prototype.findById;
@@ -25,17 +26,21 @@ test.test('resolveWorkflowSkills collects deduplicated agent skills', async () =
   };
 
   try {
-    const skills = await resolveWorkflowSkills({
+    const workflow: WorkflowInstanceEntity = {
       id: 1,
-      template_id: 'wf',
-      name: 'wf',
-      created_at: '',
-      updated_at: '',
+      instance_id: 'test-instance',
+      template_id: 'template-1',
+      template_version: '2026-03-22T00:00:00.000Z',
+      name: 'Test Instance',
       steps: [
         { id: 'a', name: 'A', instructionPrompt: 'A', agentId: 1 },
         { id: 'b', name: 'B', instructionPrompt: 'B', agentId: 2 },
       ],
-    });
+      created_at: '2026-03-22T00:00:00.000Z',
+      updated_at: '2026-03-22T00:00:00.000Z',
+    };
+
+    const skills = await resolveWorkflowSkills(workflow);
 
     assert.deepEqual(skills.sort(), ['brainstorming', 'systematic-debugging']);
   } finally {
@@ -55,16 +60,20 @@ test.test('resolveWorkflowSkills returns empty array when no agent skills exist'
   };
 
   try {
-    const skills = await resolveWorkflowSkills({
+    const workflow: WorkflowInstanceEntity = {
       id: 1,
-      template_id: 'wf',
-      name: 'wf',
-      created_at: '',
-      updated_at: '',
+      instance_id: 'test-instance',
+      template_id: 'template-1',
+      template_version: '2026-03-22T00:00:00.000Z',
+      name: 'Test Instance',
       steps: [
         { id: 'a', name: 'A', instructionPrompt: 'A', agentId: 1 },
       ],
-    });
+      created_at: '2026-03-22T00:00:00.000Z',
+      updated_at: '2026-03-22T00:00:00.000Z',
+    };
+
+    const skills = await resolveWorkflowSkills(workflow);
 
     assert.deepEqual(skills, []);
   } finally {
@@ -74,16 +83,20 @@ test.test('resolveWorkflowSkills returns empty array when no agent skills exist'
 });
 
 test.test('resolveWorkflowSkills returns empty array when workflow has no agents', async () => {
-  const skills = await resolveWorkflowSkills({
+  const workflow: WorkflowInstanceEntity = {
     id: 1,
-    template_id: 'wf',
-    name: 'wf',
-    created_at: '',
-    updated_at: '',
+    instance_id: 'test-instance',
+    template_id: 'template-1',
+    template_version: '2026-03-22T00:00:00.000Z',
+    name: 'Test Instance',
     steps: [
       { id: 'a', name: 'A', instructionPrompt: 'A', agentId: undefined as unknown as number },
     ],
-  });
+    created_at: '2026-03-22T00:00:00.000Z',
+    updated_at: '2026-03-22T00:00:00.000Z',
+  };
+
+  const skills = await resolveWorkflowSkills(workflow);
 
   assert.deepEqual(skills, []);
 });

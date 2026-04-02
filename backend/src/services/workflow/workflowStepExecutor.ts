@@ -6,7 +6,7 @@ import type {
   ExecutorType,
   WorkflowExecutionEvent,
 } from '../../types/executors.js';
-import type { AgentEntity, WorkflowTemplateEntity } from '../../types/entities.ts';
+import type { AgentEntity, WorkflowInstanceEntity } from '../../types/entities.ts';
 import { AgentExecutorRegistry } from './agentExecutorRegistry.js';
 import { adaptStepResult } from './stepResultAdapter.js';
 import { assembleWorkflowPrompt } from './workflowPromptAssembler.js';
@@ -16,7 +16,7 @@ const defaultAgentRepo = new AgentRepository();
 
 interface ExecuteWorkflowStepInput {
   registry?: AgentExecutorRegistry;
-  workflowTemplate: WorkflowTemplateEntity;
+  workflowInstance: WorkflowInstanceEntity;
   agentRepo?: AgentRepository;
   stepId: string;
   worktreePath: string;
@@ -64,7 +64,7 @@ async function resolveAgent(agentRepo: AgentRepository, stepId: string, agentId:
 
 export async function executeWorkflowStep({
   registry = defaultRegistry,
-  workflowTemplate,
+  workflowInstance,
   agentRepo = defaultAgentRepo,
   stepId,
   worktreePath,
@@ -76,9 +76,9 @@ export async function executeWorkflowStep({
   onProviderState,
 }: ExecuteWorkflowStepInput) {
   // 1. Find step
-  const step = workflowTemplate.steps.find((item) => item.id === stepId);
+  const step = workflowInstance.steps.find((item) => item.id === stepId);
   if (!step) {
-    throw new Error(`Workflow template step not found: ${stepId}`);
+    throw new Error(`Workflow instance step not found: ${stepId}`);
   }
 
   // 2. Resolve agent

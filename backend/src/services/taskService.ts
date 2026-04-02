@@ -142,8 +142,7 @@ class TaskService {
 
     try {
       await this.workflowService.startWorkflow(taskId, {
-        workflowTemplateId: body.workflow_template_id,
-        workflowTemplateSnapshot: body.workflow_template_snapshot,
+        workflowTemplateId: body.workflow_template_id
       });
     } catch (error) {
       await this.taskRepo.update(taskId, { status: 'TODO' });

@@ -19,7 +19,6 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   protected override parseRow(row: Record<string, unknown>): WorkflowRunEntity {
     return {
       ...row,
-      workflow_template_snapshot: row.workflow_template_snapshot ? JSON.parse(row.workflow_template_snapshot as string) : {},
       steps: row.steps ? JSON.parse(row.steps as string) : [],
       context: row.context ? JSON.parse(row.context as string) : {},
     } as WorkflowRunEntity;
@@ -27,9 +26,6 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
 
   protected override serializeRow(entity: Partial<WorkflowRunEntity>): Record<string, unknown> {
     const result: Record<string, unknown> = { ...entity };
-    if (entity.workflow_template_snapshot !== undefined) {
-      result.workflow_template_snapshot = JSON.stringify(entity.workflow_template_snapshot);
-    }
     if (entity.steps !== undefined) {
       result.steps = JSON.stringify(entity.steps);
     }
