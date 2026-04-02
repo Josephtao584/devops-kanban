@@ -75,14 +75,14 @@ echo [INFO] Checking ports...
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":!FRONTEND_PORT! " ^| findstr "LISTENING"') do (
     echo [WARN] Port !FRONTEND_PORT! in use, killing PID %%a...
     taskkill /F /PID %%a >nul 2>&1
-    ping -n 2 127.0.0.1 >nul
+    ping -n 3 127.0.0.1 >nul
     echo [OK] Port !FRONTEND_PORT! cleared
 )
 
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":!BACKEND_PORT! " ^| findstr "LISTENING"') do (
     echo [WARN] Port !BACKEND_PORT! in use, killing PID %%a...
     taskkill /F /PID %%a >nul 2>&1
-    ping -n 2 127.0.0.1 >nul
+    ping -n 3 127.0.0.1 >nul
     echo [OK] Port !BACKEND_PORT! cleared
 )
 
@@ -104,7 +104,7 @@ if not exist "node_modules" (
     )
 )
 
-start /b npm run dev > "%TEMP%\kanban-frontend.log" 2>&1
+start /b npm run dev > "%TEMP%\kanban-frontend-%RANDOM%.log" 2>&1
 echo [INFO] Waiting for frontend...
 
 set "FRONTEND_READY=0"
@@ -141,7 +141,7 @@ if not exist "node_modules" (
     )
 )
 
-start /b npm run dev > "%TEMP%\kanban-backend.log" 2>&1
+start /b npm run dev > "%TEMP%\kanban-backend-%RANDOM%.log" 2>&1
 echo [INFO] Waiting for backend...
 
 set "BACKEND_READY=0"
@@ -169,7 +169,7 @@ echo   Frontend: http://localhost:!FRONTEND_PORT!
 echo   Backend:  http://localhost:!BACKEND_PORT!
 echo.
 echo   Press Ctrl+C to stop all services
-echo   Logs: %TEMP%\kanban-frontend.log, %TEMP%\kanban-backend.log
+echo   Logs: %TEMP%\kanban-frontend-*.log, %TEMP%\kanban-backend-*.log
 echo.
 
 echo [INFO] Opening browser...
