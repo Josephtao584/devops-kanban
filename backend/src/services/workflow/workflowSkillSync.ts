@@ -30,4 +30,26 @@ async function resolveWorkflowSkills(workflow: WorkflowInstanceEntity): Promise<
   return [...allSkillIds].map(id => skillMap.get(id) || String(id));
 }
 
-export { resolveWorkflowSkills };
+async function resolveAgentSkills(agentId: number): Promise<{ skillNames: string[]; executorType: string }> {
+  const agent = await agentRepo.findById(agentId);
+  if (!agent || !Array.isArray(agent.skills) || agent.skills.length === 0) {
+    return { skillNames: [], executorType: agent?.executorType || 'CLAUDE_CODE' };
+  }
+
+  const allSkills = await skillRepo.findAll();
+  const skillMap = new Map(allSkills.map(s => [s.id, s.identifier || s.name]));
+
+  const skillNames = agent.skills
+    .map(id => skillMap.get(id) || String(id))
+    .filter(name => {
+      if (name === String(Number(name))) {
+        console.warn(`[workflowSkillSync] Skill ID ${name} not found in DB, skipping`);
+        return false;
+      }
+      return true;
+    });
+
+  return { skillNames, executorType: agent.executorType || 'CLAUDE_CODE' };
+}
+
+export { resolveWorkflowSkills, resolveAgentSkills };
