@@ -12,17 +12,16 @@ export function sanitizeName(str: string) {
   return str.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '_');
 }
 
-export function getWorktreePath(taskId: number, taskTitle: string, projectName: string, repoPath: string) {
+export function getWorktreePath(taskId: number, taskTitle: string, repoPath: string) {
   const safeTitle = sanitizeName(taskTitle).substring(0, 50);
-  const safeProjectName = sanitizeName(projectName);
   const baseDir = path.join(repoPath, '.worktrees');
-  return path.join(baseDir, safeProjectName, `task-${taskId}-${safeTitle}`);
+  return path.join(baseDir, `task-${taskId}-${safeTitle}`);
 }
 
-export function createWorktree(taskId: number, taskTitle: string, projectName: string, repoPath = process.cwd()) {
-  const worktreePath = getWorktreePath(taskId, taskTitle, projectName, repoPath);
-  const safeProjectName = sanitizeName(projectName);
-  const branchName = `task/${safeProjectName}/${taskId}`;
+export function createWorktree(taskId: number, taskTitle: string, repoPath = process.cwd()) {
+  const worktreePath = getWorktreePath(taskId, taskTitle, repoPath);
+  const safeTitle = sanitizeName(taskTitle).substring(0, 50);
+  const branchName = `task/${taskId}-${safeTitle}`;
   try {
     ensureWorktreesGitignore(repoPath);
 

@@ -224,9 +224,9 @@ class TaskService {
 
     try {
       const repoPath = await this.getOrCloneRepo(project);
-      const worktreePath = createWorktree(taskId, task.title, project.name, repoPath);
-      const safeProjectName = sanitizeName(project.name);
-      const branchName = `task/${safeProjectName}/${taskId}`;
+      const worktreePath = createWorktree(taskId, task.title, repoPath);
+      const safeTitle = sanitizeName(task.title).substring(0, 50);
+      const branchName = `task/${taskId}-${safeTitle}`;
       await this.taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: branchName,
@@ -261,9 +261,9 @@ class TaskService {
       const repoPath = project?.local_path || (project?.git_url ? path.join('/tmp/claude-repos', String(project.id)) : process.cwd());
 
       let branchName = task.worktree_branch;
-      if (!branchName && project) {
-        const safeProjectName = sanitizeName(project.name);
-        branchName = `task/${safeProjectName}/${taskId}`;
+      if (!branchName && task.title) {
+        const safeTitle = sanitizeName(task.title).substring(0, 50);
+        branchName = `task/${taskId}-${safeTitle}`;
       }
 
       cleanupWorktree(task.worktree_path, repoPath, branchName || null);

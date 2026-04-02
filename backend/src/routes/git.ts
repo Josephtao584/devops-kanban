@@ -6,7 +6,7 @@ import iconv from 'iconv-lite';
 
 import { ProjectRepository } from '../repositories/projectRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
-import { createWorktree, cleanupWorktree, getWorktreeStatus, isGitRepository, mergeBranch } from '../utils/git.js';
+import { createWorktree, cleanupWorktree, getWorktreeStatus, isGitRepository, mergeBranch, sanitizeName } from '../utils/git.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { getStatusCode, getErrorMessage } from '../utils/http.js';
 import type { ProjectEntity } from '../types/entities.js';
@@ -457,17 +457,19 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { repoPath } = await getProjectRepoPath(task.project_id);
-      const worktreePath = createWorktree(taskId, task.title, task.project_id.toString(), repoPath);
+      const worktreePath = createWorktree(taskId, task.title, repoPath);
+      const safeTitle = sanitizeName(task.title).substring(0, 50);
+      const branchName = `task/${taskId}-${safeTitle}`;
 
       await taskRepo.update(taskId, {
         worktree_path: worktreePath,
-        worktree_branch: `task/${taskId}`,
+        worktree_branch: branchName,
         worktree_status: 'created',
       });
 
       return successResponse({
         worktree_path: worktreePath,
-        worktree_branch: `task/${taskId}`,
+        worktree_branch: branchName,
         worktree_status: 'created',
       }, 'Worktree created successfully');
     } catch (error) {

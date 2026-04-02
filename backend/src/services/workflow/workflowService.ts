@@ -1,4 +1,4 @@
-import fs from 'fs';
+import { existsSync } from 'fs';
 import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
@@ -148,12 +148,12 @@ class WorkflowService {
   }
 
   async _resolveExecutionPath(task: { id: number; project_id: number; worktree_path?: string | null }) {
-    if (task.worktree_path && fs.existsSync(task.worktree_path)) {
+    if (task.worktree_path && existsSync(task.worktree_path)) {
       return task.worktree_path;
     }
 
     const project = await this.projectRepo.findById(task.project_id);
-    if (project?.local_path && fs.existsSync(project.local_path)) {
+    if (project?.local_path && existsSync(project.local_path)) {
       return project.local_path;
     }
 
