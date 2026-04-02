@@ -38,7 +38,7 @@ export function parseSchemaSql(sql: string): ParsedSchema {
   const indexes: IndexDef[] = [];
 
   // Extract CREATE TABLE blocks
-  const tableRegex = /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\(([^;]+)\);/gis;
+  const tableRegex = /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+(\w+)\s*\(([\s\S]*?)\)\s*;/gis;
   let match: RegExpExecArray | null;
 
   while ((match = tableRegex.exec(sql)) !== null) {
@@ -92,7 +92,7 @@ function parseColumnLine(line: string): ColumnDef | null {
 
   // Match: column_name TYPE [NOT NULL] [DEFAULT ...] [UNIQUE] [...]
   // Handle quoted identifiers like "order"
-  const colMatch = cleaned.match(/^("?\w+"?)\s+(\w+(?:\(\s*\d+\s*(?:,\s*\d+\s*)?\))?)\s*(.*)/i);
+  const colMatch = cleaned.match(/^("?\w+"?)\s+([A-Z]+(?:\(\s*\d+\s*(?:,\s*\d+\s*)?\))?)\s*(.*)/i);
   if (!colMatch) {
     return null;
   }
