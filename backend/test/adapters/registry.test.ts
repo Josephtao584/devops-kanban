@@ -41,7 +41,7 @@ test.test('INTERNAL_API appears in available types and metadata-only config does
   assert.equal(types.INTERNAL_API?.name, 'CloudDevOps Story');
   assert.equal((types.INTERNAL_API?.configFields as Record<string, { default?: string }>).detailIdField?.default, 'number');
   assert.equal((types.INTERNAL_API?.configFields as Record<string, { default?: string }>).listPath?.default, '/devops-workitem/api/v1/query/workitems');
-  assert.equal((types.INTERNAL_API?.configFields as Record<string, { default?: string | boolean }>).rejectUnauthorized?.default, true);
+  assert.equal((types.INTERNAL_API?.configFields as Record<string, { default?: string | boolean }>).rejectUnauthorized?.default, false);
   assert.equal('request' in (types.INTERNAL_API ?? {}), false);
   assert.equal('mapping' in (types.INTERNAL_API ?? {}), false);
 

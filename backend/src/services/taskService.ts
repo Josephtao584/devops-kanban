@@ -216,8 +216,8 @@ class TaskService {
       throw error;
     }
 
-    if (!project.git_url && !project.local_path) {
-      const error = new Error('Project has no git repository configured') as Error & { statusCode?: number };
+    if (!project.local_path || !fs.existsSync(project.local_path)) {
+      const error = new Error('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path') as Error & { statusCode?: number };
       error.statusCode = 400;
       throw error;
     }

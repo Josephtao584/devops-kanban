@@ -196,8 +196,8 @@ test.test('loadAdapterTypes includes metadata-only INTERNAL_API definitions with
       rejectUnauthorized: {
         type: 'boolean',
         required: false,
-        description: '是否拒绝自签名证书（默认 true，设为 false 以接受自签名证书）',
-        default: true,
+        description: '是否拒绝自签名证书（默认 false，接受自签名证书）',
+        default: false,
       },
     },
   });

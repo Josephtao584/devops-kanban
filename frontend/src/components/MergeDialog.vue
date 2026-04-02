@@ -107,17 +107,10 @@ const loadBranches = async () => {
   try {
     const response = await listBranches(props.projectId)
     if (response.success) {
-      // 过滤出主分支（main, master）和开发分支
+      // 显示所有本地分支
       mainBranches.value = response.data.filter(b => {
-        const name = b.name.toLowerCase()
-        return !b.isRemote &&
-               (name === 'main' || name === 'master' || name === 'develop' || name === 'dev') &&
-               b.name !== props.sourceBranch
+        return !b.isRemote && b.name !== props.sourceBranch
       })
-      // 如果没有找到主分支，显示所有非当前分支的本地分支
-      if (mainBranches.value.length === 0) {
-        mainBranches.value = response.data.filter(b => !b.isRemote && b.name !== props.sourceBranch)
-      }
     }
   } catch (e) {
     console.error('Failed to load branches:', e)

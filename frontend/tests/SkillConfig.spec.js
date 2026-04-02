@@ -231,6 +231,6 @@ describe('SkillConfig', () => {
     await flushPromises()
 
     expect(wrapper.find('.empty-files').exists()).toBe(true)
-    expect(wrapper.find('.el-tree').exists()).toBe(false)
+    expect(wrapper.findAll('.el-tree-node__content')).toHaveLength(0)
   })
 })

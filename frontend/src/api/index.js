@@ -52,6 +52,11 @@ api.interceptors.response.use(
     const config = error.config
     const duration = config?.metadata ? Date.now() - config.metadata.startTime : 0
     const reqId = config?.metadata?.requestId || '?'
+    const backendMessage = error.response?.data?.message || error.response?.data?.error
+
+    if (backendMessage) {
+      error.message = backendMessage
+    }
 
     // Enhanced error logging
     console.error(`[API Error #${reqId}]`,

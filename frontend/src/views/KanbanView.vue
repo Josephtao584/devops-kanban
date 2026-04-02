@@ -824,7 +824,8 @@ const startSelectedTaskWithTemplate = async (
     try {
       await handleWorktree(selectedTask.value)
     } catch (err) {
-      console.error('Worktree 创建失败，阻止任务启动:', err)
+      const msg = err?.response?.data?.message || err?.message || 'Worktree 创建失败，无法启动任务'
+      ElMessage.error(msg)
       return
     }
   }
@@ -855,7 +856,8 @@ const startSelectedTaskWithTemplate = async (
     }
   } catch (error) {
     console.error('启动任务失败:', error)
-    ElMessage.error('启动失败')
+    const msg = error?.response?.data?.message || error?.message || '启动失败'
+    ElMessage.error(msg)
   }
 }
 

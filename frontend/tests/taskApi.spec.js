@@ -81,6 +81,35 @@ describe('task api payload normalization', () => {
   })
 })
 
+describe('api error normalization', () => {
+  it('uses backend response message for rejected 400 requests', async () => {
+    const interceptor = api.interceptors.request.use((config) => {
+      const error = new Error('Request failed with status code 400')
+      error.config = config
+      error.response = {
+        status: 400,
+        data: {
+          success: false,
+          message: '项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path',
+          data: null,
+          error: null
+        }
+      }
+      return Promise.reject(error)
+    })
+
+    try {
+      await expect(startTask(7, {
+        workflow_template_id: 'quick-fix-v1'
+      })).rejects.toMatchObject({
+        message: '项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path'
+      })
+    } finally {
+      api.interceptors.request.eject(interceptor)
+    }
+  })
+})
+
 describe('git api push-only exports', () => {
   it('exports push as a public api function', () => {
     expect(gitApi.push).toBeTypeOf('function')

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
@@ -146,17 +147,17 @@ class WorkflowService {
     }
   }
 
-  async _resolveExecutionPath(task: { project_id: number; worktree_path?: string | null }) {
-    if (task.worktree_path) {
+  async _resolveExecutionPath(task: { id: number; project_id: number; worktree_path?: string | null }) {
+    if (task.worktree_path && fs.existsSync(task.worktree_path)) {
       return task.worktree_path;
     }
 
     const project = await this.projectRepo.findById(task.project_id);
-    if (project?.local_path) {
+    if (project?.local_path && fs.existsSync(project.local_path)) {
       return project.local_path;
     }
 
-    const error: any = new Error('No workspace path configured for workflow execution');
+    const error: any = new Error('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path');
     error.statusCode = 400;
     throw error;
   }
