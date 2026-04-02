@@ -497,25 +497,6 @@ class WorkflowService {
 
     console.log(`[WorkflowService] Retrying from step: ${retryStep.step_id}`);
 
-    // Update run status to RUNNING first and clear stale error context
-    await this.workflowRunRepo.update(runId, {
-      status: 'RUNNING',
-      context: {
-        ...run.context,
-        error: null,
-        stale_mastra_run_id: null,
-        stale_mastra_takeover_at: null,
-      },
-    });
-
-    // Reset the retry step status to PENDING before retry
-    await this.workflowRunRepo.updateStep(runId, retryStep.step_id, {
-      status: 'PENDING',
-      started_at: null,
-      completed_at: null,
-      error: null,
-    });
-
     // Get task info
     const task = await this.taskRepo.findById(run.task_id ?? 0);
     if (!task) {
@@ -539,6 +520,23 @@ class WorkflowService {
       error.statusCode = 409;
       throw error;
     }
+
+    await this.workflowRunRepo.update(runId, {
+      status: 'RUNNING',
+      context: {
+        ...run.context,
+        error: null,
+        stale_mastra_run_id: null,
+        stale_mastra_takeover_at: null,
+      },
+    });
+
+    await this.workflowRunRepo.updateStep(runId, retryStep.step_id, {
+      status: 'PENDING',
+      started_at: null,
+      completed_at: null,
+      error: null,
+    });
 
     const mastraRun = await workflow.createRun({ runId: mastraRunId });
     if (!mastraRun) {
