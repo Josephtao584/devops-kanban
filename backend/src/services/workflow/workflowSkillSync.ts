@@ -17,18 +17,13 @@ async function resolveWorkflowSkills(workflow: WorkflowInstanceEntity): Promise<
     return [];
   }
 
-  const allSkillIds = new Set<number>();
+  const allSkillNames = new Set<string>();
   for (const agentId of agentIds) {
-    const agent = await agentRepo.findById(agentId);
-    if (agent?.skills && Array.isArray(agent.skills)) {
-      agent.skills.forEach(id => allSkillIds.add(id));
-    }
+    const { skillNames } = await resolveAgentSkills(agentId);
+    skillNames.forEach(name => allSkillNames.add(name));
   }
 
-  const allSkills = await skillRepo.findAll();
-  const skillMap = new Map(allSkills.map(s => [s.id, s.identifier || s.name]));
-
-  return [...allSkillIds].map(id => skillMap.get(id) || String(id));
+  return [...allSkillNames];
 }
 
 async function resolveAgentSkills(agentId: number): Promise<{ skillNames: string[]; executorType: ExecutorType }> {
