@@ -63,7 +63,7 @@
                       'state-missing': previewSteps[index]?.stateClass === 'state-missing',
                       'state-disabled': previewSteps[index]?.stateClass === 'state-disabled'
                     }"
-                    @click="selectStep(index)"
+                    @click="openStepDetails(index)"
                   >
                     <el-tooltip :content="$t('workflowTemplate.deleteStep')" placement="top">
                       <button
