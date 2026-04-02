@@ -127,4 +127,110 @@ describe('SkillConfig', () => {
     expect(window.confirm).toHaveBeenCalled()
     expect(mockSkillStore.deleteSkill).toHaveBeenCalledWith(1)
   })
+
+  it('file tree is collapsed by default when skill is selected', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+    // Nested file structure: docs/guide.md and SKILL.md
+    mockSkillStore.fetchSkillFiles.mockResolvedValue(['docs/guide.md', 'SKILL.md'])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const tree = wrapper.findComponent({ name: 'ElTree' })
+    expect(tree.exists()).toBe(true)
+
+    // Get all visible tree node contents
+    const visibleNodes = wrapper.findAll('.el-tree-node__content')
+    // Only root-level nodes should be visible (docs folder), not children (guide.md)
+    expect(visibleNodes.length).toBe(2) // docs folder and SKILL.md at root level
+  })
+
+  it('can manually expand a collapsed directory', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue(['docs/guide.md', 'SKILL.md'])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Find the docs folder node and click to expand
+    const docsNode = wrapper.findAll('.el-tree-node').find((node) =>
+      node.find('.node-label').text().includes('docs')
+    )
+    expect(docsNode).toBeTruthy()
+
+    // Click on the expand icon (arrow)
+    await docsNode.find('.el-tree-node__expand-icon').trigger('click')
+    await flushPromises()
+
+    // After expanding, the child guide.md should be visible
+    const visibleNodes = wrapper.findAll('.el-tree-node__content')
+    expect(visibleNodes.length).toBeGreaterThan(2)
+  })
+
+  it('refresh keeps file tree collapsed', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue(['docs/guide.md', 'SKILL.md'])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Initially collapsed
+    let visibleNodes = wrapper.findAll('.el-tree-node__content')
+    expect(visibleNodes.length).toBe(2) // docs folder and SKILL.md only
+
+    // Click refresh button
+    await wrapper.find('.section-actions .btn-secondary').trigger('click')
+    await flushPromises()
+
+    // Should still be collapsed
+    visibleNodes = wrapper.findAll('.el-tree-node__content')
+    expect(visibleNodes.length).toBe(2)
+  })
+
+  it('switching skill keeps new skill file tree collapsed', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'desc1', created_at: '2026-03-28', updated_at: '2026-03-28' },
+      { id: 2, name: 'debugging', description: 'desc2', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+
+    // First skill has nested files
+    mockSkillStore.fetchSkillFiles.mockImplementation((skillId) => {
+      if (skillId === 1) return Promise.resolve(['docs/a.md', 'b.md'])
+      return Promise.resolve(['c.md'])
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Initially on first skill, tree should be collapsed
+    let visibleNodes = wrapper.findAll('.el-tree-node__content')
+    expect(visibleNodes.length).toBe(2) // docs folder and b.md
+
+    // Click on second skill
+    await wrapper.findAll('.skill-list-item')[1].trigger('click')
+    await flushPromises()
+
+    // Second skill should also be collapsed
+    visibleNodes = wrapper.findAll('.el-tree-node__content')
+    expect(visibleNodes.length).toBe(1) // only c.md
+  })
+
+  it('displays empty files state when skill has no files', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'empty-skill', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue([])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.empty-files').exists()).toBe(true)
+    expect(wrapper.find('.el-tree').exists()).toBe(false)
+  })
 })
