@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { prepareExecutionSkills } from '../src/services/workflow/executorSkillPreparation.js';
+import { ExecutorType } from '../src/types/executors.js';
 
 const REAL_STORAGE_ROOT = '/Users/taowenpeng/IdeaProjects/devops-kanban/data';
 
@@ -28,7 +29,7 @@ test.test('prepareExecutionSkills copies skills for CLAUDE_CODE', async () => {
     await fs.writeFile(path.join(managedDir, 'SKILL.md'), '# Claude Skill');
 
     await prepareExecutionSkills({
-      executorType: 'CLAUDE_CODE',
+      executorType: ExecutorType.CLAUDE_CODE,
       skillNames: [skillName],
       executionPath: projectRoot,
     });
@@ -41,7 +42,7 @@ test.test('prepareExecutionSkills copies skills for CLAUDE_CODE', async () => {
 test.test('prepareExecutionSkills is no-op when no skills provided', async () => {
   await withTempProject(async (_skillName, projectRoot) => {
     await prepareExecutionSkills({
-      executorType: 'CLAUDE_CODE',
+      executorType: ExecutorType.CLAUDE_CODE,
       skillNames: [],
       executionPath: projectRoot,
     });

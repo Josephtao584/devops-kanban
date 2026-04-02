@@ -1,13 +1,13 @@
 import { ClaudeCodeExecutor } from './executors/claudeCodeExecutor.js';
-import type { Executor, ExecutorMap, ExecutorType } from '../../types/executors.js';
+import { Executor, ExecutorMap, ExecutorType } from '../../types/executors.js';
 
 class AgentExecutorRegistry {
   executors: ExecutorMap;
 
   constructor({ executors }: { executors?: ExecutorMap } = {}) {
-    this.executors = executors || {
-      CLAUDE_CODE: new ClaudeCodeExecutor(),
-    };
+      this.executors = executors ?? {
+          [ExecutorType.CLAUDE_CODE]: new ClaudeCodeExecutor(),
+      };
   }
 
   getExecutor(type: ExecutorType): Executor {

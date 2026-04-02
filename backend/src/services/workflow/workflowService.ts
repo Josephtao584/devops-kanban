@@ -6,10 +6,11 @@ import { AgentRepository } from '../../repositories/agentRepository.js';
 import { WorkflowInstanceService } from '../workflowInstanceService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
-import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
+import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { WorkflowInstanceEntity } from '../../types/entities.js';
 import { resolveWorkflowSkills } from './workflowSkillSync.js';
 import { prepareExecutionSkills } from './executorSkillPreparation.js';
+import {ExecutorType} from "../../types/executors.js";
 
 
 function createValidationError(message: string) {
@@ -125,10 +126,6 @@ class WorkflowService {
       if (!agent.enabled) {
         throw createValidationError(`Step "${step.name}" references agent ${step.agentId} that is disabled`);
       }
-
-      if (!isSupportedExecutorType(agent.executorType)) {
-        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} with unsupported executor type: ${String(agent.executorType)}`);
-      }
     }
   }
 
@@ -209,7 +206,7 @@ class WorkflowService {
     try {
       const skillNames = await resolveWorkflowSkills(instance);
       await prepareExecutionSkills({
-        executorType: 'CLAUDE_CODE',
+        executorType: ExecutorType.CLAUDE_CODE,
         skillNames,
         executionPath: task.execution_path,
       });

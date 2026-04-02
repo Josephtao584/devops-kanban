@@ -6,7 +6,7 @@ import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepos
 import { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
 import { WorkflowInstanceRepository } from '../../repositories/workflowInstanceRepository.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
-import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
+import { type WorkflowTaskRecord } from '../../types/workflow.js';
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
@@ -104,7 +104,7 @@ class WorkflowLifecycle {
     }
 
     const agent = await this.agentRepo.findById(stepBinding.agentId);
-    if (!agent || !isSupportedExecutorType(agent.executorType)) {
+    if (!agent) {
       throw new Error(`Workflow step ${stepId} has no valid bound agent`);
     }
 
@@ -133,7 +133,7 @@ class WorkflowLifecycle {
     const segment = await this.sessionSegmentRepo.create({
       session_id: session.id,
       status: 'RUNNING',
-      executor_type: session.executor_type || 'CLAUDE_CODE',
+      executor_type: session.executor_type,
       agent_id: session.agent_id ?? null,
       provider_session_id: null,
       resume_token: null,

@@ -1,8 +1,8 @@
-export type AgentExecutorType = 'CLAUDE_CODE';
+import {ExecutorType} from "../executors.js";
 
 export interface CreateAgentBody {
   name: string;
-  executorType: AgentExecutorType;
+  executorType: ExecutorType;
   role: string;
   description?: string;
   enabled: boolean;
@@ -11,7 +11,7 @@ export interface CreateAgentBody {
 
 export interface UpdateAgentBody {
   name?: string;
-  executorType?: AgentExecutorType;
+  executorType?: ExecutorType;
   role?: string;
   description?: string;
   enabled?: boolean;

@@ -3,7 +3,6 @@ import type {
   ExecutorConfig,
   ExecutorExecutionResult,
   ExecutorProviderState,
-  ExecutorType,
   WorkflowExecutionEvent,
 } from '../../types/executors.js';
 import type { AgentEntity, WorkflowInstanceEntity } from '../../types/entities.ts';
@@ -32,15 +31,7 @@ interface ExecuteWorkflowStepInput {
   onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
 }
 
-function isExecutorType(value: unknown): value is ExecutorType {
-  return value === 'CLAUDE_CODE';
-}
-
 function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
-  if (!isExecutorType(agent.executorType)) {
-    throw new Error(`Agent ${agent.id} has unsupported executor type: ${String(agent.executorType)}`);
-  }
-
   if (!Array.isArray(agent.skills) || agent.skills.some((skill) => typeof skill !== 'number')) {
     throw new Error(`Agent ${agent.id} has invalid skills configuration`);
   }
