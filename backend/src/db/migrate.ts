@@ -190,3 +190,128 @@ export function diffSchemas(
 
   return { changes, warnings, errors, applied: [] };
 }
+
+// --- Schema Introspection ---
+
+async function getExistingTables(client: Client): Promise<string[]> {
+  const result = await client.execute(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  );
+  return result.rows.map(r => r.name as string);
+}
+
+async function isPrimaryKeyAutoincrement(client: Client, table: string, column: string): Promise<boolean> {
+  const result = await client.execute(`PRAGMA table_info(${table})`);
+  const colInfo = result.rows.find(r => r.name === column);
+  if (!colInfo) return false;
+
+  // Check if it's the primary key
+  if (colInfo.pk !== 1) return false;
+
+  // Check the CREATE TABLE SQL to see if it's AUTOINCREMENT
+  const tableSqlResult = await client.execute(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${table}'`);
+  if (!tableSqlResult.rows.length) return false;
+
+  const createSql = tableSqlResult.rows[0].sql as string;
+  const idPattern = new RegExp(`\\b${column}\\s+INTEGER\\s+PRIMARY\\s+KEY\\s+AUTOINCREMENT`, 'i');
+  return idPattern.test(createSql);
+}
+
+async function getExistingColumns(client: Client, table: string): Promise<string[]> {
+  const result = await client.execute(`PRAGMA table_info(${table})`);
+  const columns: string[] = [];
+
+  for (const row of result.rows) {
+    const colName = row.name as string;
+    // Skip PRIMARY KEY AUTOINCREMENT columns (they're handled by CREATE TABLE IF NOT EXISTS)
+    const isPkAutoincrement = await isPrimaryKeyAutoincrement(client, table, colName);
+    if (!isPkAutoincrement) {
+      columns.push(colName);
+    }
+  }
+
+  return columns;
+}
+
+async function getExistingIndexNames(client: Client, table: string): Promise<string[]> {
+  const result = await client.execute(`PRAGMA index_list(${table})`);
+  return result.rows.map(r => r.name as string);
+}
+
+// --- Core Migration Functions ---
+
+async function buildDiffReport(client: Client, schemaSql: string): Promise<MigrationReport> {
+  const parsed = parseSchemaSql(schemaSql);
+
+  const actualTables = new Map<string, string[]>();
+  const tableNames = await getExistingTables(client);
+
+  const allIndexNames: string[] = [];
+  for (const t of tableNames) {
+    const cols = await getExistingColumns(client, t);
+    actualTables.set(t, cols);
+    const idxNames = await getExistingIndexNames(client, t);
+    allIndexNames.push(...idxNames);
+  }
+
+  return diffSchemas(parsed.tables, actualTables, parsed.indexes, allIndexNames);
+}
+
+export async function migrateSchema(client: Client, schemaSql?: string): Promise<MigrationReport> {
+  if (!schemaSql) {
+    const schemaPath = join(import.meta.dirname, 'schema.sql');
+    schemaSql = await readFile(schemaPath, 'utf-8');
+  }
+
+  const report = await buildDiffReport(client, schemaSql);
+
+  // Check destructive changes first — do not execute anything
+  if (report.errors.length > 0) {
+    logReport(report);
+    return report;
+  }
+
+  // Execute safe migrations
+  for (const sql of report.changes) {
+    await client.execute(sql);
+    report.applied.push(sql);
+  }
+
+  logReport(report);
+  return report;
+}
+
+export async function checkSchemaDrift(client: Client, schemaSql?: string): Promise<MigrationReport> {
+  if (!schemaSql) {
+    const schemaPath = join(import.meta.dirname, 'schema.sql');
+    schemaSql = await readFile(schemaPath, 'utf-8');
+  }
+
+  const report = await buildDiffReport(client, schemaSql);
+  logReport(report);
+  return report;
+}
+
+function logReport(report: MigrationReport): void {
+  if (report.applied.length > 0) {
+    console.log(`[DB Migration] Applied ${report.applied.length} change(s):`);
+    for (const sql of report.applied) {
+      console.log(`  ${sql}`);
+    }
+  }
+
+  if (report.warnings.length > 0) {
+    console.warn(`[DB Migration] ${report.warnings.length} warning(s):`);
+    for (const w of report.warnings) {
+      console.warn(`  ${w}`);
+    }
+  }
+
+  if (report.errors.length > 0) {
+    console.error(`[DB Migration] ERROR: ${report.errors.length} destructive change(s) detected, cannot start:`);
+    for (const e of report.errors) {
+      console.error(`  ${e}`);
+    }
+    console.error("  Run 'npm run db:reset' to reset the database.");
+  }
+}

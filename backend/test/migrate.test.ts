@@ -1,7 +1,31 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
-import { parseSchemaSql, diffSchemas } from '../src/db/migrate.js';
+import { parseSchemaSql, diffSchemas, migrateSchema, checkSchemaDrift } from '../src/db/migrate.js';
 import type { ColumnDef, IndexDef } from '../src/db/migrate.js';
+import { createClient, type Client } from '@libsql/client';
+import { mkdtempSync, rmSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+
+function createTempDb(): { client: Client; cleanup: () => void } {
+  const dir = mkdtempSync(join(tmpdir(), 'migrate-test-'));
+  const client = createClient({ url: `file:${join(dir, 'test.db')}` });
+  return {
+    client,
+    cleanup: () => {
+      try {
+        client.close();
+      } catch (e) {
+        // Ignore close errors
+      }
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch (e) {
+        // Ignore cleanup errors on Windows
+      }
+    },
+  };
+}
 
 test.test('parseSchemaSql extracts table columns', () => {
   const sql = `
@@ -185,4 +209,92 @@ test.test('diffSchemas auto-fills safe default for INTEGER without DEFAULT', () 
   const report = diffSchemas(expected, actual, expectedIndexes, existingIndexes);
   assert.equal(report.changes.length, 1);
   assert.ok(report.changes[0].includes('DEFAULT 0'));
+});
+
+test.test('migrateSchema adds missing column to existing table', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    await client.execute('CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)');
+
+    const schemaSql = `
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT
+);`;
+
+    const report = await migrateSchema(client, schemaSql);
+    assert.equal(report.applied.length, 1);
+    assert.ok(report.applied[0].includes('description'));
+    assert.equal(report.errors.length, 0);
+
+    const result = await client.execute('PRAGMA table_info(projects)');
+    const colNames = result.rows.map(r => r.name as string);
+    assert.ok(colNames.includes('description'));
+  } finally {
+    cleanup();
+  }
+});
+
+test.test('migrateSchema detects destructive drift', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    await client.execute('CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, old_col TEXT)');
+
+    const schemaSql = `
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL
+);`;
+
+    const report = await migrateSchema(client, schemaSql);
+    assert.equal(report.errors.length, 1);
+    assert.ok(report.errors[0].includes('old_col'));
+  } finally {
+    cleanup();
+  }
+});
+
+test.test('migrateSchema is idempotent', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    const schemaSql = `
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL
+);`;
+
+    await client.execute('CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)');
+
+    const report = await migrateSchema(client, schemaSql);
+    assert.equal(report.applied.length, 0);
+    assert.equal(report.changes.length, 0);
+    assert.equal(report.errors.length, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test.test('checkSchemaDrift does not execute changes', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    await client.execute('CREATE TABLE projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)');
+
+    const schemaSql = `
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT
+);`;
+
+    const report = await checkSchemaDrift(client, schemaSql);
+    assert.equal(report.changes.length, 1);
+    assert.equal(report.applied.length, 0);
+
+    const result = await client.execute('PRAGMA table_info(projects)');
+    const colNames = result.rows.map(r => r.name as string);
+    assert.ok(!colNames.includes('description'));
+  } finally {
+    cleanup();
+  }
 });
