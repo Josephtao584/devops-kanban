@@ -200,7 +200,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, MoreFilled, Plus } from '@element-plus/icons-vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { getAgents } from '../../api/agent.js'
 import { useSkillStore } from '../../stores/skillStore'

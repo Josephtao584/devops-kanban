@@ -130,7 +130,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Find suspended step from steps
-      const suspendedStep = run.steps.find(s => s.status === 'SUSPENDED');
+      const suspendedStep = run.steps.find((s: { status: string }) => s.status === 'SUSPENDED');
 
       return successResponse({
         step_id: suspendedStep?.step_id || null,

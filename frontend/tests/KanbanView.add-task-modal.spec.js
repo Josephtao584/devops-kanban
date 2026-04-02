@@ -11,14 +11,6 @@ import { useTaskStore } from '../src/stores/taskStore'
 import { useIterationStore } from '../src/stores/iterationStore'
 import { useTaskSourceStore } from '../src/stores/taskSourceStore'
 
-vi.mock('../src/api/session.js', () => ({
-  getActiveSessionByTask: vi.fn().mockResolvedValue({ success: true, data: null })
-}))
-
-vi.mock('../src/api/taskWorktree.js', () => ({
-  deleteTaskWorktree: vi.fn()
-}))
-
 vi.mock('../src/api/workflowTemplate.js', () => ({
   getWorkflowTemplates: vi.fn().mockResolvedValue({ success: true, data: [] }),
   getWorkflowTemplateById: vi.fn()
@@ -50,25 +42,14 @@ vi.mock('../src/composables/kanban/useWorkflowManager', () => ({
   useWorkflowManager: () => ({
     selectedNode: { value: null },
     showNodeDialog: { value: false },
-    workflowVersion: { value: 0 },
     onNodeSelect: vi.fn(),
     onNodeViewDetails: vi.fn(),
-    handleButlerControl: vi.fn(),
-    handleViewWorkflow: vi.fn(),
-    onNodeSessionCreated: vi.fn(),
     onStartWorkflow: vi.fn()
   })
 }))
 
 vi.mock('../src/mock/workflowAssignment', () => ({
   analyzeTaskCategory: vi.fn(() => 'FEATURE')
-}))
-
-vi.mock('../src/mock/workflowData', () => ({
-  getWorkflowByProject: vi.fn(() => null),
-  getWorkflowByTask: vi.fn(() => null),
-  getOrCreateWorkflowForProject: vi.fn(() => null),
-  addNodeToWorkflow: vi.fn()
 }))
 
 vi.mock('vuedraggable', () => ({
@@ -137,8 +118,6 @@ function mountView() {
         MergeDialog: passthroughStub('MergeDialog'),
         IterationForm: passthroughStub('IterationForm'),
         IterationList: passthroughStub('IterationList'),
-        TaskButlerChat: passthroughStub('TaskButlerChat'),
-        ChatBox: passthroughStub('ChatBox'),
         WorkflowTemplateSelectDialog: passthroughStub('WorkflowTemplateSelectDialog'),
         WorkflowStartEditorDialog: passthroughStub('WorkflowStartEditorDialog'),
         IterationSelect: IterationSelectStub,

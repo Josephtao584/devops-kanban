@@ -161,6 +161,7 @@ class TaskService {
     if (deleteWorktree) {
       await this.deleteWorktree(taskId);
     }
+    await this.workflowService.deleteByTaskId(taskId);
     return await this.taskRepo.delete(taskId);
   }
 

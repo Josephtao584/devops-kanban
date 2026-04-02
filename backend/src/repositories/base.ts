@@ -51,7 +51,7 @@ class BaseRepository<T extends BaseEntity> {
    * Retrieve all records from the table.
    */
   async findAll(): Promise<T[]> {
-    const result = await this.client.execute(`SELECT * FROM ${this.tableName}`);
+    const result = await this.client.execute(`SELECT * FROM "${this.tableName}"`);
     return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
@@ -60,7 +60,7 @@ class BaseRepository<T extends BaseEntity> {
    */
   async findById(entityId: number): Promise<T | null> {
     const result = await this.client.execute({
-      sql: `SELECT * FROM ${this.tableName} WHERE id = ?`,
+      sql: `SELECT * FROM "${this.tableName}" WHERE "id" = ?`,
       args: [entityId],
     });
     if (result.rows.length === 0) return null;
@@ -78,11 +78,11 @@ class BaseRepository<T extends BaseEntity> {
     const definedEntries = Object.entries(data).filter(
       ([, value]) => value !== undefined
     );
-    const columns = definedEntries.map(([key]) => key);
+    const columns = definedEntries.map(([key]) => `"${key}"`);
     const values = definedEntries.map(([, value]) => value);
     const placeholders = columns.map(() => '?').join(', ');
 
-    const sql = `INSERT INTO ${this.tableName} (${columns.join(', ')}, created_at, updated_at) VALUES (${placeholders}, ?, ?)`;
+    const sql = `INSERT INTO ${this.tableName} (${columns.join(', ')}, "created_at", "updated_at") VALUES (${placeholders}, ?, ?)`;
     const result = await this.client.execute({
       sql,
       args: [...values as InValue[], now, now],
@@ -113,16 +113,17 @@ class BaseRepository<T extends BaseEntity> {
 
     if (definedEntries.length === 0) return existing;
 
-    const setClauses = definedEntries.map(([key]) => `${key} = ?`);
+    const setClauses = definedEntries.map(([key]) => `"${key}" = ?`);
     const values = definedEntries.map(([, value]) => value);
 
-    const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')}, updated_at = ? WHERE id = ?`;
+    const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')}, "updated_at" = ? WHERE "id" = ?`;
     await this.client.execute({
       sql,
       args: [...values as InValue[], now, entityId],
     });
 
-    return { ...existing, ...Object.fromEntries(definedEntries), updated_at: now } as T;
+    // Re-fetch to get properly parsed row (e.g. JSON fields parsed correctly)
+    return await this.findById(entityId);
   }
 
   /**
@@ -130,7 +131,7 @@ class BaseRepository<T extends BaseEntity> {
    */
   async delete(entityId: number): Promise<boolean> {
     const result = await this.client.execute({
-      sql: `DELETE FROM ${this.tableName} WHERE id = ?`,
+      sql: `DELETE FROM "${this.tableName}" WHERE "id" = ?`,
       args: [entityId],
     });
     return result.rowsAffected > 0;
@@ -140,7 +141,7 @@ class BaseRepository<T extends BaseEntity> {
    * Count all records in the table.
    */
   async count(): Promise<number> {
-    const result = await this.client.execute(`SELECT COUNT(*) as count FROM ${this.tableName}`);
+    const result = await this.client.execute(`SELECT COUNT(*) as count FROM "${this.tableName}"`);
     return Number(result.rows[0]?.count ?? 0);
   }
 }

@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, nextTick, onUnmounted, onBeforeUnmount, shallowRef } from 'vue'
+import { computed, ref, watch, onMounted, nextTick, onUnmounted, onBeforeUnmount } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Refresh, Lightning, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 import WorkflowNode from './WorkflowNode.vue'

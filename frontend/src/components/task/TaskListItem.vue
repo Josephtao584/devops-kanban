@@ -468,11 +468,28 @@ const handleRetryWorkflow = async () => {
   }
 }
 
+function isResumableWorkflowRun(runData) {
+  return runData?.status === 'SUSPENDED' && Array.isArray(runData.steps) && runData.steps.some((step) => step.status === 'SUSPENDED')
+}
+
 // Resume workflow (continue after suspension)
 const handleResumeWorkflow = async () => {
   if (!props.task?.workflow_run_id) return
   resumeLoading.value = true
   try {
+    const latest = await getWorkflowRun(props.task.workflow_run_id)
+    if (!latest.success) {
+      ElMessage.error(latest.message || '获取工作流状态失败')
+      return
+    }
+
+    realWorkflowRun.value = latest.data
+
+    if (!isResumableWorkflowRun(latest.data)) {
+      ElMessage.warning('当前工作流还未进入可继续状态，请刷新后重试')
+      return
+    }
+
     const response = await resumeWorkflow(props.task.workflow_run_id)
     if (response.success) {
       ElMessage.success('工作流已继续执行')
@@ -482,7 +499,7 @@ const handleResumeWorkflow = async () => {
     }
   } catch (error) {
     console.error('Failed to resume workflow:', error)
-    ElMessage.error('继续工作流失败')
+    ElMessage.error(error.response?.data?.message || error.message || '继续工作流失败')
   } finally {
     resumeLoading.value = false
   }
@@ -536,19 +553,6 @@ const workflowProgress = computed(() => {
   if (!workflowData.value) return { completed: 0, total: 0, percent: 0 }
   return getWorkflowProgress(workflowData.value)
 })
-
-// Status text helper
-const getStatusText = (status) => {
-  const statusMap = {
-    'DONE': '已完成',
-    'IN_PROGRESS': '进行中',
-    'PENDING': '待处理',
-    'FAILED': '失败',
-    'REJECTED': '已打回',
-    'TODO': '待办'
-  }
-  return statusMap[status] || status
-}
 
 // Workflow status computation
 const workflowStatus = computed(() => {

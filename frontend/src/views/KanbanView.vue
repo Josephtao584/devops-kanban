@@ -595,7 +595,6 @@ import { useIterationStore } from '../stores/iterationStore'
 import { useTaskSourceStore } from '../stores/taskSourceStore'
 import AgentSelector from '../components/AgentSelector.vue'
 import StepSessionPanel from '../components/workflow/StepSessionPanel.vue'
-import TaskButlerChat from '../components/TaskButlerChat.vue'
 import DiffSelectDialog from '../components/DiffSelectDialog.vue'
 import CommitDialog from '../components/CommitDialog.vue'
 import MergeDialog from '../components/MergeDialog.vue'
@@ -606,7 +605,6 @@ import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEdito
 import IterationSelect from '../components/iteration/IterationSelect.vue'
 import IterationList from '../components/iteration/IterationList.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
-import draggable from 'vuedraggable'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
@@ -646,7 +644,6 @@ const {
 })
 
 const selectedTask = ref(null)
-const selectedAgentId = ref(null)
 const showTaskModal = ref(false)
 const showWorkflowDialog = ref(false)
 const showProgressDialog = ref(false)
@@ -663,9 +660,6 @@ const creatingIteration = ref(false)
 const progressRunId = ref(null)
 const isEditing = ref(false)
 const editingTaskId = ref(null)
-const activeSession = ref(null)
-const chatBoxRef = ref(null)
-const butlerChatRef = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
 const currentViewingNodeId = ref(null)
@@ -687,7 +681,6 @@ watch(() => selectedTask.value?.status, (newStatus) => {
 })
 
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
-const allStatusOptions = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED']
 
 const {
   runningTasks,
@@ -701,12 +694,8 @@ const {
 const {
   selectedNode,
   showNodeDialog,
-  workflowVersion,
   onNodeSelect,
   onNodeViewDetails,
-  handleButlerControl,
-  handleViewWorkflow,
-  onNodeSessionCreated,
   onStartWorkflow
 } = useWorkflowManager({
   selectedTask,
@@ -714,15 +703,6 @@ const {
   showWorkflowDialog,
   t
 })
-
-const handleTaskStarted = async (updatedTask) => {
-  if (selectedProjectId.value) {
-    await taskStore.fetchTasks(selectedProjectId.value)
-  }
-  if (selectedTask.value && selectedTask.value.id === updatedTask.id) {
-    selectedTask.value = updatedTask
-  }
-}
 
 const handleViewProgress = ({ taskId, workflowRunId }) => {
   progressRunId.value = workflowRunId
@@ -827,15 +807,6 @@ const handleMerged = () => {
     taskStore.fetchTasks(selectedProjectId.value)
   }
   toast.success(t('git.mergeSuccess', '合并成功'))
-}
-
-const handleDeleteWorktree = async (task) => {
-  const updatedTask = await handleWorktree(task, async () => {
-    if (selectedProjectId.value) {
-      await taskStore.fetchTasks(selectedProjectId.value)
-    }
-  })
-  return updatedTask
 }
 
 const handleToggleWorkflow = (taskId) => {
@@ -983,17 +954,6 @@ const filteredTasks = computed(() => {
 
 const currentViewingNode = ref(null)
 
-const clearNodeSelection = () => {
-  currentViewingNodeId.value = null
-  currentViewingNode.value = null
-}
-
-const selectedTaskWorktreeName = computed(() => {
-  if (!selectedTask.value?.worktree_path) return ''
-  const parts = selectedTask.value.worktree_path.replace(/\\/g, '/').split('/')
-  return parts[parts.length - 1] || selectedTask.value.worktree_path
-})
-
 const localTodoTasks = ref([])
 const localInProgressTasks = ref([])
 const localDoneTasks = ref([])
@@ -1043,38 +1003,6 @@ const updateColumnRefs = () => {
   localInProgressTasks.value = filteredTasks.value.filter(t => t.status === 'IN_PROGRESS')
   localDoneTasks.value = filteredTasks.value.filter(t => t.status === 'DONE')
   localBlockedTasks.value = filteredTasks.value.filter(t => t.status === 'BLOCKED')
-}
-
-const getStatusClass = (status) => {
-  const classes = {
-    TODO: 'status-todo',
-    IN_PROGRESS: 'status-in-progress',
-    DONE: 'status-done',
-    BLOCKED: 'status-blocked'
-  }
-  return classes[status] || 'status-todo'
-}
-
-const getStatusLabel = (status) => t(`status.${status}`)
-
-const getPriorityClass = (priority) => {
-  const classes = {
-    LOW: 'priority-low',
-    MEDIUM: 'priority-medium',
-    HIGH: 'priority-high',
-    CRITICAL: 'priority-critical'
-  }
-  return classes[priority] || 'priority-medium'
-}
-
-const getPriorityLabel = (priority) => {
-  const labels = {
-    LOW: t('priority.LOW'),
-    MEDIUM: t('priority.MEDIUM'),
-    HIGH: t('priority.HIGH'),
-    CRITICAL: t('priority.CRITICAL')
-  }
-  return labels[priority] || 'Medium'
 }
 
 const getNodeRoleIcon = (role) => {
@@ -1201,23 +1129,17 @@ const handleEditIteration = (iteration) => {
   showIterationModal.value = true
 }
 
-const openEditIteration = handleEditIteration
-
-const handleIterationClick = (iteration) => {
-  selectedIterationId.value = iteration?.id || null
-}
-
 const handleDeleteIteration = async (iteration) => {
-  let deleteTasks = false
+  const deleteTasksRef = ref(false)
 
   try {
     await ElMessageBox.confirm(
       h('div', { class: 'iteration-delete-confirm' }, [
         h('p', t('iteration.deleteConfirmMessage', { name: iteration.name })),
         h(ElCheckbox, {
-          modelValue: deleteTasks,
+          modelValue: deleteTasksRef.value,
           'onUpdate:modelValue': (value) => {
-            deleteTasks = value
+            deleteTasksRef.value = value
           }
         }, () => t('iteration.deleteTasksCheckbox'))
       ]),
@@ -1236,7 +1158,7 @@ const handleDeleteIteration = async (iteration) => {
   let deleted = false
 
   try {
-    const response = await iterationStore.deleteIteration(iteration.id, { deleteTasks })
+    const response = await iterationStore.deleteIteration(iteration.id, { deleteTasks: deleteTasksRef.value })
     if (!response?.success) {
       throw new Error(response?.message || response?.error || t('iteration.deleteFailed'))
     }
@@ -1350,84 +1272,9 @@ const onDragEnd = async (evt) => {
   }
 }
 
-const onSessionCreated = async (session) => {
-  activeSession.value = session
-  if (session.status === 'RUNNING' || session.status === 'IDLE') {
-    startTaskTimer(session.taskId)
-  }
-  if (session.taskId) {
-    try {
-      const updatedTask = await taskStore.fetchTask(session.taskId)
-      if (updatedTask && selectedTask.value?.id === updatedTask.id) {
-        selectedTask.value = updatedTask
-        updateColumnRefs()
-      }
-    } catch (e) {
-      console.error('Failed to refresh task after session creation:', e)
-    }
-  }
-}
-
-const onSessionStopped = () => {
-  if (selectedTask.value) {
-    stopTaskTimer(selectedTask.value.id)
-  }
-}
-
-const onSessionDeleted = async () => {
-  if (selectedTask.value) {
-    stopTaskTimer(selectedTask.value.id)
-    try {
-      const updatedTask = await taskStore.fetchTask(selectedTask.value.id)
-      if (updatedTask) {
-        selectedTask.value = updatedTask
-        updateColumnRefs()
-      }
-    } catch (e) {
-      console.error('Failed to refresh task after session deletion:', e)
-    }
-  }
-}
-
-const onStatusChange = (status) => {
-  if (activeSession.value) {
-    activeSession.value.status = status
-  }
-  if (selectedTask.value) {
-    if (status === 'RUNNING' || status === 'IDLE') {
-      startTaskTimer(selectedTask.value.id)
-    } else if (status === 'STOPPED' || status === 'ERROR' || status === 'COMPLETED') {
-      stopTaskTimer(selectedTask.value.id)
-    }
-  }
-}
-
-const handleAgentSelect = ({ agentId, agent, task }) => {
-  selectedAgentId.value = agentId
+const handleAgentSelect = ({ task }) => {
   pendingTask.value = task
   showAgentSelector.value = false
-}
-
-const handleRequestAgentSelect = (task) => {
-  console.log('handleRequestAgentSelect called, task:', task?.id, 'projectId:', selectedProjectId.value)
-  pendingTask.value = task
-  showAgentSelector.value = true
-}
-
-const loadActiveSession = async () => {
-  if (!selectedTask.value) return
-  const taskId = selectedTask.value.id
-  try {
-    const response = await getActiveSessionByTask(taskId)
-    if (response.success && response.data) {
-      activeSession.value = response.data
-    } else {
-      activeSession.value = null
-    }
-  } catch (error) {
-    console.error('Failed to load active session:', error)
-    activeSession.value = null
-  }
 }
 
 // Lifecycle

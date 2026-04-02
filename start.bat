@@ -47,28 +47,12 @@ node -v
 :: Init data directory
 :: ========================================
 set "DATA_DIR=!PROJECT_ROOT!\data"
-set "DATA_SAMPLE_DIR=!PROJECT_ROOT!\data-sample"
 
 if not exist "!DATA_DIR!" (
-    if exist "!DATA_SAMPLE_DIR!" (
-        echo [INFO] Copying data-sample to data...
-        xcopy "!DATA_SAMPLE_DIR!" "!DATA_DIR!\\" /E /I /Q >nul
-        echo [OK] Data directory initialized
-    ) else (
-        echo [INFO] Creating data directory...
-        mkdir "!DATA_DIR!"
-        echo [OK] Data directory created
-    )
+    echo [INFO] Creating data directory...
+    mkdir "!DATA_DIR!"
+    echo [OK] Data directory created. Database and seed data will be initialized on backend startup.
 )
-
-if not exist "!DATA_DIR!\projects.json" echo []> "!DATA_DIR!\projects.json"
-if not exist "!DATA_DIR!\tasks.json" echo []> "!DATA_DIR!\tasks.json"
-if not exist "!DATA_DIR!\agents.json" echo []> "!DATA_DIR!\agents.json"
-if not exist "!DATA_DIR!\sessions.json" echo []> "!DATA_DIR!\sessions.json"
-if not exist "!DATA_DIR!\executions.json" echo []> "!DATA_DIR!\executions.json"
-if not exist "!DATA_DIR!\task_sources.json" echo []> "!DATA_DIR!\task_sources.json"
-if not exist "!DATA_DIR!\skills.json" echo []> "!DATA_DIR!\skills.json"
-if not exist "!DATA_DIR!\skills" mkdir "!DATA_DIR!\skills"
 
 echo [OK] Data directory ready
 echo.

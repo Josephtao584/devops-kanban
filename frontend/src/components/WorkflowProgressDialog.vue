@@ -229,10 +229,6 @@ function isStepRunning(step) {
   return step.status === 'RUNNING'
 }
 
-function isStepSuspended(step) {
-  return step.status === 'SUSPENDED'
-}
-
 function stepStatusText(step) {
   const texts = { PENDING: '待处理', RUNNING: '进行中', SUSPENDED: '等待确认', COMPLETED: '已完成', FAILED: '失败', CANCELLED: '已取消' }
   return texts[step.status] || step.status
@@ -241,6 +237,10 @@ function stepStatusText(step) {
 function formatTime(isoStr) {
   if (!isoStr) return ''
   return new Date(isoStr).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function isResumableRun(runData) {
+  return runData?.status === 'SUSPENDED' && Array.isArray(runData.steps) && runData.steps.some((step) => step.status === 'SUSPENDED')
 }
 
 async function handleResume(approved) {
@@ -258,8 +258,21 @@ async function handleResume(approved) {
       }
     ).catch(() => ({ value: null }))
 
-    // If user clicked cancel on the messagebox
     if (comment === null && !approved) return
+
+    const latest = await getWorkflowRun(props.workflowRunId)
+    if (!latest.success) {
+      ElMessage.error(latest.message || '获取工作流状态失败')
+      return
+    }
+
+    run.value = latest.data
+    syncSelectedStep()
+
+    if (approved && !isResumableRun(latest.data)) {
+      ElMessage.warning('当前工作流还未进入可继续状态，请刷新后重试')
+      return
+    }
 
     const resumeData = { approved, comment: comment || undefined }
     const response = await resumeWorkflow(props.workflowRunId, resumeData)
@@ -271,7 +284,6 @@ async function handleResume(approved) {
       ElMessage.error(response.message || '操作失败')
     }
   } catch (err) {
-    // User cancelled the messagebox
     if (err === 'cancel' || err === 'close') return
     ElMessage.error(err.response?.data?.message || err.message || '操作失败')
   }

@@ -71,10 +71,13 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
     }
   });
 
-  fastify.put<{ Params: IdParams; Body: { description?: string } }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: IdParams; Body: { name?: string; description?: string } }>('/:id', async (request, reply) => {
     try {
-      const { description } = request.body;
-      const updated = await skillService.updateSkill(parseNumber(request.params.id), description);
+      const { name, description } = request.body;
+      const updates: { name?: string; description?: string } = {};
+      if (name) updates.name = name;
+      if (description) updates.description = description;
+      const updated = await skillService.updateSkill(parseNumber(request.params.id), updates);
       if (!updated) {
         reply.code(404);
         return errorResponse('Skill not found');

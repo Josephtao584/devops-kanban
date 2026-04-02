@@ -28,9 +28,6 @@ vi.mock('../src/stores/skillStore', () => ({
   useSkillStore: () => mockSkillStore
 }))
 
-vi.mock('../src/api/execution', () => ({
-  getExecutionsByAgent: vi.fn().mockResolvedValue({ success: true, data: [] })
-}))
 
 const flushPromises = async () => {
   await Promise.resolve()

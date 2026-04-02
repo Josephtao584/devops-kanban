@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS iterations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL,
   name TEXT NOT NULL,
+  description TEXT,
   goal TEXT,
   status TEXT NOT NULL,
   start_date TEXT,
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS workflow_templates (
   template_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   steps TEXT NOT NULL DEFAULT '[]',
+  "order" INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -100,6 +102,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   iteration_id INTEGER,
   source TEXT NOT NULL DEFAULT 'internal',
   labels TEXT DEFAULT '[]',
+  worktree_status TEXT DEFAULT 'none',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

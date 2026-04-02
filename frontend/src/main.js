@@ -9,7 +9,6 @@ import en from 'element-plus/es/locale/lang/en'
 import App from './App.vue'
 import router from './router'
 import i18n from './locales'
-import api from './api/index.js'
 
 // Import global component styles
 import './assets/styles/components.css'

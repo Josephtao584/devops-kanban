@@ -1,6 +1,6 @@
 import { SkillRepository } from '../repositories/skillRepository.js';
 import type { SkillEntity } from '../types/entities.js';
-import { existsSync, mkdirSync, rmSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readdirSync, readFileSync, writeFileSync, statSync, renameSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import AdmZip from 'adm-zip';
 
@@ -53,10 +53,28 @@ class SkillService {
     return await this.skillRepo.create(entityData);
   }
 
-  async updateSkill(id: number, description?: string): Promise<SkillEntity | null> {
-    const updateData: Partial<Omit<SkillEntity, 'id' | 'created_at' | 'updated_at'>> = description
-      ? { description }
-      : {};
+  async updateSkill(id: number, updates: { name?: string; description?: string }): Promise<SkillEntity | null> {
+    const existing = await this.skillRepo.findById(id);
+    if (!existing) return null;
+
+    const updateData: Partial<Omit<SkillEntity, 'id' | 'created_at' | 'updated_at'>> = {};
+
+    if (updates.description !== undefined) {
+      updateData.description = updates.description;
+    }
+
+    if (updates.name !== undefined && updates.name !== existing.name) {
+      // Rename skill directory on disk
+      const oldDir = this.getSkillDir(existing.name);
+      const newDir = this.getSkillDir(updates.name);
+      if (existsSync(oldDir)) {
+        renameSync(oldDir, newDir);
+      }
+      updateData.name = updates.name;
+      updateData.identifier = updates.name;
+    }
+
+    if (Object.keys(updateData).length === 0) return existing;
     return await this.skillRepo.update(id, updateData);
   }
 

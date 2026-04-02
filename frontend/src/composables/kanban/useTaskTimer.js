@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
 
 // Store running task timers globally
 const taskTimers = new Map() // taskId -> { startTime, elapsed, intervalId }

@@ -3,32 +3,20 @@ import api from './index.js'
 // Session API - named exports only
 
 // Get sessions for a task
-export const getSessionsByTask = (taskId, activeOnly = false) => api.get('/sessions', {
+export const getSessionsByTask = (taskId, activeOnly = false) => api.get(`/sessions/list/${taskId}`, {
   params: {
-    task_id: taskId,
     ...(activeOnly ? { active_only: true } : {})
   }
 })
 
 // Get active session for a task
-export const getActiveSessionByTask = (taskId) => api.get('/sessions/active', {
-  params: {
-    task_id: taskId
-  }
-})
+export const getActiveSessionByTask = (taskId) => api.get(`/sessions/active/${taskId}`)
 
 // Get session history for a task
-export const getSessionHistory = (taskId, includeOutput = true) => api.get('/sessions/history', {
+export const getSessionHistory = (taskId, includeOutput = true) => api.get(`/sessions/history/${taskId}`, {
   params: {
-    task_id: taskId,
-    include_output: includeOutput
+    ...(includeOutput ? { include_output: true } : {})
   }
-})
-
-// Create a new session
-export const createSession = (taskId, agentId) => api.post('/sessions', {
-  taskId,
-  agentId
 })
 
 // Get session by ID
@@ -64,7 +52,6 @@ export default {
   getSessionsByTask,
   getActiveSessionByTask,
   getSessionHistory,
-  createSession,
   getSession,
   getSessionOutput,
   startSession,
