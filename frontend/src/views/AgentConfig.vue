@@ -253,7 +253,8 @@ const formatExecutorType = (executorType) => {
 }
 
 const getVisibleAgentSkills = (agent) => {
-  return (agent?.skills || []).map(skillId => {
+  const skills = Array.isArray(agent?.skills) ? agent.skills : (typeof agent?.skills === 'string' ? JSON.parse(agent.skills) : [])
+  return skills.map(skillId => {
     const skill = skillStore.skills.find(s => s.id === skillId)
     return skill ? skill.name : null
   }).filter(name => name !== null)

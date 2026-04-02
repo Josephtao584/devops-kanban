@@ -29,6 +29,14 @@ export function createWorktree(taskId: number, taskTitle: string, projectName: s
     if (fs.existsSync(worktreePath)) {
       return worktreePath;
     }
+
+    // Prune stale worktree references (dir deleted but git still tracks it)
+    try {
+      execSync('git worktree prune', { cwd: repoPath, stdio: 'pipe' });
+    } catch {
+      // Non-critical, continue
+    }
+
     const parentDir = path.dirname(worktreePath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });

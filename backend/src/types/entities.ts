@@ -162,6 +162,7 @@ export interface IterationEntity {
   id: number;
   project_id: number;
   name: string;
+  description: string | undefined;
   goal: string | undefined;
   status: string;
   start_date: string | undefined;

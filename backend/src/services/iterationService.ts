@@ -102,6 +102,7 @@ class IterationService {
     return await this.iterationRepo.create({
       project_id: iterationData.project_id,
       name: iterationData.name,
+      description: iterationData.description,
       goal: iterationData.goal,
       status: iterationData.status || 'PLANNED',
       start_date: iterationData.start_date,

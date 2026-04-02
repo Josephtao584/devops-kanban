@@ -29,14 +29,6 @@ vi.mock('../src/api/task.js', async () => {
   }
 })
 
-vi.mock('../src/api/session.js', () => ({
-  getActiveSessionByTask: vi.fn().mockResolvedValue({ success: true, data: null })
-}))
-
-vi.mock('../src/api/taskWorktree.js', () => ({
-  deleteTaskWorktree: vi.fn()
-}))
-
 vi.mock('../src/api/workflowTemplate.js', () => ({
   getWorkflowTemplates: vi.fn().mockResolvedValue({
     success: true,
@@ -97,12 +89,8 @@ vi.mock('../src/composables/kanban/useWorkflowManager', () => ({
   useWorkflowManager: () => ({
     selectedNode: { value: null },
     showNodeDialog: { value: false },
-    workflowVersion: { value: 0 },
     onNodeSelect: vi.fn(),
     onNodeViewDetails: vi.fn(),
-    handleButlerControl: vi.fn(),
-    handleViewWorkflow: vi.fn(),
-    onNodeSessionCreated: vi.fn(),
     onStartWorkflow: vi.fn()
   })
 }))
@@ -110,13 +98,6 @@ vi.mock('../src/composables/kanban/useWorkflowManager', () => ({
 vi.mock('../src/mock/workflowAssignment', () => ({
   analyzeTaskCategory: vi.fn(() => 'FEATURE'),
   getRecommendedWorkflowTemplateId: vi.fn(() => 'quick-fix-v1')
-}))
-
-vi.mock('../src/mock/workflowData', () => ({
-  getWorkflowByProject: vi.fn(() => null),
-  getWorkflowByTask: vi.fn(() => null),
-  getOrCreateWorkflowForProject: vi.fn(() => null),
-  addNodeToWorkflow: vi.fn()
 }))
 
 vi.mock('vuedraggable', () => ({
@@ -308,8 +289,6 @@ function mountView() {
         CommitDialog: passthroughStub('CommitDialog'),
         IterationForm: passthroughStub('IterationForm'),
         IterationList: passthroughStub('IterationList'),
-        TaskButlerChat: passthroughStub('TaskButlerChat'),
-        ChatBox: passthroughStub('ChatBox'),
         WorkflowTemplateSelectDialog: WorkflowTemplateSelectDialogStub,
         WorkflowStartEditorDialog: WorkflowStartEditorDialogStub,
         IterationSelect: IterationSelectStub,

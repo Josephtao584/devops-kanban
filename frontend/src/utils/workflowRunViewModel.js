@@ -32,7 +32,10 @@ export const getWorkflowProgress = (workflow) => {
 export const getWorkflowDisplayStatus = (run) => {
   if (!run) return 'pending'
   if (run.status === 'RUNNING' || run.status === 'PENDING') return 'running'
-  if (run.status === 'SUSPENDED') return 'suspended'
+  if (run.status === 'SUSPENDED') {
+    const hasSuspendedStep = Array.isArray(run.steps) && run.steps.some((step) => step.status === 'SUSPENDED')
+    return hasSuspendedStep ? 'suspended' : 'running'
+  }
   if (run.status === 'COMPLETED') return 'done'
   if (run.status === 'FAILED') return 'failed'
   if (run.status === 'CANCELLED') return 'cancelled'

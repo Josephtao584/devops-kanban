@@ -156,6 +156,15 @@ class TaskRepository extends BaseRepository<TaskEntity> {
     if (result.rows.length === 0) return null;
     return this.parseRow(result.rows[0] as Record<string, unknown>);
   }
+
+  async findByExternalIdAndProject(externalId: string, projectId: number): Promise<TaskEntity | null> {
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM tasks WHERE external_id = ? AND project_id = ?',
+      args: [externalId, projectId],
+    });
+    if (result.rows.length === 0) return null;
+    return this.parseRow(result.rows[0] as Record<string, unknown>);
+  }
 }
 
 export { TaskRepository };

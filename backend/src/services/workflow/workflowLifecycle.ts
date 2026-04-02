@@ -407,15 +407,20 @@ class WorkflowLifecycle {
     stepId: string,
     resumeData: { approved: boolean; comment?: string },
   ) {
-    // Update step confirmation info
     await this.workflowRunRepo.updateStep(runId, stepId, {
       confirmation_note: resumeData.comment || null,
       confirmed_at: new Date().toISOString(),
     });
 
-    // Update workflow run status to RUNNING
+    const run = await this.workflowRunRepo.findById(runId);
     await this.workflowRunRepo.update(runId, {
       status: 'RUNNING',
+      context: {
+        ...(run?.context || {}),
+        error: null,
+        stale_mastra_run_id: null,
+        stale_mastra_takeover_at: null,
+      },
     });
   }
 
@@ -443,7 +448,16 @@ class WorkflowLifecycle {
   }
 
   async onWorkflowStart(runId: number) {
-    await this.workflowRunRepo.update(runId, { status: 'RUNNING' });
+    const run = await this.workflowRunRepo.findById(runId);
+    await this.workflowRunRepo.update(runId, {
+      status: 'RUNNING',
+      context: {
+        ...(run?.context || {}),
+        error: null,
+        stale_mastra_run_id: null,
+        stale_mastra_takeover_at: null,
+      },
+    });
   }
 
   async onWorkflowComplete(runId: number, result: Record<string, unknown>) {

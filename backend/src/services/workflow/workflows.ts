@@ -59,7 +59,11 @@ interface BuildWorkflowOptions {
 }
 
 export function getWorkflowFromWorkflowId(workflowId: string) {
-  return getMastra().getWorkflow(workflowId);
+  try {
+    return getMastra().getWorkflow(workflowId);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -126,7 +130,9 @@ export function buildWorkflowFromTemplate(
         let segmentId: number | undefined;
         const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
         if (!sessionInfo) {
-          throw new Error('session created error');
+          console.log(`[Workflow] Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
+          abort();
+          return { summary: '' };
         }
 
         sessionId = sessionInfo.sessionId;

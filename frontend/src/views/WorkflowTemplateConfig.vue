@@ -470,15 +470,6 @@ const selectStep = (index) => {
   selectedStepIndex.value = index
 }
 
-const addStep = () => {
-  if (!template.value) return
-  template.value.steps = [
-    ...(template.value.steps || []),
-    createEmptyWorkflowStep(t('workflowTemplate.newStepDefaultName'))
-  ]
-  selectedStepIndex.value = template.value.steps.length - 1
-}
-
 const insertStep = (index, position) => {
   if (!template.value) return
 

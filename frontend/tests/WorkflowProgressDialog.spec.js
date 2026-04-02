@@ -16,14 +16,12 @@ const StepSessionPanelStub = defineComponent({
   name: 'StepSessionPanel',
   props: {
     sessionId: { type: Number, default: null },
-    sessionStatus: { type: String, default: '' },
     stepName: { type: String, default: '' }
   },
   setup(props) {
     return () => h('div', {
       class: 'step-session-panel-stub',
       'data-session-id': String(props.sessionId),
-      'data-session-status': props.sessionStatus,
       'data-step-name': props.stepName
     })
   }

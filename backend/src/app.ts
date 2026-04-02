@@ -6,7 +6,7 @@ import * as config from './config/index.js';
 import corsPlugin from './middleware/cors.js';
 import errorHandlerPlugin from './middleware/errorHandler.js';
 import { initWorkflows } from './services/workflow/workflows.js';
-import { initDatabase } from './db/index.js';
+import { initDatabase, seedSampleData } from './db/index.js';
 import {
   agentRoutes,
   executionRoutes,
@@ -24,6 +24,14 @@ import {
 export async function buildApp() {
   // Initialize database tables
   await initDatabase();
+
+  // Auto-seed sample data if database is empty
+  const { getDbClient } = await import('./db/client.js');
+  const result = await getDbClient().execute('SELECT COUNT(*) as count FROM projects');
+  if (result.rows[0].count === 0) {
+    console.log('Database is empty, seeding sample data...');
+    await seedSampleData();
+  }
 
   // Initialize Mastra workflow engine
   await initWorkflows();

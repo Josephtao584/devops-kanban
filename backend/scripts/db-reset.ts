@@ -52,32 +52,34 @@ export async function resetDatabase(options: ResetOptions = {}): Promise<void> {
   // Step 1: Ensure tables exist (must happen before cleaning data)
   await initDatabase();
 
-  // Step 2: Clean data (unless --seed-only)
+  // Step 2: Clean data (always clean before seeding to avoid UNIQUE constraint errors)
   if (!seedOnly) {
     console.log('Cleaning database...');
-
-    // Disable foreign key checks during cleanup (existing databases may have FK constraints)
-    await client.execute('PRAGMA foreign_keys = OFF');
-
-    const deleteStatements = TABLES_IN_ORDER.map(
-      table => `DELETE FROM ${table}`
-    );
-
-    // Add statements to reset auto-increment IDs
-    const resetStatements = TABLES_IN_ORDER.map(
-      table => `DELETE FROM sqlite_sequence WHERE name = '${table}'`
-    );
-
-    await client.batch([
-      ...deleteStatements.map(sql => ({ sql })),
-      ...resetStatements.map(sql => ({ sql })),
-    ], 'write');
-
-    // Re-enable foreign key checks (though new schema has no FKs)
-    await client.execute('PRAGMA foreign_keys = ON');
-
-    console.log('Database cleaned.');
+  } else {
+    console.log('Cleaning existing data before seeding...');
   }
+
+  // Disable foreign key checks during cleanup (existing databases may have FK constraints)
+  await client.execute('PRAGMA foreign_keys = OFF');
+
+  const deleteStatements = TABLES_IN_ORDER.map(
+    table => `DELETE FROM ${table}`
+  );
+
+  // Add statements to reset auto-increment IDs
+  const resetStatements = TABLES_IN_ORDER.map(
+    table => `DELETE FROM sqlite_sequence WHERE name = '${table}'`
+  );
+
+  await client.batch([
+    ...deleteStatements.map(sql => ({ sql })),
+    ...resetStatements.map(sql => ({ sql })),
+  ], 'write');
+
+  // Re-enable foreign key checks (though new schema has no FKs)
+  await client.execute('PRAGMA foreign_keys = ON');
+
+  console.log('Database cleaned.');
 
   // Step 3: Insert seed data (unless --clean-only)
   if (!cleanOnly) {

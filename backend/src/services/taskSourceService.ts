@@ -191,7 +191,7 @@ class TaskSourceService {
     const adapter = getAdapter(source.type, source as TaskSourceLike);
     const issues = (await adapter.fetch(options)) as ImportedTask[];
 
-    const allTasks = await this.taskRepository.findAll();
+    const allTasks = await this.taskRepository.findByProject(source.project_id);
     const importedExternalIds = new Set(
       allTasks
         .filter((task) => task.external_id)
@@ -217,7 +217,7 @@ class TaskSourceService {
     let skipped = 0;
 
     for (const item of selectedItems) {
-      const existing = await this.taskRepository.findByExternalId(item.external_id);
+      const existing = await this.taskRepository.findByExternalIdAndProject(item.external_id, numericProjectId);
       if (existing) {
         skipped++;
         continue;

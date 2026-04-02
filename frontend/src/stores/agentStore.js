@@ -36,7 +36,8 @@ export const useAgentStore = defineStore('agent', () => {
   async function toggleAgentEnabled(id) {
     const agent = crud.items.value.find(a => a.id === id)
     if (agent) {
-      return crud.update(id, { ...agent, enabled: !agent.enabled })
+      const skills = Array.isArray(agent.skills) ? agent.skills : JSON.parse(agent.skills || '[]')
+      return crud.update(id, { ...agent, enabled: !agent.enabled, skills })
     }
   }
 

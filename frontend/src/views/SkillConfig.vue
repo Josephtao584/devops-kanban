@@ -542,7 +542,7 @@ const saveSkill = async () => {
 
     let response
     if (editingSkill.value) {
-      response = await skillStore.updateSkill(editingSkill.value.id, data.description)
+      response = await skillStore.updateSkill(editingSkill.value.id, data)
     } else {
       response = await skillStore.createSkill(data)
     }
@@ -556,7 +556,7 @@ const saveSkill = async () => {
     await skillStore.fetchSkills()
 
     // Select the created/updated skill
-    const skillName = editingSkill.value ? editingSkill.value.name : form.value.name
+    const skillName = editingSkill.value ? data.name : form.value.name
     const updatedSkill = skillStore.skills.find(s => s.name === skillName)
     if (updatedSkill) {
       selectedSkill.value = updatedSkill

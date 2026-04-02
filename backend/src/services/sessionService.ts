@@ -160,6 +160,22 @@ class SessionService {
     return (await this.sessionRepo.findById(sessionId)) !== null;
   }
 
+  async listByTask(taskId: number) {
+    return await this.sessionRepo.getByTask(taskId);
+  }
+
+  async getActiveByTask(taskId: number) {
+    return await this.sessionRepo.getActiveByTask(taskId);
+  }
+
+  async delete(sessionId: number) {
+    return await this.sessionRepo.delete(sessionId);
+  }
+
+  async updateSessionStatus(sessionId: number, status: string) {
+    return await this.sessionRepo.update(sessionId, { status, completed_at: new Date().toISOString() });
+  }
+
   private _requireLaunchableWorktree(session: SessionLike) {
     if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
       const error = new Error('Session worktree is unavailable') as Error & { statusCode?: number };

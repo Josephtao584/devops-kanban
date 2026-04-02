@@ -228,3 +228,96 @@ test.test('startWorkflow validates agents from workflow_template_snapshot', asyn
     },
   );
 });
+
+test.test('retryWorkflow does not mutate run state when Mastra still reports running', async () => {
+  const task = buildTask();
+  const template = buildTemplate('retry-template', ['step-a', 'step-b']);
+  const runUpdates: Array<Record<string, unknown>> = [];
+  const stepUpdates: Array<Record<string, unknown>> = [];
+  const run = {
+    id: 91,
+    task_id: 7,
+    workflow_template_snapshot: template,
+    mastra_run_id: 'mastra-run-91',
+    status: 'FAILED',
+    worktree_path: '/tmp/task-7',
+    context: { error: 'step failed' },
+    steps: [
+      {
+        step_id: 'step-a',
+        name: 'Step 1',
+        status: 'COMPLETED',
+        started_at: '2026-03-22T00:00:00.000Z',
+        completed_at: '2026-03-22T00:10:00.000Z',
+        retry_count: 0,
+        session_id: 11,
+        summary: 'done',
+        error: null,
+      },
+      {
+        step_id: 'step-b',
+        name: 'Step 2',
+        status: 'FAILED',
+        started_at: '2026-03-22T00:10:00.000Z',
+        completed_at: '2026-03-22T00:11:00.000Z',
+        retry_count: 0,
+        session_id: 12,
+        summary: null,
+        error: 'step failed',
+      },
+    ],
+  };
+  const workflow = {
+    async getWorkflowRunById(runId: string, options: Record<string, unknown>) {
+      assert.equal(runId, 'mastra-run-91');
+      assert.deepEqual(options, { withNestedWorkflows: false });
+      return { status: 'running' };
+    },
+    async createRun() {
+      assert.fail('retry should not create a new Mastra run when persisted run is still running');
+    },
+  };
+
+  const service = new WorkflowService({
+    taskRepo: {
+      async findById(taskId: number) {
+        assert.equal(taskId, 7);
+        return task;
+      },
+    } as never,
+    workflowRunRepo: {
+      async findById(runId: number) {
+        assert.equal(runId, 91);
+        return run;
+      },
+      async update(_runId: number, payload: Record<string, unknown>) {
+        runUpdates.push(payload);
+        Object.assign(run, payload);
+        return run;
+      },
+      async updateStep(_runId: number, _stepId: string, payload: Record<string, unknown>) {
+        stepUpdates.push(payload);
+        Object.assign(run.steps[1]!, payload);
+        return run;
+      },
+    } as never,
+  });
+
+  service._getOrRegisterWorkflow = (() => workflow) as never;
+  service._takeOverStaleMastraRun = (async () => null) as never;
+
+  await assert.rejects(
+    () => service.retryWorkflow(91),
+    (error: Error & { statusCode?: number }) => {
+      assert.equal(error.statusCode, 409);
+      assert.match(error.message, /still running in Mastra storage/);
+      return true;
+    },
+  );
+
+  assert.deepEqual(runUpdates, []);
+  assert.deepEqual(stepUpdates, []);
+  assert.equal(run.status, 'FAILED');
+  assert.equal(run.steps[1]?.status, 'FAILED');
+  assert.deepEqual(run.context, { error: 'step failed' });
+});

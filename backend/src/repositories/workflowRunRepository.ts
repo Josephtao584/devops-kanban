@@ -4,8 +4,16 @@ import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts
 type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>>;
 
 class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
+  private mutationQueue: Promise<unknown> = Promise.resolve();
+
   constructor() {
     super('workflow_runs');
+  }
+
+  private async serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.mutationQueue.then(operation, operation);
+    this.mutationQueue = next.then(() => undefined, () => undefined);
+    return next;
   }
 
   protected override parseRow(row: Record<string, unknown>): WorkflowRunEntity {
@@ -44,6 +52,13 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     return await this.findLatestByTaskId(taskId);
   }
 
+  async deleteByTaskId(taskId: number): Promise<void> {
+    await this.client.execute({
+      sql: 'DELETE FROM workflow_runs WHERE task_id = ?',
+      args: [taskId],
+    });
+  }
+
   async findAllByTaskId(taskId: number): Promise<WorkflowRunEntity[]> {
     const result = await this.client.execute({
       sql: 'SELECT * FROM workflow_runs WHERE task_id = ?',
@@ -53,38 +68,37 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   }
 
   async updateStep(runId: number, stepId: string, stepUpdate: UpdateWorkflowStepRecord): Promise<WorkflowRunEntity | null> {
-    const txn = await this.client.transaction('write');
-    try {
-      // Fetch current run
-      const runResult = await txn.execute({
-        sql: 'SELECT * FROM workflow_runs WHERE id = ?',
-        args: [runId],
-      });
-      if (runResult.rows.length === 0) return null;
+    return this.serializeMutation(async () => {
+      const txn = await this.client.transaction('write');
+      try {
+        const runResult = await txn.execute({
+          sql: 'SELECT * FROM workflow_runs WHERE id = ?',
+          args: [runId],
+        });
+        if (runResult.rows.length === 0) return null;
 
-      const run = this.parseRow(runResult.rows[0] as Record<string, unknown>);
-      const steps = [...run.steps] as WorkflowStepEntity[];
-      const stepIndex = steps.findIndex(s => s.step_id === stepId);
-      if (stepIndex === -1) return null;
+        const run = this.parseRow(runResult.rows[0] as Record<string, unknown>);
+        const steps = [...run.steps] as WorkflowStepEntity[];
+        const stepIndex = steps.findIndex(s => s.step_id === stepId);
+        if (stepIndex === -1) return null;
 
-      // Update step
-      steps[stepIndex] = { ...steps[stepIndex], ...stepUpdate } as WorkflowStepEntity;
-      const now = new Date().toISOString();
+        steps[stepIndex] = { ...steps[stepIndex], ...stepUpdate } as WorkflowStepEntity;
+        const now = new Date().toISOString();
 
-      // Save back to database
-      await txn.execute({
-        sql: 'UPDATE workflow_runs SET steps = ?, updated_at = ? WHERE id = ?',
-        args: [JSON.stringify(steps), now, runId],
-      });
+        await txn.execute({
+          sql: 'UPDATE workflow_runs SET steps = ?, updated_at = ? WHERE id = ?',
+          args: [JSON.stringify(steps), now, runId],
+        });
 
-      await txn.commit();
-      return { ...run, steps, updated_at: now };
-    } catch (error) {
-      await txn.rollback();
-      throw error;
-    } finally {
-      txn.close();
-    }
+        await txn.commit();
+        return { ...run, steps, updated_at: now };
+      } catch (error) {
+        await txn.rollback();
+        throw error;
+      } finally {
+        txn.close();
+      }
+    });
   }
 }
 

@@ -41,6 +41,9 @@ dist/
 package-lock.json
 frontend/playwright-report/
 frontend/test-results/
+.playwright-mcp/
+backend/*.db-shm
+backend/*.db-wal
 
 ### Data directory ###
 data/
@@ -59,3 +62,4 @@ backend/data/
 __pycache__/
 .worktrees/
 .claude/
+docs/
