@@ -166,14 +166,18 @@ class UniversalAdapter extends TaskSourceAdapter {
   _httpRequest(url: string, method: string, headers: RequestHeaders): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const urlObj = new URL(url);
-      const options = {
+      const options: Record<string, unknown> = {
         hostname: urlObj.hostname,
         path: urlObj.pathname + urlObj.search,
         headers,
         method: method.toUpperCase(),
       };
 
-      const req = httpsRequest(options, (res: IncomingMessage) => {
+      if (urlObj.protocol === 'https:') {
+        options.rejectUnauthorized = (this.source.config as UnknownRecord).rejectUnauthorized !== false;
+      }
+
+      const req = httpsRequest(options as Record<string, string | number | boolean | Record<string, string>>, (res: IncomingMessage) => {
         let data = '';
 
         res.on('data', (chunk: Buffer | string) => {
