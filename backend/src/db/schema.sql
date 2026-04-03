@@ -37,6 +37,21 @@ CREATE TABLE IF NOT EXISTS skills (
 
 CREATE INDEX IF NOT EXISTS idx_skills_identifier ON skills(identifier);
 
+-- mcp_servers: MCP 服务器配置表
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  server_type TEXT NOT NULL DEFAULT 'stdio',
+  config TEXT NOT NULL DEFAULT '{}',
+  auto_install INTEGER NOT NULL DEFAULT 0,
+  install_command TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
+
 -- agents: 代理表
 CREATE TABLE IF NOT EXISTS agents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +61,7 @@ CREATE TABLE IF NOT EXISTS agents (
   description TEXT,
   enabled INTEGER NOT NULL DEFAULT 1,
   skills TEXT NOT NULL DEFAULT '[]',
+  mcp_servers TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

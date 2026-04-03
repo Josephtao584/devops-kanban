@@ -63,6 +63,10 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
         encoding: 'utf-8',
       });
     }
+
+    // Copy .claude/ config (settings.json, settings.local.json) to worktree
+    copyClaudeConfig(repoPath, worktreePath);
+
     return worktreePath;
   } catch (error) {
     const execError = error as Error & { stderr?: string };
@@ -72,6 +76,27 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
       throw new Error(`Git 仓库还没有提交，无法创建 worktree。请先对仓库进行初始提交。`);
     }
     throw new Error(`Failed to create worktree: ${stderr}`);
+  }
+}
+
+function copyClaudeConfig(repoPath: string, worktreePath: string) {
+  const srcDir = path.join(repoPath, '.claude');
+  const destDir = path.join(worktreePath, '.claude');
+
+  if (!fs.existsSync(srcDir)) return;
+
+  const filesToCopy = ['settings.json', 'settings.local.json'];
+  let copied = false;
+
+  for (const file of filesToCopy) {
+    const srcFile = path.join(srcDir, file);
+    if (fs.existsSync(srcFile)) {
+      if (!copied) {
+        fs.mkdirSync(destDir, { recursive: true });
+        copied = true;
+      }
+      fs.copyFileSync(srcFile, path.join(destDir, file));
+    }
   }
 }
 

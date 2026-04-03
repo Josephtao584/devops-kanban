@@ -73,6 +73,7 @@
     <!-- Add/Edit Dialog -->
     <el-dialog
       v-model="dialogVisible"
+      :close-on-click-modal="false"
       :title="isEditMode ? $t('taskSource.editTitle') : $t('taskSource.addTitle')"
       width="520px"
       class="task-source-dialog"
@@ -197,6 +198,7 @@
     <!-- Sync Preview Dialog -->
     <el-dialog
       v-model="taskSourceStore.showPreviewDialog"
+      :close-on-click-modal="false"
       :title="$t('taskSource.previewTitle')"
       width="650px"
       class="sync-preview-dialog"
@@ -277,6 +279,7 @@
     <!-- Test Result Dialog -->
     <el-dialog
       v-model="testDialogVisible"
+      :close-on-click-modal="false"
       :title="$t('taskSource.testResult')"
       width="400px"
     >

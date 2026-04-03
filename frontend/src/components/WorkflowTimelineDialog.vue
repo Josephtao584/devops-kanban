@@ -1,6 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
+    :close-on-click-modal="false"
     :title="$t('workflow.title')"
     width="80%"
     class="workflow-dialog"

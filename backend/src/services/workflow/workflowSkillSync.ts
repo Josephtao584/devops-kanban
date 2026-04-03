@@ -1,6 +1,7 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SkillRepository } from '../../repositories/skillRepository.js';
 import type { WorkflowInstanceEntity } from '../../types/entities.js';
+import type { ExecutorType } from '../../types/executors.js';
 
 const agentRepo = new AgentRepository();
 const skillRepo = new SkillRepository();
@@ -16,18 +17,35 @@ async function resolveWorkflowSkills(workflow: WorkflowInstanceEntity): Promise<
     return [];
   }
 
-  const allSkillIds = new Set<number>();
+  const allSkillNames = new Set<string>();
   for (const agentId of agentIds) {
-    const agent = await agentRepo.findById(agentId);
-    if (agent?.skills && Array.isArray(agent.skills)) {
-      agent.skills.forEach(id => allSkillIds.add(id));
-    }
+    const { skillNames } = await resolveAgentSkills(agentId);
+    skillNames.forEach(name => allSkillNames.add(name));
+  }
+
+  return [...allSkillNames];
+}
+
+async function resolveAgentSkills(agentId: number): Promise<{ skillNames: string[]; executorType: ExecutorType }> {
+  const agent = await agentRepo.findById(agentId);
+  if (!agent || !Array.isArray(agent.skills) || agent.skills.length === 0) {
+    return { skillNames: [], executorType: (agent?.executorType || 'CLAUDE_CODE') as ExecutorType };
   }
 
   const allSkills = await skillRepo.findAll();
   const skillMap = new Map(allSkills.map(s => [s.id, s.identifier || s.name]));
 
-  return [...allSkillIds].map(id => skillMap.get(id) || String(id));
+  const skillNames = agent.skills
+    .map(id => skillMap.get(id) || String(id))
+    .filter(name => {
+      if (name === String(Number(name))) {
+        console.warn(`[workflowSkillSync] Skill ID ${name} not found in DB, skipping`);
+        return false;
+      }
+      return true;
+    });
+
+  return { skillNames, executorType: (agent.executorType || 'CLAUDE_CODE') as ExecutorType };
 }
 
-export { resolveWorkflowSkills };
+export { resolveWorkflowSkills, resolveAgentSkills };

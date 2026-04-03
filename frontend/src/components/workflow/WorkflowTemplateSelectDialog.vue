@@ -1,6 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
+    :close-on-click-modal="false"
     :title="$t('workflowTemplate.selectDialogTitle')"
     width="560px"
     @update:modelValue="emit('update:modelValue', $event)"

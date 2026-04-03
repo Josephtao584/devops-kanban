@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :model-value="modelValue" :title="$t('workflowTemplate.startEditorTitle')" width="920px" @close="handleCancel">
+  <el-dialog :model-value="modelValue" :title="$t('workflowTemplate.startEditorTitle')" width="920px" :close-on-click-modal="false" @close="handleCancel">
     <template v-if="draftTemplate">
       <div class="template-meta">
         <div class="meta-row">
@@ -127,6 +127,7 @@
 
     <el-dialog
       :model-value="showStepDetailsDialog"
+      :close-on-click-modal="false"
       :title="selectedStep?.name || $t('workflowTemplate.stepDetailsTitle')"
       width="680px"
       append-to-body

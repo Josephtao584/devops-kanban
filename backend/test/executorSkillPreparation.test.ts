@@ -5,9 +5,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { prepareExecutionSkills } from '../src/services/workflow/executorSkillPreparation.js';
+import { STORAGE_PATH } from '../src/config/index.js';
 import { ExecutorType } from '../src/types/executors.js';
 
-const REAL_STORAGE_ROOT = '/Users/taowenpeng/IdeaProjects/devops-kanban/data';
+const REAL_STORAGE_ROOT = STORAGE_PATH;
 
 async function withTempProject(run: (skillName: string, projectRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'executor-skill-prep-'));

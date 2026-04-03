@@ -5,8 +5,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { ensureSkillsInWorktree } from '../src/utils/skillSync.js';
+import { STORAGE_PATH } from '../src/config/index.js';
 
-const REAL_STORAGE_ROOT = '/Users/taowenpeng/IdeaProjects/devops-kanban/data';
+const REAL_STORAGE_ROOT = STORAGE_PATH;
 
 async function withTempDirs(run: (skillName: string, projectRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-sync-test-'));

@@ -5,6 +5,7 @@ export enum ExecutorType {
 export interface ExecutorConfig {
   type: ExecutorType;
   skills?: number[];
+  mcpServers?: number[];
 }
 
 export interface ExecutorProcessHandle {

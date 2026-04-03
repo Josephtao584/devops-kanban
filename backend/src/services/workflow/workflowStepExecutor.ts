@@ -36,9 +36,14 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
     throw new Error(`Agent ${agent.id} has invalid skills configuration`);
   }
 
+  if (!Array.isArray(agent.mcpServers) || agent.mcpServers.some((id) => typeof id !== 'number')) {
+    throw new Error(`Agent ${agent.id} has invalid MCP servers configuration`);
+  }
+
   return {
     type: agent.executorType,
     skills: [...agent.skills],
+    mcpServers: [...agent.mcpServers],
   };
 }
 

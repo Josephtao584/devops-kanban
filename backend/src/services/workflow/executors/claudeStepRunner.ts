@@ -1,5 +1,7 @@
 import crossSpawn, {SpawnedProcess} from 'cross-spawn';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
 import type { ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
@@ -187,6 +189,12 @@ async function defaultSpawnImpl({
   const resolved = buildClaudeSpawnCommand(executorConfig);
   const spawnCommand = resolved.command || 'npx';
   const commandArgs = [...resolved.args, ...cliArgs];
+
+  // Auto-detect .mcp.json in worktree and pass to Claude Code explicitly
+  const mcpConfigPath = resolve(worktreePath, '.mcp.json');
+  if (existsSync(mcpConfigPath)) {
+    commandArgs.push('--mcp-config', mcpConfigPath);
+  }
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
   const spawnImpl = await resolveCrossSpawn();
 

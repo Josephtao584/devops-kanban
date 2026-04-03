@@ -7,6 +7,13 @@ import { SessionEventRepository } from '../../repositories/sessionEventRepositor
 import { WorkflowInstanceRepository } from '../../repositories/workflowInstanceRepository.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
+import { resolveAgentSkills } from './workflowSkillSync.js';
+import { prepareExecutionSkills } from './executorSkillPreparation.js';
+import { cleanupSkillsByManifest, writeSkillManifest } from '../../utils/skillSync.js';
+import { resolveAgentMcpServersWithMeta, preCheckMcpServers } from './workflowMcpSync.js';
+import { prepareExecutionMcp } from './executorMcpPreparation.js';
+import { cleanupMcpJson } from '../../utils/mcpSync.js';
+import { resolve } from 'node:path';
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
@@ -168,6 +175,83 @@ class WorkflowLifecycle {
     return run.status === 'CANCELLED' || step.status === 'CANCELLED';
   }
 
+  private async _cleanupPreviousStepSkills(executionPath: string, runId: number): Promise<void> {
+    try {
+      const skillsDir = resolve(executionPath, '.claude', 'skills');
+      await cleanupSkillsByManifest(skillsDir, runId);
+    } catch (err) {
+      console.warn(`[WorkflowLifecycle] Failed to cleanup previous step skills: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private async _prepareCurrentStepSkills(runId: number, stepId: string, executionPath: string): Promise<void> {
+    try {
+      const stepBinding = await this._getTemplateStepBinding(runId, stepId);
+      if (typeof stepBinding.agentId !== 'number') {
+        return;
+      }
+
+      const { skillNames, executorType } = await resolveAgentSkills(stepBinding.agentId);
+      if (skillNames.length === 0) {
+        return;
+      }
+
+      await prepareExecutionSkills({
+        executorType,
+        skillNames,
+        executionPath,
+      });
+
+      const skillsDir = resolve(executionPath, '.claude', 'skills');
+      await writeSkillManifest(skillsDir, {
+        runId,
+        stepId,
+        installedSkills: skillNames,
+        updatedAt: new Date().toISOString(),
+      });
+
+      console.log(`[WorkflowLifecycle] Prepared ${skillNames.length} skills for step ${stepId}: ${skillNames.join(', ')}`);
+    } catch (err) {
+      console.warn(`[WorkflowLifecycle] Failed to prepare step skills: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private async _prepareCurrentStepMcp(runId: number, stepId: string, executionPath: string): Promise<void> {
+    try {
+      const stepBinding = await this._getTemplateStepBinding(runId, stepId);
+      if (typeof stepBinding.agentId !== 'number') {
+        return;
+      }
+
+      const { executorType } = await resolveAgentSkills(stepBinding.agentId);
+
+      // Resolve with metadata (auto_install, install_command) for pre-check
+      const serversWithMeta = await resolveAgentMcpServersWithMeta(stepBinding.agentId);
+      if (serversWithMeta.length === 0) {
+        await cleanupMcpJson(executionPath);
+        return;
+      }
+
+      // Pre-check: validate commands, auto-install if configured
+      const mcpServerConfigs = await preCheckMcpServers(serversWithMeta);
+      if (mcpServerConfigs.length === 0) {
+        console.warn(`[WorkflowLifecycle] All MCP servers failed pre-check for step ${stepId}`);
+        await cleanupMcpJson(executionPath);
+        return;
+      }
+
+      await prepareExecutionMcp({
+        executorType,
+        mcpServerConfigs,
+        executionPath,
+      });
+
+      console.log(`[WorkflowLifecycle] Prepared ${mcpServerConfigs.length} MCP servers for step ${stepId}`);
+    } catch (err) {
+      console.warn(`[WorkflowLifecycle] Failed to prepare step MCP config: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   private async _finalizeCancelledStepStart(
     runId: number,
     stepId: string,
@@ -290,6 +374,11 @@ class WorkflowLifecycle {
     if (await this._isWorkflowStepCancelled(runId, stepId)) {
       return;
     }
+
+    // Step-level skill isolation: cleanup previous step's skills, prepare current step's skills
+    await this._cleanupPreviousStepSkills(task.execution_path, runId);
+    await this._prepareCurrentStepSkills(runId, stepId, task.execution_path);
+    await this._prepareCurrentStepMcp(runId, stepId, task.execution_path);
 
     const startedAt = new Date().toISOString();
     const { step } = await this._getRunStep(runId, stepId);
@@ -430,6 +519,10 @@ class WorkflowLifecycle {
   }
 
   async onStepCancel(runId: number, stepId: string) {
+    const { run } = await this._getRunStep(runId, stepId);
+    if (run.worktree_path) {
+      await cleanupMcpJson(run.worktree_path);
+    }
     await this._finalizeStepArtifacts(runId, stepId, 'CANCELLED', {
       error: 'Workflow cancelled',
     });
@@ -469,6 +562,11 @@ class WorkflowLifecycle {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) return;
 
+    // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
+    if (run.worktree_path) {
+      await this._cleanupPreviousStepSkills(run.worktree_path, runId);
+    }
+
     await this.workflowRunRepo.update(runId, {
       status: 'COMPLETED',
       context: result ?? {},
@@ -483,6 +581,11 @@ class WorkflowLifecycle {
   async onWorkflowError(runId: number, errorMessage: string) {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) return;
+
+    // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
+    if (run.worktree_path) {
+      await this._cleanupPreviousStepSkills(run.worktree_path, runId);
+    }
 
     await this.workflowRunRepo.update(runId, {
       status: 'FAILED',

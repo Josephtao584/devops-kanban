@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 
 import { AgentRepository } from '../repositories/agentRepository.js';
 import { SkillRepository } from '../repositories/skillRepository.js';
+import { McpServerRepository } from '../repositories/mcpServerRepository.js';
 import type { CreateAgentBody, UpdateAgentBody } from '../types/dto/agents.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
@@ -10,6 +11,7 @@ import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
 type AgentRouteOptions = {
   repo?: Pick<AgentRepository, 'findAll' | 'findById' | 'create' | 'update' | 'delete'>;
   skillRepo?: Pick<SkillRepository, 'findAll'>;
+  mcpServerRepo?: Pick<McpServerRepository, 'findAll'>;
 };
 
 function createValidationError(message: string) {
@@ -58,6 +60,15 @@ function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody
   if (!isNumberArray(body.skills)) {
     throw createValidationError('skills must be an array of numbers');
   }
+
+  if (body.mcpServers !== undefined && !isNumberArray(body.mcpServers)) {
+    throw createValidationError('mcpServers must be an array of numbers');
+  }
+
+  // Default mcpServers to empty array if not provided
+  if (body.mcpServers === undefined) {
+    body.mcpServers = [];
+  }
 }
 
 function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody {
@@ -84,6 +95,10 @@ function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody
   if ('skills' in body && body.skills !== undefined && !isNumberArray(body.skills)) {
     throw createValidationError('skills must be an array of numbers');
   }
+
+  if ('mcpServers' in body && body.mcpServers !== undefined && !isNumberArray(body.mcpServers)) {
+    throw createValidationError('mcpServers must be an array of numbers');
+  }
 }
 
 async function validateExistingSkills(skillRepo: Pick<SkillRepository, 'findAll'>, skills: number[]) {
@@ -95,7 +110,16 @@ async function validateExistingSkills(skillRepo: Pick<SkillRepository, 'findAll'
   }
 }
 
-export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify, { repo = new AgentRepository(), skillRepo = new SkillRepository() } = {}) => {
+async function validateExistingMcpServers(mcpServerRepo: Pick<McpServerRepository, 'findAll'>, mcpServers: number[]) {
+  const existingServers = await mcpServerRepo.findAll();
+  const validServerIds = new Set(existingServers.map(server => server.id));
+  const invalidServers = mcpServers.filter(serverId => !validServerIds.has(serverId));
+  if (invalidServers.length > 0) {
+    throw createValidationError(`Unknown MCP servers: ${invalidServers.join(', ')}`);
+  }
+}
+
+export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify, { repo = new AgentRepository(), skillRepo = new SkillRepository(), mcpServerRepo = new McpServerRepository() } = {}) => {
   fastify.get('/', async (request, reply) => {
     try {
       return successResponse(await repo.findAll());
@@ -125,6 +149,9 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
     try {
       validateCreateAgentBody(request.body);
       await validateExistingSkills(skillRepo, request.body.skills);
+      if (request.body.mcpServers !== undefined && request.body.mcpServers.length > 0) {
+        await validateExistingMcpServers(mcpServerRepo, request.body.mcpServers);
+      }
       const agent = await repo.create(request.body);
       return successResponse(agent, 'Agent created');
     } catch (error) {
@@ -139,6 +166,9 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
       validateUpdateAgentBody(request.body);
       if (request.body.skills !== undefined) {
         await validateExistingSkills(skillRepo, request.body.skills);
+      }
+      if (request.body.mcpServers !== undefined) {
+        await validateExistingMcpServers(mcpServerRepo, request.body.mcpServers);
       }
       const updated = await repo.update(parseNumber(request.params.id), request.body);
       if (!updated) {

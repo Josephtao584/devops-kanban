@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { getDbClient } from './client.js';
+import { PROJECT_ROOT } from '../config/index.js';
 
 /**
  * Seed the database with sample data.
@@ -12,7 +13,10 @@ export async function seedSampleData(): Promise<void> {
 
   // Read seed.sql file
   const seedPath = join(import.meta.dirname, 'seed.sql');
-  const seedSql = await readFile(seedPath, 'utf-8');
+  let seedSql = await readFile(seedPath, 'utf-8');
+
+  // Replace placeholder with actual project root path
+  seedSql = seedSql.replace(/__PROJECT_ROOT__/g, PROJECT_ROOT);
 
   // Execute all DML statements
   await client.executeMultiple(seedSql);

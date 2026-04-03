@@ -7,10 +7,7 @@ import { WorkflowInstanceService } from '../workflowInstanceService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
-import { WorkflowInstanceEntity } from '../../types/entities.js';
-import { resolveWorkflowSkills } from './workflowSkillSync.js';
-import { prepareExecutionSkills } from './executorSkillPreparation.js';
-import {ExecutorType} from "../../types/executors.js";
+import { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../../types/entities.js';
 
 
 function createValidationError(message: string) {
@@ -34,6 +31,7 @@ function toStepState(instance: WorkflowInstanceEntity) {
 
 type StartWorkflowOptions = {
   workflowTemplateId: string;
+  workflowTemplateSnapshot?: WorkflowTemplateEntity | undefined;
 };
 
 class WorkflowService {
@@ -85,7 +83,9 @@ class WorkflowService {
     }
 
     // Create WorkflowInstance (immutable snapshot)
-    const instance = await this.instanceService.createFromTemplate(options.workflowTemplateId);
+    const instance = options.workflowTemplateSnapshot
+      ? await this.instanceService.createFromTemplateSnapshot(options.workflowTemplateSnapshot)
+      : await this.instanceService.createFromTemplate(options.workflowTemplateId);
     await this.validateInstanceAgents(instance);
 
     const run = await this.workflowRunRepo.create({
@@ -204,13 +204,6 @@ class WorkflowService {
 
   private async executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string }, instance: WorkflowInstanceEntity) {
     try {
-      const skillNames = await resolveWorkflowSkills(instance);
-      await prepareExecutionSkills({
-        executorType: ExecutorType.CLAUDE_CODE,
-        skillNames,
-        executionPath: task.execution_path,
-      });
-
       const workflow = buildWorkflowFromInstance(instance, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
@@ -296,7 +289,6 @@ class WorkflowService {
     }
 
     const updatedRun = await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
-    await this.resetTaskToTodo(run.task_id ?? 0);
     return updatedRun;
   }
 

@@ -164,6 +164,7 @@ export interface AgentEntity {
   description?: string;
   enabled: boolean;
   skills: number[];
+  mcpServers: number[];
   created_at: string;
   updated_at: string;
 }
@@ -194,6 +195,18 @@ export interface SkillEntity {
   identifier: string;
   name: string;
   description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpServerEntity {
+  id: number;
+  name: string;
+  description: string | undefined;
+  server_type: 'stdio' | 'http';
+  config: Record<string, unknown>;
+  auto_install: number;
+  install_command: string | undefined;
   created_at: string;
   updated_at: string;
 }

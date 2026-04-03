@@ -32,7 +32,21 @@ class SkillService {
     return await this.skillRepo.findById(id);
   }
 
+  private validateSkillName(name: string): void {
+    if (!name || typeof name !== 'string' || name.trim() !== name) {
+      const error: any = new Error('Skill name must be a non-empty string without leading/trailing whitespace');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+      const error: any = new Error('Skill name cannot contain "..", "/", or "\\"');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   async createSkill(name: string, description?: string): Promise<SkillEntity> {
+    this.validateSkillName(name);
     const existing = await this.listSkills();
     if (existing.some(s => s.name === name)) {
       const error: any = new Error(`Skill "${name}" already exists`);
@@ -64,6 +78,7 @@ class SkillService {
     }
 
     if (updates.name !== undefined && updates.name !== existing.name) {
+      this.validateSkillName(updates.name);
       // Rename skill directory on disk
       const oldDir = this.getSkillDir(existing.name);
       const newDir = this.getSkillDir(updates.name);

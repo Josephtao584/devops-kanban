@@ -1,6 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
+    :close-on-click-modal="false"
     :title="dialogTitle"
     width="960px"
     class="workflow-progress-dialog"

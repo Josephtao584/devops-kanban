@@ -106,6 +106,17 @@
             </div>
           </div>
 
+          <!-- MCP 服务器 -->
+          <div class="skills-section">
+            <span class="section-label">{{ $t('agent.mcpServers') }}</span>
+            <div class="skills-tags">
+              <span v-for="name in getVisibleAgentMcpServers(selectedAgent)" :key="name" class="skill-tag mcp-tag">
+                {{ name }}
+              </span>
+              <span v-if="getVisibleAgentMcpServers(selectedAgent).length === 0" class="no-items-hint">-</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -144,19 +155,34 @@
             <div class="form-group">
               <label>{{ $t('agent.skills') }}</label>
               <div class="skills-editor">
-                <select v-model="selectedSkillToAdd" class="skill-select">
+                <select v-model="selectedSkillToAdd" class="skill-select" @change="addSelectedSkill">
                   <option value="">{{ $t('agent.selectExistingSkill') }}</option>
                   <option v-for="skill in availableSkillOptions" :key="skill" :value="skill">
                     {{ skillStore.skills.find(s => s.id === skill)?.name }}
                   </option>
                 </select>
-                <button type="button" class="btn btn-secondary btn-sm" @click="addSelectedSkill" :disabled="!selectedSkillToAdd">
-                  {{ $t('common.add') }}
-                </button>
                 <div class="skills-input-container">
                   <span v-for="(skillId, index) in form.skills" :key="index" class="skill-tag-input">
                     {{ skillStore.skills.find(s => s.id === skillId)?.name }}
                     <button type="button" class="remove-skill-btn" @click="removeSkill(index)">&times;</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>{{ $t('agent.mcpServers') }}</label>
+              <div class="skills-editor">
+                <select v-model="selectedMcpServerToAdd" class="skill-select" @change="addSelectedMcpServer">
+                  <option value="">{{ $t('agent.selectMcpServer') }}</option>
+                  <option v-for="server in availableMcpServerOptions" :key="server.id" :value="server.id">
+                    {{ server.name }}
+                  </option>
+                </select>
+                <div class="skills-input-container">
+                  <span v-for="(serverId, index) in form.mcpServers" :key="index" class="skill-tag-input mcp-tag-input">
+                    {{ mcpServerStore.mcpServers.find(s => s.id === serverId)?.name }}
+                    <button type="button" class="remove-skill-btn" @click="removeMcpServer(index)">&times;</button>
                   </span>
                 </div>
               </div>
@@ -200,11 +226,13 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
 import { useSkillStore } from '../stores/skillStore'
+import { useMcpServerStore } from '../stores/mcpServerStore'
 import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
 const skillStore = useSkillStore()
+const mcpServerStore = useMcpServerStore()
 
 const saving = ref(false)
 const showForm = ref(false)
@@ -219,12 +247,15 @@ const form = ref({
   role: 'BACKEND_DEV',
   description: '',
   enabled: true,
-  skills: []
+  skills: [],
+  mcpServers: []
 })
 
 const selectedSkillToAdd = ref('')
+const selectedMcpServerToAdd = ref('')
 const availableSkills = computed(() => skillStore.skills.map(skill => skill.id))
 const availableSkillOptions = computed(() => availableSkills.value.filter(id => !form.value.skills.includes(id)))
+const availableMcpServerOptions = computed(() => mcpServerStore.mcpServers.filter(s => !form.value.mcpServers.includes(s.id)))
 
 const setFormState = (agent) => {
   const normalizedSkills = Array.isArray(agent?.skills)
@@ -242,9 +273,11 @@ const setFormState = (agent) => {
     role: agent?.role || 'BACKEND_DEV',
     description: agent?.description || '',
     enabled: agent?.enabled ?? true,
-    skills: normalizedSkills
+    skills: normalizedSkills,
+    mcpServers: Array.isArray(agent?.mcpServers) ? [...agent.mcpServers] : []
   }
   selectedSkillToAdd.value = ''
+  selectedMcpServerToAdd.value = ''
 }
 
 const formatExecutorType = (executorType) => {
@@ -262,7 +295,8 @@ const getVisibleAgentSkills = (agent) => {
 
 const buildAgentPayload = () => ({
   ...form.value,
-  skills: [...form.value.skills]
+  skills: [...form.value.skills],
+  mcpServers: [...form.value.mcpServers]
 })
 
 const getResponseErrorMessage = (response, fallbackMessage) => {
@@ -294,7 +328,8 @@ const loadAgents = async () => {
   try {
     await Promise.all([
       agentStore.fetchAgents(),
-      skillStore.fetchSkills()
+      skillStore.fetchSkills(),
+      mcpServerStore.fetchMcpServers()
     ])
     if (agentStore.agents.length > 0 && !selectedAgent.value) {
       selectAgent(agentStore.agents[0])
@@ -394,6 +429,7 @@ const closeForm = () => {
   showForm.value = false
   editingAgent.value = null
   selectedSkillToAdd.value = ''
+  selectedMcpServerToAdd.value = ''
 }
 
 const onRoleChange = () => {
@@ -409,6 +445,25 @@ const addSelectedSkill = () => {
 
 const removeSkill = (index) => {
   form.value.skills = form.value.skills.filter((_, i) => i !== index)
+}
+
+const addSelectedMcpServer = () => {
+  if (selectedMcpServerToAdd.value && !form.value.mcpServers.includes(selectedMcpServerToAdd.value)) {
+    form.value.mcpServers = [...form.value.mcpServers, selectedMcpServerToAdd.value]
+    selectedMcpServerToAdd.value = ''
+  }
+}
+
+const removeMcpServer = (index) => {
+  form.value.mcpServers = form.value.mcpServers.filter((_, i) => i !== index)
+}
+
+const getVisibleAgentMcpServers = (agent) => {
+  const servers = Array.isArray(agent?.mcpServers) ? agent.mcpServers : []
+  return servers.map(id => {
+    const server = mcpServerStore.mcpServers.find(s => s.id === id)
+    return server ? server.name : null
+  }).filter(name => name !== null)
 }
 
 onMounted(loadAgents)
@@ -723,6 +778,21 @@ onMounted(loadAgents)
 .skill-tag:hover {
   background: rgba(31, 41, 55, 0.05);
   border-color: rgba(31, 41, 55, 0.08);
+}
+
+.skill-tag.mcp-tag {
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+  border-color: rgba(99, 102, 241, 0.14);
+}
+
+.skill-tag-input.mcp-tag-input {
+  background: #6366f1;
+}
+
+.no-items-hint {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
 }
 
 /* Toggle switch */

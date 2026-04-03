@@ -30,6 +30,11 @@ const routes = [
     path: '/skills',
     name: 'SkillConfig',
     component: () => import('../views/SkillConfig.vue')
+  },
+  {
+    path: '/mcp-servers',
+    name: 'McpServerConfig',
+    component: () => import('../views/McpServerConfig.vue')
   }
 ]
 

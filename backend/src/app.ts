@@ -19,6 +19,7 @@ import {
   workflowRoutes,
   workflowTemplateRoutes,
   gitRoutes,
+  mcpServerRoutes,
 } from './routes/index.js';
 
 export async function buildApp() {
@@ -28,7 +29,7 @@ export async function buildApp() {
   // Auto-seed sample data if database is empty
   const { getDbClient } = await import('./db/client.js');
   const result = await getDbClient().execute('SELECT COUNT(*) as count FROM projects');
-  if (result.rows[0].count === 0) {
+  if (result.rows[0]!.count === 0) {
     console.log('Database is empty, seeding sample data...');
     await seedSampleData();
   }
@@ -66,6 +67,7 @@ export async function buildApp() {
         executions: '/api/executions',
         agents: '/api/agents',
         skills: '/api/skills',
+        mcpServers: '/api/mcp-servers',
         workflows: '/api/workflows',
         websocket: '/ws',
         health: '/health',
@@ -86,6 +88,7 @@ export async function buildApp() {
   fastify.register(iterationRoutes, { prefix: '/api/iterations' });
   fastify.register(gitRoutes, { prefix: '/api/git' });
   fastify.register(skillRoutes, { prefix: '/api/skills' });
+  fastify.register(mcpServerRoutes, { prefix: '/api/mcp-servers' });
 
   return fastify;
 }

@@ -4,8 +4,11 @@ import { execSync } from 'node:child_process';
 
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
+import { AgentRepository } from '../repositories/agentRepository.js';
+import { McpServerRepository } from '../repositories/mcpServerRepository.js';
 import { WorkflowService } from './workflow/workflowService.js';
 import { createWorktree, cleanupWorktree, isGitRepository, sanitizeName } from '../utils/git.js';
+import { ensureMcpJsonInWorktree } from '../utils/mcpSync.js';
 
 import type { TaskEntity, ProjectEntity } from '../types/entities.ts';
 import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
@@ -142,7 +145,8 @@ class TaskService {
 
     try {
       await this.workflowService.startWorkflow(taskId, {
-        workflowTemplateId: body.workflow_template_id
+        workflowTemplateId: body.workflow_template_id,
+        workflowTemplateSnapshot: body.workflow_template_snapshot
       });
     } catch (error) {
       await this.taskRepo.update(taskId, { status: 'TODO' });
@@ -232,6 +236,9 @@ class TaskService {
         worktree_status: 'created',
       });
 
+      // Write initial MCP config to worktree based on all agents' MCP servers
+      await this._writeMcpToWorktree(worktreePath);
+
       return {
         worktree_path: worktreePath,
         worktree_branch: branchName,
@@ -240,6 +247,42 @@ class TaskService {
     } catch (error) {
       await this.taskRepo.update(taskId, { worktree_path: null });
       throw error;
+    }
+  }
+
+  private async _writeMcpToWorktree(worktreePath: string): Promise<void> {
+    try {
+      const agentRepo = new AgentRepository();
+      const mcpServerRepo = new McpServerRepository();
+
+      const allAgents = await agentRepo.findAll();
+      const allServers = await mcpServerRepo.findAll();
+      if (allServers.length === 0) return;
+
+      const serverMap = new Map(allServers.map(s => [s.id, s]));
+      const seenNames = new Set<string>();
+      const mcpConfigs: { name: string; server_type: string; config: Record<string, unknown> }[] = [];
+
+      for (const agent of allAgents) {
+        const mcpServerIds: number[] = Array.isArray(agent.mcpServers) ? agent.mcpServers : [];
+        for (const id of mcpServerIds) {
+          const server = serverMap.get(id);
+          if (server && !seenNames.has(server.name)) {
+            seenNames.add(server.name);
+            mcpConfigs.push({
+              name: server.name,
+              server_type: server.server_type,
+              config: server.config as Record<string, unknown>,
+            });
+          }
+        }
+      }
+
+      if (mcpConfigs.length > 0) {
+        await ensureMcpJsonInWorktree(mcpConfigs, worktreePath);
+      }
+    } catch (err) {
+      console.warn(`[TaskService] Failed to write MCP config to worktree: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
