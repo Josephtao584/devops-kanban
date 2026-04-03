@@ -60,7 +60,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
 
       const server = await mcpServerService.createMcpServer({
         name: name.trim(),
-        description,
+        ...(description ? { description } : {}),
         server_type: server_type as 'stdio' | 'http',
         config: config as Record<string, unknown>,
       });

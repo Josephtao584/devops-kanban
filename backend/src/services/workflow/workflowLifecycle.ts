@@ -6,7 +6,7 @@ import { SessionSegmentRepository } from '../../repositories/sessionSegmentRepos
 import { SessionEventRepository } from '../../repositories/sessionEventRepository.js';
 import { WorkflowInstanceRepository } from '../../repositories/workflowInstanceRepository.js';
 import type { SessionEntity, SessionSegmentEntity, WorkflowRunEntity } from '../../types/entities.ts';
-import { isSupportedExecutorType, type WorkflowTaskRecord } from '../../types/workflow.js';
+import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { resolveAgentSkills } from './workflowSkillSync.js';
 import { prepareExecutionSkills } from './executorSkillPreparation.js';
 import { cleanupSkillsByManifest, writeSkillManifest } from '../../utils/skillSync.js';

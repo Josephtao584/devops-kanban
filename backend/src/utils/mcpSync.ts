@@ -20,7 +20,8 @@ async function ensureMcpJsonInWorktree(
     return;
   }
 
-  const mcpJson: Record<string, unknown> = { mcpServers: {} };
+  const mcpServers: Record<string, unknown> = {};
+  const mcpJson = { mcpServers };
 
   for (const server of mcpServerConfigs) {
     if (server.server_type === 'http') {

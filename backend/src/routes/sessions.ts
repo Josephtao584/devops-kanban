@@ -70,7 +70,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
   // POST /sessions - Create a new session
   fastify.post('/sessions', async (request, reply) => {
     try {
-      const { task_id, agent_id } = request.body as { task_id?: number; agent_id?: number };
+      const { task_id } = request.body as { task_id?: number; agent_id?: number };
       if (!task_id) {
         reply.code(400);
         return errorResponse('task_id is required');

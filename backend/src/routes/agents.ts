@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { AgentRepository } from '../repositories/agentRepository.js';
 import { SkillRepository } from '../repositories/skillRepository.js';
 import { McpServerRepository } from '../repositories/mcpServerRepository.js';
-import type { CreateAgentBody, UpdateAgentBody, AgentExecutorType } from '../types/dto/agents.js';
+import type { CreateAgentBody, UpdateAgentBody } from '../types/dto/agents.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';

@@ -29,7 +29,7 @@ export async function buildApp() {
   // Auto-seed sample data if database is empty
   const { getDbClient } = await import('./db/client.js');
   const result = await getDbClient().execute('SELECT COUNT(*) as count FROM projects');
-  if (result.rows[0].count === 0) {
+  if (result.rows[0]!.count === 0) {
     console.log('Database is empty, seeding sample data...');
     await seedSampleData();
   }
