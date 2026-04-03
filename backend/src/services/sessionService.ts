@@ -16,7 +16,7 @@ interface SessionLike {
   branch?: string | null;
   initial_prompt?: string | null;
   agent_id?: number | null;
-  executor_type?: string | null;
+  executor_type: ExecutorType;
   started_at?: string | null;
   completed_at?: string | null;
 }
@@ -90,7 +90,7 @@ class SessionService {
 
     const { AgentExecutorRegistry } = await import('./workflow/agentExecutorRegistry.js');
     const registry = new AgentExecutorRegistry();
-    const executor = registry.getExecutor(session.executor_type as ExecutorType);
+    const executor = registry.getExecutor(session.executor_type);
 
     const segment = await this._createSegment(session, 'CONTINUE', latestSegment?.id ?? null);
     await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
@@ -199,7 +199,7 @@ class SessionService {
     return await this.sessionSegmentRepo.create({
       session_id: session.id,
       status: 'RUNNING',
-      executor_type: (session.executor_type || 'CLAUDE_CODE') as SessionSegmentEntity['executor_type'],
+      executor_type: session.executor_type,
       agent_id: session.agent_id ?? null,
       provider_session_id: null,
       resume_token: null,

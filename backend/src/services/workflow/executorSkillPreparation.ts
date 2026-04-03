@@ -1,5 +1,5 @@
 import { ensureSkillsInWorktree } from '../../utils/skillSync.js';
-import type { ExecutorType } from '../../types/executors.js';
+import {ExecutorType} from '../../types/executors.js';
 
 type PrepareExecutionSkillsInput = {
   executorType: ExecutorType;
@@ -16,7 +16,7 @@ async function prepareExecutionSkills({ executorType, skillNames, executionPath 
     return;
   }
 
-  if (executorType === 'CLAUDE_CODE') {
+  if (executorType === ExecutorType.CLAUDE_CODE) {
     await prepareClaudeCodeSkills(skillNames, executionPath);
   }
 }

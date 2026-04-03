@@ -8,8 +8,6 @@ import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
 
-const SUPPORTED_EXECUTOR_TYPES: AgentExecutorType[] = ['CLAUDE_CODE'];
-
 type AgentRouteOptions = {
   repo?: Pick<AgentRepository, 'findAll' | 'findById' | 'create' | 'update' | 'delete'>;
   skillRepo?: Pick<SkillRepository, 'findAll'>;
@@ -30,12 +28,6 @@ function isNumberArray(value: unknown): value is number[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'number');
 }
 
-function validateExecutorType(value: unknown) {
-  if (typeof value !== 'string' || !SUPPORTED_EXECUTOR_TYPES.includes(value as AgentExecutorType)) {
-    throw createValidationError(`Unsupported executor type: ${String(value)}`);
-  }
-}
-
 function validateDescription(value: unknown, message: string) {
   if (value !== undefined && typeof value !== 'string') {
     throw createValidationError(message);
@@ -54,7 +46,6 @@ function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody
   if (body.executorType === undefined) {
     throw createValidationError('executorType is required');
   }
-  validateExecutorType(body.executorType);
 
   validateDescription(body.description, 'description must be a string');
 
@@ -87,10 +78,6 @@ function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody
 
   if ('name' in body && body.name !== undefined && (typeof body.name !== 'string' || body.name.trim() === '')) {
     throw createValidationError('name cannot be blank');
-  }
-
-  if ('executorType' in body && body.executorType !== undefined) {
-    validateExecutorType(body.executorType);
   }
 
   if ('description' in body) {

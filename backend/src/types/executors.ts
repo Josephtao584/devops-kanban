@@ -1,4 +1,6 @@
-export type ExecutorType = 'CLAUDE_CODE';
+export enum ExecutorType {
+    CLAUDE_CODE = 'CLAUDE_CODE',
+}
 
 export interface ExecutorConfig {
   type: ExecutorType;

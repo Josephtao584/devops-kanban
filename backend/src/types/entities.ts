@@ -43,7 +43,7 @@ export interface SessionEntity {
   branch?: string | null;
   initial_prompt?: string | null;
   agent_id?: number | null;
-  executor_type?: ExecutorType | null;
+  executor_type: ExecutorType;
   started_at?: string | null;
   completed_at?: string | null;
   created_at: string;
@@ -159,7 +159,7 @@ export interface TaskSourceEntity {
 export interface AgentEntity {
   id: number;
   name: string;
-  executorType: string;
+  executorType: ExecutorType;
   role: string;
   description?: string;
   enabled: boolean;
