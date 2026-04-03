@@ -39,6 +39,32 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
     }
   });
 
+  fastify.post<{ Body: { server_type?: string; config?: unknown } }>('/validate', async (request, reply) => {
+    try {
+      const { server_type, config } = request.body;
+
+      if (!server_type || !VALID_SERVER_TYPES.includes(server_type)) {
+        reply.code(400);
+        return errorResponse('server_type must be "stdio" or "http"');
+      }
+
+      if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        reply.code(400);
+        return errorResponse('config is required and must be an object');
+      }
+
+      const result = await mcpServerService.validateMcpServer({
+        server_type: server_type as 'stdio' | 'http',
+        config: config as Record<string, unknown>,
+      });
+      return successResponse(result);
+    } catch (error) {
+      request.log.error(error);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to validate MCP server'));
+    }
+  });
+
   fastify.post<{ Body: { name?: string; description?: string; server_type?: string; config?: unknown; auto_install?: number; install_command?: string } }>('/', async (request, reply) => {
     try {
       const { name, description, server_type, config, auto_install, install_command } = request.body;
@@ -106,32 +132,6 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       request.log.error(error);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to update MCP server'));
-    }
-  });
-
-  fastify.post<{ Body: { server_type?: string; config?: unknown } }>('/validate', async (request, reply) => {
-    try {
-      const { server_type, config } = request.body;
-
-      if (!server_type || !VALID_SERVER_TYPES.includes(server_type)) {
-        reply.code(400);
-        return errorResponse('server_type must be "stdio" or "http"');
-      }
-
-      if (!config || typeof config !== 'object' || Array.isArray(config)) {
-        reply.code(400);
-        return errorResponse('config is required and must be an object');
-      }
-
-      const result = await mcpServerService.validateMcpServer({
-        server_type: server_type as 'stdio' | 'http',
-        config: config as Record<string, unknown>,
-      });
-      return successResponse(result);
-    } catch (error) {
-      request.log.error(error);
-      reply.code(getStatusCode(error));
-      return errorResponse(getErrorMessage(error, 'Failed to validate MCP server'));
     }
   });
 

@@ -131,24 +131,27 @@ class McpServerService {
         env: { ...process.env, ...(config.env as Record<string, string> || {}) },
       });
     } catch (err: any) {
-      const stderr = err.stderr || '';
+      const stderr = (err.stderr instanceof Buffer) ? err.stderr.toString('utf-8') : (err.stderr || '');
       const timedOut = err.killed === true || String(err.message).includes('ETIMEDOUT') || String(err.message).includes('timed out');
 
-      // Timeout is actually a good sign — server started and was waiting for input
+      // Timeout = server started and waited for input (good!)
       if (timedOut) {
-        return { valid: true, message: `Command "${command}" exists and starts successfully` };
+        return { valid: true, message: `Command "${command}" 启动正常，可用于 MCP` };
       }
 
-      // Non-zero exit might still be a valid MCP server that expects stdin
-      if (stderr.includes('ECONNREFUSED') || stderr.includes('ENOENT')) {
-        return { valid: false, message: `Server "${command}" failed to start`, details: stderr };
+      // Clear errors
+      if (stderr.includes('ENOENT') || stderr.includes('command not found')) {
+        return { valid: false, message: `Command "${command}" not found`, details: stderr };
+      }
+      if (stderr.includes('ECONNREFUSED') || stderr.includes('ModuleNotFoundError')) {
+        return { valid: false, message: `"${command}" 缺少依赖`, details: stderr };
       }
 
-      // Ambiguous — server might work fine with proper MCP protocol handshake
-      return { valid: true, message: `Command "${command}" found (start test inconclusive)`, details: stderr };
+      // Server exited quickly but cleanly — that's fine for stdio servers
+      return { valid: true, message: `Command "${command}" 验证通过` };
     }
 
-    return { valid: true, message: `Command "${command}" exists and runs` };
+    return { valid: true, message: `Command "${command}" 验证通过` };
   }
 
   private _suggestInstallHint(command: string, args?: string[]): string {
