@@ -14,14 +14,18 @@ INSERT INTO iterations (id, project_id, name, goal, status, start_date, end_date
   (2, 1, '26.4.0', '完成高级功能开发', 'PLANNED', '2026-04-01', '2026-04-30', '2026-03-17T07:03:51.577Z', '2026-03-17T07:03:51.577Z');
 
 -- === agents ===
-INSERT INTO agents (id, name, executorType, role, description, enabled, skills, created_at, updated_at) VALUES
-  (1, '架构师', 'CLAUDE_CODE', 'ARCHITECT', '负责系统架构设计与技术方案评审', 1, '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
-INSERT INTO agents (id, name, executorType, role, description, enabled, skills, created_at, updated_at) VALUES
-  (2, '后端开发', 'CLAUDE_CODE', 'BACKEND_DEV', '负责后端服务开发与接口实现', 1, '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
-INSERT INTO agents (id, name, executorType, role, description, enabled, skills, created_at, updated_at) VALUES
-  (3, '前端开发', 'CLAUDE_CODE', 'FRONTEND_DEV', '负责前端页面开发与交互实现', 1, '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
-INSERT INTO agents (id, name, executorType, role, description, enabled, skills, created_at, updated_at) VALUES
-  (4, '测试工程师', 'CLAUDE_CODE', 'QA_ENGINEER', '负责测试验证与质量保障', 1, '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
+  (1, '架构师', 'CLAUDE_CODE', 'ARCHITECT', '负责系统架构设计与技术方案评审', 1, '[]', '[1]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
+  (2, '后端开发', 'CLAUDE_CODE', 'BACKEND_DEV', '负责后端服务开发与接口实现', 1, '[]', '[1]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
+  (3, '前端开发', 'CLAUDE_CODE', 'FRONTEND_DEV', '负责前端页面开发与交互实现', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
+  (4, '测试工程师', 'CLAUDE_CODE', 'QA_ENGINEER', '负责测试验证与质量保障', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+
+-- === mcp_servers ===
+INSERT INTO mcp_servers (id, name, description, server_type, config, auto_install, install_command, created_at, updated_at) VALUES
+  (1, 'weather', '免费天气查询服务（基于 Open-Meteo，无需 API Key）', 'stdio', '{"command":"uvx","args":["weather-forecast-server"]}', 0, NULL, '2026-03-17T00:00:00.000Z', '2026-04-03T00:00:00.000Z');
 
 -- === workflow_templates ===
 INSERT INTO workflow_templates (id, template_id, name, steps, "order", created_at, updated_at) VALUES
