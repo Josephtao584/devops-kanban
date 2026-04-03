@@ -5,7 +5,7 @@
 
 -- === projects ===
 INSERT INTO projects (id, name, description, git_url, local_path, created_at, updated_at) VALUES
-  (1, 'DevOps 看板系统', '基于 AI 代理的 DevOps 看板管理系统，支持任务自动化执行', 'https://github.com/example/devops-kanban.git', '/home/workspace/devops-kanban', '2026-03-17T07:03:51.577Z', '2026-03-18T03:32:51.735Z');
+  (1, 'DevOps 看板系统', '基于 AI 代理的 DevOps 看板管理系统，支持任务自动化执行', 'https://github.com/example/devops-kanban.git', '__PROJECT_ROOT__', '2026-03-17T07:03:51.577Z', '2026-03-18T03:32:51.735Z');
 
 -- === iterations ===
 INSERT INTO iterations (id, project_id, name, goal, status, start_date, end_date, created_at, updated_at) VALUES

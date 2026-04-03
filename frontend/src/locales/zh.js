@@ -620,7 +620,14 @@ export default {
     addHeader: '添加请求头',
     noServers: '暂无服务器',
     selectServerHint: '从左侧选择一个服务器查看详情',
-    deleteConfirm: '确定要删除此服务器吗？'
+    deleteConfirm: '确定要删除此服务器吗？',
+    formMode: '表单模式',
+    jsonMode: 'JSON 模式',
+    jsonEditorLabel: 'JSON 配置',
+    jsonParseError: 'JSON 解析失败',
+    jsonMissingName: 'JSON 必须包含 "name" 字段',
+    jsonInvalidServerType: 'server_type 必须是 "stdio" 或 "http"',
+    jsonMissingConfig: 'JSON 必须包含 "config" 对象'
   },
   iteration: {
     title: '迭代',

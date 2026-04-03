@@ -166,13 +166,11 @@ export function diffSchemas(
       }
     }
 
-    // Detect extra columns in DB (destructive)
+    // Detect extra columns in DB — drop them to match schema
     const expectedSet = new Set(expectedCols.map(c => c.name));
     for (const colName of actualColNames) {
       if (!expectedSet.has(colName)) {
-        errors.push(
-          `Column '${table}.${colName}' exists in DB but not in schema.sql`,
-        );
+        changes.push(`ALTER TABLE ${table} DROP COLUMN ${colName}`);
       }
     }
   }

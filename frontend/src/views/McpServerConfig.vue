@@ -96,11 +96,16 @@
       <div class="modal">
         <div class="modal-header">
           <h2>{{ editingServer ? $t('mcpServer.editServer') : $t('mcpServer.createServer') }}</h2>
+          <div class="mode-toggle">
+            <button type="button" class="mode-toggle-btn" :class="{ active: inputMode === 'form' }" @click="switchMode('form')">{{ $t('mcpServer.formMode') }}</button>
+            <button type="button" class="mode-toggle-btn" :class="{ active: inputMode === 'json' }" @click="switchMode('json')">{{ $t('mcpServer.jsonMode') }}</button>
+          </div>
           <button class="close-btn" @click="closeForm">&times;</button>
         </div>
 
         <div class="modal-body">
-          <form data-testid="mcp-server-form" @submit.prevent="saveServer">
+          <!-- Form Mode -->
+          <form v-if="inputMode === 'form'" data-testid="mcp-server-form" @submit.prevent="saveServer">
             <div class="form-group">
               <label>{{ $t('mcpServer.serverName') }}</label>
               <input v-model="form.name" data-testid="mcp-server-name-input" type="text" required :placeholder="$t('mcpServer.namePlaceholder')" />
@@ -176,6 +181,35 @@
               </button>
             </div>
           </form>
+
+          <!-- JSON Mode -->
+          <div v-if="inputMode === 'json'" class="json-mode">
+            <div class="form-group">
+              <label>{{ $t('mcpServer.jsonEditorLabel') }}</label>
+              <textarea
+                v-model="jsonText"
+                class="json-textarea"
+                spellcheck="false"
+                :placeholder='`{
+  &quot;name&quot;: &quot;my-server&quot;,
+  &quot;server_type&quot;: &quot;stdio&quot;,
+  &quot;config&quot;: {
+    &quot;command&quot;: &quot;npx&quot;,
+    &quot;args&quot;: [&quot;-y&quot;, &quot;@upstash/context7-mcp&quot;]
+  }
+}`'
+              ></textarea>
+            </div>
+            <div v-if="jsonError" class="json-error">{{ jsonError }}</div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" @click="closeForm">
+                {{ $t('common.cancel') }}
+              </button>
+              <button type="button" class="btn btn-primary" :disabled="saving" @click="saveServer">
+                {{ saving ? $t('common.loading') : $t('common.save') }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -195,23 +229,13 @@ import { useMcpServerStore } from '../stores/mcpServerStore'
 const { t } = useI18n()
 const mcpServerStore = useMcpServerStore()
 
-// Reset config when server_type changes to avoid stale fields
-watch(() => form.value.server_type, (newType) => {
-  if (newType === 'stdio') {
-    form.value.config = { command: '', args: [] }
-    form.value.headerPairs = []
-  } else {
-    form.value.config = { url: '' }
-    form.value.envPairs = []
-  }
-})
-
 const saving = ref(false)
 const showForm = ref(false)
 const editingServer = ref(null)
 const selectedServer = ref(null)
-
-const form = ref(getDefaultForm())
+const inputMode = ref('form')
+const jsonText = ref('')
+const jsonError = ref('')
 
 function getDefaultForm() {
   return {
@@ -223,6 +247,19 @@ function getDefaultForm() {
     headerPairs: [],
   }
 }
+
+const form = ref(getDefaultForm())
+
+// Reset config when server_type changes to avoid stale fields
+watch(() => form.value.server_type, (newType) => {
+  if (newType === 'stdio') {
+    form.value.config = { command: '', args: [] }
+    form.value.headerPairs = []
+  } else {
+    form.value.config = { url: '' }
+    form.value.envPairs = []
+  }
+})
 
 const toast = ref({ show: false, message: '', type: 'success' })
 function showToast(message, type = 'success') {
@@ -264,6 +301,44 @@ function configFromForm() {
     }
   }
   return config
+}
+
+function serializeFormToJson() {
+  const payload = {
+    name: form.value.name.trim(),
+    server_type: form.value.server_type,
+    config: configFromForm(),
+  }
+  const desc = form.value.description.trim()
+  if (desc) payload.description = desc
+  return JSON.stringify(payload, null, 2)
+}
+
+function parseJsonToForm(jsonStr) {
+  const parsed = JSON.parse(jsonStr)
+  if (!parsed.name) throw new Error(t('mcpServer.jsonMissingName'))
+  if (!parsed.server_type || !['stdio', 'http'].includes(parsed.server_type)) {
+    throw new Error(t('mcpServer.jsonInvalidServerType'))
+  }
+  setFormState({
+    name: parsed.name,
+    description: parsed.description || '',
+    server_type: parsed.server_type,
+    config: parsed.config || {},
+  })
+}
+
+function switchMode(newMode) {
+  if (newMode === inputMode.value) return
+  jsonError.value = ''
+  if (newMode === 'json') {
+    jsonText.value = serializeFormToJson()
+  } else {
+    if (jsonText.value.trim()) {
+      try { parseJsonToForm(jsonText.value) } catch { /* best-effort */ }
+    }
+  }
+  inputMode.value = newMode
 }
 
 function setFormState(server) {
@@ -323,6 +398,9 @@ const selectServer = (server) => {
 const openAddForm = () => {
   editingServer.value = null
   setFormState(null)
+  inputMode.value = 'form'
+  jsonText.value = ''
+  jsonError.value = ''
   showForm.value = true
 }
 
@@ -330,17 +408,40 @@ const openEditForm = () => {
   if (!selectedServer.value) return
   editingServer.value = selectedServer.value
   setFormState(selectedServer.value)
+  jsonText.value = JSON.stringify({
+    name: selectedServer.value.name || '',
+    description: selectedServer.value.description || undefined,
+    server_type: selectedServer.value.server_type || 'stdio',
+    config: selectedServer.value.config || {},
+  }, null, 2)
+  inputMode.value = 'form'
+  jsonError.value = ''
   showForm.value = true
 }
 
 const saveServer = async () => {
   saving.value = true
   try {
-    const payload = {
-      name: form.value.name.trim(),
-      description: form.value.description.trim() || undefined,
-      server_type: form.value.server_type,
-      config: configFromForm(),
+    let payload
+    if (inputMode.value === 'json') {
+      try {
+        payload = JSON.parse(jsonText.value)
+      } catch (e) {
+        jsonError.value = t('mcpServer.jsonParseError') + ': ' + e.message
+        saving.value = false
+        return
+      }
+      if (!payload.name) { jsonError.value = t('mcpServer.jsonMissingName'); saving.value = false; return }
+      if (!payload.server_type || !['stdio', 'http'].includes(payload.server_type)) { jsonError.value = t('mcpServer.jsonInvalidServerType'); saving.value = false; return }
+      if (!payload.config || typeof payload.config !== 'object') { jsonError.value = t('mcpServer.jsonMissingConfig'); saving.value = false; return }
+      jsonError.value = ''
+    } else {
+      payload = {
+        name: form.value.name.trim(),
+        description: form.value.description.trim() || undefined,
+        server_type: form.value.server_type,
+        config: configFromForm(),
+      }
     }
 
     const response = editingServer.value
@@ -738,4 +839,15 @@ onMounted(loadServers)
 @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
 .toast.success { background: #10b981; }
 .toast.error { background: #ef4444; }
+
+/* Mode toggle in modal header */
+.mode-toggle { display: flex; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
+.mode-toggle-btn { padding: 4px 12px; font-size: 12px; font-weight: 500; border: none; background: var(--bg-primary); color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
+.mode-toggle-btn.active { background: var(--accent-color); color: white; }
+.mode-toggle-btn:not(.active):hover { background: var(--bg-secondary); }
+
+/* JSON textarea */
+.json-textarea { width: 100%; min-height: 320px; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; line-height: 1.6; background: var(--bg-secondary); color: var(--text-primary); resize: vertical; tab-size: 2; }
+.json-textarea:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1); }
+.json-error { margin-top: 8px; padding: 8px 12px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; font-size: 12px; font-family: 'Consolas', 'Monaco', monospace; word-break: break-all; }
 </style>
