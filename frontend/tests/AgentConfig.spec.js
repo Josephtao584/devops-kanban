@@ -110,9 +110,9 @@ describe('AgentConfig', () => {
     await flushPromises()
     await openEditModal(wrapper)
 
-    const select = wrapper.find('.skill-select')
-    await select.setValue(2) // select skill id 2 (systematic-debugging)
-    await wrapper.find('.skills-editor .btn').trigger('click')
+    // The skills select uses @change to add skills; setValue triggers change event
+    const selects = wrapper.findAll('.skill-select')
+    await selects[0].setValue(2) // select skill id 2 (systematic-debugging) in skills dropdown
     await wrapper.get('[data-testid="agent-form"]').trigger('submit')
     await flushPromises()
 

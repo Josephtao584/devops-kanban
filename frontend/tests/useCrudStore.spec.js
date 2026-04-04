@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed } from 'vue'
 import { useCrudStore } from '../src/composables/useCrudStore'
 
 function createMockApi() {
@@ -241,6 +242,78 @@ describe('useCrudStore', () => {
       const store = useCrudStore({ api: mockApi })
       await expect(store.fetchAll()).rejects.toThrow('Something went wrong')
       expect(store.error.value).toBe('Something went wrong')
+    })
+
+    it('can be called directly with custom fallback message', async () => {
+      const store = useCrudStore({ api: mockApi })
+      const result = store.unwrap({ success: true, data: 'hello' }, 'Fallback')
+      expect(result).toBe('hello')
+    })
+
+    it('throws with fallback message when response has no message', async () => {
+      const store = useCrudStore({ api: mockApi })
+      expect(() => store.unwrap({ success: false }, 'Custom fallback')).toThrow('Custom fallback')
+      expect(store.error.value).toBe('Custom fallback')
+    })
+  })
+
+  describe('custom getters', () => {
+    it('merges custom getters with default getters', () => {
+      const store = useCrudStore({
+        api: mockApi,
+        getters: {
+          activeItems: computed(() => mockApi.items?.value?.filter(i => i.active) || [])
+        }
+      })
+
+      expect(store.activeItems).toBeDefined()
+      expect(store.itemList).toBeDefined() // default getter still present
+    })
+  })
+
+  describe('localStorage persistence', () => {
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('loads items from localStorage on init', () => {
+      localStorage.setItem('test-items', JSON.stringify([{ id: 1, name: 'Cached' }]))
+
+      const store = useCrudStore({ api: mockApi, storageKey: 'test-items' })
+      expect(store.items.value).toEqual([{ id: 1, name: 'Cached' }])
+    })
+
+    it('saves items to localStorage after fetchAll', async () => {
+      mockApi.get.mockResolvedValue({
+        success: true,
+        data: [{ id: 1, name: 'Fetched' }]
+      })
+
+      const store = useCrudStore({ api: mockApi, storageKey: 'test-items' })
+      await store.fetchAll()
+
+      const stored = JSON.parse(localStorage.getItem('test-items'))
+      expect(stored).toEqual([{ id: 1, name: 'Fetched' }])
+    })
+
+    it('saves items to localStorage after create', async () => {
+      mockApi.create.mockResolvedValue({
+        success: true,
+        data: { id: 2, name: 'New' }
+      })
+
+      const store = useCrudStore({ api: mockApi, storageKey: 'test-items' })
+      await store.create({ name: 'New' })
+
+      const stored = JSON.parse(localStorage.getItem('test-items'))
+      expect(stored).toEqual([{ id: 2, name: 'New' }])
+    })
+  })
+
+  describe('error handling for missing API methods', () => {
+    it('throws when getAll method is not found', async () => {
+      const store = useCrudStore({ api: {}, apiMethods: { getAll: 'nonExistent' } })
+      await expect(store.fetchAll()).rejects.toThrow("API method 'nonExistent' not found")
     })
   })
 })
