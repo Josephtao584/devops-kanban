@@ -23,11 +23,13 @@ function mountComponent(props = {}) {
 }
 
 describe('IterationSelect', () => {
-  it('renders all iterations plus "all" option', () => {
+  it('renders all iterations plus "all" option with __ALL__ value', () => {
     const wrapper = mountComponent()
     const options = wrapper.findAllComponents({ name: 'ElOption' })
     // 3 iterations + 1 "all" option
     expect(options).toHaveLength(4)
+    // First option is "all iterations"
+    expect(options[0].props('value')).toBe('__ALL__')
   })
 
   it('converts null modelValue to __ALL__ internally', async () => {
@@ -71,15 +73,6 @@ describe('IterationSelect', () => {
 
     expect(wrapper.emitted('update:modelValue')).toBeTruthy()
     expect(wrapper.emitted('update:modelValue')[0]).toEqual([2])
-  })
-
-  it('renders all options and the "all iterations" option', () => {
-    const wrapper = mountComponent()
-    const options = wrapper.findAllComponents({ name: 'ElOption' })
-    // 3 iterations + 1 "all" option
-    expect(options).toHaveLength(4)
-    // First option is "all iterations"
-    expect(options[0].props('value')).toBe('__ALL__')
   })
 
   it('is disabled when disabled prop is true', () => {

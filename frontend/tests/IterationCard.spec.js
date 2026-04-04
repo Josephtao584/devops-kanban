@@ -116,6 +116,11 @@ describe('IterationCard', () => {
     expect(wrapper.vm.progressStatus).toBe('success')
   })
 
+  it('returns empty progressStatus for ARCHIVED', () => {
+    const wrapper = mountCard({ status: 'ARCHIVED' })
+    expect(wrapper.vm.progressStatus).toBe('')
+  })
+
   it('returns success progressStatus when progress is 100', () => {
     const wrapper = mountCard({ status: 'ACTIVE', task_count: 10, done_count: 10 })
     expect(wrapper.vm.progressStatus).toBe('success')
@@ -129,7 +134,9 @@ describe('IterationCard', () => {
   it('formats dates correctly', () => {
     const wrapper = mountCard()
     const formatted = wrapper.vm.formatDate('2025-01-15')
-    expect(formatted).toBeTruthy()
+    // Should produce a localized date string containing year/month/day components
+    expect(formatted).toMatch(/2025/)
+    expect(formatted).not.toBe('2025-01-15') // should be localized, not raw
   })
 
   it('returns empty string for null date', () => {
