@@ -452,7 +452,7 @@ const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTe
   font-size: 10px;
   font-weight: 500;
   background: rgba(99, 102, 241, 0.08);
-  color: #6366f1;
+  color: #25C6C9;
   border: 1px solid rgba(99, 102, 241, 0.15);
 }
 

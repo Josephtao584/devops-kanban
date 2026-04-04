@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
 }
 
 .step-session-panel--chat {
-  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  background: linear-gradient(180deg, #f8fafc 0%, rgba(37, 198, 201, 0.04) 100%);
 }
 
 .step-session-panel--no-header {
@@ -462,8 +462,8 @@ onBeforeUnmount(() => {
 }
 
 .check-box.checked {
-  background: #4f46e5;
-  border-color: #4f46e5;
+  background: #25C6C9;
+  border-color: #25C6C9;
 }
 
 .check-label {

@@ -1358,9 +1358,9 @@ onMounted(() => {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
-  background: rgba(99, 102, 241, 0.08);
-  color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  background: rgba(37, 198, 201, 0.08);
+  color: #25C6C9;
+  border: 1px solid rgba(37, 198, 201, 0.15);
 }
 
 .step-editor-card {

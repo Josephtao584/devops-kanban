@@ -1277,7 +1277,7 @@ const openWorktreeDirectory = () => {
   flex-shrink: 0;
   padding: 3px 7px;
   border-radius: 999px;
-  background: #eef2ff;
+  background: rgba(37, 198, 201, 0.06);
   color: #4338ca;
   font-weight: 600;
 }
@@ -1379,8 +1379,8 @@ const openWorktreeDirectory = () => {
   width: 28px;
   height: 28px;
   padding: 0;
-  color: #6366f1;
-  background: #eef2ff;
+  color: #25C6C9;
+  background: rgba(37, 198, 201, 0.06);
   border: 1px solid #c7d2fe;
   border-radius: 999px;
   cursor: pointer;
@@ -1389,9 +1389,9 @@ const openWorktreeDirectory = () => {
 }
 
 .workflow-collapse-btn:hover {
-  color: #4f46e5;
-  background: #e0e7ff;
-  border-color: #6366f1;
+  color: #1EA9AC;
+  background: rgba(37, 198, 201, 0.08);
+  border-color: #25C6C9;
   transform: translateX(-1px);
 }
 

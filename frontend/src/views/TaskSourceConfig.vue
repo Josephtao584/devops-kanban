@@ -764,7 +764,7 @@ onMounted(loadProjects)
 }
 
 .source-card:hover {
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: rgba(37, 198, 201, 0.35);
   box-shadow: var(--shadow-md);
 }
 

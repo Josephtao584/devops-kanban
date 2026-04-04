@@ -492,13 +492,13 @@ onMounted(loadAgents)
 
 .agent-list-item:hover {
   background: var(--bg-secondary);
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: rgba(37, 198, 201, 0.35);
 }
 
 .agent-list-item.active {
   background: var(--hover-bg);
   border: 1px solid var(--accent-color);
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.1);
 }
 
 .agent-item-info {
@@ -620,13 +620,13 @@ onMounted(loadAgents)
 }
 
 .skill-tag.mcp-tag {
-  background: rgba(99, 102, 241, 0.08);
-  color: #4f46e5;
-  border-color: rgba(99, 102, 241, 0.14);
+  background: rgba(37, 198, 201, 0.08);
+  color: #1EA9AC;
+  border-color: rgba(37, 198, 201, 0.14);
 }
 
 .skill-tag-input.mcp-tag-input {
-  background: #6366f1;
+  background: #25C6C9;
 }
 
 .no-items-hint {
@@ -741,7 +741,7 @@ onMounted(loadAgents)
 .skill-input:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.1);
 }
 
 .add-skill-btn {

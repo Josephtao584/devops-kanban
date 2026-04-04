@@ -1,4 +1,18 @@
 /**
+ * Element Plus theme overrides — must load after element-plus/dist/index.css
+ * Uses :root with same specificity but later in cascade to win.
+ */
+:root {
+  --el-color-primary: #25C6C9;
+  --el-color-primary-light-3: #55d2d5;
+  --el-color-primary-light-5: #7fdddf;
+  --el-color-primary-light-7: #a8e8e9;
+  --el-color-primary-light-8: #c3eff0;
+  --el-color-primary-light-9: #e9f8f8;
+  --el-color-primary-dark-2: #1EA9AC;
+}
+
+/**
  * Global component styles
  * Reusable CSS classes shared across multiple components
  */

@@ -635,13 +635,13 @@ onMounted(loadSkills)
 
 .skill-list-item:hover {
   background: var(--bg-secondary);
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: rgba(37, 198, 201, 0.35);
 }
 
 .skill-list-item.active {
   background: var(--hover-bg);
   border: 1px solid var(--accent-color);
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.1);
 }
 
 .skill-item-info {
@@ -813,7 +813,7 @@ onMounted(loadSkills)
 }
 
 .file-item.active {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(37, 198, 201, 0.1);
   border: 1px solid var(--accent-color);
 }
 

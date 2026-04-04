@@ -315,7 +315,7 @@ const loadDiff = async () => {
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  background: linear-gradient(135deg, #f8fafc 0%, rgba(37, 198, 201, 0.06) 100%);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: nowrap;
 }
@@ -370,9 +370,9 @@ const loadDiff = async () => {
 }
 
 .file-menu-item.is-active {
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+  background: linear-gradient(135deg, rgba(37, 198, 201, 0.06) 0%, rgba(37, 198, 201, 0.12) 100%) !important;
   border-color: var(--accent-color) !important;
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.15) !important;
+  box-shadow: 0 1px 4px rgba(37, 198, 201, 0.15) !important;
 }
 
 .file-item-content {
@@ -468,9 +468,9 @@ const loadDiff = async () => {
 
 .diff-line.hunk {
   background-color: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
+  color: #25C6C9;
   font-weight: 600;
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid #25C6C9;
 }
 
 .diff-line.header {
@@ -505,7 +505,7 @@ const loadDiff = async () => {
 }
 
 .diff-line.hunk .line-prefix {
-  color: #6366f1;
+  color: #25C6C9;
 }
 
 .line-content {

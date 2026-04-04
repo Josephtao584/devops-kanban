@@ -3152,7 +3152,7 @@ onUnmounted(() => {
   gap: 8px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
-  background: #eef2ff;
+  background: rgba(37, 198, 201, 0.06);
   border-radius: 12px 12px 0 0;
   font-weight: 600;
   font-size: 14px;
@@ -3176,7 +3176,7 @@ onUnmounted(() => {
 }
 
 .column-status.status-requirement {
-  background: #6366f1;
+  background: #25C6C9;
 }
 
 .column-status.status-todo {
@@ -3533,9 +3533,9 @@ onUnmounted(() => {
 }
 
 .add-requirement-btn:hover {
-  border-color: #6366f1;
-  color: #6366f1;
-  background: #eef2ff;
+  border-color: #25C6C9;
+  color: #25C6C9;
+  background: rgba(37, 198, 201, 0.06);
 }
 
 .delete-confirm-content {

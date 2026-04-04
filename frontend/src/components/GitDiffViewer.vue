@@ -209,7 +209,7 @@ const getStatusLabel = (status) => {
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  background: linear-gradient(135deg, #f8fafc 0%, rgba(37, 198, 201, 0.06) 100%);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -266,9 +266,9 @@ const getStatusLabel = (status) => {
 
 .file-item.selected,
 .file-item.active {
-  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  background: linear-gradient(135deg, rgba(37, 198, 201, 0.06) 0%, rgba(37, 198, 201, 0.12) 100%);
   border-color: var(--accent-color);
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 1px 4px rgba(37, 198, 201, 0.15);
 }
 
 .file-info {
@@ -424,9 +424,9 @@ const getStatusLabel = (status) => {
 
 .diff-line.hunk {
   background-color: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
+  color: #25C6C9;
   font-weight: 600;
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid #25C6C9;
 }
 
 .diff-line.header {

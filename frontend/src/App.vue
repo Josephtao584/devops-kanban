@@ -177,13 +177,7 @@ const toggleSidebar = () => {
   --accent-color: #25C6C9;
   --accent-color-soft: rgba(37, 198, 201, 0.14);
   --accent-color-strong: #1EA9AC;
-  --el-color-primary: #25C6C9;
-  --el-color-primary-light-3: #55d2d5;
-  --el-color-primary-light-5: #7fdddf;
-  --el-color-primary-light-7: #a8e8e9;
-  --el-color-primary-light-8: #c3eff0;
-  --el-color-primary-light-9: #e9f8f8;
-  --el-color-primary-dark-2: #1EA9AC;
+  /* Element Plus theme vars — overridden in components.css (loaded after el-plus) */
   --icon-primary: #25C6C9;
   --icon-secondary: #EAB445;
   --primary-color: #25C6C9;

@@ -58,7 +58,7 @@ export const ROLE_CONFIG = {
     name: '全栈开发',
     nameEn: 'Fullstack Developer',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7h6V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="8" y1="22" x2="8" y2="12"/><line x1="16" y1="22" x2="16" y2="12"/></svg>',
-    gradient: 'linear-gradient(135deg, #818cf8, #6366f1)',
+    gradient: 'linear-gradient(135deg, #55d2d5, #25C6C9)',
     description: '负责前后端全栈开发',
     skills: ['前后端开发', '数据库设计', 'API 集成', 'DevOps']
   },

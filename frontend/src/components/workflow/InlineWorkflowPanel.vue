@@ -132,8 +132,8 @@ const sortedStages = computed(() => {
 }
 
 .node-inline:hover {
-  border-color: #6366f1;
-  background: #eef2ff;
+  border-color: #25C6C9;
+  background: rgba(37, 198, 201, 0.06);
 }
 
 .node-inline.is-current {
@@ -144,8 +144,8 @@ const sortedStages = computed(() => {
 }
 
 .node-inline.is-selected {
-  background: #eef2ff;
-  border-color: #6366f1;
+  background: rgba(37, 198, 201, 0.06);
+  border-color: #25C6C9;
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
 }
 
