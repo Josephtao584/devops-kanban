@@ -1,8 +1,10 @@
 import api from './index.js'
+import { createCrudApi } from './createCrudApi.js'
 
 // Project API - named exports only
-export const getProjects = () => api.get('/projects')
-export const getProject = (id) => api.get(`/projects/${id}`)
-export const createProject = (data) => api.post('/projects', data)
-export const updateProject = (id, data) => api.put(`/projects/${id}`, data)
-export const deleteProject = (id) => api.delete(`/projects/${id}`)
+const crud = createCrudApi('/projects')
+export const getProjects = () => crud.list()
+export const getProject = (id) => crud.get(id)
+export const createProject = (data) => crud.create(data)
+export const updateProject = (id, data) => crud.update(id, data)
+export const deleteProject = (id) => crud.delete(id)

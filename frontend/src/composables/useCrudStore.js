@@ -245,6 +245,8 @@ export function useCrudStore(options = {}) {
     error,
     // Getters
     ...getters,
+    // Utilities
+    unwrap,
     // Actions
     fetchAll,
     fetchById,

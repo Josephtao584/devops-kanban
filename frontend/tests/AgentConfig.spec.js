@@ -20,12 +20,21 @@ const mockSkillStore = vi.hoisted(() => ({
   fetchSkills: vi.fn()
 }))
 
+const mockMcpServerStore = vi.hoisted(() => ({
+  mcpServers: [],
+  fetchMcpServers: vi.fn()
+}))
+
 vi.mock('../src/stores/agentStore', () => ({
   useAgentStore: () => mockAgentStore
 }))
 
 vi.mock('../src/stores/skillStore', () => ({
   useSkillStore: () => mockSkillStore
+}))
+
+vi.mock('../src/stores/mcpServerStore', () => ({
+  useMcpServerStore: () => mockMcpServerStore
 }))
 
 

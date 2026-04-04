@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useCrudStore } from '../composables/useCrudStore'
-import { useApiErrorHandler } from '../composables/useApiErrorHandler'
 import * as iterationApi from '../api/iteration'
 
 export const useIterationStore = defineStore('iteration', () => {
@@ -16,16 +15,6 @@ export const useIterationStore = defineStore('iteration', () => {
     }
   })
 
-  const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'Iteration request failed' })
-  const unwrap = (response, fallbackMessage) => {
-    try {
-      return apiError.unwrapResponse(response, fallbackMessage)
-    } catch (e) {
-      crud.error.value = e.message
-      throw e
-    }
-  }
-
   const iterationsByProject = computed(() => (projectId) => {
     if (!projectId) return []
     return crud.items.value.filter(item => item.project_id === projectId)
@@ -38,7 +27,7 @@ export const useIterationStore = defineStore('iteration', () => {
     crud.error.value = null
     try {
       const response = await iterationApi.getIterations(projectId)
-      crud.items.value = unwrap(response, 'Failed to fetch iterations') || []
+      crud.items.value = crud.unwrap(response, 'Failed to fetch iterations') || []
       return response
     } finally {
       crud.loading.value = false
@@ -47,7 +36,7 @@ export const useIterationStore = defineStore('iteration', () => {
 
   async function fetchWithStats(id) {
     const response = await iterationApi.getIterationWithStats(id)
-    return unwrap(response, 'Failed to fetch iteration stats')
+    return crud.unwrap(response, 'Failed to fetch iteration stats')
   }
 
   async function updateStatus(id, status) {
@@ -55,7 +44,7 @@ export const useIterationStore = defineStore('iteration', () => {
     crud.error.value = null
     try {
       const response = await iterationApi.updateIterationStatus(id, status)
-      const updatedIteration = unwrap(response, 'Failed to update iteration status')
+      const updatedIteration = crud.unwrap(response, 'Failed to update iteration status')
       const index = crud.items.value.findIndex(item => item.id === id)
       if (index !== -1) {
         crud.items.value[index] = updatedIteration
@@ -74,15 +63,12 @@ export const useIterationStore = defineStore('iteration', () => {
     crud.error.value = null
     try {
       const response = await iterationApi.deleteIteration(id, options)
-      unwrap(response, 'Failed to delete iteration')
+      crud.unwrap(response, 'Failed to delete iteration')
       crud.items.value = crud.items.value.filter(item => item.id !== id)
       if (crud.currentItem.value?.id === id) {
         crud.currentItem.value = null
       }
       return response
-    } catch (e) {
-      crud.error.value = e.message
-      throw e
     } finally {
       crud.loading.value = false
     }

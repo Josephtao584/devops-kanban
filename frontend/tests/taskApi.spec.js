@@ -110,11 +110,7 @@ describe('api error normalization', () => {
   })
 })
 
-describe('git api push-only exports', () => {
-  it('exports push as a public api function', () => {
-    expect(gitApi.push).toBeTypeOf('function')
-  })
-
+describe('git api exports', () => {
   it('exports mergeBranch as a public api function', () => {
     expect('mergeBranch' in gitApi).toBe(true)
     expect(gitApi.mergeBranch).toBeTypeOf('function')

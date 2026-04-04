@@ -17,16 +17,9 @@ export default {
     actions: '操作',
     enabled: '已启用',
     disabled: '已禁用',
-    yes: '是',
-    no: '否',
-    all: '全部',
     none: '无',
-    back: '返回',
     close: '关闭',
-    next: '下一步',
-    refresh: '刷新',
-    required: '必填',
-    optional: '可选'
+    refresh: '刷新'
   },
   nav: {
     projects: '项目列表',
@@ -194,9 +187,6 @@ export default {
       repoHint: '例如: facebook/react',
       tokenPlaceholder: 'ghp_xxx...',
       tokenHint: '可选，提高 API 访问速率限制',
-      stateOpen: '仅开放',
-      stateClosed: '仅关闭',
-      stateAll: '全部',
       inheritedFromProject: '继承自项目',
       overrideDefault: '覆盖默认仓库'
     },
@@ -353,34 +343,6 @@ export default {
       working: '执行中'
     }
   },
-  execution: {
-    title: '执行记录',
-    startExecution: '开始执行',
-    selectAgent: '选择代理...',
-    execute: '执行',
-    stop: '停止',
-    status: '状态',
-    output: '输出',
-    startedAt: '开始时间',
-    completedAt: '完成时间',
-    detail: '执行详情',
-    taskInfo: '任务信息',
-    executionInfo: '执行信息',
-    gitInfo: 'Git信息',
-    duration: '耗时',
-    branch: '分支',
-    worktreePath: '工作树路径',
-    noOutput: '暂无输出',
-    loadFailed: '加载执行详情失败',
-    statuses: {
-      PENDING: '等待中',
-      RUNNING: '运行中',
-      SUCCESS: '成功',
-      COMPLETED: '已完成',
-      FAILED: '失败',
-      CANCELLED: '已取消'
-    }
-  },
   session: {
     title: '会话',
     createSession: '创建会话',
@@ -493,8 +455,6 @@ export default {
     localBranches: '本地',
     remoteBranches: '远程',
     remotes: '远程仓库',
-    createBranch: '创建分支',
-    deleteBranch: '删除分支',
     mergeBranch: '合并分支',
     merging: '合并中...',
     sourceBranch: '源分支',
@@ -513,13 +473,7 @@ export default {
     // MR/PR
     createMR: '创建合并请求',
     targetBranch: '目标分支',
-    selectTargetBranch: '选择目标分支',
-    mrTitle: 'MR标题',
-    mrTitlePlaceholder: '留空则使用提交信息',
-    pushAfterCommit: '提交后推送',
-    pushHint: '创建 MR 需要先推送',
-    commitAndCreateMR: '提交并创建MR',
-    openMR: '打开MR'
+    selectTargetBranch: '选择目标分支'
   },
   view: {
     kanban: '卡片',
@@ -536,26 +490,6 @@ export default {
     noWorkflow: '暂无工作流',
     progress: '进度',
     stages: '阶段'
-  },
-  butler: {
-    title: '小捷',
-    welcome: '嗨！我是小捷，我来帮您执行任务。',
-    selectTask: '选择任务',
-    selectTaskHint: '点击任务卡片开始执行',
-    quickActions: '快捷操作',
-    startWorkflow: '启动工作流',
-    pauseWorkflow: '暂停',
-    continueWorkflow: '继续',
-    viewProgress: '查看进度',
-    inputPlaceholder: '与助手对话...',
-    progressLabel: '进度',
-    taskTitle: '任务',
-    taskStatus: '状态',
-    currentStage: '当前阶段',
-    noTaskSelected: '请先选择一个任务',
-    workflowStarted: '工作流已启动',
-    workflowPaused: '工作流已暂停',
-    workflowContinued: '工作流已继续'
   },
   skill: {
     title: '技能管理',

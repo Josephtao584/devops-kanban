@@ -586,8 +586,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
 import {
   Monitor, VideoPlay, Edit, Cpu,
-  OfficeBuilding, User, Setting, Brush, Search, Coin, Document,
-  Aim, CircleCheck, View, Lock, Promotion, Box, Loading
+  OfficeBuilding, User, Setting, Document,
+  CircleCheck, Lock, Promotion, Box, Loading
 } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
