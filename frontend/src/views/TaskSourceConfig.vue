@@ -240,7 +240,21 @@
               <div class="item-labels" v-if="task.labels && task.labels.length > 0">
                 <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
               </div>
-              <div v-if="task.description" class="item-description" v-html="formatTaskDescription(task.description || '')"></div>
+              <div v-if="task.description" class="item-description-wrapper">
+                <div
+                  :ref="el => setDescriptionRef(el, task.external_id)"
+                  class="item-description"
+                  :class="{ expanded: expandedPreviewDescriptions.has(task.external_id) }"
+                  v-html="formatTaskDescription(task.description || '')"
+                ></div>
+                <button
+                  v-if="descriptionOverflow(task.external_id) || expandedPreviewDescriptions.has(task.external_id)"
+                  class="description-toggle-btn"
+                  @click.stop="toggleDescription(task.external_id)"
+                >
+                  {{ expandedPreviewDescriptions.has(task.external_id) ? '收起 ↑' : '展开 ↓' }}
+                </button>
+              </div>
               <div class="item-meta">
                 <span class="item-id">#{{ task.external_id }}</span>
                 <span class="item-source">{{ task.sourceName }}</span>
@@ -293,7 +307,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/projectStore'
@@ -324,6 +338,38 @@ const formRef = ref(null)
 
 const testDialogVisible = ref(false)
 const testResult = ref(null)
+
+// Sync preview description expand/collapse state
+const expandedPreviewDescriptions = ref(new Set())
+const descriptionOverflowState = ref({})
+const descriptionRefs = ref({})
+
+// Set description ref and check overflow
+const setDescriptionRef = (el, externalId) => {
+  if (el) {
+    descriptionRefs.value[externalId] = el
+    // Check overflow after next tick
+    nextTick(() => {
+      if (el && el.scrollHeight > el.clientHeight + 2) {
+        descriptionOverflowState.value[externalId] = true
+      }
+    })
+  }
+}
+
+const descriptionOverflow = (externalId) => {
+  return !!descriptionOverflowState.value[externalId]
+}
+
+const toggleDescription = (externalId) => {
+  const newSet = new Set(expandedPreviewDescriptions.value)
+  if (newSet.has(externalId)) {
+    newSet.delete(externalId)
+  } else {
+    newSet.add(externalId)
+  }
+  expandedPreviewDescriptions.value = newSet
+}
 
 const formData = ref({
   name: '',
@@ -979,6 +1025,44 @@ onMounted(loadProjects)
   background: var(--el-color-success-light-9);
   color: var(--el-color-success);
   margin-bottom: 4px;
+}
+
+.item-description {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-description.expanded {
+  -webkit-line-clamp: unset;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.item-description-wrapper {
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.description-toggle-btn {
+  font-size: 11px;
+  color: var(--el-color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 2px;
+  transition: color 0.2s;
+}
+
+.description-toggle-btn:hover {
+  color: var(--el-color-primary-light-3);
 }
 
 .item-labels {

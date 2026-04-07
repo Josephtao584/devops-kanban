@@ -89,25 +89,31 @@ class RRAdapter extends DevOpsBaseAdapter {
 
   _parseRRDescriptionResponse(response: unknown): string {
     if (!response || typeof response !== 'object' || Array.isArray(response)) {
+      console.log(`[RRAdapter] _parseRRDescriptionResponse: invalid response type: ${typeof response}`);
       return '';
     }
 
     const code = (response as UnknownRecord).code;
     if (typeof code === 'number' && code !== 200) {
+      console.log(`[RRAdapter] _parseRRDescriptionResponse: non-200 code: ${code}`);
       return '';
     }
 
     const data = (response as UnknownRecord).data;
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      console.log(`[RRAdapter] _parseRRDescriptionResponse: invalid data, type: ${typeof data}, isArray: ${Array.isArray(data)}`);
       return '';
     }
 
     const descriptions = (data as UnknownRecord).descriptions;
     if (!Array.isArray(descriptions)) {
+      console.log(`[RRAdapter] _parseRRDescriptionResponse: descriptions is not array, data keys: ${Object.keys(data as UnknownRecord).join(',')}`);
       return '';
     }
 
+    console.log(`[RRAdapter] _parseRRDescriptionResponse: found ${descriptions.length} description nodes`);
     const rawDescription = this._concatDescriptions(descriptions as DescriptionNode[]);
+    console.log(`[RRAdapter] _parseRRDescriptionResponse: raw HTML length=${rawDescription.length}`);
     return this._normalizeWorkitemDescription(rawDescription);
   }
 
@@ -129,16 +135,23 @@ class RRAdapter extends DevOpsBaseAdapter {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
 
+    console.log(`[RRAdapter] Fetching list page ${currentPage}, listPath: ${this.listPath}`);
+
     while (true) {
+      const body = this._buildRRListBody(currentPage);
+      console.log(`[RRAdapter] List request body:`, JSON.stringify(body, null, 2));
       const response = await this._request(this.listPath, {
         method: 'POST',
-        body: this._buildRRListBody(currentPage),
+        body,
       });
+      console.log(`[RRAdapter] List response:`, JSON.stringify(response, null, 2));
       this._assertRRSuccessResponse(response);
       const pageItems = this._extractListItems(response);
+      console.log(`[RRAdapter] Page ${currentPage} extracted ${pageItems.length} items`);
       items.push(...pageItems);
 
       if (this._isLastRRPage(response, pageItems.length)) {
+        console.log(`[RRAdapter] Total items fetched: ${items.length}`);
         return items;
       }
 
@@ -163,9 +176,12 @@ class RRAdapter extends DevOpsBaseAdapter {
         throw new Error(`RR API list item is missing identifier field: ${this.detailIdField}`);
       }
 
-      const detailPath = this._buildDetailPath(identifier);
+      const detailPath = `/vision-workitem/api/raw_requirements/${encodeURIComponent(String(identifier))}/description`;
+      console.log(`[RRAdapter] Fetching detail for identifier: ${identifier}, detailPath: ${detailPath}, detailIdField: ${this.detailIdField}`);
       const detailResponse = await this._request(detailPath);
+      console.log(`[RRAdapter] Detail response for ${identifier}:`, JSON.stringify(detailResponse, null, 2));
       const description = this._parseRRDescriptionResponse(detailResponse);
+      console.log(`[RRAdapter] Parsed description for ${identifier}: length=${description.length}, preview=${description.substring(0, 200)}`);
 
       const task = this.convertToTask({
         ...item,
@@ -205,7 +221,7 @@ class RRAdapter extends DevOpsBaseAdapter {
       ? record.number
       : String(record.external_id ?? record.id ?? '');
     const externalUrl = this.baseUrl && externalId
-      ? `${this.baseUrl}/vision-workitem/api/raw_requirements/${externalId}`
+      ? `${this.baseUrl}/#/raw/${externalId}`
       : '';
 
     return {

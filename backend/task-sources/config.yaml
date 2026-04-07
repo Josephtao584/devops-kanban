@@ -202,7 +202,7 @@ adapterTypes:
         type: string
         required: true
         description: "需求详情 API 的相对路径模板"
-        default: "/vision-workitem/api/raw_requirements/{id}/description"
+        default: "/vision-workitem/api/raw_requirements/{number}/description"
         hidden: true
       rejectUnauthorized:
         type: boolean

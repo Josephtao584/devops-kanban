@@ -85,10 +85,13 @@
           </button>
         </div>
       </div>
-      <div class="task-description-row">
-        <div v-if="task.description && !compact" class="task-description" v-html="formattedDescription"></div>
+      <div class="task-description-row with-separator" v-if="task.description && !compact">
+        <div
+          class="task-description"
+          v-html="formattedDescription"
+        ></div>
         <button
-          class="workflow-collapse-btn description-collapse-btn"
+          class="workflow-collapse-btn"
           @click.stop="$emit('toggle-workflow', task.id)"
           :title="workflowExpanded ? '收起 Workflow' : '展开 Workflow'"
         >
@@ -265,7 +268,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -842,9 +845,17 @@ const openWorktreeDirectory = () => {
   gap: 8px;
 }
 
-.task-description-row .workflow-collapse-btn {
-  margin-left: auto;
-  flex-shrink: 0;
+.task-description-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.task-description-row.with-separator {
+  /* Separator already applied via parent */
 }
 
 .task-description {
