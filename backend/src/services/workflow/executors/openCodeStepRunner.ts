@@ -44,10 +44,27 @@ function killProcessTree(proc: ExecutorProcessHandle): boolean {
   }
 }
 
+/**
+ * Validate model format to prevent command injection.
+ * Allowed: alphanumeric, slash, underscore, hyphen, colon, dot (e.g., "anthropic/claude-3.7-sonnet")
+ */
+function validateModelFormat(model: string): boolean {
+  return /^[a-zA-Z0-9/_\-:.]+$/.test(model);
+}
+
+/**
+ * Build OpenCode CLI arguments for spawning.
+ * @param prompt - The prompt to send to OpenCode
+ * @param options - Optional model and session parameters
+ * @throws Error if model format is invalid
+ */
 export function buildOpenCodeCliArgs(prompt: string, options: OpenCodeCliOptions = {}): string[] {
   const args = ['run', '--format', 'json'];
 
   if (options.model) {
+    if (!validateModelFormat(options.model)) {
+      throw new Error(`Invalid model format: ${options.model}. Expected format: provider/model-name`);
+    }
     args.push('--model', options.model);
   }
 
@@ -194,9 +211,11 @@ async function defaultSpawnImpl({
 
     if (abortSignal) {
       if (abortSignal.aborted) {
+        console.log(`[OpenCodeStepRunner] Already aborted, killing process immediately`);
         killProcessTree(proc);
       } else {
         abortSignal.addEventListener('abort', () => {
+          console.log(`[OpenCodeStepRunner] Abort event received, killing process. pid: ${proc.pid}`);
           killProcessTree(proc);
         }, { once: true });
       }

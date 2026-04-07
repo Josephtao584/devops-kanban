@@ -34,6 +34,17 @@ test.test('buildOpenCodeCliArgs includes session flag for continue', () => {
   ]);
 });
 
+test.test('buildOpenCodeCliArgs throws on invalid model format', () => {
+  assert.throws(() => buildOpenCodeCliArgs('test', { model: 'bad;model' }), /Invalid model format/);
+  assert.throws(() => buildOpenCodeCliArgs('test', { model: '$(inject)' }), /Invalid model format/);
+});
+
+test.test('buildOpenCodeCliArgs accepts valid model formats', () => {
+  assert.doesNotThrow(() => buildOpenCodeCliArgs('test', { model: 'anthropic/claude-3.7-sonnet' }));
+  assert.doesNotThrow(() => buildOpenCodeCliArgs('test', { model: 'openai/gpt-4.1' }));
+  assert.doesNotThrow(() => buildOpenCodeCliArgs('test', { model: 'local:model:8b' }));
+});
+
 test.test('buildOpenCodeSpawnCommand uses opencode default from config', () => {
   const resolved = buildOpenCodeSpawnCommand({}, { PATH: 'x' });
   assert.equal(resolved.command, 'opencode');
