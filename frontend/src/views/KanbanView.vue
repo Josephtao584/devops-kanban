@@ -230,7 +230,7 @@
                   <div
                     class="item-description"
                     :class="{ expanded: expandedPreviewDescriptions.has(task.external_id) }"
-                    :ref="(el) => { if (el) checkPreviewDescriptionOverflow(el, task.external_id) }"
+                    :ref="(el) => { if (el) { descriptionRefs.value[task.external_id] = el; checkPreviewDescriptionOverflow(task.external_id) } }"
                     v-html="formatTaskDescription(task.description || '')"
                   ></div>
                   <button
@@ -674,11 +674,15 @@ const expandedTaskId = ref(null)
 const expandedDescriptionTaskId = ref(null)
 const expandedPreviewDescriptions = ref(new Set())
 const overflowPreviewDescriptions = ref(new Set())
+const descriptionRefs = ref({})
 
-const checkPreviewDescriptionOverflow = (el, externalId) => {
-  if (el && el.scrollHeight > el.clientHeight + 2) {
-    overflowPreviewDescriptions.value = new Set([...overflowPreviewDescriptions.value, externalId])
-  }
+const checkPreviewDescriptionOverflow = (externalId) => {
+  nextTick(() => {
+    const el = descriptionRefs.value[externalId]
+    if (el && el.scrollHeight > el.clientHeight + 2) {
+      overflowPreviewDescriptions.value = new Set([...overflowPreviewDescriptions.value, externalId])
+    }
+  })
 }
 
 const togglePreviewDescription = (externalId) => {
