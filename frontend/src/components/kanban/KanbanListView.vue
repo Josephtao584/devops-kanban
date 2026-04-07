@@ -46,14 +46,12 @@
               :show-drag-handle="true"
               :status-text="$t(`status.${task.status}`)"
               :workflowExpanded="expandedTaskId === task.id"
-              :descriptionExpanded="expandedDescriptionTaskId === task.id"
               :currentNodeId="currentNodeId"
               @click="$emit('select-task', task)"
               @edit="$emit('edit-task', task)"
               @delete="$emit('delete-task', task.id)"
               @worktree-update="$emit('worktree-update', $event)"
               @toggle-workflow="$emit('toggle-workflow', $event)"
-              @toggle-description="$emit('toggle-description', $event)"
               @workflow-action="$emit('workflow-action', $event)"
             />
           </template>
@@ -105,14 +103,12 @@
               :show-drag-handle="true"
               :status-text="$t(`status.${task.status}`)"
               :workflowExpanded="expandedTaskId === task.id"
-              :descriptionExpanded="expandedDescriptionTaskId === task.id"
               :currentNodeId="currentNodeId"
               @click="$emit('select-task', task)"
               @edit="$emit('edit-task', task)"
               @delete="$emit('delete-task', task.id)"
               @worktree-update="$emit('worktree-update', $event)"
               @toggle-workflow="$emit('toggle-workflow', $event)"
-              @toggle-description="$emit('toggle-description', $event)"
               @workflow-action="$emit('workflow-action', $event)"
             />
           </template>
@@ -149,10 +145,6 @@ const props = defineProps({
     type: [String, Number],
     default: null
   },
-  expandedDescriptionTaskId: {
-    type: [String, Number],
-    default: null
-  },
   currentNodeId: {
     type: [String, Number],
     default: null
@@ -169,7 +161,6 @@ const emit = defineEmits([
   'worktree-update',
   'sync',
   'toggle-workflow',
-  'toggle-description',
   'workflow-action'
 ])
 

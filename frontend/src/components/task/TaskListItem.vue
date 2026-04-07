@@ -87,20 +87,11 @@
       </div>
       <div class="task-description-row with-separator" v-if="task.description && !compact">
         <div
-          ref="descriptionRef"
           class="task-description"
-          :class="{ expanded: descriptionExpanded }"
           v-html="formattedDescription"
         ></div>
         <button
-          v-if="descriptionOverflow || descriptionExpanded"
-          class="description-toggle-btn"
-          @click.stop="$emit('toggle-description', task.id)"
-        >
-          {{ descriptionExpanded ? '收起 ↑' : '展开 ↓' }}
-        </button>
-        <button
-          class="workflow-collapse-btn description-collapse-btn"
+          class="workflow-collapse-btn"
           @click.stop="$emit('toggle-workflow', task.id)"
           :title="workflowExpanded ? '收起 Workflow' : '展开 Workflow'"
         >
@@ -277,7 +268,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, nextTick } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -340,10 +331,6 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  descriptionExpanded: {
-    type: Boolean,
-    default: false
-  },
   workflow: {
     type: Object,
     default: null
@@ -358,23 +345,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-workflow', 'toggle-description', 'workflow-action', 'node-click'])
+const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-workflow', 'workflow-action', 'node-click'])
 
 const { t } = useI18n()
 
 // Use composables
 const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, getWorktreeStatusText, createWorktree, deleteWorktree } = useWorktree()
 const { getStatusClass } = useStatusStyle()
-
-// Description overflow detection
-const descriptionRef = ref(null)
-const descriptionOverflow = ref(false)
-
-const checkDescriptionOverflow = () => {
-  if (descriptionRef.value) {
-    descriptionOverflow.value = descriptionRef.value.scrollHeight > descriptionRef.value.clientHeight + 2
-  }
-}
 
 // Real workflow run data from API
 const realWorkflowRun = ref(null)
@@ -539,14 +516,6 @@ const workflowWorktreeStatusText = computed(() => getWorktreeStatusText(props.ta
 const statusClass = computed(() => getStatusClass(props.task.status))
 const canStartTask = computed(() => !props.running && props.task?.status !== 'DONE')
 const formattedDescription = computed(() => formatTaskDescription(props.task?.description || ''))
-
-watch(formattedDescription, () => {
-  nextTick(() => checkDescriptionOverflow())
-})
-
-onMounted(() => {
-  nextTick(() => checkDescriptionOverflow())
-})
 
 // Workflow data - only from real backend workflow run data or explicit prop
 const workflowData = computed(() => {
@@ -898,48 +867,6 @@ const openWorktreeDirectory = () => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  transition: all 0.2s ease;
-}
-
-.task-description.expanded {
-  -webkit-line-clamp: unset;
-  display: block;
-  max-height: 300px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.task-description.expanded::-webkit-scrollbar {
-  width: 4px;
-}
-
-.task-description.expanded::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-}
-
-.description-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #25C6C9;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: color 0.2s ease;
-}
-
-.description-toggle-btn:hover {
-  color: #1EA9AC;
-}
-
-.task-description-row .workflow-collapse-btn {
-  margin-left: 0;
-  flex-shrink: 0;
 }
 
 .task-description :deep(strong) {

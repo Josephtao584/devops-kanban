@@ -85,7 +85,6 @@
             :show-add-button="true"
             :show-sync-button="true"
             :expanded-task-id="expandedTaskId"
-            :expanded-description-task-id="expandedDescriptionTaskId"
             :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
@@ -95,7 +94,6 @@
             @worktree-update="handleWorktreeUpdate"
             @sync="handleSyncTaskSources"
             @toggle-workflow="handleToggleWorkflow"
-            @toggle-description="handleToggleDescription"
             @workflow-action="handleWorkflowAction"
           />
 
@@ -107,7 +105,6 @@
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noTasks')"
             :expanded-task-id="expandedTaskId"
-            :expanded-description-task-id="expandedDescriptionTaskId"
             :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
@@ -115,7 +112,6 @@
             @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
-            @toggle-description="handleToggleDescription"
             @workflow-action="handleWorkflowAction"
           />
 
@@ -127,7 +123,6 @@
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noDoneTasks')"
             :expanded-task-id="expandedTaskId"
-            :expanded-description-task-id="expandedDescriptionTaskId"
             :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
@@ -135,7 +130,6 @@
             @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
-            @toggle-description="handleToggleDescription"
             @workflow-action="handleWorkflowAction"
           />
 
@@ -147,7 +141,6 @@
             :running-task-ids="runningTasks"
             :empty-text="$t('task.noBlockedTasks')"
             :expanded-task-id="expandedTaskId"
-            :expanded-description-task-id="expandedDescriptionTaskId"
             :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
@@ -155,7 +148,6 @@
             @delete-task="onDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
-            @toggle-description="handleToggleDescription"
             @workflow-action="handleWorkflowAction"
           />
         </div>
@@ -671,7 +663,6 @@ const isEditing = ref(false)
 const editingTaskId = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
-const expandedDescriptionTaskId = ref(null)
 const expandedPreviewDescriptions = ref(new Set())
 const overflowPreviewDescriptions = ref(new Set())
 const descriptionRefs = ref({})
@@ -851,10 +842,6 @@ const handleMerged = () => {
 
 const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
-}
-
-const handleToggleDescription = (taskId) => {
-  expandedDescriptionTaskId.value = expandedDescriptionTaskId.value === taskId ? null : taskId
 }
 
 const startSelectedTaskWithTemplate = async (

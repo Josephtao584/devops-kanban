@@ -28,14 +28,12 @@
             :running="isTaskRunning(element.id)"
             :elapsed-time="formatTaskElapsedTime(element.id)"
             :workflow-expanded="expandedTaskId === element.id"
-            :description-expanded="expandedDescriptionTaskId === element.id"
             :current-node-id="currentNodeId"
             @click="handleSelectTask"
             @edit="handleEditTask"
             @delete="handleDeleteTask"
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="$emit('toggle-workflow', $event)"
-            @toggle-description="$emit('toggle-description', $event)"
             @workflow-action="$emit('workflow-action', $event)"
           />
         </template>
@@ -100,17 +98,13 @@ const props = defineProps({
     type: String,
     default: null
   },
-  expandedDescriptionTaskId: {
-    type: String,
-    default: null
-  },
   currentNodeId: {
     type: String,
     default: null
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'toggle-description', 'workflow-action'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'workflow-action'])
 
 const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
 
