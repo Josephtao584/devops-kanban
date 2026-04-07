@@ -85,7 +85,6 @@
             :show-add-button="true"
             :show-sync-button="true"
             :expanded-task-id="expandedTaskId"
-            :expanded-description-task-id="expandedDescriptionTaskId"
             :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
@@ -95,7 +94,6 @@
             @worktree-update="handleWorktreeUpdate"
             @sync="handleSyncTaskSources"
             @toggle-workflow="handleToggleWorkflow"
-            @toggle-description="handleToggleDescription"
             @workflow-action="handleWorkflowAction"
           />
 
@@ -161,7 +159,6 @@
           :running-task-ids="runningTasks"
           :status-filter="listStatusFilter"
           :expandedTaskId="expandedTaskId"
-          :expandedDescriptionTaskId="expandedDescriptionTaskId"
           :currentNodeId="currentViewingNodeId"
           @select-task="selectTask"
           @edit-task="openTaskModal"
@@ -172,7 +169,6 @@
           @worktree-update="handleWorktreeUpdate"
           @sync="handleSyncTaskSources"
           @toggle-workflow="handleToggleWorkflow"
-          @toggle-description="handleToggleDescription"
           @workflow-action="handleWorkflowAction"
         />
       </div>
@@ -222,7 +218,21 @@
                 <div class="item-labels" v-if="task.labels && task.labels.length > 0">
                   <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
                 </div>
-                <div v-if="task.description" class="item-description" v-html="formatTaskDescription(task.description || '')"></div>
+                <div v-if="task.description" class="item-description-wrapper">
+                  <div
+                    class="item-description"
+                    :class="{ expanded: expandedPreviewDescriptions.has(task.external_id) }"
+                    :ref="(el) => setDescriptionRef(el, task.external_id)"
+                    v-html="formatTaskDescription(task.description || '')"
+                  ></div>
+                  <button
+                    v-if="overflowPreviewDescriptions.has(task.external_id) || expandedPreviewDescriptions.has(task.external_id)"
+                    class="preview-description-toggle"
+                    @click.stop="togglePreviewDescription(task.external_id)"
+                  >
+                    {{ expandedPreviewDescriptions.has(task.external_id) ? '收起 ↑' : '展开 ↓' }}
+                  </button>
+                </div>
                 <div class="item-meta">
                   <span class="item-id">#{{ task.external_id }}</span>
                   <span class="item-source">{{ task.sourceName }}</span>
@@ -570,7 +580,7 @@
 </template>
 
 <script setup>
-import { h, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { h, ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
@@ -653,7 +663,35 @@ const isEditing = ref(false)
 const editingTaskId = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
-const expandedDescriptionTaskId = ref(null)
+const expandedPreviewDescriptions = ref(new Set())
+const overflowPreviewDescriptions = ref(new Set())
+const descriptionRefs = ref({})
+
+const setDescriptionRef = (el, externalId) => {
+  if (el && descriptionRefs.value) {
+    descriptionRefs.value[externalId] = el
+    checkPreviewDescriptionOverflow(externalId)
+  }
+}
+
+const checkPreviewDescriptionOverflow = (externalId) => {
+  nextTick(() => {
+    const el = descriptionRefs.value[externalId]
+    if (el && el.scrollHeight > el.clientHeight + 2) {
+      overflowPreviewDescriptions.value = new Set([...overflowPreviewDescriptions.value, externalId])
+    }
+  })
+}
+
+const togglePreviewDescription = (externalId) => {
+  const newSet = new Set(expandedPreviewDescriptions.value)
+  if (newSet.has(externalId)) {
+    newSet.delete(externalId)
+  } else {
+    newSet.add(externalId)
+  }
+  expandedPreviewDescriptions.value = newSet
+}
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const showWorkflowTemplateDialog = ref(false)
@@ -804,10 +842,6 @@ const handleMerged = () => {
 
 const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
-}
-
-const handleToggleDescription = (taskId) => {
-  expandedDescriptionTaskId.value = expandedDescriptionTaskId.value === taskId ? null : taskId
 }
 
 const startSelectedTaskWithTemplate = async (
@@ -2332,6 +2366,38 @@ onUnmounted(() => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  transition: all 0.2s ease;
+}
+
+.item-description.expanded {
+  -webkit-line-clamp: unset;
+  display: block;
+  max-height: 300px;
+  overflow-y: auto;
+  text-overflow: unset;
+}
+
+.item-description.expanded::-webkit-scrollbar {
+  width: 4px;
+}
+
+.item-description.expanded::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+
+.preview-description-toggle {
+  font-size: 11px;
+  color: #25C6C9;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 0 4px 0;
+  margin-bottom: 4px;
+}
+
+.preview-description-toggle:hover {
+  color: #1EA9AC;
 }
 
 .item-meta {

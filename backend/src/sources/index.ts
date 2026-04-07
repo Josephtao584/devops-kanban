@@ -9,7 +9,7 @@ type AdapterConstructor = (new (source: TaskSourceLike) => TaskSourceAdapter) & 
 
 const adapters: Record<string, AdapterConstructor> = {};
 const DISCOVERY_DIR = path.dirname(fileURLToPath(import.meta.url));
-const IGNORED_FILES = new Set(['base.js', 'index.js', 'base.ts', 'index.ts', 'gitlab.ts', 'gitlab.js']);
+const IGNORED_FILES = new Set(['base.js', 'index.js', 'base.ts', 'index.ts', 'gitlab.ts', 'gitlab.js', 'devOpsBase.ts', 'devOpsBase.js']);
 let loadPromise: Promise<void> | null = null;
 let adapterTypeConfigs: AdapterTypeDefinition[] | null = null;
 

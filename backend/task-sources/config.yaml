@@ -170,6 +170,46 @@ adapterTypes:
       external_id: "toString"
       labels: "arrayMap(name)"
 
+  - key: CLOUDDEVOPS_RR
+    name: CloudDevOps RR
+    description: 从 CloudDevOps 同步需求（RR）任务
+    configFields:
+      baseUrl:
+        type: string
+        required: true
+        description: "CloudDevOps 基础地址"
+      token:
+        type: string
+        required: true
+        description: "Authorization 请求头值"
+      userId:
+        type: string
+        required: true
+        description: "用于 current_owners 过滤的用户标识"
+      pageSize:
+        type: string
+        required: false
+        description: "每页需求数量"
+        default: "10"
+        hidden: true
+      listPath:
+        type: string
+        required: true
+        description: "需求列表 API 的相对路径"
+        default: "/vision-workitem/api/query/requirements/single_list"
+        hidden: true
+      detailPath:
+        type: string
+        required: true
+        description: "需求详情 API 的相对路径模板"
+        default: "/vision-workitem/api/raw_requirements/{number}/description"
+        hidden: true
+      rejectUnauthorized:
+        type: boolean
+        required: false
+        description: "是否拒绝自签名证书（默认 false，接受自签名证书）"
+        default: false
+
 # Future adapters can be added here, e.g.:
 #   - key: JIRA
 #     name: Jira Issues
