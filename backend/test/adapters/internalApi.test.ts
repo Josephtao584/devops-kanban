@@ -5,7 +5,7 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { gzipSync } from 'node:zlib';
 
-import { InternalApiAdapter } from '../../src/sources/internalApi.js';
+import { InternalApiAdapter } from '../../src/sources/storyAdapter.js';
 
 test.test('InternalApiAdapter fetches list then detail and normalizes tasks', async () => {
   const adapter = new InternalApiAdapter({
