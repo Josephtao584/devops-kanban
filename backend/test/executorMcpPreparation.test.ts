@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { prepareExecutionMcp } from '../src/services/workflow/executorMcpPreparation.js';
+import { ExecutorType } from '../src/types/executors.js';
 
 async function withTempDir(run: (worktreePath: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'executor-mcp-prep-test-'));
@@ -18,7 +19,7 @@ async function withTempDir(run: (worktreePath: string) => Promise<void>) {
 test.test('prepareExecutionMcp writes .mcp.json for worktree for CLAUDE_CODE', async () => {
   await withTempDir(async (worktreePath) => {
     await prepareExecutionMcp({
-      executorType: 'CLAUDE_CODE',
+      executorType: ExecutorType.CLAUDE_CODE,
       mcpServerConfigs: [
         { name: 'context7', server_type: 'stdio', config: { command: 'npx', args: ['-y', '@upstash/context7-mcp'] } },
         { name: 'github', server_type: 'http', config: { url: 'https://api.github.com/mcp', headers: { Authorization: 'Bearer token' } } },
@@ -37,7 +38,7 @@ test.test('prepareExecutionMcp writes .mcp.json for worktree for CLAUDE_CODE', a
 test.test('prepareExecutionMcp is no-op when no servers configured', async () => {
   await withTempDir(async (worktreePath) => {
     await prepareExecutionMcp({
-      executorType: 'CLAUDE_CODE',
+      executorType: ExecutorType.CLAUDE_CODE,
       mcpServerConfigs: [],
       executionPath: worktreePath,
     });

@@ -323,7 +323,8 @@ export default {
     loadFailed: '加载成员失败',
     startSession: '开始会话',
     types: {
-      CLAUDE_CODE: 'Claude Code'
+      CLAUDE_CODE: 'Claude Code',
+      OPEN_CODE: 'OpenCode'
     },
     commandHint: '使用 {prompt} 作为任务提示的占位符',
     skills: '技能',

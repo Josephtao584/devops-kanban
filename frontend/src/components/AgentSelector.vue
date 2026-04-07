@@ -138,6 +138,7 @@ const loadAgents = async () => {
 const getAgentIcon = (executorType) => {
   const icons = {
     CLAUDE_CODE: Monitor,
+    OPEN_CODE: Monitor,
     DEFAULT: User
   }
   return icons[executorType] || icons.DEFAULT

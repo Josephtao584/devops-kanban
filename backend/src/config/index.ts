@@ -31,6 +31,8 @@ const TASK_SOURCE_DATA_PATH = process.env.TASK_SOURCE_DATA_PATH
   ? path.resolve(process.env.TASK_SOURCE_DATA_PATH)
   : path.join(STORAGE_PATH);
 
+const OPENCODE_COMMAND = process.env.OPENCODE_COMMAND || 'opencode';
+
 export {
   BACKEND_ROOT,
   PROJECT_ROOT,
@@ -40,4 +42,5 @@ export {
   CORS_ORIGINS,
   TASK_SOURCE_CONFIG_PATH,
   TASK_SOURCE_DATA_PATH,
+  OPENCODE_COMMAND,
 };

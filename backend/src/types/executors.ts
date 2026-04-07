@@ -1,5 +1,6 @@
 export enum ExecutorType {
     CLAUDE_CODE = 'CLAUDE_CODE',
+    OPEN_CODE = 'OPEN_CODE',
 }
 
 export interface ExecutorConfig {

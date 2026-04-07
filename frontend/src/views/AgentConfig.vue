@@ -135,6 +135,7 @@
         <el-form-item :label="$t('agent.agentType')">
           <el-select v-model="form.executorType" data-testid="agent-executor-type-select" style="width: 100%">
             <el-option value="CLAUDE_CODE" :label="$t('agent.types.CLAUDE_CODE')" />
+            <el-option value="OPEN_CODE" :label="$t('agent.types.OPEN_CODE')" />
           </el-select>
         </el-form-item>
 

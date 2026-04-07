@@ -16,7 +16,7 @@ async function prepareExecutionSkills({ executorType, skillNames, executionPath 
     return;
   }
 
-  if (executorType === ExecutorType.CLAUDE_CODE) {
+  if (executorType === ExecutorType.CLAUDE_CODE || executorType === ExecutorType.OPEN_CODE) {
     await prepareClaudeCodeSkills(skillNames, executionPath);
   }
 }
