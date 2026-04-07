@@ -109,7 +109,22 @@ function toExecutorProcessHandle(proc: SpawnedProcess): ExecutorProcessHandle {
 export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent | null {
   const type = json.type;
 
-  // Assistant message
+  // NGA custom format: direct text event
+  if (type === 'text' && typeof json.text === 'string') {
+    return buildEvent('message', 'assistant', json.text as string);
+  }
+
+  // NGA custom format: step_start event
+  if (type === 'step_start') {
+    return buildEvent('status', 'system', 'step started', { part: json.part });
+  }
+
+  // NGA custom format: step_finish event
+  if (type === 'step_finish') {
+    return buildEvent('status', 'system', 'step finished', { part: json.part });
+  }
+
+  // Assistant message (OpenCode standard format)
   if (type === 'assistant') {
     const message = json.message as Record<string, unknown> | undefined;
     const content = message?.content as unknown[] | undefined;
@@ -158,7 +173,7 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
     return null;
   }
 
-  // Result event
+  // Result event (OpenCode standard)
   if (type === 'result') {
     return buildEvent('status', 'system', 'completed', {
       result: json.result,

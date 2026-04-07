@@ -1,6 +1,11 @@
+/**
+ * Extract result from JSON stream output.
+ * Supports both OpenCode standard format and nga custom format.
+ */
 function extractResultFromStreamJson(stdout: string): string {
   let lastResult: string | null = null;
   let lastAssistantText: string | null = null;
+  let lastTextEvent: string | null = null;
 
   const lines = stdout.split('\n');
   for (const line of lines) {
@@ -8,12 +13,12 @@ function extractResultFromStreamJson(stdout: string): string {
     try {
       const json = JSON.parse(line);
 
-      // result event has the final response
+      // OpenCode standard: result event has the final response
       if (json.type === 'result' && typeof json.result === 'string') {
         lastResult = json.result;
       }
 
-      // assistant text block (fallback if no result event)
+      // OpenCode standard: assistant message with content array
       if (json.type === 'assistant') {
         const content = json.message?.content;
         if (Array.isArray(content)) {
@@ -24,12 +29,23 @@ function extractResultFromStreamJson(stdout: string): string {
           }
         }
       }
+
+      // NGA custom format: direct text event
+      if (json.type === 'text' && typeof json.text === 'string') {
+        lastTextEvent = json.text;
+      }
+
+      // NGA custom format: step_finish with summary
+      if (json.type === 'step_finish' && json.part?.text) {
+        lastResult = json.part.text;
+      }
     } catch {
       // Not valid JSON, ignore
     }
   }
 
-  return lastResult || lastAssistantText || '';
+  // Priority: result > assistant text > nga text event > raw stdout
+  return lastResult || lastAssistantText || lastTextEvent || '';
 }
 
 export async function parseStepResult({ stdout = '' }: { stdout?: string }) {
