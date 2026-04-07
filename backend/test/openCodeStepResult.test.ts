@@ -55,3 +55,27 @@ test.test('validateStepResult throws when summary is empty', () => {
 test.test('validateStepResult returns trimmed summary', () => {
   assert.deepEqual(validateStepResult({ summary: '  done  ' }), { summary: 'done' });
 });
+
+test.test('parseStepResult extracts text from part.text in text event', async () => {
+  const result = await parseStepResult({
+    stdout: JSON.stringify({
+      type: 'text',
+      timestamp: 1775565774253,
+      sessionID: 'ses_abc123',
+      part: { type: 'text', text: 'Response from opencode' },
+    }),
+  });
+
+  assert.deepEqual(result, { summary: 'Response from opencode' });
+});
+
+test.test('parseStepResult prefers step_finish text over text event', async () => {
+  const lines = [
+    JSON.stringify({ type: 'text', sessionID: 'ses_abc', part: { text: 'intermediate text' } }),
+    JSON.stringify({ type: 'step_finish', sessionID: 'ses_abc', part: { text: 'final result text', type: 'step-finish' } }),
+  ];
+
+  const result = await parseStepResult({ stdout: lines.join('\n') });
+
+  assert.deepEqual(result, { summary: 'final result text' });
+});

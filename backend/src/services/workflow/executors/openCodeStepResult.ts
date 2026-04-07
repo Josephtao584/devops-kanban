@@ -30,9 +30,12 @@ function extractResultFromStreamJson(stdout: string): string {
         }
       }
 
-      // NGA custom format: direct text event
-      if (json.type === 'text' && typeof json.text === 'string') {
-        lastTextEvent = json.text;
+      // Text event: content is in part.text
+      if (json.type === 'text') {
+        const part = json.part as Record<string, unknown> | undefined;
+        if (typeof part?.text === 'string') {
+          lastTextEvent = part.text;
+        }
       }
 
       // NGA custom format: step_finish with summary

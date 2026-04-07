@@ -132,6 +132,118 @@ test.test('parseStreamEvent returns null for unknown event types', () => {
   assert.equal(event, null);
 });
 
+test.test('parseStreamEvent extracts text from part.text for type "text"', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    timestamp: 1775565774253,
+    sessionID: 'ses_298086c81ffeKf6A5BcXwU9C0V',
+    part: {
+      id: 'prt_d67f79d100012iooqBRZATxW2c',
+      messageID: 'msg_d67f79426001f51QwkosDKpUYg',
+      sessionID: 'ses_298086c81ffeKf6A5BcXwU9C0V',
+      type: 'text',
+      text: 'Hello!',
+    },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'message');
+  assert.equal(event!.role, 'assistant');
+  assert.equal(event!.content, 'Hello!');
+});
+
+test.test('parseStreamEvent captures session_id from step_start', () => {
+  const event = parseStreamEvent({
+    type: 'step_start',
+    timestamp: 1775565774099,
+    sessionID: 'ses_298086c81ffeKf6A5BcXwU9C0V',
+    part: {
+      id: 'prt_d67f79d0e001hE3eHqnoDn54D1',
+      messageID: 'msg_d67f79426001f51QwkosDKpUYg',
+      sessionID: 'ses_298086c81ffeKf6A5BcXwU9C0V',
+      type: 'step-start',
+    },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'status');
+  assert.equal(event!.payload!.session_id, 'ses_298086c81ffeKf6A5BcXwU9C0V');
+});
+
+test.test('parseStreamEvent captures session_id from step_finish', () => {
+  const event = parseStreamEvent({
+    type: 'step_finish',
+    timestamp: 1775565774365,
+    sessionID: 'ses_298086c81ffeKf6A5BcXwU9C0V',
+    part: {
+      type: 'step-finish',
+      reason: 'stop',
+      tokens: { total: 11713, input: 9894, output: 3 },
+      cost: 0.00612042,
+    },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'status');
+  assert.equal(event!.payload!.session_id, 'ses_298086c81ffeKf6A5BcXwU9C0V');
+});
+
+test.test('parseStreamEvent returns null for text event without part', () => {
+  const event = parseStreamEvent({ type: 'text', timestamp: 123 });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent converts tool_use to tool_call event with output', () => {
+  const event = parseStreamEvent({
+    type: 'tool_use',
+    timestamp: 1775566804097,
+    sessionID: 'ses_297f8b2d8ffe1ftYOzWccMypPV',
+    part: {
+      type: 'tool',
+      tool: 'bash',
+      callID: 'call_function_69eh54xim4h0_1',
+      state: {
+        status: 'completed',
+        input: { command: 'ls -la' },
+        output: 'total 168\ndrwxr-xr-x 21 user staff 672 Apr 7 .\n',
+      },
+    },
+  });
+
+  assert.ok(event);
+  assert.equal(event!.kind, 'tool_call');
+  assert.equal(event!.content, 'bash');
+  assert.equal(event!.payload!.tool_name, 'bash');
+  assert.equal(event!.payload!.tool_id, 'call_function_69eh54xim4h0_1');
+  assert.equal(event!.payload!.is_error, false);
+});
+
+test.test('parseStreamEvent converts tool_use with error status', () => {
+  const event = parseStreamEvent({
+    type: 'tool_use',
+    timestamp: 1775566804315,
+    sessionID: 'ses_test',
+    part: {
+      type: 'tool',
+      tool: 'read',
+      callID: 'call_test_1',
+      state: {
+        status: 'error',
+        input: { filePath: '/tmp/missing.txt' },
+        error: 'File not found',
+      },
+    },
+  });
+
+  assert.ok(event);
+  assert.equal(event!.kind, 'tool_call');
+  assert.equal(event!.content, 'read');
+  assert.equal(event!.payload!.tool_name, 'read');
+  assert.equal(event!.payload!.is_error, true);
+});
+
+test.test('parseStreamEvent returns null for tool_use without part', () => {
+  const event = parseStreamEvent({ type: 'tool_use', timestamp: 123 });
+  assert.equal(event, null);
+});
+
 test.test('OpenCodeStepRunner passes prompt to spawn implementation', async () => {
   let receivedPrompt: string | null = null;
   const runner = new OpenCodeStepRunner({

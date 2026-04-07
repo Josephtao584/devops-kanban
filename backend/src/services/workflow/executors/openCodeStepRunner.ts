@@ -109,19 +109,52 @@ function toExecutorProcessHandle(proc: SpawnedProcess): ExecutorProcessHandle {
 export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent | null {
   const type = json.type;
 
-  // NGA custom format: direct text event
-  if (type === 'text' && typeof json.text === 'string') {
-    return buildEvent('message', 'assistant', json.text as string);
+  // Text event: content is in part.text
+  if (type === 'text') {
+    const part = json.part as Record<string, unknown> | undefined;
+    if (typeof part?.text === 'string') {
+      return buildEvent('message', 'assistant', part.text);
+    }
+    return null;
   }
 
-  // NGA custom format: step_start event
+  // Step start event: capture sessionID for continue functionality
   if (type === 'step_start') {
-    return buildEvent('status', 'system', 'step started', { part: json.part });
+    const sessionId = typeof json.sessionID === 'string' ? json.sessionID : undefined;
+    return buildEvent('status', 'system', 'step started', {
+      ...(sessionId ? { session_id: sessionId } : {}),
+      part: json.part,
+    });
   }
 
-  // NGA custom format: step_finish event
+  // Step finish event: capture sessionID as fallback
   if (type === 'step_finish') {
-    return buildEvent('status', 'system', 'step finished', { part: json.part });
+    const sessionId = typeof json.sessionID === 'string' ? json.sessionID : undefined;
+    return buildEvent('status', 'system', 'step finished', {
+      ...(sessionId ? { session_id: sessionId } : {}),
+      part: json.part,
+    });
+  }
+
+  // Tool use event: OpenCode CLI outputs tool calls as top-level tool_use events
+  // with both input and output in part.state
+  if (type === 'tool_use') {
+    const part = json.part as Record<string, unknown> | undefined;
+    if (!part) return null;
+    const toolName = typeof part.tool === 'string' ? part.tool : 'unknown';
+    const callId = typeof part.callID === 'string' ? part.callID : undefined;
+    const state = part.state as Record<string, unknown> | undefined;
+    const input = state?.input as Record<string, unknown> | undefined;
+    const output = typeof state?.output === 'string' ? state.output : undefined;
+    const isError = state?.status === 'error';
+
+    return buildEvent('tool_call', 'assistant', toolName, {
+      tool_name: toolName,
+      tool_id: callId,
+      input,
+      output: output ? output.substring(0, 2000) : undefined,
+      is_error: isError,
+    });
   }
 
   // Assistant message (OpenCode standard format)
