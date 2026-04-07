@@ -229,16 +229,16 @@
                 <div v-if="task.description" class="item-description-wrapper">
                   <div
                     class="item-description"
-                    :class="{ expanded: expandedPreviewDescriptions.has(task.external_id) }"
+                    :class="{ expanded: expandedPreviewDescriptions[task.external_id] }"
                     :ref="(el) => { if (el) checkPreviewDescriptionOverflow(el, task.external_id) }"
                     v-html="formatTaskDescription(task.description || '')"
                   ></div>
                   <button
-                    v-if="overflowPreviewDescriptions.has(task.external_id) || expandedPreviewDescriptions.has(task.external_id)"
+                    v-if="overflowPreviewDescriptions[task.external_id] || expandedPreviewDescriptions[task.external_id]"
                     class="preview-description-toggle"
                     @click.stop="togglePreviewDescription(task.external_id)"
                   >
-                    {{ expandedPreviewDescriptions.has(task.external_id) ? '收起 ↑' : '展开 ↓' }}
+                    {{ expandedPreviewDescriptions[task.external_id] ? '收起 ↑' : '展开 ↓' }}
                   </button>
                 </div>
                 <div class="item-meta">
@@ -672,23 +672,25 @@ const editingTaskId = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
 const expandedDescriptionTaskId = ref(null)
-const expandedPreviewDescriptions = ref(new Set())
-const overflowPreviewDescriptions = ref(new Set())
+const expandedPreviewDescriptions = ref({})
+const overflowPreviewDescriptions = ref({})
 
 const checkPreviewDescriptionOverflow = (el, externalId) => {
-  if (el && el.scrollHeight > el.clientHeight + 2) {
-    overflowPreviewDescriptions.value = new Set([...overflowPreviewDescriptions.value, externalId])
-  }
+  nextTick(() => {
+    if (el && el.scrollHeight > el.clientHeight + 2) {
+      overflowPreviewDescriptions.value = { ...overflowPreviewDescriptions.value, [externalId]: true }
+    }
+  })
 }
 
 const togglePreviewDescription = (externalId) => {
-  const newSet = new Set(expandedPreviewDescriptions.value)
-  if (newSet.has(externalId)) {
-    newSet.delete(externalId)
+  const current = { ...expandedPreviewDescriptions.value }
+  if (current[externalId]) {
+    delete current[externalId]
   } else {
-    newSet.add(externalId)
+    current[externalId] = true
   }
-  expandedPreviewDescriptions.value = newSet
+  expandedPreviewDescriptions.value = current
 }
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
