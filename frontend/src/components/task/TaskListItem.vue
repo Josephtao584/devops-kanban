@@ -99,8 +99,6 @@
         >
           {{ descriptionExpanded ? '收起 ↑' : '展开 ↓' }}
         </button>
-      </div>
-      <div class="task-workflow-row">
         <button
           class="workflow-collapse-btn description-collapse-btn"
           @click.stop="$emit('toggle-workflow', task.id)"
@@ -878,15 +876,17 @@ const openWorktreeDirectory = () => {
   gap: 8px;
 }
 
-.task-description-row .workflow-collapse-btn {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.task-description-row.with-separator {
+.task-description-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.task-description-row.with-separator {
+  /* Separator already applied via parent */
 }
 
 .task-description {
@@ -935,6 +935,11 @@ const openWorktreeDirectory = () => {
 
 .description-toggle-btn:hover {
   color: #1EA9AC;
+}
+
+.task-description-row .workflow-collapse-btn {
+  margin-left: 0;
+  flex-shrink: 0;
 }
 
 .task-description :deep(strong) {
