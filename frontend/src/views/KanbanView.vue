@@ -85,6 +85,7 @@
             :show-add-button="true"
             :show-sync-button="true"
             :expanded-task-id="expandedTaskId"
+            :expanded-description-task-id="expandedDescriptionTaskId"
             :current-node-id="currentViewingNodeId"
             @drag-end="onDragEnd"
             @select-task="selectTask"
@@ -94,6 +95,7 @@
             @worktree-update="handleWorktreeUpdate"
             @sync="handleSyncTaskSources"
             @toggle-workflow="handleToggleWorkflow"
+            @toggle-description="handleToggleDescription"
             @workflow-action="handleWorkflowAction"
           />
 
@@ -159,6 +161,7 @@
           :running-task-ids="runningTasks"
           :status-filter="listStatusFilter"
           :expandedTaskId="expandedTaskId"
+          :expandedDescriptionTaskId="expandedDescriptionTaskId"
           :currentNodeId="currentViewingNodeId"
           @select-task="selectTask"
           @edit-task="openTaskModal"
@@ -169,6 +172,7 @@
           @worktree-update="handleWorktreeUpdate"
           @sync="handleSyncTaskSources"
           @toggle-workflow="handleToggleWorkflow"
+          @toggle-description="handleToggleDescription"
           @workflow-action="handleWorkflowAction"
         />
       </div>
@@ -649,6 +653,7 @@ const isEditing = ref(false)
 const editingTaskId = ref(null)
 const isChatCollapsed = ref(false)
 const expandedTaskId = ref(null)
+const expandedDescriptionTaskId = ref(null)
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const showWorkflowTemplateDialog = ref(false)
@@ -799,6 +804,10 @@ const handleMerged = () => {
 
 const handleToggleWorkflow = (taskId) => {
   expandedTaskId.value = expandedTaskId.value === taskId ? null : taskId
+}
+
+const handleToggleDescription = (taskId) => {
+  expandedDescriptionTaskId.value = expandedDescriptionTaskId.value === taskId ? null : taskId
 }
 
 const startSelectedTaskWithTemplate = async (
