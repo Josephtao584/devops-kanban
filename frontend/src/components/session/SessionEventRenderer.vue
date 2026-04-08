@@ -9,8 +9,11 @@
       class="event-row event-chat-message"
       :class="messageAlignmentClass"
     >
-      <div class="event-message" :class="messageBubbleClass">
-        <div class="event-content" v-html="formattedMessageContent"></div>
+      <div class="event-message-wrapper" :class="messageAlignmentClass">
+        <div v-if="messageTime" class="event-time">{{ messageTime }}</div>
+        <div class="event-message" :class="messageBubbleClass">
+          <div class="event-content" v-html="formattedMessageContent"></div>
+        </div>
       </div>
     </div>
 
@@ -272,6 +275,14 @@ const messageBubbleClass = computed(() => {
   return props.event?.role === 'user' ? 'bubble-user' : 'bubble-assistant'
 })
 
+const messageTime = computed(() => {
+  if (props.event?.kind !== 'message' || !props.event?.created_at) return ''
+  return new Date(props.event.created_at).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+})
+
 const formattedMessageContent = computed(() => {
   const content = props.event?.content || ''
   if (props.event?.kind !== 'message' || !content) return content
@@ -300,6 +311,27 @@ const formattedMessageContent = computed(() => {
   display: flex;
 }
 
+.event-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: min(82%, 520px);
+}
+
+.event-message-wrapper.align-right {
+  align-items: flex-end;
+}
+
+.event-message-wrapper.align-left {
+  align-items: flex-start;
+}
+
+.event-time {
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 0 4px;
+  margin-bottom: 2px;
+}
+
 .event-chat-message.align-right,
 .session-event-renderer.role-user .event-row {
   justify-content: flex-end;
@@ -312,7 +344,6 @@ const formattedMessageContent = computed(() => {
 }
 
 .event-message {
-  max-width: min(82%, 520px);
   padding: 14px 16px;
   border-radius: 18px;
   background: #ffffff;
@@ -1216,7 +1247,7 @@ const formattedMessageContent = computed(() => {
 
 .event-chat-message.align-left .event-message,
 .event-chat-message.align-right .event-message {
-  max-width: min(82%, 520px);
+  max-width: 100%;
 }
 
 .event-system-card .event-system.event-stream-shell,
