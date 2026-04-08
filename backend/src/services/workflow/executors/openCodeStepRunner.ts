@@ -112,7 +112,7 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
   // Text event: content is in part.text
   if (type === 'text') {
     const part = json.part as Record<string, unknown> | undefined;
-    if (typeof part?.text === 'string') {
+    if (typeof part?.text === 'string' && part.text.trim()) {
       return buildEvent('message', 'assistant', part.text);
     }
     return null;
@@ -167,9 +167,12 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
       if (typeof block !== 'object' || block === null) continue;
       const b = block as Record<string, unknown>;
 
-      // Text block
+      // Text block (skip empty or whitespace-only)
       if (b.type === 'text' && typeof b.text === 'string') {
-        return buildEvent('message', 'assistant', b.text);
+        if (b.text.trim()) {
+          return buildEvent('message', 'assistant', b.text);
+        }
+        continue;
       }
 
       // Tool use
