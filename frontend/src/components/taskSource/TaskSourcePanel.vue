@@ -615,6 +615,7 @@ const confirmDelete = (source) => {
 
 // --- Sync ---
 const previewAndSync = async (source) => {
+  taskSourceStore.$patch({ syncing: true })
   try {
     const tasks = await taskSourceStore.openSyncPreviewForSource(source)
     if (tasks.length === 0) {
@@ -622,6 +623,9 @@ const previewAndSync = async (source) => {
     }
   } catch (err) {
     console.error('Failed to sync task source:', err)
+    toast.error('同步失败: ' + (err.message || '未知错误'))
+  } finally {
+    taskSourceStore.$patch({ syncing: false })
   }
 }
 
