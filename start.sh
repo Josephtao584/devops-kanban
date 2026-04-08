@@ -116,7 +116,7 @@ pkill -f "vite" 2>/dev/null || true
 mkdir -p "$PROJECT_ROOT/log/frontend" "$PROJECT_ROOT/log/backend"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 FRONTEND_LOG="$PROJECT_ROOT/log/frontend/kanban-frontend-${TIMESTAMP}.log"
-npm run dev > "$FRONTEND_LOG" 2>&1 &
+LANG=en_US.UTF-8 npm run dev > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 echo -e "${YELLOW}等待前端服务启动...${NC}"
