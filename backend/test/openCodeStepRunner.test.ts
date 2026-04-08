@@ -244,6 +244,63 @@ test.test('parseStreamEvent returns null for tool_use without part', () => {
   assert.equal(event, null);
 });
 
+test.test('parseStreamEvent returns null for text event with empty part.text', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    timestamp: 123,
+    sessionID: 'ses_test',
+    part: { type: 'text', text: '' },
+  });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent returns null for text event with whitespace-only part.text', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    timestamp: 123,
+    sessionID: 'ses_test',
+    part: { type: 'text', text: '   \n\t  ' },
+  });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent skips empty text block in assistant and returns tool_call', () => {
+  const event = parseStreamEvent({
+    type: 'assistant',
+    message: {
+      content: [
+        { type: 'text', text: '' },
+        { type: 'tool_use', name: 'read_file', id: 'tu-1', input: { path: '/tmp/file.ts' } },
+      ],
+    },
+  });
+
+  assert.ok(event);
+  assert.equal(event!.kind, 'tool_call');
+  assert.equal(event!.content, 'read_file');
+  assert.equal(event!.payload!.tool_name, 'read_file');
+});
+
+test.test('parseStreamEvent returns null for assistant with only empty text block', () => {
+  const event = parseStreamEvent({
+    type: 'assistant',
+    message: {
+      content: [{ type: 'text', text: '' }],
+    },
+  });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent returns null for assistant with whitespace-only text block', () => {
+  const event = parseStreamEvent({
+    type: 'assistant',
+    message: {
+      content: [{ type: 'text', text: '   \n  ' }],
+    },
+  });
+  assert.equal(event, null);
+});
+
 test.test('OpenCodeStepRunner passes prompt to spawn implementation', async () => {
   let receivedPrompt: string | null = null;
   const runner = new OpenCodeStepRunner({

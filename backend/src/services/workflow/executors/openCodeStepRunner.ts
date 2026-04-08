@@ -112,28 +112,20 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
   // Text event: content is in part.text
   if (type === 'text') {
     const part = json.part as Record<string, unknown> | undefined;
-    if (typeof part?.text === 'string') {
+    if (typeof part?.text === 'string' && part.text.trim()) {
       return buildEvent('message', 'assistant', part.text);
     }
     return null;
   }
 
-  // Step start event: capture sessionID for continue functionality
+  // Step start event: ignore to avoid redundant status updates in chat
   if (type === 'step_start') {
-    const sessionId = typeof json.sessionID === 'string' ? json.sessionID : undefined;
-    return buildEvent('status', 'system', sessionId ? `session: ${sessionId}` : 'step started', {
-      ...(sessionId ? { session_id: sessionId } : {}),
-      part: json.part,
-    });
+    return null;
   }
 
-  // Step finish event: capture sessionID as fallback
+  // Step finish event: ignore to avoid redundant status updates in chat
   if (type === 'step_finish') {
-    const sessionId = typeof json.sessionID === 'string' ? json.sessionID : undefined;
-    return buildEvent('status', 'system', sessionId ? `session: ${sessionId} (finished)` : 'step finished', {
-      ...(sessionId ? { session_id: sessionId } : {}),
-      part: json.part,
-    });
+    return null;
   }
 
   // Tool use event: OpenCode CLI outputs tool calls as top-level tool_use events
@@ -167,9 +159,12 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
       if (typeof block !== 'object' || block === null) continue;
       const b = block as Record<string, unknown>;
 
-      // Text block
+      // Text block (skip empty or whitespace-only)
       if (b.type === 'text' && typeof b.text === 'string') {
-        return buildEvent('message', 'assistant', b.text);
+        if (b.text.trim()) {
+          return buildEvent('message', 'assistant', b.text);
+        }
+        continue;
       }
 
       // Tool use
