@@ -1,5 +1,6 @@
 import { WorkflowInstanceRepository } from '../repositories/workflowInstanceRepository.js';
 import { WorkflowTemplateService } from './workflow/workflowTemplateService.js';
+import { NotFoundError } from '../utils/errors.js';
 import type { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../types/entities.js';
 
 class WorkflowInstanceService {
@@ -20,9 +21,7 @@ class WorkflowInstanceService {
   async createFromTemplate(templateId: string): Promise<WorkflowInstanceEntity> {
     const template = await this.templateService.getTemplateById(templateId);
     if (!template) {
-      const error: any = new Error('Workflow template not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到工作流模板', 'Workflow template not found', { templateId });
     }
 
     return this.createFromTemplateSnapshot(template);

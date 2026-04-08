@@ -2,6 +2,8 @@ import { McpServerRepository } from '../repositories/mcpServerRepository.js';
 import { AgentRepository } from '../repositories/agentRepository.js';
 import type { McpServerEntity } from '../types/entities.js';
 import { execSync } from 'node:child_process';
+import { ConflictError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 class McpServerService {
   mcpServerRepo: McpServerRepository;
@@ -30,9 +32,7 @@ class McpServerService {
   }): Promise<McpServerEntity> {
     const existing = await this.listMcpServers();
     if (existing.some(s => s.name === data.name)) {
-      const error: any = new Error(`MCP server "${data.name}" already exists`);
-      error.statusCode = 409;
-      throw error;
+      throw new ConflictError(`MCP 服务器 "${data.name}" 已存在`, `MCP server "${data.name}" already exists`, { name: data.name });
     }
 
     return await this.mcpServerRepo.create({
@@ -59,9 +59,7 @@ class McpServerService {
     if (updates.name !== undefined && updates.name !== existing.name) {
       const allServers = await this.listMcpServers();
       if (allServers.some(s => s.id !== id && s.name === updates.name)) {
-        const error: any = new Error(`MCP server "${updates.name}" already exists`);
-        error.statusCode = 409;
-        throw error;
+        throw new ConflictError(`MCP 服务器 "${updates.name}" 已存在`, `MCP server "${updates.name}" already exists`, { name: updates.name });
       }
     }
 
@@ -213,7 +211,7 @@ class McpServerService {
         }
       }
     } catch (err) {
-      console.warn(`[McpServerService] Failed to cleanup agent references for MCP server ${mcpServerId}: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('McpServerService', `Failed to cleanup agent references for MCP server ${mcpServerId}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

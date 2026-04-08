@@ -5,13 +5,10 @@ import { TaskService } from '../services/taskService.js';
 import type { CreateProjectInput, UpdateProjectInput } from '../types/dto/projects.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { parseNumber, getStatusCode, getErrorMessage, logError } from '../utils/http.js';
 
 const projectService = new ProjectService();
 const taskService = new TaskService();
-
-function parseNumber(value: string) {
-  return Number.parseInt(value, 10);
-}
 
 export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', async (request) => {
@@ -19,7 +16,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       const projects = await projectService.getAll();
       return successResponse(projects.map((project) => project));
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to get projects');
     }
   });
@@ -34,9 +31,9 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(project);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get project');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get project'));
     }
   });
 
@@ -45,7 +42,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       const project = await projectService.create(request.body as CreateProjectInput);
       return successResponse(project, 'Project created successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to create project');
     }
   });
@@ -60,9 +57,9 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(updated, 'Project updated successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to update project');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update project'));
     }
   });
 
@@ -76,9 +73,9 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(null, 'Project deleted successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to delete project');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to delete project'));
     }
   });
 
@@ -93,9 +90,9 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       const tasks = await taskService.getByProject(projectId);
       return successResponse(tasks);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get project tasks');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get project tasks'));
     }
   });
 
@@ -110,9 +107,9 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
       const grouped = await taskService.getByProjectGrouped(projectId);
       return successResponse(grouped);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get grouped tasks');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get grouped tasks'));
     }
   });
 };

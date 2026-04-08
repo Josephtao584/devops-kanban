@@ -2,6 +2,7 @@ import { TaskSourceRepository } from '../repositories/taskSourceRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { loadAdapterTypes } from '../config/taskSources.js';
 import { getAdapter, getAdapterMetadata } from '../sources/index.js';
+import { NotFoundError, BusinessError } from '../utils/errors.js';
 import type { TaskSourceLike, FetchOptions } from '../sources/base.js';
 import type {
   CreateTaskSourceInput,
@@ -76,9 +77,7 @@ class TaskSourceService {
   }
 
   _buildReadOnlyError() {
-    const error = new Error(READ_ONLY_ERROR_MESSAGE) as Error & { statusCode?: number };
-    error.statusCode = 405;
-    return error;
+    return new BusinessError('任务源为只读，由配置管理', READ_ONLY_ERROR_MESSAGE);
   }
 
   async create(sourceData: CreateTaskSourceInput) {
@@ -126,9 +125,7 @@ class TaskSourceService {
   async sync(sourceId: string): Promise<TaskEntity[]> {
     const source = await this.getById(sourceId);
     if (!source) {
-      const error = new Error('Task source not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
     }
 
     const adapter = getAdapter(source.type, source as TaskSourceLike);
@@ -167,9 +164,7 @@ class TaskSourceService {
   async testConnection(sourceId: string) {
     const source = await this.getById(sourceId);
     if (!source) {
-      const error = new Error('Task source not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
     }
 
     const adapter = getAdapter(source.type, source as TaskSourceLike);
@@ -183,9 +178,7 @@ class TaskSourceService {
   async previewSync(sourceId: string, options?: FetchOptions) {
     const source = await this.getById(sourceId);
     if (!source) {
-      const error = new Error('Task source not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
     }
 
     const adapter = getAdapter(source.type, source as TaskSourceLike);
@@ -208,9 +201,7 @@ class TaskSourceService {
     const numericProjectId = typeof projectId === 'string' ? parseInt(projectId, 10) : projectId;
     const source = await this.getById(sourceId);
     if (!source) {
-      const error = new Error('Task source not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
     }
 
     let created = 0;

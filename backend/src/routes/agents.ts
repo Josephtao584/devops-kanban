@@ -3,22 +3,17 @@ import type { FastifyPluginAsync } from 'fastify';
 import { AgentRepository } from '../repositories/agentRepository.js';
 import { SkillRepository } from '../repositories/skillRepository.js';
 import { McpServerRepository } from '../repositories/mcpServerRepository.js';
+import { ValidationError } from '../utils/errors.js';
 import type { CreateAgentBody, UpdateAgentBody } from '../types/dto/agents.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
+import { parseNumber, getErrorMessage, getStatusCode, logError } from '../utils/http.js';
 
 type AgentRouteOptions = {
   repo?: Pick<AgentRepository, 'findAll' | 'findById' | 'create' | 'update' | 'delete'>;
   skillRepo?: Pick<SkillRepository, 'findAll'>;
   mcpServerRepo?: Pick<McpServerRepository, 'findAll'>;
 };
-
-function createValidationError(message: string) {
-  const error = new Error(message) as Error & { statusCode: number };
-  error.statusCode = 400;
-  return error;
-}
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -28,41 +23,41 @@ function isNumberArray(value: unknown): value is number[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'number');
 }
 
-function validateDescription(value: unknown, message: string) {
+function validateDescription(value: unknown, message: string, cnMessage: string) {
   if (value !== undefined && typeof value !== 'string') {
-    throw createValidationError(message);
+    throw new ValidationError(cnMessage, message);
   }
 }
 
 function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody {
   if (!isObjectRecord(body)) {
-    throw createValidationError('Agent payload must be an object');
+    throw new ValidationError('Agent 数据必须为对象', 'Agent payload must be an object');
   }
 
   if (typeof body.name !== 'string' || body.name.trim() === '') {
-    throw createValidationError('name is required');
+    throw new ValidationError('名称为必填项', 'name is required');
   }
 
   if (body.executorType === undefined) {
-    throw createValidationError('executorType is required');
+    throw new ValidationError('执行器类型为必填项', 'executorType is required');
   }
 
-  validateDescription(body.description, 'description must be a string');
+  validateDescription(body.description, 'description must be a string', '描述必须为字符串');
 
   if (typeof body.role !== 'string' || body.role.trim() === '') {
-    throw createValidationError('role is required');
+    throw new ValidationError('角色为必填项', 'role is required');
   }
 
   if (typeof body.enabled !== 'boolean') {
-    throw createValidationError('enabled is required');
+    throw new ValidationError('启用状态为必填项', 'enabled is required');
   }
 
   if (!isNumberArray(body.skills)) {
-    throw createValidationError('skills must be an array of numbers');
+    throw new ValidationError('技能必须为数字数组', 'skills must be an array of numbers');
   }
 
   if (body.mcpServers !== undefined && !isNumberArray(body.mcpServers)) {
-    throw createValidationError('mcpServers must be an array of numbers');
+    throw new ValidationError('MCP 服务器必须为数字数组', 'mcpServers must be an array of numbers');
   }
 
   // Default mcpServers to empty array if not provided
@@ -73,31 +68,31 @@ function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody
 
 function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody {
   if (!isObjectRecord(body)) {
-    throw createValidationError('Agent payload must be an object');
+    throw new ValidationError('Agent 数据必须为对象', 'Agent payload must be an object');
   }
 
   if ('name' in body && body.name !== undefined && (typeof body.name !== 'string' || body.name.trim() === '')) {
-    throw createValidationError('name cannot be blank');
+    throw new ValidationError('名称不能为空', 'name cannot be blank');
   }
 
   if ('description' in body) {
-    validateDescription(body.description, 'description must be a string');
+    validateDescription(body.description, 'description must be a string', '描述必须为字符串');
   }
 
   if ('role' in body && body.role !== undefined && (typeof body.role !== 'string' || body.role.trim() === '')) {
-    throw createValidationError('role cannot be blank');
+    throw new ValidationError('角色不能为空', 'role cannot be blank');
   }
 
   if ('enabled' in body && body.enabled !== undefined && typeof body.enabled !== 'boolean') {
-    throw createValidationError('enabled must be a boolean');
+    throw new ValidationError('启用状态必须为布尔值', 'enabled must be a boolean');
   }
 
   if ('skills' in body && body.skills !== undefined && !isNumberArray(body.skills)) {
-    throw createValidationError('skills must be an array of numbers');
+    throw new ValidationError('技能必须为数字数组', 'skills must be an array of numbers');
   }
 
   if ('mcpServers' in body && body.mcpServers !== undefined && !isNumberArray(body.mcpServers)) {
-    throw createValidationError('mcpServers must be an array of numbers');
+    throw new ValidationError('MCP 服务器必须为数字数组', 'mcpServers must be an array of numbers');
   }
 }
 
@@ -106,7 +101,7 @@ async function validateExistingSkills(skillRepo: Pick<SkillRepository, 'findAll'
   const validSkillIds = new Set(existingSkills.map(skill => skill.id));
   const invalidSkills = skills.filter(skillId => !validSkillIds.has(skillId));
   if (invalidSkills.length > 0) {
-    throw createValidationError(`Unknown skills: ${invalidSkills.join(', ')}`);
+    throw new ValidationError(`未知的技能: ${invalidSkills.join(', ')}`, `Unknown skills: ${invalidSkills.join(', ')}`);
   }
 }
 
@@ -115,7 +110,7 @@ async function validateExistingMcpServers(mcpServerRepo: Pick<McpServerRepositor
   const validServerIds = new Set(existingServers.map(server => server.id));
   const invalidServers = mcpServers.filter(serverId => !validServerIds.has(serverId));
   if (invalidServers.length > 0) {
-    throw createValidationError(`Unknown MCP servers: ${invalidServers.join(', ')}`);
+    throw new ValidationError(`未知的 MCP 服务器: ${invalidServers.join(', ')}`, `Unknown MCP servers: ${invalidServers.join(', ')}`);
   }
 }
 
@@ -124,7 +119,7 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
     try {
       return successResponse(await repo.findAll());
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get agents'));
     }
@@ -139,7 +134,7 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
       }
       return successResponse(agent);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get agent'));
     }
@@ -155,7 +150,7 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
       const agent = await repo.create(request.body);
       return successResponse(agent, 'Agent created');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create agent'));
     }
@@ -177,7 +172,7 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
       }
       return successResponse(updated, 'Agent updated');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to update agent'));
     }
@@ -192,7 +187,7 @@ export const agentRoutes: FastifyPluginAsync<AgentRouteOptions> = async (fastify
       }
       return successResponse(null, 'Agent deleted');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete agent'));
     }

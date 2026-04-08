@@ -3,6 +3,7 @@ import type { SkillEntity } from '../types/entities.js';
 import { existsSync, mkdirSync, rmSync, readdirSync, readFileSync, writeFileSync, statSync, renameSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import AdmZip from 'adm-zip';
+import { ValidationError, NotFoundError, ConflictError } from '../utils/errors.js';
 
 class SkillService {
   skillRepo: SkillRepository;
@@ -17,9 +18,7 @@ class SkillService {
     const skillDir = this.getSkillDir(skillName);
     const relativePath = relative(skillDir, targetPath);
     if (relativePath === '..' || relativePath.startsWith(`..${sep}`)) {
-      const error: any = new Error('Invalid file path');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('无效的文件路径', 'Invalid file path', { skillName, targetPath });
     }
     return skillDir;
   }
@@ -34,14 +33,10 @@ class SkillService {
 
   private validateSkillName(name: string): void {
     if (!name || typeof name !== 'string' || name.trim() !== name) {
-      const error: any = new Error('Skill name must be a non-empty string without leading/trailing whitespace');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('技能名称必须为非空字符串且无前后空格', 'Skill name must be a non-empty string without leading/trailing whitespace');
     }
     if (name.includes('..') || name.includes('/') || name.includes('\\')) {
-      const error: any = new Error('Skill name cannot contain "..", "/", or "\\"');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('技能名称不能包含 ".."、"/" 或 "\\"', 'Skill name cannot contain "..", "/", or "\\"');
     }
   }
 
@@ -49,9 +44,7 @@ class SkillService {
     this.validateSkillName(name);
     const existing = await this.listSkills();
     if (existing.some(s => s.name === name)) {
-      const error: any = new Error(`Skill "${name}" already exists`);
-      error.statusCode = 409;
-      throw error;
+      throw new ConflictError(`技能 "${name}" 已存在`, `Skill "${name}" already exists`, { skillName: name });
     }
 
     const skillDir = this.getSkillDir(name);
@@ -131,9 +124,7 @@ class SkillService {
     const fullPath = resolve(this.getSkillDir(skillName), filePath);
     this.ensurePathInSkillDir(skillName, fullPath);
     if (!existsSync(fullPath)) {
-      const error: any = new Error('File not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('文件未找到', 'File not found', { skillName, filePath });
     }
     return readFileSync(fullPath, 'utf-8');
   }
@@ -171,9 +162,7 @@ class SkillService {
           ...(extractedDesc ? { description: extractedDesc } : {})
         };
       }
-      const error: any = new Error('Invalid skill ZIP: ZIP must contain a first-level directory or SKILL.md at root');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('无效的技能 ZIP：ZIP 必须包含一级目录或根目录下的 SKILL.md', 'Invalid skill ZIP: ZIP must contain a first-level directory or SKILL.md at root');
     }
 
     const name = firstLevelDir.replace(/\/$/, '');

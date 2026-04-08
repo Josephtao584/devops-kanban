@@ -5,7 +5,7 @@ import { WorkflowService } from '../services/workflow/workflowService.js';
 import type { IdParams } from '../types/http/params.js';
 import type { TaskIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
+import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 
 const workflowService = new WorkflowService();
 
@@ -23,7 +23,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       });
       return successResponse(run, 'Workflow started');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to start workflow'));
     }
@@ -38,7 +38,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(run);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(500);
       return errorResponse('Failed to get workflow run');
     }
@@ -53,7 +53,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(await workflowService.getAllRunsByTask(taskId));
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(500);
       return errorResponse('Failed to get workflow runs');
     }
@@ -68,7 +68,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse((run as { steps?: unknown }).steps);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(500);
       return errorResponse('Failed to get workflow steps');
     }
@@ -79,7 +79,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       const run = await workflowService.cancelWorkflow(parseNumber(request.params.id));
       return successResponse(run, 'Workflow cancelled');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to cancel workflow'));
     }
@@ -90,7 +90,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       const run = await workflowService.retryWorkflow(parseNumber(request.params.id));
       return successResponse(run, 'Workflow retry started');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to retry workflow'));
     }
@@ -110,7 +110,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       );
       return successResponse(run, 'Workflow resumed');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to resume workflow'));
     }
@@ -138,7 +138,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
         summary: suspendedStep?.summary || null,
       });
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(500);
       return errorResponse('Failed to get suspend info');
     }

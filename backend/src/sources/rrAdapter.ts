@@ -1,6 +1,7 @@
 import { DevOpsBaseAdapter } from './devOpsBase.js';
 import type { TaskSourceLike } from './base.js';
 import type { ImportedTask, SourceDefinition } from '../types/sources.ts';
+import { logger } from '../utils/logger.js';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -89,31 +90,31 @@ class RRAdapter extends DevOpsBaseAdapter {
 
   _parseRRDescriptionResponse(response: unknown): string {
     if (!response || typeof response !== 'object' || Array.isArray(response)) {
-      console.log(`[RRAdapter] _parseRRDescriptionResponse: invalid response type: ${typeof response}`);
+      logger.info('RRAdapter', `_parseRRDescriptionResponse: invalid response type: ${typeof response}`);
       return '';
     }
 
     const code = (response as UnknownRecord).code;
     if (typeof code === 'number' && code !== 200) {
-      console.log(`[RRAdapter] _parseRRDescriptionResponse: non-200 code: ${code}`);
+      logger.info('RRAdapter', `_parseRRDescriptionResponse: non-200 code: ${code}`);
       return '';
     }
 
     const data = (response as UnknownRecord).data;
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      console.log(`[RRAdapter] _parseRRDescriptionResponse: invalid data, type: ${typeof data}, isArray: ${Array.isArray(data)}`);
+      logger.info('RRAdapter', `_parseRRDescriptionResponse: invalid data, type: ${typeof data}, isArray: ${Array.isArray(data)}`);
       return '';
     }
 
     const descriptions = (data as UnknownRecord).descriptions;
     if (!Array.isArray(descriptions)) {
-      console.log(`[RRAdapter] _parseRRDescriptionResponse: descriptions is not array, data keys: ${Object.keys(data as UnknownRecord).join(',')}`);
+      logger.info('RRAdapter', `_parseRRDescriptionResponse: descriptions is not array, data keys: ${Object.keys(data as UnknownRecord).join(',')}`);
       return '';
     }
 
-    console.log(`[RRAdapter] _parseRRDescriptionResponse: found ${descriptions.length} description nodes`);
+    logger.info('RRAdapter', `_parseRRDescriptionResponse: found ${descriptions.length} description nodes`);
     const rawDescription = this._concatDescriptions(descriptions as DescriptionNode[]);
-    console.log(`[RRAdapter] _parseRRDescriptionResponse: raw HTML length=${rawDescription.length}`);
+    logger.info('RRAdapter', `_parseRRDescriptionResponse: raw HTML length=${rawDescription.length}`);
     return this._normalizeWorkitemDescription(rawDescription);
   }
 
@@ -135,23 +136,23 @@ class RRAdapter extends DevOpsBaseAdapter {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
 
-    console.log(`[RRAdapter] Fetching list page ${currentPage}, listPath: ${this.listPath}`);
+    logger.info('RRAdapter', `Fetching list page ${currentPage}, listPath: ${this.listPath}`);
 
     while (true) {
       const body = this._buildRRListBody(currentPage);
-      console.log(`[RRAdapter] List request body:`, JSON.stringify(body, null, 2));
+      logger.info('RRAdapter', `List request body: ${JSON.stringify(body)}`);
       const response = await this._request(this.listPath, {
         method: 'POST',
         body,
       });
-      console.log(`[RRAdapter] List response:`, JSON.stringify(response, null, 2));
+      logger.info('RRAdapter', `List response: ${JSON.stringify(response)}`);
       this._assertRRSuccessResponse(response);
       const pageItems = this._extractListItems(response);
-      console.log(`[RRAdapter] Page ${currentPage} extracted ${pageItems.length} items`);
+      logger.info('RRAdapter', `Page ${currentPage} extracted ${pageItems.length} items`);
       items.push(...pageItems);
 
       if (this._isLastRRPage(response, pageItems.length)) {
-        console.log(`[RRAdapter] Total items fetched: ${items.length}`);
+        logger.info('RRAdapter', `Total items fetched: ${items.length}`);
         return items;
       }
 
@@ -177,11 +178,11 @@ class RRAdapter extends DevOpsBaseAdapter {
       }
 
       const detailPath = `/vision-workitem/api/raw_requirements/${encodeURIComponent(String(identifier))}/description`;
-      console.log(`[RRAdapter] Fetching detail for identifier: ${identifier}, detailPath: ${detailPath}, detailIdField: ${this.detailIdField}`);
+      logger.info('RRAdapter', `Fetching detail for identifier: ${identifier}, detailPath: ${detailPath}, detailIdField: ${this.detailIdField}`);
       const detailResponse = await this._request(detailPath);
-      console.log(`[RRAdapter] Detail response for ${identifier}:`, JSON.stringify(detailResponse, null, 2));
+      logger.info('RRAdapter', `Detail response for ${identifier}: ${JSON.stringify(detailResponse)}`);
       const description = this._parseRRDescriptionResponse(detailResponse);
-      console.log(`[RRAdapter] Parsed description for ${identifier}: length=${description.length}, preview=${description.substring(0, 200)}`);
+      logger.info('RRAdapter', `Parsed description for ${identifier}: length=${description.length}, preview=${description.substring(0, 200)}`);
 
       const task = this.convertToTask({
         ...item,

@@ -2,6 +2,7 @@ import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import type { AdapterRequestConfig, AdapterResponseConfig } from '../config/taskSources.js';
 import type { ImportedTask, SourceRecord } from '../types/sources.ts';
+import { logger } from '../utils/logger.js';
 
 type UnknownRecord = Record<string, unknown>;
 type TransformConfig = string | Record<string, unknown>;
@@ -288,7 +289,7 @@ class UniversalAdapter extends TaskSourceAdapter {
     const headers = this._buildHeaders(this.request.headers);
     const url = this._buildUrl(this.request.path, params);
 
-    console.log(`[TaskSource] Fetch request URL: ${url.toString()}`);
+    logger.info('BaseSource', `Fetch request URL: ${url.toString()}`);
     const response = await this._httpRequest(url.toString(), method, headers);
 
     const items = this.response.path ? this._getNestedValue(response, this.response.path) : response;
@@ -306,12 +307,12 @@ class UniversalAdapter extends TaskSourceAdapter {
   override async testConnection(): Promise<boolean> {
     try {
       const url = this._buildUrl(this.request.path, {});
-      console.log(`[TaskSource] Test connection URL: ${url.toString()}`);
+      logger.info('BaseSource', `Test connection URL: ${url.toString()}`);
       await this._httpRequest(url.toString(), 'GET', this._buildHeaders(this.request.headers));
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('Connection test failed:', message);
+      logger.error('BaseSource', `Connection test failed: ${message}`);
       return false;
     }
   }

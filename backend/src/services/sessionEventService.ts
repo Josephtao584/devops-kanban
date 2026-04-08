@@ -1,15 +1,8 @@
 import { SessionRepository } from '../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../repositories/sessionSegmentRepository.js';
 import { SessionEventRepository } from '../repositories/sessionEventRepository.js';
+import { ValidationError, NotFoundError } from '../utils/errors.js';
 import type { SessionEventEntity } from '../types/entities.ts';
-
-function createValidationError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 400 });
-}
-
-function createNotFoundError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 404 });
-}
 
 type AppendSessionEventInput = Omit<SessionEventEntity, 'id' | 'seq'>;
 
@@ -40,15 +33,15 @@ class SessionEventService {
   async appendEvent(eventData: AppendSessionEventInput) {
     const session = await this.sessionRepo.findById(eventData.session_id);
     if (!session) {
-      throw createNotFoundError('Session not found');
+      throw new NotFoundError('未找到会话', 'Session not found', { sessionId: eventData.session_id });
     }
 
     const segment = await this.sessionSegmentRepo.findById(eventData.segment_id);
     if (!segment) {
-      throw createValidationError('Segment not found');
+      throw new ValidationError('未找到片段', 'Segment not found', { segmentId: eventData.segment_id });
     }
     if (segment.session_id !== eventData.session_id) {
-      throw createValidationError('Segment must belong to the same session');
+      throw new ValidationError('片段必须属于同一会话', 'Segment must belong to the same session', { segmentId: eventData.segment_id, sessionId: eventData.session_id });
     }
 
     return await this.sessionEventRepo.append(eventData);
@@ -57,7 +50,7 @@ class SessionEventService {
   async listEvents(sessionId: number, options: ListSessionEventsOptions = {}) {
     const session = await this.sessionRepo.findById(sessionId);
     if (!session) {
-      throw createNotFoundError('Session not found');
+      throw new NotFoundError('未找到会话', 'Session not found', { sessionId });
     }
 
     const repositoryOptions: ListSessionEventsOptions = {};

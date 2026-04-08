@@ -1,6 +1,7 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { McpServerRepository } from '../../repositories/mcpServerRepository.js';
 import { execSync } from 'node:child_process';
+import { logger } from '../../utils/logger.js';
 
 const agentRepo = new AgentRepository();
 const mcpServerRepo = new McpServerRepository();
@@ -29,7 +30,7 @@ async function resolveAgentMcpServers(agentId: number): Promise<McpServerConfig[
     .map(id => {
       const server = serverMap.get(id);
       if (!server) {
-        console.warn(`[workflowMcpSync] MCP server ID ${id} not found in DB, skipping`);
+        logger.warn('WorkflowMcpSync', `MCP server ID ${id} not found in DB, skipping`);
         return null;
       }
       return {
@@ -54,7 +55,7 @@ async function resolveAgentMcpServersWithMeta(agentId: number): Promise<McpServe
     .map(id => {
       const server = serverMap.get(id);
       if (!server) {
-        console.warn(`[workflowMcpSync] MCP server ID ${id} not found in DB, skipping`);
+        logger.warn('WorkflowMcpSync', `MCP server ID ${id} not found in DB, skipping`);
         return null;
       }
       return {
@@ -93,33 +94,33 @@ async function preCheckMcpServers(servers: McpServerConfigWithMeta[]): Promise<M
     if (server.server_type === 'stdio') {
       const command = server.config.command as string;
       if (!command) {
-        console.warn(`[workflowMcpSync] MCP server "${server.name}" has no command, skipping`);
+        logger.warn('WorkflowMcpSync', `MCP server "${server.name}" has no command, skipping`);
         continue;
       }
 
       if (!isCommandAvailable(command)) {
         if (server.auto_install && server.install_command) {
-          console.log(`[workflowMcpSync] Command "${command}" not found, auto-installing: ${server.install_command}`);
+          logger.info('WorkflowMcpSync', `Command "${command}" not found, auto-installing: ${server.install_command}`);
           try {
             execSync(server.install_command, {
               stdio: 'pipe',
               timeout: 120000,
               env: process.env,
             });
-            console.log(`[workflowMcpSync] Auto-install completed for "${server.name}"`);
+            logger.info('WorkflowMcpSync', `Auto-install completed for "${server.name}"`);
           } catch (err) {
-            console.warn(`[workflowMcpSync] Auto-install failed for "${server.name}": ${err instanceof Error ? err.message : String(err)}`);
+            logger.warn('WorkflowMcpSync', `Auto-install failed for "${server.name}": ${err instanceof Error ? err.message : String(err)}`);
             // Skip this server — it won't work without the dependency
             continue;
           }
 
           // Re-check after install
           if (!isCommandAvailable(command)) {
-            console.warn(`[workflowMcpSync] Command "${command}" still not available after install, skipping "${server.name}"`);
+            logger.warn('WorkflowMcpSync', `Command "${command}" still not available after install, skipping "${server.name}"`);
             continue;
           }
         } else {
-          console.warn(`[workflowMcpSync] Command "${command}" not found for MCP server "${server.name}" (auto_install not configured), skipping`);
+          logger.warn('WorkflowMcpSync', `Command "${command}" not found for MCP server "${server.name}" (auto_install not configured), skipping`);
           continue;
         }
       }

@@ -5,7 +5,7 @@ import type { ListSessionEventsQuery } from '../types/dto/sessionEvents.ts';
 import type { ContinueSessionBody } from '../types/dto/sessions.js';
 import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
+import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 
 type SessionContinueResult = Awaited<ReturnType<SessionService['continue']>>;
 type SessionRouteOptions = { service?: SessionService };
@@ -33,9 +33,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       const sessions = await service.listByTask(parseNumber(request.params.taskId));
       return successResponse(sessions);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get sessions');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get sessions'));
     }
   });
 
@@ -49,9 +49,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       }
       return successResponse(session);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get active session');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get active session'));
     }
   });
 
@@ -61,9 +61,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       const sessions = await service.listByTask(parseNumber(request.params.taskId));
       return successResponse(sessions);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get session history');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get session history'));
     }
   });
 
@@ -79,9 +79,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       reply.code(501);
       return errorResponse('Sessions are created by the Workflow system when a task starts. Use the workflow to create and manage sessions.');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to create session');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to create session'));
     }
   });
 
@@ -95,9 +95,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       }
       return successResponse(session);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get session');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get session'));
     }
   });
 
@@ -117,9 +117,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
         output: 'Session output is streamed via WebSocket'
       });
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get session output');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get session output'));
     }
   });
 
@@ -134,9 +134,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       reply.code(501);
       return errorResponse('Sessions are started by the Workflow system. Use the workflow to manage session lifecycle.');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to start session');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to start session'));
     }
   });
 
@@ -151,9 +151,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       const updated = await service.updateSessionStatus(parseNumber(request.params.id), 'STOPPED');
       return successResponse(updated, 'Session stopped');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to stop session');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to stop session'));
     }
   });
 
@@ -167,9 +167,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       }
       return successResponse(null, 'Session deleted');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to delete session');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to delete session'));
     }
   });
 
@@ -189,9 +189,9 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       reply.code(501);
       return errorResponse('Session input should be sent via WebSocket connection');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to send session input');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to send session input'));
     }
   });
 
@@ -201,7 +201,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       const session = await service.continue(parseNumber(request.params.id), request.body.input);
       return resolveSessionLifecycleResponse(reply, session, 'Session continued');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to continue session'));
     }
@@ -218,7 +218,7 @@ const sessionRoutes: FastifyPluginAsync<SessionRouteOptions> = async (fastify, {
       });
       return successResponse(events);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get session events'));
     }

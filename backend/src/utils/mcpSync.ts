@@ -1,6 +1,8 @@
 import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { logger } from './logger.js';
+
 interface McpServerConfig {
   name: string;
   server_type: string;
@@ -49,7 +51,7 @@ async function cleanupMcpJson(worktreePath: string): Promise<void> {
     try {
       unlinkSync(mcpJsonPath);
     } catch (err) {
-      console.warn(`[mcpSync] Failed to delete .mcp.json: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('McpSync', `Failed to delete .mcp.json: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

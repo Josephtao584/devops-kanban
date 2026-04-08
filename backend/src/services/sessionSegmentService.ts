@@ -1,14 +1,7 @@
 import { SessionRepository } from '../repositories/sessionRepository.js';
 import { SessionSegmentRepository } from '../repositories/sessionSegmentRepository.js';
+import { ValidationError, NotFoundError } from '../utils/errors.js';
 import type { SessionSegmentEntity } from '../types/entities.ts';
-
-function createValidationError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 400 });
-}
-
-function createNotFoundError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 404 });
-}
 
 type CreateSegmentInput = Omit<SessionSegmentEntity, 'id' | 'segment_index'>;
 
@@ -30,16 +23,16 @@ class SessionSegmentService {
   async createSegment(segmentData: CreateSegmentInput) {
     const session = await this.sessionRepo.findById(segmentData.session_id);
     if (!session) {
-      throw createNotFoundError('Session not found');
+      throw new NotFoundError('未找到会话', 'Session not found', { sessionId: segmentData.session_id });
     }
 
     if (segmentData.parent_segment_id !== null && segmentData.parent_segment_id !== undefined) {
       const parentSegment = await this.sessionSegmentRepo.findById(segmentData.parent_segment_id);
       if (!parentSegment) {
-        throw createValidationError('Parent segment not found');
+        throw new ValidationError('未找到父片段', 'Parent segment not found', { parentSegmentId: segmentData.parent_segment_id });
       }
       if (parentSegment.session_id !== segmentData.session_id) {
-        throw createValidationError('Parent segment must belong to the same session');
+        throw new ValidationError('父片段必须属于同一会话', 'Parent segment must belong to the same session', { parentSegmentId: segmentData.parent_segment_id, sessionId: segmentData.session_id });
       }
     }
 

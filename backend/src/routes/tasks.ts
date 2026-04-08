@@ -9,7 +9,7 @@ import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
+import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 
 const taskService = new TaskService();
 const projectRepo = new ProjectRepository();
@@ -33,7 +33,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(await taskService.getAll());
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to get tasks');
     }
   });
@@ -47,9 +47,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(task);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get task');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get task'));
     }
   });
 
@@ -58,14 +58,14 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const task = await taskService.create(request.body as CreateTaskInput);
       return successResponse(task, 'Task created successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       const statusCode = getStatusCode(error);
       if (statusCode === 400) {
         reply.code(400);
         return errorResponse(getErrorMessage(error, 'Failed to create task'));
       }
-      reply.code(500);
-      return errorResponse('Failed to create task');
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to create task'));
     }
   });
 
@@ -90,9 +90,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(updated, 'Task updated successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to update task');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update task'));
     }
   });
 
@@ -111,9 +111,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(updated, 'Task status updated successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to update task status');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update task status'));
     }
   });
 
@@ -127,9 +127,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(null, 'Task deleted successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to delete task');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to delete task'));
     }
   });
 
@@ -138,7 +138,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const task = await taskService.startTask(parseNumber(request.params.id), request.body as StartTaskInput);
       return successResponse(task, 'Task started successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to start task'));
     }
@@ -164,9 +164,9 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
 
       return successResponse(results, 'Tasks reordered');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to reorder tasks');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to reorder tasks'));
     }
   });
 
@@ -176,7 +176,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const status = await taskService.getWorktreeStatus(parseNumber(request.params.id));
       return successResponse(status);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get worktree status'));
     }
@@ -187,7 +187,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await taskService.createWorktree(parseNumber(request.params.id));
       return successResponse(result, 'Worktree created successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create worktree'));
     }
@@ -198,7 +198,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await taskService.deleteWorktree(parseNumber(request.params.id));
       return successResponse(result, 'Worktree deleted successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete worktree'));
     }
@@ -257,7 +257,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const result = buildWorktreeDiff(task.worktree_path);
       return successResponse(result);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get diff'));
     }

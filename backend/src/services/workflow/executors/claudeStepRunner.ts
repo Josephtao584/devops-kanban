@@ -6,6 +6,7 @@ import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
 import type { ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
 import { buildEvent } from '../../../types/executors.js';
+import { logger } from '../../../utils/logger.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
@@ -209,11 +210,11 @@ async function defaultSpawnImpl({
 
     if (abortSignal) {
       if (abortSignal.aborted) {
-        console.log(`[ClaudeStepRunner] Already aborted, killing process immediately`);
+        logger.info('ClaudeStepRunner', 'Already aborted, killing process immediately');
         killProcessTree(proc);
       } else {
         abortSignal.addEventListener('abort', () => {
-          console.log(`[ClaudeStepRunner] Abort event received, killing process. pid: ${proc.pid}`);
+          logger.info('ClaudeStepRunner', `Abort event received, killing process. pid: ${proc.pid}`);
           killProcessTree(proc);
         }, { once: true });
       }

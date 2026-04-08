@@ -2,6 +2,8 @@ import { execSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
+import { logger } from './logger.js';
+
 type WorktreeStatusItem = {
   path: string;
   head?: string;
@@ -119,7 +121,7 @@ function ensureWorktreesGitignore(repoPath: string) {
     }
   } catch (error) {
     const execError = error as Error;
-    console.error(`Failed to update .gitignore: ${execError.message}`);
+    logger.error('Git', `Failed to update .gitignore: ${execError.message}`);
   }
 }
 
@@ -138,13 +140,13 @@ export function cleanupWorktree(worktreePath: string, repoPath = process.cwd(), 
           encoding: 'utf-8',
         });
       } catch {
-        console.log(`Branch ${branchName} may not exist, skipping deletion`);
+        logger.info('Git', `Branch ${branchName} may not exist, skipping deletion`);
       }
     }
     return true;
   } catch (error) {
     const execError = error as Error;
-    console.error(`Failed to cleanup worktree ${worktreePath}:`, execError.message);
+    logger.error('Git', `Failed to cleanup worktree ${worktreePath}:`, { error: execError.message });
     return false;
   }
 }

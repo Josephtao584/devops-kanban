@@ -1,6 +1,7 @@
 import { IterationRepository } from '../repositories/iterationRepository.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
 import { TaskRepository, type TaskStatusCounts } from '../repositories/taskRepository.js';
+import { ValidationError, NotFoundError } from '../utils/errors.js';
 import type { IterationEntity } from '../types/entities.ts';
 import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/iterations.js';
 
@@ -81,22 +82,16 @@ class IterationService {
 
   async create(iterationData: CreateIterationInput) {
     if (!iterationData.name?.trim()) {
-      const error: any = new Error('迭代名称不能为空');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('迭代名称不能为空', 'Iteration name is required');
     }
 
     if (!iterationData.project_id) {
-      const error: any = new Error('项目 ID 不能为空');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('项目 ID 不能为空', 'Project ID is required');
     }
 
     const projectExists = await this.projectRepo.exists(iterationData.project_id);
     if (!projectExists) {
-      const error: any = new Error('项目不存在');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('项目不存在', 'Project not found', { projectId: iterationData.project_id });
     }
 
     return await this.iterationRepo.create({
