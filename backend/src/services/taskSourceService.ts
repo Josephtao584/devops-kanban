@@ -188,8 +188,14 @@ class TaskSourceService {
       throw error;
     }
 
+    // 强制限制 preview 的数量，防止大量数据导致前端卡死
+    const safeOptions = {
+      limit: Math.min(options?.limit ?? 20, 20),
+      offset: options?.offset ?? 0,
+    };
+
     const adapter = getAdapter(source.type, source as TaskSourceLike);
-    const issues = (await adapter.fetch(options)) as ImportedTask[];
+    const issues = (await adapter.fetch(safeOptions)) as ImportedTask[];
 
     const allTasks = await this.taskRepository.findByProject(source.project_id);
     const importedExternalIds = new Set(

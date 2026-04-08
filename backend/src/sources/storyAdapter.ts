@@ -19,7 +19,7 @@ class StoryAdapter extends DevOpsBaseAdapter {
   category: string;
   status: string;
 
-  constructor(source: { config: Record<string, unknown> }) {
+  constructor(source: { type: string; config: Record<string, unknown> }) {
     super(source);
     const config = source.config;
     this.userId = typeof config.userId === 'string' && config.userId ? config.userId : undefined;
@@ -206,7 +206,7 @@ class StoryAdapter extends DevOpsBaseAdapter {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
     const limit = options?.limit;
-    const maxPages = 100; // 安全限制，防止无限循环
+    const maxPages = 20; // 安全限制，防止无限循环和过长等待
 
     while (currentPage <= maxPages) {
       const response = await this._request(this.listPath, {
@@ -217,6 +217,7 @@ class StoryAdapter extends DevOpsBaseAdapter {
       const pageItems = this._extractListItems(response);
       items.push(...pageItems);
 
+      // 如果已达到限制数量，停止分页
       if (limit != null && items.length >= limit) {
         return items.slice(0, limit);
       }

@@ -128,10 +128,11 @@ class RRAdapter extends DevOpsBaseAdapter {
     }
   }
 
-  async _fetchRRItems(): Promise<UnknownRecord[]> {
+  async _fetchRRItems(options?: { limit?: number; offset?: number }): Promise<UnknownRecord[]> {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
-    const maxPages = 100; // 安全限制，防止无限循环
+    const maxPages = 20; // 安全限制，防止无限循环和过长等待
+    const limit = options?.limit;
 
     while (currentPage <= maxPages) {
       const body = this._buildRRListBody(currentPage);
@@ -142,6 +143,11 @@ class RRAdapter extends DevOpsBaseAdapter {
       this._assertRRSuccessResponse(response);
       const pageItems = this._extractListItems(response);
       items.push(...pageItems);
+
+      // 如果已达到限制数量，停止分页
+      if (limit != null && items.length >= limit) {
+        return items.slice(0, limit);
+      }
 
       if (this._isLastRRPage(response, pageItems.length)) {
         return items;
@@ -154,7 +160,7 @@ class RRAdapter extends DevOpsBaseAdapter {
     return items;
   }
 
-  override async fetch(): Promise<ImportedTask[]> {
+  override async fetch(options?: { limit?: number; offset?: number }): Promise<ImportedTask[]> {
     if (!this.baseUrl) {
       throw new Error('RR API baseUrl is required.');
     }
@@ -162,7 +168,7 @@ class RRAdapter extends DevOpsBaseAdapter {
       throw new Error('RR API userId is required.');
     }
 
-    const items = await this._fetchRRItems();
+    const items = await this._fetchRRItems(options);
     const tasks: ImportedTask[] = [];
 
     for (const item of items) {
