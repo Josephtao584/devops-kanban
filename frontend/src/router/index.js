@@ -12,11 +12,6 @@ const routes = [
     component: () => import('../views/KanbanView.vue')
   },
   {
-    path: '/task-sources/:projectId?',
-    name: 'TaskSourceConfig',
-    component: () => import('../views/TaskSourceConfig.vue')
-  },
-  {
     path: '/agents',
     name: 'AgentConfig',
     component: () => import('../views/AgentConfig.vue')

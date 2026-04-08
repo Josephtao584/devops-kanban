@@ -43,15 +43,6 @@
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.agents') }}</span>
         </router-link>
 
-        <router-link to="/task-sources" class="nav-item" :title="$t('nav.taskSources')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-          </svg>
-          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.taskSources') }}</span>
-        </router-link>
-
         <router-link to="/workflow-template" class="nav-item" :title="$t('nav.workflowTemplate')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(-90deg)">
             <circle cx="4" cy="4" r="2"></circle>

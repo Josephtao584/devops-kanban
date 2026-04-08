@@ -161,6 +161,8 @@ export default {
     CRITICAL: '紧急'
   },
   taskSource: {
+    manageTitle: '任务源管理',
+    collapse: '收起',
     title: '任务源配置',
     createSource: '添加任务源',
     editSource: '编辑任务源',
