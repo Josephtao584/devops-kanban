@@ -113,7 +113,9 @@ if [ ! -d "node_modules" ]; then
     npm install --loglevel=verbose --no-audit
 fi
 pkill -f "vite" 2>/dev/null || true
-FRONTEND_LOG="${KANBAN_LOG_DIR:-/tmp}/kanban-frontend.log"
+mkdir -p "$PROJECT_ROOT/log/frontend" "$PROJECT_ROOT/log/backend"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+FRONTEND_LOG="$PROJECT_ROOT/log/frontend/kanban-frontend-${TIMESTAMP}.log"
 npm run dev > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
@@ -140,7 +142,8 @@ if [ ! -d "node_modules" ]; then
 fi
 pkill -f "tsx watch src/main.ts" 2>/dev/null || true
 pkill -f "node dist/src/main.js" 2>/dev/null || true
-npm run dev > "${KANBAN_LOG_DIR:-/tmp}/kanban-backend.log" 2>&1 &
+BACKEND_LOG="$PROJECT_ROOT/log/backend/kanban-backend-${TIMESTAMP}.log"
+npm run dev > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 echo -e "${YELLOW}等待后端服务启动...${NC}"
@@ -152,8 +155,8 @@ for i in {1..30}; do
         break
     fi
     if [ "$i" -eq 30 ]; then
-        echo -e "${YELLOW}⚠ 后端启动超时，请查看日志：/tmp/kanban-backend.log${NC}"
-        tail -20 /tmp/kanban-backend.log 2>/dev/null
+        echo -e "${YELLOW}⚠ 后端启动超时，请查看日志：$BACKEND_LOG${NC}"
+        tail -20 "$BACKEND_LOG" 2>/dev/null
     fi
     sleep 1
 done
