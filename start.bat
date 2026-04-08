@@ -106,8 +106,8 @@ if not exist "node_modules" (
 
 if not exist "!PROJECT_ROOT!\log\frontend" mkdir "!PROJECT_ROOT!\log\frontend"
 if not exist "!PROJECT_ROOT!\log\backend" mkdir "!PROJECT_ROOT!\log\backend"
-for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value') do set "dt=%%i"
-set "TS=!dt:~0,4!!dt:~4,2!!dt:~6,2!-!dt:~8,2!!dt:~10,2!"
+for /f "usebackq" %%i in (`powershell -NoProfile -Command "Get-Date -Format 'yyyyMMdd-HHmmss-fff'"`) do set "TS=%%i"
+chcp 65001 >nul 2>&1
 start /b npm run dev > "!PROJECT_ROOT!\log\frontend\kanban-frontend-!TS!.log" 2>&1
 echo [INFO] Waiting for frontend...
 
