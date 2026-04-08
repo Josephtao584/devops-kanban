@@ -326,26 +326,29 @@
     <BaseDialog
       v-model="showTaskModal"
       :title="isEditing ? $t('task.editTask') : $t('task.newTask')"
-      width="520px"
+      width="800px"
+      custom-class="task-editor-dialog"
     >
       <el-form label-position="top">
         <el-form-item :label="$t('task.taskTitle')">
           <el-input
             v-model="taskForm.title"
             :placeholder="$t('task.taskTitlePlaceholder')"
+            class="task-title-input"
           />
         </el-form-item>
         <el-form-item :label="$t('task.taskDescription')">
           <el-input
             v-model="taskForm.description"
             type="textarea"
-            :rows="4"
+            :rows="12"
             :placeholder="$t('task.taskDescriptionPlaceholder')"
+            class="task-description-input"
           />
         </el-form-item>
         <div class="form-row">
           <el-form-item :label="$t('task.status')">
-            <el-select v-model="taskForm.status">
+            <el-select v-model="taskForm.status" class="full-width">
               <el-option value="TODO" :label="$t('status.TODO')" />
               <el-option value="IN_PROGRESS" :label="$t('status.IN_PROGRESS')" />
               <el-option value="DONE" :label="$t('status.DONE')" />
@@ -353,7 +356,7 @@
             </el-select>
           </el-form-item>
           <el-form-item :label="$t('task.priority')">
-            <el-select v-model="taskForm.priority">
+            <el-select v-model="taskForm.priority" class="full-width">
               <el-option value="LOW" :label="$t('priority.LOW')" />
               <el-option value="MEDIUM" :label="$t('priority.MEDIUM')" />
               <el-option value="HIGH" :label="$t('priority.HIGH')" />
@@ -366,6 +369,7 @@
             v-model="taskForm.iteration_id"
             :iterations="projectIterations"
             :placeholder="$t('task.selectIteration')"
+            class="full-width"
           />
           <p class="form-help">{{ $t('task.iterationHint') }}</p>
         </el-form-item>
@@ -3652,5 +3656,153 @@ onUnmounted(() => {
 
 .delete-worktree-checkbox {
   color: var(--text-secondary);
+}
+
+/* Task Editor Dialog - Modern Refined Style */
+.task-editor-dialog :deep(.el-form) {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.task-editor-dialog :deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+.task-editor-dialog :deep(.el-form-item__label) {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-title-input :deep(.el-input__wrapper),
+.task-description-input :deep(.el-input__wrapper) {
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+  box-shadow: none;
+}
+
+.task-title-input :deep(.el-input__wrapper):hover,
+.task-description-input :deep(.el-input__wrapper):hover {
+  border-color: var(--border-color-hover);
+  background: var(--bg-secondary);
+}
+
+.task-title-input :deep(.el-input__wrapper.is-focus),
+.task-description-input :deep(.el-input__wrapper.is-focus) {
+  border-color: #25C6C9;
+  box-shadow: 0 0 0 3px rgba(37, 198, 201, 0.08);
+  background: var(--bg-primary);
+}
+
+.task-title-input :deep(.el-input__inner) {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.task-description-input :deep(.el-input__inner) {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.task-description-input :deep(.el-input__wrapper) {
+  padding: 14px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.task-editor-dialog :deep(.el-select) {
+  width: 100%;
+}
+
+.task-editor-dialog :deep(.el-select__wrapper) {
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  padding: 10px 12px;
+  min-height: 42px;
+  transition: all 0.2s ease;
+  box-shadow: none;
+}
+
+.task-editor-dialog :deep(.el-select__wrapper:hover) {
+  border-color: var(--border-color-hover);
+  background: var(--bg-secondary);
+}
+
+.task-editor-dialog :deep(.el-select__wrapper.is-focus) {
+  border-color: #25C6C9;
+  box-shadow: 0 0 0 3px rgba(37, 198, 201, 0.08);
+}
+
+.task-editor-dialog :deep(.el-select__placeholder) {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.full-width {
+  width: 100%;
+}
+
+.form-help {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.task-editor-dialog :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.task-editor-dialog :deep(.el-button) {
+  min-height: 36px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.task-editor-dialog :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #25C6C9 0%, #1EA9AC 100%);
+  border: none;
+  box-shadow: 0 2px 8px rgba(37, 198, 201, 0.24);
+}
+
+.task-editor-dialog :deep(.el-button--primary:hover) {
+  background: linear-gradient(135deg, #1EA9AC 0%, #189496 100%);
+  box-shadow: 0 4px 12px rgba(37, 198, 201, 0.32);
+  transform: translateY(-1px);
+}
+
+.task-editor-dialog :deep(.el-button--default) {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.task-editor-dialog :deep(.el-button--default:hover) {
+  background: var(--bg-secondary);
+  border-color: var(--border-color-hover);
+  color: var(--text-primary);
 }
 </style>
