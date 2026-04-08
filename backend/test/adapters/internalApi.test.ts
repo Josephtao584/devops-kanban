@@ -669,3 +669,148 @@ test.test('InternalApiAdapter fetch throws when required config is missing', asy
 
   await assert.rejects(() => adapter.fetch(), /detailPath/);
 });
+
+test.test('InternalApiAdapter fetch respects limit option', async () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/workitems',
+      detailPath: '/workitems/{number}/document_detail',
+      detailIdField: 'number',
+      userId: '1001',
+      category: '5',
+      status: '131',
+      pageSize: 2,
+    },
+  });
+
+  let requestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    requestCount++;
+
+    if (pathValue === '/workitems') {
+      return {
+        code: 200,
+        data: {
+          list: [
+            { number: 'US1', title: 'Task 1', created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' },
+            { number: 'US2', title: 'Task 2', created_time: '2024-01-02T00:00:00Z', updated_time: '2024-01-02T00:00:00Z' },
+          ],
+          last_page: false,
+          current_page: requestCount,
+          total_pages: 10,
+        },
+      };
+    }
+
+    if (pathValue.includes('/document_detail')) {
+      return { code: 200, data: { content: 'test description' } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch({ limit: 1 });
+
+  assert.equal(tasks.length, 1);
+  assert.equal(requestCount, 2);
+  assert.equal(tasks[0].external_id, 'US1');
+});
+
+test.test('InternalApiAdapter fetch stops on invalid response', async () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/workitems',
+      detailPath: '/workitems/{number}/document_detail',
+      detailIdField: 'number',
+      userId: '1001',
+      category: '5',
+      status: '131',
+      pageSize: 2,
+    },
+  });
+
+  let requestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    requestCount++;
+
+    if (pathValue === '/workitems') {
+      if (requestCount === 1) {
+        return {
+          code: 200,
+          data: {
+            list: [{ number: 'US1', title: 'Task 1', created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' }],
+            current_page: 1,
+            total_pages: 5,
+          },
+        };
+      }
+      return 'invalid response';
+    }
+
+    if (pathValue.includes('/document_detail')) {
+      return { code: 200, data: { content: 'test description' } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch();
+
+  assert.equal(tasks.length, 1);
+  assert.equal(requestCount, 2);
+});
+
+test.test('InternalApiAdapter fetch respects maxPages limit', async () => {
+  const adapter = new InternalApiAdapter({
+    type: 'INTERNAL_API',
+    config: {
+      baseUrl: 'https://internal.example',
+      listPath: '/workitems',
+      detailPath: '/workitems/{number}/document_detail',
+      detailIdField: 'number',
+      userId: '1001',
+      category: '5',
+      status: '131',
+      pageSize: 2,
+    },
+  });
+
+  let listRequestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    if (pathValue === '/workitems') {
+      listRequestCount++;
+
+      if (listRequestCount > 20) {
+        throw new Error('Should not exceed maxPages limit');
+      }
+
+      return {
+        code: 200,
+        data: {
+          result: [
+            { number: `US${listRequestCount * 2 - 1}`, title: `Task ${listRequestCount * 2 - 1}`, created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' },
+            { number: `US${listRequestCount * 2}`, title: `Task ${listRequestCount * 2}`, created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' },
+          ],
+          last_page: false,
+          current_page: listRequestCount,
+          total_pages: 100,
+        },
+      };
+    }
+
+    if (pathValue.includes('/document_detail')) {
+      return { code: 200, data: { content: 'test description' } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch();
+
+  assert.equal(tasks.length, 40);
+  assert.equal(listRequestCount, 20);
+});

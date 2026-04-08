@@ -209,12 +209,28 @@ class StoryAdapter extends DevOpsBaseAdapter {
     const maxPages = 20; // 安全限制，防止无限循环和过长等待
 
     while (currentPage <= maxPages) {
-      const response = await this._request(this.listPath, {
-        method: 'POST',
-        body: this._buildWorkitemListBody(currentPage),
-      });
-      this._assertWorkitemSuccessResponse(response);
-      const pageItems = this._extractListItems(response);
+      let response: unknown;
+      try {
+        response = await this._request(this.listPath, {
+          method: 'POST',
+          body: this._buildWorkitemListBody(currentPage),
+        });
+        this._assertWorkitemSuccessResponse(response);
+      } catch (error) {
+        // 请求失败或响应错误时停止分页
+        console.warn(`[StoryAdapter] Page ${currentPage} request failed, stopping pagination`);
+        break;
+      }
+
+      let pageItems: UnknownRecord[] = [];
+      try {
+        pageItems = this._extractListItems(response);
+      } catch (error) {
+        // 响应格式错误时停止分页
+        console.warn(`[StoryAdapter] Page ${currentPage} response format invalid, stopping pagination`);
+        break;
+      }
+
       items.push(...pageItems);
 
       // 如果已达到限制数量，停止分页
@@ -229,7 +245,6 @@ class StoryAdapter extends DevOpsBaseAdapter {
       currentPage += 1;
     }
 
-    console.warn(`[StoryAdapter] Reached max pages limit (${maxPages}), stopping pagination`);
     return items;
   }
 

@@ -570,3 +570,180 @@ test.test('RRAdapter handles error response from detail API gracefully', async (
   assert.equal(tasks[0].description, '');
   assert.equal(tasks[0].status, 'TODO');
 });
+
+test.test('RRAdapter fetch respects limit option and stops early', async () => {
+  const adapter = new RRAdapter({
+    type: 'CLOUDDEVOPS_RR',
+    config: {
+      baseUrl: 'https://devops.example',
+      token: 'Bearer rr-token',
+      userId: '20001',
+      pageSize: 2,
+    },
+  });
+
+  let requestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    requestCount++;
+
+    if (pathValue === '/vision-workitem/api/query/requirements/single_list') {
+      return {
+        code: 200,
+        data: {
+          result: [
+            { id: 1, number: 'RR1', title: 'Task 1', created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' },
+            { id: 2, number: 'RR2', title: 'Task 2', created_time: '2024-01-02T00:00:00Z', updated_time: '2024-01-02T00:00:00Z' },
+          ],
+          total_pages: 10,
+          current_page: requestCount,
+          page_size: 2,
+        },
+      };
+    }
+
+    if (pathValue.includes('/description')) {
+      return { code: 200, data: { descriptions: [{ attr_name: 'desc', value: 'test' }] } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch({ limit: 1 });
+
+  assert.equal(tasks.length, 1);
+  assert.equal(requestCount, 2);
+  assert.equal(tasks[0].external_id, 'RR1');
+});
+
+test.test('RRAdapter fetch stops on invalid response format', async () => {
+  const adapter = new RRAdapter({
+    type: 'CLOUDDEVOPS_RR',
+    config: {
+      baseUrl: 'https://devops.example',
+      token: 'Bearer rr-token',
+      userId: '20001',
+      pageSize: 2,
+    },
+  });
+
+  let listRequestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    if (pathValue === '/vision-workitem/api/query/requirements/single_list') {
+      listRequestCount++;
+
+      if (listRequestCount === 1) {
+        return {
+          code: 200,
+          data: {
+            result: [{ id: 1, number: 'RR1', title: 'Task 1', created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' }],
+            total_pages: 5,
+            current_page: 1,
+            page_size: 2,
+          },
+        };
+      }
+      return 'invalid response';
+    }
+
+    if (pathValue.includes('/description')) {
+      return { code: 200, data: { descriptions: [{ attr_name: 'desc', value: 'test' }] } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch();
+
+  assert.equal(tasks.length, 1);
+  assert.equal(listRequestCount, 2); // 1 次成功 + 1 次无效响应后停止
+});
+
+test.test('RRAdapter fetch stops on empty data response', async () => {
+  const adapter = new RRAdapter({
+    type: 'CLOUDDEVOPS_RR',
+    config: {
+      baseUrl: 'https://devops.example',
+      token: 'Bearer rr-token',
+      userId: '20001',
+      pageSize: 2,
+    },
+  });
+
+  let listRequestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    if (pathValue === '/vision-workitem/api/query/requirements/single_list') {
+      listRequestCount++;
+
+      if (listRequestCount === 1) {
+        return {
+          code: 200,
+          data: {
+            result: [{ id: 1, number: 'RR1', title: 'Task 1', created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' }],
+            total_pages: 5,
+            current_page: 1,
+            page_size: 2,
+          },
+        };
+      }
+      return { code: 200, data: {} };
+    }
+
+    if (pathValue.includes('/description')) {
+      return { code: 200, data: { descriptions: [{ attr_name: 'desc', value: 'test' }] } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch();
+
+  assert.equal(tasks.length, 1);
+  assert.equal(listRequestCount, 2); // 1 次成功 + 1 次空数据后停止
+});
+
+test.test('RRAdapter fetch respects maxPages limit', async () => {
+  const adapter = new RRAdapter({
+    type: 'CLOUDDEVOPS_RR',
+    config: {
+      baseUrl: 'https://devops.example',
+      token: 'Bearer rr-token',
+      userId: '20001',
+      pageSize: 2,
+    },
+  });
+
+  let listRequestCount = 0;
+  adapter._request = async (pathValue: string) => {
+    if (pathValue === '/vision-workitem/api/query/requirements/single_list') {
+      listRequestCount++;
+
+      if (listRequestCount > 20) {
+        throw new Error('Should not exceed maxPages limit');
+      }
+
+      return {
+        code: 200,
+        data: {
+          result: [
+            { id: listRequestCount * 2 - 1, number: `RR${listRequestCount * 2 - 1}`, title: `Task ${listRequestCount * 2 - 1}`, created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' },
+            { id: listRequestCount * 2, number: `RR${listRequestCount * 2}`, title: `Task ${listRequestCount * 2}`, created_time: '2024-01-01T00:00:00Z', updated_time: '2024-01-01T00:00:00Z' },
+          ],
+          total_pages: 100,
+          current_page: listRequestCount,
+          page_size: 2,
+        },
+      };
+    }
+
+    if (pathValue.includes('/description')) {
+      return { code: 200, data: { descriptions: [{ attr_name: 'desc', value: 'test' }] } };
+    }
+
+    throw new Error(`Unexpected path: ${pathValue}`);
+  };
+
+  const tasks = await adapter.fetch();
+
+  assert.equal(tasks.length, 40);
+  assert.equal(listRequestCount, 20);
+});

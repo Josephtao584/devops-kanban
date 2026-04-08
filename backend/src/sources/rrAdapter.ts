@@ -136,12 +136,28 @@ class RRAdapter extends DevOpsBaseAdapter {
 
     while (currentPage <= maxPages) {
       const body = this._buildRRListBody(currentPage);
-      const response = await this._request(this.listPath, {
-        method: 'POST',
-        body,
-      });
-      this._assertRRSuccessResponse(response);
-      const pageItems = this._extractListItems(response);
+      let response: unknown;
+      try {
+        response = await this._request(this.listPath, {
+          method: 'POST',
+          body,
+        });
+        this._assertRRSuccessResponse(response);
+      } catch (error) {
+        // 请求失败或响应错误时停止分页
+        console.warn(`[RRAdapter] Page ${currentPage} request failed, stopping pagination`);
+        break;
+      }
+
+      let pageItems: UnknownRecord[] = [];
+      try {
+        pageItems = this._extractListItems(response);
+      } catch (error) {
+        // 响应格式错误时停止分页
+        console.warn(`[RRAdapter] Page ${currentPage} response format invalid, stopping pagination`);
+        break;
+      }
+
       items.push(...pageItems);
 
       // 如果已达到限制数量，停止分页
@@ -156,7 +172,6 @@ class RRAdapter extends DevOpsBaseAdapter {
       currentPage += 1;
     }
 
-    console.warn(`[RRAdapter] Reached max pages limit (${maxPages}), stopping pagination`);
     return items;
   }
 
