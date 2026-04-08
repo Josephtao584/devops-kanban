@@ -78,13 +78,14 @@ class StoryAdapter extends DevOpsBaseAdapter {
   }
 
   _isLastWorkitemPage(response: unknown, itemCount: number): boolean {
+    // 如果响应格式不对，立即停止（可能是错误响应）
     if (!response || typeof response !== 'object' || Array.isArray(response)) {
-      return itemCount < this.pageSize;
+      return true;
     }
 
     const data = (response as UnknownRecord).data;
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      return itemCount < this.pageSize;
+      return true;
     }
 
     const lastPage = (data as UnknownRecord).last_page;
@@ -98,6 +99,7 @@ class StoryAdapter extends DevOpsBaseAdapter {
       return responseCurrentPage >= totalPages;
     }
 
+    // 没有分页信息时，如果返回 item 数量少于 pageSize，说明是最后一页
     return itemCount < this.pageSize;
   }
 
@@ -204,8 +206,9 @@ class StoryAdapter extends DevOpsBaseAdapter {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
     const limit = options?.limit;
+    const maxPages = 100; // 安全限制，防止无限循环
 
-    while (true) {
+    while (currentPage <= maxPages) {
       const response = await this._request(this.listPath, {
         method: 'POST',
         body: this._buildWorkitemListBody(currentPage),
@@ -224,6 +227,9 @@ class StoryAdapter extends DevOpsBaseAdapter {
 
       currentPage += 1;
     }
+
+    console.warn(`[StoryAdapter] Reached max pages limit (${maxPages}), stopping pagination`);
+    return items;
   }
 
   override async fetch(options?: { limit?: number; offset?: number }): Promise<ImportedTask[]> {

@@ -48,13 +48,14 @@ class RRAdapter extends DevOpsBaseAdapter {
   }
 
   _isLastRRPage(response: unknown, itemCount: number): boolean {
+    // 如果响应格式不对，立即停止（可能是错误响应）
     if (!response || typeof response !== 'object' || Array.isArray(response)) {
-      return itemCount < this.pageSize;
+      return true;
     }
 
     const data = (response as UnknownRecord).data;
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      return itemCount < this.pageSize;
+      return true;
     }
 
     const totalPages = (data as UnknownRecord).total_pages;
@@ -63,6 +64,8 @@ class RRAdapter extends DevOpsBaseAdapter {
       return currentPage >= totalPages;
     }
 
+    // 没有分页信息时，如果返回item数量少于pageSize，说明是最后一页
+    // 否则继续请求下一页
     return itemCount < this.pageSize;
   }
 
@@ -128,8 +131,9 @@ class RRAdapter extends DevOpsBaseAdapter {
   async _fetchRRItems(): Promise<UnknownRecord[]> {
     const items: UnknownRecord[] = [];
     let currentPage = 1;
+    const maxPages = 100; // 安全限制，防止无限循环
 
-    while (true) {
+    while (currentPage <= maxPages) {
       const body = this._buildRRListBody(currentPage);
       const response = await this._request(this.listPath, {
         method: 'POST',
@@ -145,6 +149,9 @@ class RRAdapter extends DevOpsBaseAdapter {
 
       currentPage += 1;
     }
+
+    console.warn(`[RRAdapter] Reached max pages limit (${maxPages}), stopping pagination`);
+    return items;
   }
 
   override async fetch(): Promise<ImportedTask[]> {
