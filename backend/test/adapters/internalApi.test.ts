@@ -715,7 +715,7 @@ test.test('InternalApiAdapter fetch respects limit option', async () => {
 
   assert.equal(tasks.length, 1);
   assert.equal(requestCount, 2);
-  assert.equal(tasks[0].external_id, 'US1');
+  assert.equal(tasks[0]!.external_id, 'US1');
 });
 
 test.test('InternalApiAdapter fetch stops on invalid response', async () => {
