@@ -67,8 +67,8 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw createValidationError('Workflow template name must be a non-empty string');
   }
 
-  if (!Array.isArray(steps) || steps.length < 2) {
-    throw createValidationError('Workflow template must include at least two steps');
+  if (!Array.isArray(steps) || steps.length < 1) {
+    throw createValidationError('Workflow template must include at least one step');
   }
 
   const normalizedSteps = steps.map((step) => normalizeStep(step));
