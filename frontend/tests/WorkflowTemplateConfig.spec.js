@@ -793,14 +793,13 @@ describe('WorkflowTemplateConfig', () => {
     ])
   })
 
-  it('deletes the selected middle step via card delete button and keeps the previous step selected with the min-step rule of two', async () => {
-    const templateWithThreeSteps = createTemplateWithSteps([
+  it('deletes the selected middle step via card delete button and keeps the previous step selected with the min-step rule of one', async () => {
+    const templateWithTwoSteps = createTemplateWithSteps([
       namedStep('requirement-design', '需求设计', '先完成需求分析。', 1),
-      namedStep('implementation', '实现', '完成代码实现。', 3),
-      namedStep('testing', '测试', '执行测试。', 3)
+      namedStep('implementation', '实现', '完成代码实现。', 3)
     ])
     getWorkflowTemplateById.mockImplementation(async (templateId) => {
-      const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithThreeSteps
+      const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithTwoSteps
       return {
         success: true,
         data: JSON.parse(JSON.stringify(template))
@@ -818,32 +817,40 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
 
     expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1)
-    expect(getStepCards(wrapper)).toHaveLength(2)
+    expect(getStepCards(wrapper)).toHaveLength(1)
     expect(getSelectedCardName(wrapper)).toBe('需求设计')
     expect(getDeleteStepButtons(wrapper).every((button) => button.attributes('disabled') !== undefined)).toBe(true)
-    expect(wrapper.text()).toContain('模版至少保留 2 个阶段')
+    expect(wrapper.text()).toContain('模版至少保留 1 个阶段')
   })
 
-  it('blocks deleting steps when only two steps remain and keeps the selected step unchanged', async () => {
+  it('blocks deleting steps when only one step remains and keeps the selected step unchanged', async () => {
+    const templateWithOneStep = createTemplateWithSteps([
+      namedStep('requirement-design', '需求设计', '先完成需求分析。', 1)
+    ])
+    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+      const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithOneStep
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(template))
+      }
+    })
+
     const wrapper = mountView()
     await flushPromises()
     await selectReleaseTemplate(wrapper)
-    await getStepCards(wrapper)[1].trigger('click')
     await flushPromises()
 
-    expect(getSelectedCardName(wrapper)).toBe('测试')
     const deleteButtons = getDeleteStepButtons(wrapper)
-    expect(deleteButtons).toHaveLength(2)
+    expect(deleteButtons).toHaveLength(1)
     expect(deleteButtons[0].attributes('disabled')).toBeDefined()
-    expect(deleteButtons[1].attributes('disabled')).toBeDefined()
 
-    await deleteButtons[1].trigger('click')
+    await deleteButtons[0].trigger('click')
     await flushPromises()
 
     expect(ElMessageBox.confirm).not.toHaveBeenCalled()
     expect(ElMessage.warning).not.toHaveBeenCalled()
-    expect(getStepCards(wrapper)).toHaveLength(2)
-    expect(getSelectedCardName(wrapper)).toBe('测试')
+    expect(getStepCards(wrapper)).toHaveLength(1)
+    expect(getSelectedCardName(wrapper)).toBe('需求设计')
   })
 
   it('deletes a custom template and returns to the default template', async () => {
@@ -886,7 +893,7 @@ describe('WorkflowTemplateConfig', () => {
 
     for (const button of deleteButtons) {
       expect(button.exists()).toBe(true)
-      expect(button.attributes('disabled')).toBeDefined()
+      expect(button.attributes('disabled')).toBeUndefined()
     }
   })
 

@@ -56,8 +56,9 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw new ValidationError('工作流模板名称必须为非空字符串', 'Workflow template name must be a non-empty string');
   }
 
-  if (!Array.isArray(steps) || steps.length < 2) {
-    throw new ValidationError('工作流模板必须包含至少两个步骤', 'Workflow template must include at least two steps');
+  if (!Array.isArray(steps) || steps.length < 1) {
+    throw new ValidationError('工作流模板必须包含至少一个步骤', 'Workflow template must include at least one step');
+  }
   }
 
   const normalizedSteps = steps.map((step) => normalizeStep(step));

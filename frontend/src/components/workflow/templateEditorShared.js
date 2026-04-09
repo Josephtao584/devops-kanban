@@ -1,4 +1,4 @@
-export const MIN_WORKFLOW_TEMPLATE_STEPS = 2
+export const MIN_WORKFLOW_TEMPLATE_STEPS = 1
 
 export const normalizeWorkflowStep = (step = {}) => ({
   id: step.id ?? '',
