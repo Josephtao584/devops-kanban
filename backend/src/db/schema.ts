@@ -29,7 +29,9 @@ function extractCreateIndexSql(sql: string): string {
  */
 export async function initDatabase(): Promise<void> {
   const client = getDbClient();
-  await client.execute('PRAGMA busy_timeout = 5000');
+  await client.execute('PRAGMA journal_mode = WAL');
+  await client.execute('PRAGMA busy_timeout = 30000');
+  await client.execute('PRAGMA synchronous = NORMAL');
 
   const schemaPath = join(import.meta.dirname, 'schema.sql');
   const schemaSql = await readFile(schemaPath, 'utf-8');

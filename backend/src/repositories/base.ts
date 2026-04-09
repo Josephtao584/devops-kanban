@@ -1,4 +1,5 @@
 import { getDbClient } from '../db/client.js';
+import { withRetry } from '../db/retry.js';
 import type { Client, InValue } from '@libsql/client';
 
 /**
@@ -71,70 +72,76 @@ class BaseRepository<T extends BaseEntity> {
    * Create a new record.
    */
   async create(entityData: Omit<T, 'id' | 'created_at' | 'updated_at'>): Promise<T> {
-    const now = new Date().toISOString();
-    const data = this.serializeRow(entityData as Partial<T>);
+    return withRetry(async () => {
+      const now = new Date().toISOString();
+      const data = this.serializeRow(entityData as Partial<T>);
 
-    // Filter out undefined values
-    const definedEntries = Object.entries(data).filter(
-      ([, value]) => value !== undefined
-    );
-    const columns = definedEntries.map(([key]) => `"${key}"`);
-    const values = definedEntries.map(([, value]) => value);
-    const placeholders = columns.map(() => '?').join(', ');
+      // Filter out undefined values
+      const definedEntries = Object.entries(data).filter(
+        ([, value]) => value !== undefined
+      );
+      const columns = definedEntries.map(([key]) => `"${key}"`);
+      const values = definedEntries.map(([, value]) => value);
+      const placeholders = columns.map(() => '?').join(', ');
 
-    const sql = `INSERT INTO ${this.tableName} (${columns.join(', ')}, "created_at", "updated_at") VALUES (${placeholders}, ?, ?)`;
-    const result = await this.client.execute({
-      sql,
-      args: [...values as InValue[], now, now],
+      const sql = `INSERT INTO ${this.tableName} (${columns.join(', ')}, "created_at", "updated_at") VALUES (${placeholders}, ?, ?)`;
+      const result = await this.client.execute({
+        sql,
+        args: [...values as InValue[], now, now],
+      });
+
+      // Fetch the created record to get all fields with correct defaults
+      const created = await this.findById(Number(result.lastInsertRowid));
+      if (!created) {
+        throw new Error(`Failed to fetch created record with id ${result.lastInsertRowid}`);
+      }
+      return created;
     });
-
-    // Fetch the created record to get all fields with correct defaults
-    const created = await this.findById(Number(result.lastInsertRowid));
-    if (!created) {
-      throw new Error(`Failed to fetch created record with id ${result.lastInsertRowid}`);
-    }
-    return created;
   }
 
   /**
    * Update an existing record.
    */
   async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
-    const existing = await this.findById(entityId);
-    if (!existing) return null;
+    return withRetry(async () => {
+      const existing = await this.findById(entityId);
+      if (!existing) return null;
 
-    const now = new Date().toISOString();
-    const data = this.serializeRow(entityData as Partial<T>);
+      const now = new Date().toISOString();
+      const data = this.serializeRow(entityData as Partial<T>);
 
-    // Filter out id, undefined values, and auto-managed fields
-    const definedEntries = Object.entries(data).filter(
-      ([key, value]) => key !== 'id' && key !== 'created_at' && key !== 'updated_at' && value !== undefined
-    );
+      // Filter out id, undefined values, and auto-managed fields
+      const definedEntries = Object.entries(data).filter(
+        ([key, value]) => key !== 'id' && key !== 'created_at' && key !== 'updated_at' && value !== undefined
+      );
 
-    if (definedEntries.length === 0) return existing;
+      if (definedEntries.length === 0) return existing;
 
-    const setClauses = definedEntries.map(([key]) => `"${key}" = ?`);
-    const values = definedEntries.map(([, value]) => value);
+      const setClauses = definedEntries.map(([key]) => `"${key}" = ?`);
+      const values = definedEntries.map(([, value]) => value);
 
-    const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')}, "updated_at" = ? WHERE "id" = ?`;
-    await this.client.execute({
-      sql,
-      args: [...values as InValue[], now, entityId],
+      const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')}, "updated_at" = ? WHERE "id" = ?`;
+      await this.client.execute({
+        sql,
+        args: [...values as InValue[], now, entityId],
+      });
+
+      // Re-fetch to get properly parsed row (e.g. JSON fields parsed correctly)
+      return await this.findById(entityId);
     });
-
-    // Re-fetch to get properly parsed row (e.g. JSON fields parsed correctly)
-    return await this.findById(entityId);
   }
 
   /**
    * Delete a record by its ID.
    */
   async delete(entityId: number): Promise<boolean> {
-    const result = await this.client.execute({
-      sql: `DELETE FROM "${this.tableName}" WHERE "id" = ?`,
-      args: [entityId],
+    return withRetry(async () => {
+      const result = await this.client.execute({
+        sql: `DELETE FROM "${this.tableName}" WHERE "id" = ?`,
+        args: [entityId],
+      });
+      return result.rowsAffected > 0;
     });
-    return result.rowsAffected > 0;
   }
 
   /**

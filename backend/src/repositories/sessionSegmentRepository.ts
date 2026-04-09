@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { withRetry } from '../db/retry.js';
 import type { InValue } from '@libsql/client';
 import type { SessionSegmentEntity } from '../types/entities.ts';
 
@@ -42,40 +43,42 @@ class SessionSegmentRepository extends BaseRepository<SessionSegmentEntity> {
   }
 
   override async create(segment: CreateSessionSegmentRecord): Promise<SessionSegmentEntity> {
-    const txn = await this.client.transaction('write');
-    try {
-      // Get max segment_index in transaction
-      const maxResult = await txn.execute({
-        sql: 'SELECT MAX(segment_index) as max_index FROM session_segments WHERE session_id = ?',
-        args: [segment.session_id],
-      });
-      const nextSegmentIndex = (Number(maxResult.rows[0]?.max_index) || 0) + 1;
-      const now = new Date().toISOString();
+    return withRetry(async () => {
+      const txn = await this.client.transaction('write');
+      try {
+        // Get max segment_index in transaction
+        const maxResult = await txn.execute({
+          sql: 'SELECT MAX(segment_index) as max_index FROM session_segments WHERE session_id = ?',
+          args: [segment.session_id],
+        });
+        const nextSegmentIndex = (Number(maxResult.rows[0]?.max_index) || 0) + 1;
+        const now = new Date().toISOString();
 
-      // Insert with computed segment_index
-      const serialized = this.serializeRow(segment as Partial<SessionSegmentEntity>);
-      const columns = Object.keys(serialized);
-      const values = Object.values(serialized);
+        // Insert with computed segment_index
+        const serialized = this.serializeRow(segment as Partial<SessionSegmentEntity>);
+        const columns = Object.keys(serialized);
+        const values = Object.values(serialized);
 
-      const insertResult = await txn.execute({
-        sql: `INSERT INTO session_segments (${columns.join(', ')}, segment_index, created_at, updated_at) VALUES (${columns.map(() => '?').join(', ')}, ?, ?, ?)`,
-        args: [...values as InValue[], nextSegmentIndex, now, now],
-      });
+        const insertResult = await txn.execute({
+          sql: `INSERT INTO session_segments (${columns.join(', ')}, segment_index, created_at, updated_at) VALUES (${columns.map(() => '?').join(', ')}, ?, ?, ?)`,
+          args: [...values as InValue[], nextSegmentIndex, now, now],
+        });
 
-      await txn.commit();
+        await txn.commit();
 
-      // Fetch the created record
-      const created = await this.findById(Number(insertResult.lastInsertRowid));
-      if (!created) {
-        throw new Error('Failed to fetch created session segment');
+        // Fetch the created record
+        const created = await this.findById(Number(insertResult.lastInsertRowid));
+        if (!created) {
+          throw new Error('Failed to fetch created session segment');
+        }
+        return created;
+      } catch (error) {
+        await txn.rollback();
+        throw error;
+      } finally {
+        txn.close();
       }
-      return created;
-    } catch (error) {
-      await txn.rollback();
-      throw error;
-    } finally {
-      txn.close();
-    }
+    });
   }
 }
 
