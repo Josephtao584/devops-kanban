@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { withRetry } from '../db/retry.js';
 import type { InValue } from '@libsql/client';
 import type { SessionEventEntity } from '../types/entities.ts';
 
@@ -29,40 +30,42 @@ class SessionEventRepository extends BaseRepository<SessionEventEntity> {
   }
 
   async append(event: CreateSessionEventRecord): Promise<SessionEventEntity> {
-    const txn = await this.client.transaction('write');
-    try {
-      // Get max seq in transaction
-      const maxResult = await txn.execute({
-        sql: 'SELECT MAX(seq) as max_seq FROM session_events WHERE session_id = ?',
-        args: [event.session_id],
-      });
-      const nextSeq = (Number(maxResult.rows[0]?.max_seq) || 0) + 1;
-      const now = new Date().toISOString();
+    return withRetry(async () => {
+      const txn = await this.client.transaction('write');
+      try {
+        // Get max seq in transaction
+        const maxResult = await txn.execute({
+          sql: 'SELECT MAX(seq) as max_seq FROM session_events WHERE session_id = ?',
+          args: [event.session_id],
+        });
+        const nextSeq = (Number(maxResult.rows[0]?.max_seq) || 0) + 1;
+        const now = new Date().toISOString();
 
-      // Insert with computed seq
-      const serialized = this.serializeRow(event as Partial<SessionEventEntity>);
-      const columns = Object.keys(serialized);
-      const values = Object.values(serialized);
+        // Insert with computed seq
+        const serialized = this.serializeRow(event as Partial<SessionEventEntity>);
+        const columns = Object.keys(serialized);
+        const values = Object.values(serialized);
 
-      const insertResult = await txn.execute({
-        sql: `INSERT INTO session_events (${columns.join(', ')}, seq, created_at, updated_at) VALUES (${columns.map(() => '?').join(', ')}, ?, ?, ?)`,
-        args: [...values as InValue[], nextSeq, now, now],
-      });
+        const insertResult = await txn.execute({
+          sql: `INSERT INTO session_events (${columns.join(', ')}, seq, created_at, updated_at) VALUES (${columns.map(() => '?').join(', ')}, ?, ?, ?)`,
+          args: [...values as InValue[], nextSeq, now, now],
+        });
 
-      await txn.commit();
+        await txn.commit();
 
-      // Fetch the created record
-      const created = await this.findById(Number(insertResult.lastInsertRowid));
-      if (!created) {
-        throw new Error('Failed to fetch created session event');
+        // Fetch the created record
+        const created = await this.findById(Number(insertResult.lastInsertRowid));
+        if (!created) {
+          throw new Error('Failed to fetch created session event');
+        }
+        return created;
+      } catch (error) {
+        await txn.rollback();
+        throw error;
+      } finally {
+        txn.close();
       }
-      return created;
-    } catch (error) {
-      await txn.rollback();
-      throw error;
-    } finally {
-      txn.close();
-    }
+    });
   }
 
   async listBySessionId(

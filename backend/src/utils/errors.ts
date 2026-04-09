@@ -3,7 +3,7 @@ interface AppErrorOptions {
   code: string;
   userMessage: string;
   internalMessage: string;
-  context?: Record<string, unknown>;
+  context?: Record<string, unknown> | undefined;
 }
 
 export class AppError extends Error {

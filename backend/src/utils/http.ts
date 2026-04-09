@@ -21,7 +21,7 @@ export function getErrorMessage(error: unknown, fallback: string) {
 
 export function logError(error: unknown, request: FastifyRequest) {
   if (error instanceof AppError) {
-    const logFn = error.statusCode >= 500 ? request.log.error.bind(request.log) : request.log.warn.bind(request.log);
+    const logFn = request.log.error.bind(request.log);
     logFn({
       code: error.code,
       statusCode: error.statusCode,

@@ -59,7 +59,6 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
   if (!Array.isArray(steps) || steps.length < 1) {
     throw new ValidationError('工作流模板必须包含至少一个步骤', 'Workflow template must include at least one step');
   }
-  }
 
   const normalizedSteps = steps.map((step) => normalizeStep(step));
   if (new Set(normalizedSteps.map((step) => step.id)).size !== normalizedSteps.length) {

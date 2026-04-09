@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '../utils/errors.js';
-import { logger } from '../utils/logger.js';
 
 type FastifyErrorWithStatus = Error & {
   statusCode?: number;
@@ -30,18 +29,14 @@ export default async function errorHandlerPlugin(fastify: FastifyInstance) {
   fastify.setErrorHandler((error: FastifyErrorWithStatus, request: FastifyRequest, reply: FastifyReply) => {
     // AppError — structured error with user/internal messages
     if (error instanceof AppError) {
-      const logContext = {
+      request.log.error({
         code: error.code,
         statusCode: error.statusCode,
         url: request.url,
         method: request.method,
+        internalMessage: error.internalMessage,
         ...error.context,
-      };
-      if (error.statusCode >= 500) {
-        request.log.error({ ...logContext, internalMessage: error.internalMessage });
-      } else {
-        request.log.warn({ ...logContext, internalMessage: error.internalMessage });
-      }
+      });
 
       return reply.code(error.statusCode).send({
         success: false,
@@ -54,7 +49,7 @@ export default async function errorHandlerPlugin(fastify: FastifyInstance) {
 
     // Fastify validation error
     if (error.validation) {
-      request.log.warn({ url: request.url, method: request.method, validation: error.validation });
+      request.log.error({ url: request.url, method: request.method, validation: error.validation });
       return reply.code(400).send({
         success: false,
         message: '请求参数验证失败',
@@ -77,13 +72,8 @@ export default async function errorHandlerPlugin(fastify: FastifyInstance) {
 
     // Legacy errors (plain Error with statusCode)
     const statusCode = error.statusCode || error.status || 500;
-    const isServerError = statusCode >= 500;
 
-    if (isServerError) {
-      request.log.error({ url: request.url, method: request.method, err: error });
-    } else {
-      request.log.warn({ url: request.url, method: request.method, err: error });
-    }
+    request.log.error({ url: request.url, method: request.method, err: error });
 
     const userMessage = getChineseMessage(statusCode);
     const errorCode = getErrorCode(statusCode);
@@ -93,7 +83,7 @@ export default async function errorHandlerPlugin(fastify: FastifyInstance) {
       message: userMessage,
       code: errorCode,
       data: null,
-      error: isServerError ? userMessage : error.message,
+      error: statusCode >= 500 ? userMessage : error.message,
     });
   });
 

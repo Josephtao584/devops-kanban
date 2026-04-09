@@ -11,7 +11,7 @@ test.test('logger.info outputs structured format', () => {
 
   console.log = originalLog;
   assert.equal(output.length, 1);
-  const line = output[0];
+  const line = output[0]!;
   assert.ok(line.includes('[INFO]'));
   assert.ok(line.includes('[TestComponent]'));
   assert.ok(line.includes('Something happened'));
@@ -25,7 +25,7 @@ test.test('logger.info with context includes JSON', () => {
   logger.info('TestComponent', 'Got result', { taskId: 42, name: 'test' });
 
   console.log = originalLog;
-  const line = output[0];
+  const line = output[0]!;
   assert.ok(line.includes('"taskId":42'));
   assert.ok(line.includes('"name":"test"'));
 });
@@ -39,8 +39,8 @@ test.test('logger.warn outputs structured format', () => {
 
   console.warn = originalWarn;
   assert.equal(output.length, 1);
-  assert.ok(output[0].includes('[WARN]'));
-  assert.ok(output[0].includes('[TestComponent]'));
+  assert.ok(output[0]!.includes('[WARN]'));
+  assert.ok(output[0]!.includes('[TestComponent]'));
 });
 
 test.test('logger.error outputs structured format', () => {
@@ -52,8 +52,8 @@ test.test('logger.error outputs structured format', () => {
 
   console.error = originalError;
   assert.equal(output.length, 1);
-  assert.ok(output[0].includes('[ERROR]'));
-  assert.ok(output[0].includes('[TestComponent]'));
+  assert.ok(output[0]!.includes('[ERROR]'));
+  assert.ok(output[0]!.includes('[TestComponent]'));
 });
 
 test.test('logger outputs ISO timestamp', () => {
@@ -64,7 +64,7 @@ test.test('logger outputs ISO timestamp', () => {
   logger.info('Test', 'msg');
 
   console.log = originalLog;
-  const line = output[0];
+  const line = output[0]!;
   // ISO timestamp format: 2026-04-08T10:00:00.000Z
   assert.match(line, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
 });
@@ -77,6 +77,6 @@ test.test('logger without context has no trailing JSON', () => {
   logger.info('Test', 'msg');
 
   console.log = originalLog;
-  const line = output[0];
+  const line = output[0]!;
   assert.ok(!line.includes('{'), 'Should not include context JSON when no context provided');
 });

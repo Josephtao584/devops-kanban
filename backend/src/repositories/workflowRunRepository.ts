@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { withRetry } from '../db/retry.js';
 import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts';
 
 type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>>;
@@ -49,10 +50,10 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   }
 
   async deleteByTaskId(taskId: number): Promise<void> {
-    await this.client.execute({
+    await withRetry(() => this.client.execute({
       sql: 'DELETE FROM workflow_runs WHERE task_id = ?',
       args: [taskId],
-    });
+    }));
   }
 
   async findAllByTaskId(taskId: number): Promise<WorkflowRunEntity[]> {
