@@ -118,14 +118,14 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
     return null;
   }
 
-  // Step start event: ignore to avoid redundant status updates in chat
+  // Step start event
   if (type === 'step_start') {
-    return null;
+    return buildEvent('status', 'system', 'step started', { step_type: 'step_start' });
   }
 
-  // Step finish event: ignore to avoid redundant status updates in chat
+  // Step finish event
   if (type === 'step_finish') {
-    return null;
+    return buildEvent('status', 'system', 'step finished', { step_type: 'step_finish' });
   }
 
   // Tool use event: OpenCode CLI outputs tool calls as top-level tool_use events
