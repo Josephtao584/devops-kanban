@@ -15,13 +15,13 @@ INSERT INTO iterations (id, project_id, name, goal, status, start_date, end_date
 
 -- === agents ===
 INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
-  (1, '架构师', 'CLAUDE_CODE', 'ARCHITECT', '负责系统架构设计与技术方案评审', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+  (1, '架构师', 'OPEN_CODE', 'ARCHITECT', '负责系统架构设计与技术方案评审', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
 INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
-  (2, '后端开发', 'CLAUDE_CODE', 'BACKEND_DEV', '负责后端服务开发与接口实现', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+  (2, '后端开发', 'OPEN_CODE', 'BACKEND_DEV', '负责后端服务开发与接口实现', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
 INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
-  (3, '前端开发', 'CLAUDE_CODE', 'FRONTEND_DEV', '负责前端页面开发与交互实现', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+  (3, '前端开发', 'OPEN_CODE', 'FRONTEND_DEV', '负责前端页面开发与交互实现', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
 INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
-  (4, '测试工程师', 'CLAUDE_CODE', 'QA_ENGINEER', '负责测试验证与质量保障', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+  (4, '测试工程师', 'OPEN_CODE', 'QA_ENGINEER', '负责测试验证与质量保障', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
 
 -- === mcp_servers ===
 INSERT INTO mcp_servers (id, name, description, server_type, config, auto_install, install_command, created_at, updated_at) VALUES
