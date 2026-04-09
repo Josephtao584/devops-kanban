@@ -308,8 +308,8 @@
                   {{ getStatusText(currentViewingNode.status) }}
                 </span>
                 <span class="step-node-name">{{ currentViewingNode.name }}</span>
-                <span class="step-node-role" v-if="currentViewingNode.role">@{{ currentViewingNode.role }}</span>
-                <span v-if="currentViewingAgent" class="step-agent-badge">
+                <span class="step-node-role" v-if="currentViewingAgent?.role">@{{ currentViewingAgent.role }}</span>
+                <span v-if="currentViewingAgent" class="step-agent-badge" :title="currentViewingAgent.executorType">
                   <el-icon class="agent-icon"><component :is="getAgentIcon(currentViewingAgent.executorType)" /></el-icon>
                   {{ currentViewingAgent.name }}
                 </span>
@@ -1101,7 +1101,8 @@ const getNodeRoleIcon = (role) => {
 const currentViewingAgent = computed(() => {
   const agentId = currentViewingNode.value?.agentId
   if (!agentId) return null
-  return agentStore.agents.find(a => a.id === agentId) || null
+  // JSON 解析后 agentId 可能是字符串，需要兼容数字和字符串比较
+  return agentStore.agents.find(a => a.id === agentId || String(a.id) === String(agentId)) || null
 })
 
 const getAgentIcon = (agentType) => {
@@ -1374,6 +1375,7 @@ const handleAgentSelect = ({ task }) => {
 // Lifecycle
 onMounted(async () => {
   isComponentMounted.value = true
+  agentStore.fetchAgents()
   try {
     await initializeSelection()
     if (!isComponentMounted.value) return

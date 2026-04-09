@@ -63,4 +63,4 @@ backend/data/
 __pycache__/
 .worktrees/
 .claude/
-docs/
+docs/screenshots/
