@@ -88,50 +88,14 @@ for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":!BACKEND_PORT! " ^| 
 
 echo.
 
-:: ========================================
-:: Start frontend
-:: ========================================
-echo [1/2] Starting frontend...
-cd /d "!FRONTEND_DIR!"
-
-if not exist "node_modules" (
-    echo [INFO] Installing frontend dependencies...
-    call npm install --loglevel=verbose --no-audit
-    if !errorlevel! neq 0 (
-        echo [ERROR] Frontend install failed
-        pause
-        exit /b 1
-    )
-)
-
 if not exist "!PROJECT_ROOT!\log\frontend" mkdir "!PROJECT_ROOT!\log\frontend"
 if not exist "!PROJECT_ROOT!\log\backend" mkdir "!PROJECT_ROOT!\log\backend"
 for /f "usebackq" %%i in (`powershell -NoProfile -Command "Get-Date -Format 'yyyyMMdd-HHmmss-fff'"`) do set "TS=%%i"
-start /b cmd /c "chcp 65001 >nul 2>&1 && set NO_COLOR=1 && npm run dev" > "!PROJECT_ROOT!\log\frontend\kanban-frontend-!TS!.log" 2>&1
-echo [INFO] Waiting for frontend...
-
-set "FRONTEND_READY=0"
-for /l %%i in (1,1,15) do (
-    if "!FRONTEND_READY!"=="0" (
-        ping -n 2 127.0.0.1 >nul
-        curl -s http://localhost:!FRONTEND_PORT! >nul 2>&1
-        if !errorlevel! equ 0 (
-            set "FRONTEND_READY=1"
-            echo [OK] Frontend started
-            echo      URL: http://localhost:!FRONTEND_PORT!
-        )
-    )
-)
-if "!FRONTEND_READY!"=="0" (
-    echo [WARN] Frontend startup timeout
-)
-
-echo.
 
 :: ========================================
 :: Start backend
 :: ========================================
-echo [2/2] Starting backend...
+echo [1/2] Starting backend...
 cd /d "!BACKEND_DIR!"
 
 if not exist "node_modules" (
@@ -161,6 +125,43 @@ for /l %%i in (1,1,30) do (
 )
 if "!BACKEND_READY!"=="0" (
     echo [WARN] Backend startup timeout
+)
+
+echo.
+
+:: ========================================
+:: Start frontend
+:: ========================================
+echo [2/2] Starting frontend...
+cd /d "!FRONTEND_DIR!"
+
+if not exist "node_modules" (
+    echo [INFO] Installing frontend dependencies...
+    call npm install --loglevel=verbose --no-audit
+    if !errorlevel! neq 0 (
+        echo [ERROR] Frontend install failed
+        pause
+        exit /b 1
+    )
+)
+
+start /b cmd /c "chcp 65001 >nul 2>&1 && set NO_COLOR=1 && npm run dev" > "!PROJECT_ROOT!\log\frontend\kanban-frontend-!TS!.log" 2>&1
+echo [INFO] Waiting for frontend...
+
+set "FRONTEND_READY=0"
+for /l %%i in (1,1,15) do (
+    if "!FRONTEND_READY!"=="0" (
+        ping -n 2 127.0.0.1 >nul
+        curl -s http://localhost:!FRONTEND_PORT! >nul 2>&1
+        if !errorlevel! equ 0 (
+            set "FRONTEND_READY=1"
+            echo [OK] Frontend started
+            echo      URL: http://localhost:!FRONTEND_PORT!
+        )
+    )
+)
+if "!FRONTEND_READY!"=="0" (
+    echo [WARN] Frontend startup timeout
 )
 
 echo.
