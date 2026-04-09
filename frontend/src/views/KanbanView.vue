@@ -304,26 +304,28 @@
             <div class="step-header-copy">
               <span class="step-header-label">Workflow 对话</span>
               <div class="step-node-detail" v-if="currentViewingNode">
-                <span class="step-status-badge" :class="'step-' + currentViewingNode.status?.toLowerCase()">
-                  {{ getStatusText(currentViewingNode.status) }}
-                </span>
                 <span class="step-node-name">{{ currentViewingNode.name }}</span>
-                <span v-if="currentViewingAgent" class="step-agent-badge">
-                  {{ currentViewingAgent.name }}
-                </span>
-                <span v-if="currentViewingNode.providerSessionId" class="step-session-id" :title="'Provider Session: ' + currentViewingNode.providerSessionId">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
-                  {{ currentViewingNode.providerSessionId }}
-                </span>
-                <span v-if="!currentViewingNode.providerSessionId && currentViewingNode.sessionId" class="step-session-id" :title="'Session #' + currentViewingNode.sessionId">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
-                  #{{ currentViewingNode.sessionId }}
-                </span>
-                <span v-if="currentViewingNode.duration" class="step-node-duration">{{ currentViewingNode.duration }}min</span>
+                <div class="step-node-meta">
+                  <span class="step-status-badge" :class="'step-' + currentViewingNode.status?.toLowerCase()">
+                    {{ getStatusText(currentViewingNode.status) }}
+                  </span>
+                  <span v-if="currentViewingAgent" class="step-agent-badge">
+                    {{ currentViewingAgent.name }}
+                  </span>
+                  <span v-if="currentViewingNode.providerSessionId" class="step-session-id" :title="'Provider Session: ' + currentViewingNode.providerSessionId">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    {{ currentViewingNode.providerSessionId }}
+                  </span>
+                  <span v-if="!currentViewingNode.providerSessionId && currentViewingNode.sessionId" class="step-session-id" :title="'Session #' + currentViewingNode.sessionId">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    #{{ currentViewingNode.sessionId }}
+                  </span>
+                  <span v-if="currentViewingNode.duration" class="step-node-duration">{{ currentViewingNode.duration }}min</span>
+                </div>
               </div>
             </div>
           </div>
@@ -2772,6 +2774,19 @@ onUnmounted(() => {
 }
 
 .step-node-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.step-node-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.step-node-meta {
   display: flex;
   align-items: center;
   gap: 8px;
