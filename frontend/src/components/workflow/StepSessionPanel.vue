@@ -102,7 +102,7 @@ const isSending = ref(false)
 const sessionStatus = ref('')
 const eventsContainer = ref(null)
 const autoScrollEnabled = ref(true)
-const hideToolMessages = ref(false)
+const hideToolMessages = ref(true)
 
 const displayedEvents = computed(() => {
   if (!hideToolMessages.value) return events.value
