@@ -705,7 +705,7 @@ test.test('InternalApiAdapter fetch respects limit option', async () => {
     }
 
     if (pathValue.includes('/document_detail')) {
-      return { code: 200, data: { content: 'test description' } };
+      return { code: 200, data: [{ content: 'test description', created_time: '2024-01-01T00:00:00Z' }] };
     }
 
     throw new Error(`Unexpected path: ${pathValue}`);
@@ -752,7 +752,7 @@ test.test('InternalApiAdapter fetch stops on invalid response', async () => {
     }
 
     if (pathValue.includes('/document_detail')) {
-      return { code: 200, data: { content: 'test description' } };
+      return { code: 200, data: [{ content: 'test description', created_time: '2024-01-01T00:00:00Z' }] };
     }
 
     throw new Error(`Unexpected path: ${pathValue}`);
@@ -769,8 +769,8 @@ test.test('InternalApiAdapter fetch respects maxPages limit', async () => {
     type: 'INTERNAL_API',
     config: {
       baseUrl: 'https://internal.example',
-      listPath: '/workitems',
-      detailPath: '/workitems/{number}/document_detail',
+      listPath: '/devops-workitem/api/v1/query/workitems',
+      detailPath: '/devops-workitem/api/v1/query/workitems/{number}/document_detail',
       detailIdField: 'number',
       userId: '1001',
       category: '5',
@@ -781,7 +781,7 @@ test.test('InternalApiAdapter fetch respects maxPages limit', async () => {
 
   let listRequestCount = 0;
   adapter._request = async (pathValue: string) => {
-    if (pathValue === '/workitems') {
+    if (pathValue === '/devops-workitem/api/v1/query/workitems') {
       listRequestCount++;
 
       if (listRequestCount > 20) {
@@ -803,7 +803,7 @@ test.test('InternalApiAdapter fetch respects maxPages limit', async () => {
     }
 
     if (pathValue.includes('/document_detail')) {
-      return { code: 200, data: { content: 'test description' } };
+      return { code: 200, data: [{ content: 'test description', created_time: '2024-01-01T00:00:00Z' }] };
     }
 
     throw new Error(`Unexpected path: ${pathValue}`);

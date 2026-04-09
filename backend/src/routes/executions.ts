@@ -4,7 +4,7 @@ import { ExecutionService } from '../services/executionService.js';
 import type { CreateExecutionInput, UpdateExecutionInput } from '../types/dto/executions.js';
 import type { IdParams, SessionIdParams, TaskIdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
+import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 
 const executionService = new ExecutionService();
 
@@ -13,7 +13,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       return successResponse(await executionService.getAll());
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to get executions');
     }
   });
@@ -27,9 +27,9 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(execution);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get execution');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get execution'));
     }
   });
 
@@ -37,7 +37,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       return successResponse(await executionService.getBySession(parseNumber(request.params.sessionId)));
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to get executions');
     }
   });
@@ -46,7 +46,7 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       return successResponse(await executionService.getByTask(parseNumber(request.params.taskId)));
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to get executions');
     }
   });
@@ -56,14 +56,14 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
       const execution = await executionService.create(request.body || { session_id: 0 });
       return successResponse(execution, 'Execution created');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       const statusCode = getStatusCode(error);
       if (statusCode === 404) {
         reply.code(404);
         return errorResponse(getErrorMessage(error, 'Session not found'));
       }
-      reply.code(500);
-      return errorResponse('Failed to create execution');
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to create execution'));
     }
   });
 
@@ -76,9 +76,9 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(updated, 'Execution updated');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to update execution');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update execution'));
     }
   });
 
@@ -91,9 +91,9 @@ export const executionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(null, 'Execution deleted');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to delete execution');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to delete execution'));
     }
   });
 };

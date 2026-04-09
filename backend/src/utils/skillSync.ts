@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { STORAGE_PATH } from '../config/index.js';
+import { logger } from './logger.js';
 
 function copyDirRecursive(src: string, dest: string): void {
   mkdirSync(dest, { recursive: true });
@@ -27,7 +28,7 @@ export async function ensureSkillsInWorktree(skillNames: string[], projectPath: 
   // 确保 .claude/skills 目录存在
   if (!existsSync(targetSkillsDir)) {
     mkdirSync(targetSkillsDir, { recursive: true });
-    console.log(`[skillSync] Created directory: ${targetSkillsDir}`);
+    logger.info('SkillSync', `Created directory: ${targetSkillsDir}`);
   }
 
   for (const skillName of skillNames) {
@@ -36,16 +37,16 @@ export async function ensureSkillsInWorktree(skillNames: string[], projectPath: 
 
     // 已存在则跳过
     if (existsSync(targetDir)) {
-      console.log(`[skillSync] Skill "${skillName}" already exists in project, skipping`);
+      logger.info('SkillSync', `Skill "${skillName}" already exists in project, skipping`);
       continue;
     }
 
     // 复制 skill 目录
     if (existsSync(sourceDir)) {
       copyDirRecursive(sourceDir, targetDir);
-      console.log(`[skillSync] Copied skill "${skillName}" to project: ${targetDir}`);
+      logger.info('SkillSync', `Copied skill "${skillName}" to project: ${targetDir}`);
     } else {
-      console.warn(`[skillSync] Skill "${skillName}" not found in data/skills, skipping`);
+      logger.warn('SkillSync', `Skill "${skillName}" not found in data/skills, skipping`);
     }
   }
 }
@@ -66,7 +67,7 @@ async function readSkillManifest(skillsDir: string): Promise<SkillManifest | nul
     const raw = readFileSync(manifestPath, 'utf-8');
     return JSON.parse(raw) as SkillManifest;
   } catch (err) {
-    console.warn(`[skillSync] Failed to read manifest: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn('SkillSync', `Failed to read manifest: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -79,7 +80,7 @@ async function writeSkillManifest(skillsDir: string, data: SkillManifest): Promi
     }
     writeFileSync(manifestPath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
-    console.warn(`[skillSync] Failed to write manifest: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn('SkillSync', `Failed to write manifest: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -94,10 +95,10 @@ async function cleanupSkillsByManifest(skillsDir: string, currentRunId: number):
     try {
       if (existsSync(skillDir)) {
         rmSync(skillDir, { recursive: true, force: true });
-        console.log(`[skillSync] Cleaned up skill "${skillName}" from previous step`);
+        logger.info('SkillSync', `Cleaned up skill "${skillName}" from previous step`);
       }
     } catch (err) {
-      console.warn(`[skillSync] Failed to cleanup skill "${skillName}": ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('SkillSync', `Failed to cleanup skill "${skillName}": ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -108,7 +109,7 @@ async function cleanupSkillsByManifest(skillsDir: string, currentRunId: number):
       rmSync(manifestPath, { force: true });
     }
   } catch (err) {
-    console.warn(`[skillSync] Failed to remove manifest: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn('SkillSync', `Failed to remove manifest: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

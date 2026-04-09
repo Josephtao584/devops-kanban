@@ -7,6 +7,7 @@ import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep } from './workflowStepExecutor.js';
 import type { WorkflowInstanceEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
+import { logger } from '../../utils/logger.js';
 
 const sharedStateSchema = z.object({
   taskTitle: z.string(),
@@ -97,11 +98,11 @@ export function buildWorkflowFromInstance(
       resumeSchema: requiresConfirmation ? resumeSchema : undefined,
       suspendSchema: requiresConfirmation ? suspendSchema : undefined,
       execute: async ({ inputData, state, abortSignal, abort, resumeData, suspend, suspendData }) => {
-        console.log(`[Workflow] Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}, workflowRun: ${options.runId}, resumeData: ${!!resumeData}`);
+        logger.info('Workflows', `Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}, workflowRun: ${options.runId}, resumeData: ${!!resumeData}`);
 
         if (abortSignal) {
           abortSignal.addEventListener('abort', () => {
-            console.log(`[Workflow] Step ${templateStep.id} received abort signal! workflowRun: ${options.runId}`);
+            logger.info('Workflows', `Step ${templateStep.id} received abort signal! workflowRun: ${options.runId}`);
           });
         }
 
@@ -113,7 +114,7 @@ export function buildWorkflowFromInstance(
         if (requiresConfirmation && typedResumeData?.approved) {
           // Get previous result from suspendData, don't re-execute
           const previousSummary = typedSuspendData?.summary || '';
-          console.log(`[Workflow] Step ${templateStep.id} resuming with approved=true, using suspendData.summary`);
+          logger.info('Workflows', `Step ${templateStep.id} resuming with approved=true, using suspendData.summary`);
 
           const resumePayload: { approved: boolean; comment?: string } = { approved: true };
           if (typedResumeData.comment !== undefined) {
@@ -130,7 +131,7 @@ export function buildWorkflowFromInstance(
         let segmentId: number | undefined;
         const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
         if (!sessionInfo) {
-          console.log(`[Workflow] Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
+          logger.info('Workflows', `Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
           abort();
           return { summary: '' };
         }
@@ -213,7 +214,7 @@ export function buildWorkflowFromInstance(
         } else if (result.status === 'suspended') {
           // Workflow suspended - lifecycle already handled in onStepSuspend
           const suspendedSteps = (result as any).suspended as string[] | undefined;
-          console.log(`[Workflow] Workflow suspended at steps: ${suspendedSteps?.join(', ')}`);
+          logger.info('Workflows', `Workflow suspended at steps: ${suspendedSteps?.join(', ')}`);
         } else if (result.status === 'failed' || result.status === 'tripwire') {
           const errorMessage = result.error?.message || 'Workflow failed';
           await options.lifecycle.onWorkflowError(options.runId, errorMessage);

@@ -157,7 +157,7 @@ test.test('RRAdapter fetches paginated list and detail, maps all tasks to TODO',
   assert.ok(tasks[0]!.description!.includes('目标'));
   assert.ok(tasks[0]!.description!.includes('主要目标'));
   assert.equal(tasks[0]!.status, 'TODO');
-  assert.equal(tasks[0]!.external_url, 'https://devops.example/vision-workitem/api/raw_requirements/RR2022122300218');
+  assert.equal(tasks[0]!.external_url, 'https://devops.example/#/raw/RR2022122300218');
   assert.deepEqual(tasks[0]!.labels, []);
   assert.equal(tasks[0]!.created_at, '2024-01-15T08:00:00Z');
   assert.equal(tasks[0]!.updated_at, '2024-01-16T10:30:00Z');
@@ -167,7 +167,7 @@ test.test('RRAdapter fetches paginated list and detail, maps all tasks to TODO',
   assert.ok(tasks[1]!.description!.includes('范围'));
   assert.ok(tasks[1]!.description!.includes('设计范围'));
   assert.equal(tasks[1]!.status, 'TODO');
-  assert.equal(tasks[1]!.external_url, 'https://devops.example/vision-workitem/api/raw_requirements/RR2022122300219');
+  assert.equal(tasks[1]!.external_url, 'https://devops.example/#/raw/RR2022122300219');
   assert.deepEqual(tasks[1]!.labels, []);
   assert.equal(tasks[1]!.created_at, '2024-02-01T09:00:00Z');
   assert.equal(tasks[1]!.updated_at, '2024-02-02T14:20:00Z');

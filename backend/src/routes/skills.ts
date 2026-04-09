@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { SkillService } from '../services/skillService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
+import { parseNumber, getErrorMessage, getStatusCode, logError } from '../utils/http.js';
 import type { IdParams } from '../types/http/params.js';
 import { STORAGE_PATH } from '../config/index.js';
 
@@ -14,7 +14,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
     try {
       return successResponse(await skillService.listSkills());
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get skills'));
     }
@@ -29,7 +29,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       }
       return successResponse(skill);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get skill'));
     }
@@ -47,7 +47,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       const skill = await skillService.createSkill(name.trim(), description);
       return successResponse(skill, 'Skill created');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create skill'));
     }
@@ -65,7 +65,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       await skillService.extractSkillZip(skill.name, zipBuffer);
       return successResponse(skill, 'Skill created from ZIP');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create skill from ZIP'));
     }
@@ -84,7 +84,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       }
       return successResponse(updated, 'Skill updated');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to update skill'));
     }
@@ -99,7 +99,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       }
       return successResponse(null, 'Skill deleted');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete skill'));
     }
@@ -115,7 +115,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       const files = await skillService.listSkillFiles(skill.name);
       return successResponse(files);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to list skill files'));
     }
@@ -132,7 +132,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       const content = await skillService.readSkillFile(skill.name, filePath);
       return successResponse({ path: filePath, content });
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to read skill file'));
     }
@@ -154,7 +154,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       await skillService.writeSkillFile(skill.name, filePath, content);
       return successResponse(null, 'File updated');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to write skill file'));
     }
@@ -176,7 +176,7 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
       await skillService.uploadSkillZip(skill.name, zipBuffer);
       return successResponse(null, 'Zip uploaded and extracted');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to upload zip'));
     }

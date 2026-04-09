@@ -10,7 +10,7 @@ import type {
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
+import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 
 const taskSourceService = new TaskSourceService();
 
@@ -34,7 +34,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       const sources = await getService().getByProject(parseNumber(project_id));
       return successResponse(sources);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to get task sources');
     }
   });
@@ -43,7 +43,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       return successResponse(await getService().getAvailableSourceTypes());
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to get available source types');
     }
   });
@@ -57,7 +57,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(source);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to get task source');
     }
   });
@@ -67,7 +67,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       const source = await getService().create(request.body);
       return successResponse(source, 'Task source created successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to create task source');
     }
   });
@@ -81,7 +81,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(source, 'Task source updated successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to update task source');
     }
   });
@@ -95,7 +95,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(null, 'Task source deleted successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to delete task source');
     }
   });
@@ -105,7 +105,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       const tasks = await getService().sync(request.params.id);
       return successResponse(tasks, 'Task source synced successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to sync task source');
     }
   });
@@ -115,7 +115,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       const { limit = 10, offset = 0 } = request.body ?? {};
       return successResponse(await getService().previewSync(request.params.id, { limit, offset }));
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, `Failed to preview sync: ${getErrorMessage(error, 'Unknown error')}`);
     }
   });
@@ -135,7 +135,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await getService().importIssues(request.params.id, items, project_id, iteration_id);
       return successResponse(result, 'Import completed');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, `Failed to import: ${getErrorMessage(error, 'Unknown error')}`);
     }
   });
@@ -145,7 +145,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       const connected = await getService().testConnection(request.params.id);
       return successResponse({ connected });
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to test task source connection');
     }
   });

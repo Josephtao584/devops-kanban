@@ -2,6 +2,7 @@ import { AgentRepository } from '../../repositories/agentRepository.js';
 import { SkillRepository } from '../../repositories/skillRepository.js';
 import type { WorkflowInstanceEntity } from '../../types/entities.js';
 import type { ExecutorType } from '../../types/executors.js';
+import { logger } from '../../utils/logger.js';
 
 const agentRepo = new AgentRepository();
 const skillRepo = new SkillRepository();
@@ -42,7 +43,7 @@ async function resolveAgentSkills(agentId: number): Promise<{ skillNames: string
     .map(id => skillMap.get(id) || String(id))
     .filter(name => {
       if (name === String(Number(name))) {
-        console.warn(`[workflowSkillSync] Skill ID ${name} not found in DB, skipping`);
+        logger.warn('WorkflowSkillSync', `Skill ID ${name} not found in DB, skipping`);
         return false;
       }
       return true;

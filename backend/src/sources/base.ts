@@ -2,6 +2,7 @@ import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import type { AdapterRequestConfig, AdapterResponseConfig } from '../config/taskSources.js';
 import type { ImportedTask, SourceRecord } from '../types/sources.ts';
+import { logger } from '../utils/logger.js';
 
 type UnknownRecord = Record<string, unknown>;
 type TransformConfig = string | Record<string, unknown>;
@@ -311,7 +312,7 @@ class UniversalAdapter extends TaskSourceAdapter {
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('Connection test failed:', message);
+      logger.error('BaseSource', `Connection test failed: ${message}`);
       return false;
     }
   }

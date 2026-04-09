@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { McpServerService } from '../services/mcpServerService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { parseNumber, getErrorMessage, getStatusCode } from '../utils/http.js';
+import { parseNumber, getErrorMessage, getStatusCode, logError } from '../utils/http.js';
 import type { IdParams } from '../types/http/params.js';
 
 const VALID_SERVER_TYPES = ['stdio', 'http'];
@@ -18,7 +18,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
     try {
       return successResponse(await mcpServerService.listMcpServers());
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get MCP servers'));
     }
@@ -33,7 +33,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       }
       return successResponse(server);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get MCP server'));
     }
@@ -59,7 +59,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       });
       return successResponse(result);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to validate MCP server'));
     }
@@ -94,7 +94,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       });
       return successResponse(server, 'MCP server created');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create MCP server'));
     }
@@ -129,7 +129,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       }
       return successResponse(updated, 'MCP server updated');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to update MCP server'));
     }
@@ -144,7 +144,7 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       }
       return successResponse(null, 'MCP server deleted');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete MCP server'));
     }

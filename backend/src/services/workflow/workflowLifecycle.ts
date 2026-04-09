@@ -13,6 +13,7 @@ import { cleanupSkillsByManifest, writeSkillManifest } from '../../utils/skillSy
 import { resolveAgentMcpServersWithMeta, preCheckMcpServers } from './workflowMcpSync.js';
 import { prepareExecutionMcp } from './executorMcpPreparation.js';
 import { cleanupMcpJson } from '../../utils/mcpSync.js';
+import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
 
 class WorkflowLifecycle {
@@ -180,7 +181,7 @@ class WorkflowLifecycle {
       const skillsDir = resolve(executionPath, '.claude', 'skills');
       await cleanupSkillsByManifest(skillsDir, runId);
     } catch (err) {
-      console.warn(`[WorkflowLifecycle] Failed to cleanup previous step skills: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('WorkflowLifecycle', `Failed to cleanup previous step skills: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -210,9 +211,9 @@ class WorkflowLifecycle {
         updatedAt: new Date().toISOString(),
       });
 
-      console.log(`[WorkflowLifecycle] Prepared ${skillNames.length} skills for step ${stepId}: ${skillNames.join(', ')}`);
+      logger.info('WorkflowLifecycle', `Prepared ${skillNames.length} skills for step ${stepId}: ${skillNames.join(', ')}`);
     } catch (err) {
-      console.warn(`[WorkflowLifecycle] Failed to prepare step skills: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('WorkflowLifecycle', `Failed to prepare step skills: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -235,7 +236,7 @@ class WorkflowLifecycle {
       // Pre-check: validate commands, auto-install if configured
       const mcpServerConfigs = await preCheckMcpServers(serversWithMeta);
       if (mcpServerConfigs.length === 0) {
-        console.warn(`[WorkflowLifecycle] All MCP servers failed pre-check for step ${stepId}`);
+        logger.warn('WorkflowLifecycle', `All MCP servers failed pre-check for step ${stepId}`);
         await cleanupMcpJson(executionPath);
         return;
       }
@@ -246,9 +247,9 @@ class WorkflowLifecycle {
         executionPath,
       });
 
-      console.log(`[WorkflowLifecycle] Prepared ${mcpServerConfigs.length} MCP servers for step ${stepId}`);
+      logger.info('WorkflowLifecycle', `Prepared ${mcpServerConfigs.length} MCP servers for step ${stepId}`);
     } catch (err) {
-      console.warn(`[WorkflowLifecycle] Failed to prepare step MCP config: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('WorkflowLifecycle', `Failed to prepare step MCP config: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

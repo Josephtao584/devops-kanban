@@ -8,7 +8,8 @@ import { ProjectRepository } from '../repositories/projectRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
 import { createWorktree, cleanupWorktree, getWorktreeStatus, isGitRepository, mergeBranch, sanitizeName } from '../utils/git.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getStatusCode, getErrorMessage } from '../utils/http.js';
+import { getStatusCode, getErrorMessage, logError } from '../utils/http.js';
+import { logger } from '../utils/logger.js';
 import type { ProjectEntity } from '../types/entities.js';
 
 const projectRepo = new ProjectRepository();
@@ -420,7 +421,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       const worktrees = getWorktreeStatus(repoPath);
       return successResponse(worktrees);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse(getErrorMessage(error, 'Failed to list worktrees'));
     }
   });
@@ -440,7 +441,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         worktree_branch: task.worktree_branch || null,
       });
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get worktree status'));
     }
@@ -473,7 +474,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         worktree_status: 'created',
       }, 'Worktree created successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to create worktree'));
     }
@@ -504,7 +505,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
 
       return successResponse({ success: true }, 'Worktree deleted');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete worktree'));
     }
@@ -540,7 +541,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
 
       return successResponse(changes);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get changes'));
     }
@@ -587,7 +588,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
 
       return successResponse({ message: 'Changes committed successfully', output: commitOutput.toString() });
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       const execError = error as Error & { stderr?: string };
       const stderr = execError.stderr || execError.message;
 
@@ -651,7 +652,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       const output = [result.stdout?.trim(), result.stderr?.trim()].filter(Boolean).join('\n');
       return successResponse({ output }, 'Changes pushed successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to push changes'));
     }
@@ -669,7 +670,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       const branches = await listProjectBranches(projectId);
       return successResponse(branches);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse(getErrorMessage(error, 'Failed to list branches'));
     }
   });
@@ -755,12 +756,12 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
             try {
               execSync(`git checkout "${currentBranch}"`, { cwd: repoPath, encoding: 'utf-8' });
             } catch {
-              console.warn(`Failed to checkout back to ${currentBranch}`);
+              logger.warn('GitRoutes', `Failed to checkout back to ${currentBranch}`);
             }
           }
         }
       } catch (error) {
-        request.log.error(error);
+        logError(error, request);
         const execError = error as Error & { stderr?: string };
         const stderr = execError.stderr || execError.message;
 
@@ -795,7 +796,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       const result = buildWorktreeDiff(task.worktree_path);
       return successResponse(result);
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to get diff'));
     }

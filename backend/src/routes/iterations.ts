@@ -5,7 +5,7 @@ import type { CreateIterationInput, UpdateIterationInput } from '../types/dto/it
 import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { getErrorMessage, getStatusCode, parseNumber } from '../utils/http.js';
+import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 
 type StatusBody = { status?: string };
 type DeleteIterationQuery = { delete_tasks?: string };
@@ -22,7 +22,7 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(await iterationService.getByProject(parseNumber(project_id)));
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       return errorResponse('Failed to get iterations');
     }
   });
@@ -36,9 +36,9 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(iteration);
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get iteration');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get iteration'));
     }
   });
 
@@ -51,9 +51,9 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(await iterationService.getTasks(iterationId));
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to get iteration tasks');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get iteration tasks'));
     }
   });
 
@@ -62,14 +62,14 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       const iteration = await iterationService.create(request.body as CreateIterationInput);
       return successResponse(iteration, 'Iteration created successfully');
     } catch (error) {
-      request.log.error(error);
+      logError(error, request);
       const statusCode = getStatusCode(error);
       if (statusCode === 400) {
         reply.code(400);
         return errorResponse(getErrorMessage(error, 'Failed to create iteration'));
       }
-      reply.code(500);
-      return errorResponse('Failed to create iteration');
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to create iteration'));
     }
   });
 
@@ -82,9 +82,9 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(updated, 'Iteration updated successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to update iteration');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update iteration'));
     }
   });
 
@@ -102,9 +102,9 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(updated, 'Iteration status updated successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to update iteration status');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update iteration status'));
     }
   });
 
@@ -118,9 +118,9 @@ export const iterationRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return successResponse(null, 'Iteration deleted successfully');
     } catch (error) {
-      request.log.error(error);
-      reply.code(500);
-      return errorResponse('Failed to delete iteration');
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to delete iteration'));
     }
   });
 };

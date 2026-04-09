@@ -9,6 +9,8 @@ import { McpServerRepository } from '../repositories/mcpServerRepository.js';
 import { WorkflowService } from './workflow/workflowService.js';
 import { createWorktree, cleanupWorktree, isGitRepository, sanitizeName } from '../utils/git.js';
 import { ensureMcpJsonInWorktree } from '../utils/mcpSync.js';
+import { ValidationError, NotFoundError, BusinessError, InternalError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 import type { TaskEntity, ProjectEntity } from '../types/entities.ts';
 import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
@@ -80,22 +82,16 @@ class TaskService {
 
   async create(taskData: CreateTaskInput) {
     if (!taskData.title || !taskData.title.trim()) {
-      const error: any = new Error('任务标题不能为空');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('任务标题不能为空', 'Task title is required');
     }
 
     if (!taskData.project_id) {
-      const error: any = new Error('项目 ID 不能为空');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('项目 ID 不能为空', 'Project ID is required');
     }
 
     const projectExists = await this.projectRepo.exists(taskData.project_id);
     if (!projectExists) {
-      const error: any = new Error('项目不存在');
-      error.statusCode = 400;
-      throw error;
+      throw new NotFoundError('项目不存在', 'Project not found', { projectId: taskData.project_id });
     }
 
     const createData: Omit<TaskEntity, 'id' | 'created_at' | 'updated_at'> = {
@@ -130,15 +126,11 @@ class TaskService {
   async startTask(taskId: number, body: StartTaskInput) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error = new Error('Task not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId });
     }
 
     if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
-      const error = new Error('只有待处理或进行中的任务可以启动') as Error & { statusCode?: number };
-      error.statusCode = 400;
-      throw error;
+      throw new BusinessError('只有待处理或进行中的任务可以启动', 'Only TODO or IN_PROGRESS tasks can be started', { taskId, status: task.status });
     }
 
     await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
@@ -171,7 +163,7 @@ class TaskService {
   async getOrCloneRepo(project: ProjectEntity) {
     if (project.local_path && fs.existsSync(project.local_path)) {
       if (!isGitRepository(project.local_path)) {
-        throw new Error(`local_path is not a valid git repository: ${project.local_path}`);
+        throw new ValidationError('本地路径不是有效的 Git 仓库', `local_path is not a valid git repository: ${project.local_path}`, { projectId: project.id });
       }
       return project.local_path;
     }
@@ -183,7 +175,7 @@ class TaskService {
           fs.rmSync(cloneDir, { recursive: true, force: true });
         }
         fs.mkdirSync(cloneDir, { recursive: true });
-        console.log(`Cloning ${project.git_url} to ${cloneDir}...`);
+        logger.info('TaskService', `Cloning ${project.git_url} to ${cloneDir}...`);
         try {
           execSync(`git clone ${project.git_url} .`, {
             cwd: cloneDir,
@@ -192,37 +184,31 @@ class TaskService {
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          throw new Error(`Failed to clone repository: ${message}`);
+          throw new InternalError('克隆仓库失败', `Failed to clone repository: ${message}`, { projectId: project.id, gitUrl: project.git_url });
         }
       }
       if (!isGitRepository(cloneDir)) {
-        throw new Error(`Failed to clone valid git repository to: ${cloneDir}`);
+        throw new InternalError('克隆仓库失败', `Failed to clone valid git repository to: ${cloneDir}`, { projectId: project.id });
       }
       return cloneDir;
     }
 
-    throw new Error('Project has neither local_path nor git_url');
+    throw new ValidationError('项目未配置本地路径或 Git URL', 'Project has neither local_path nor git_url', { projectId: project.id });
   }
 
   async createWorktree(taskId: number): Promise<WorktreeResult> {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error = new Error('Task not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId });
     }
 
     const project = await this.projectRepo.findById(task.project_id) as ProjectEntity | null;
     if (!project) {
-      const error = new Error('Project not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到项目', 'Project not found', { projectId: task.project_id });
     }
 
     if (!project.local_path || !fs.existsSync(project.local_path)) {
-      const error = new Error('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path') as Error & { statusCode?: number };
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path', 'Project local_path is not configured or does not exist', { projectId: project.id });
     }
 
     try {
@@ -282,16 +268,14 @@ class TaskService {
         await ensureMcpJsonInWorktree(mcpConfigs, worktreePath);
       }
     } catch (err) {
-      console.warn(`[TaskService] Failed to write MCP config to worktree: ${err instanceof Error ? err.message : String(err)}`);
+      logger.warn('TaskService', `Failed to write MCP config to worktree: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   async deleteWorktree(taskId: number) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error = new Error('Task not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId });
     }
 
     if (!task.worktree_path) {
@@ -330,9 +314,7 @@ class TaskService {
   async getWorktreeStatus(taskId: number) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error = new Error('Task not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId });
     }
 
     const worktreePath = task.worktree_path;

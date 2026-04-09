@@ -1,6 +1,7 @@
 import { DevOpsBaseAdapter } from './devOpsBase.js';
 import type { TaskSourceLike } from './base.js';
 import type { ImportedTask, SourceDefinition } from '../types/sources.ts';
+import { logger } from '../utils/logger.js';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -144,8 +145,7 @@ class RRAdapter extends DevOpsBaseAdapter {
         });
         this._assertRRSuccessResponse(response);
       } catch (error) {
-        // 请求失败或响应错误时停止分页
-        console.warn(`[RRAdapter] Page ${currentPage} request failed, stopping pagination`);
+        logger.warn('RRAdapter', `Page ${currentPage} request failed, stopping pagination`);
         break;
       }
 
@@ -153,8 +153,7 @@ class RRAdapter extends DevOpsBaseAdapter {
       try {
         pageItems = this._extractListItems(response);
       } catch (error) {
-        // 响应格式错误时停止分页
-        console.warn(`[RRAdapter] Page ${currentPage} response format invalid, stopping pagination`);
+        logger.warn('RRAdapter', `Page ${currentPage} response format invalid, stopping pagination`);
         break;
       }
 

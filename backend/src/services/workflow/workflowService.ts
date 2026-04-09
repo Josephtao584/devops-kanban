@@ -8,11 +8,8 @@ import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../../types/entities.js';
-
-
-function createValidationError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 400 });
-}
+import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 
 
 function toStepState(instance: WorkflowInstanceEntity) {
@@ -65,21 +62,17 @@ class WorkflowService {
   async startWorkflow(taskId: number, options: StartWorkflowOptions) {
     const task = await this.taskRepo.findById(taskId);
     if (!task) {
-      const error: any = new Error('Task not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId });
     }
 
     const executionPath = await this.resolveExecutionPath(task);
     const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
     if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING' || existing.status === 'SUSPENDED')) {
-      const error: any = new Error('Task already has an active workflow run');
-      error.statusCode = 409;
-      throw error;
+      throw new ConflictError('任务已有活跃的工作流运行', 'Task already has an active workflow run', { taskId, existingRunId: existing.id });
     }
 
     if (!options.workflowTemplateId?.trim()) {
-      throw createValidationError('workflow template id is required');
+      throw new ValidationError('工作流模板 ID 不能为空', 'workflow template id is required');
     }
 
     // Create WorkflowInstance (immutable snapshot)
@@ -102,7 +95,7 @@ class WorkflowService {
 
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
     this.executeWorkflow(run.id, { ...task, execution_path: executionPath }, instance).catch((err) => {
-      console.error(`[Workflow] Fatal error in workflow run #${run.id}:`, err);
+      logger.error('WorkflowService', `Fatal error in workflow run #${run.id}: ${err instanceof Error ? err.message : String(err)}`);
     });
 
     return run;
@@ -115,16 +108,16 @@ class WorkflowService {
   private async validateInstanceAgents(instance: WorkflowInstanceEntity) {
     for (const step of instance.steps) {
       if (!Number.isFinite(step.agentId)) {
-        throw createValidationError(`Step "${step.name}" has no agent assigned`);
+        throw new ValidationError(`步骤 "${step.name}" 未分配代理`, `Step "${step.name}" has no agent assigned`, { stepId: step.id, stepName: step.name });
       }
 
       const agent = await this.agentRepo.findById(step.agentId);
       if (!agent) {
-        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} that was not found`);
+        throw new ValidationError(`步骤 "${step.name}" 引用的代理 ${step.agentId} 未找到`, `Step "${step.name}" references agent ${step.agentId} that was not found`, { stepId: step.id, agentId: step.agentId });
       }
 
       if (!agent.enabled) {
-        throw createValidationError(`Step "${step.name}" references agent ${step.agentId} that is disabled`);
+        throw new ValidationError(`步骤 "${step.name}" 引用的代理 ${step.agentId} 已禁用`, `Step "${step.name}" references agent ${step.agentId} that is disabled`, { stepId: step.id, agentId: step.agentId });
       }
     }
   }
@@ -139,31 +132,23 @@ class WorkflowService {
       return project.local_path;
     }
 
-    const error: any = new Error('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path');
-    error.statusCode = 400;
-    throw error;
+    throw new ValidationError('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path', 'Project local_path is not configured or does not exist', { projectId: task.project_id });
   }
 
   private async getMastraRunContext(runId: number) {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
-      const error: any = new Error('Workflow run not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到工作流运行', 'Workflow run not found', { runId });
     }
 
     const mastraRunId = run.mastra_run_id;
     if (!mastraRunId) {
-      const error: any = new Error('Mastra run ID not found');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('未找到 Mastra 运行 ID', 'Mastra run ID not found', { runId });
     }
 
     const task = await this.taskRepo.findById(run.task_id ?? 0);
     if (!task) {
-      const error: any = new Error('Task not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId: run.task_id });
     }
 
     const executionPath = run.worktree_path || await this.resolveExecutionPath(task);
@@ -185,15 +170,12 @@ class WorkflowService {
   ): Promise<any> {
     const workflow = getWorkflowFromWorkflowId(instanceId);
     if (workflow) {
-        console.log('Type of then:', typeof workflow.then)
       return { workflow: workflow } as any;
     }
     const workflowInstance = await this.instanceService.getByInstanceId(instanceId);
 
     if (!workflowInstance) {
-        const error: any = new Error('Workflow instance not found');
-        error.statusCode = 404;
-        throw error;
+        throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId });
     }
     return { workflow: buildWorkflowFromInstance(workflowInstance, {
         runId,
@@ -216,7 +198,7 @@ class WorkflowService {
 
       // Store the mastra_run_id and mark as running
       await this.workflowRunRepo.update(runId, { mastra_run_id: mastraRunId, status: 'RUNNING' });
-      console.log(`[WorkflowService] Created Mastra run ${mastraRunId} for workflowRun ${runId}`);
+      logger.info('WorkflowService', `Created Mastra run ${mastraRunId} for workflowRun ${runId}`);
 
       // Notify workflow start
       await this.lifecycle.onWorkflowStart(runId);
@@ -259,24 +241,20 @@ class WorkflowService {
   }
 
   async cancelWorkflow(runId: number) {
-    console.log(`[WorkflowService] cancelWorkflow called for runId: ${runId}`);
+    logger.info('WorkflowService', `cancelWorkflow called for runId: ${runId}`);
 
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
-      const error: any = new Error('Workflow run not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到工作流运行', 'Workflow run not found', { runId });
     }
 
     if (run.status !== 'RUNNING' && run.status !== 'PENDING' && run.status !== 'SUSPENDED') {
-      const error: any = new Error(`Cannot cancel workflow in status: ${run.status}`);
-      error.statusCode = 400;
-      throw error;
+      throw new BusinessError(`无法取消状态为 ${run.status} 的工作流`, `Cannot cancel workflow in status: ${run.status}`, { runId, status: run.status });
     }
 
     const { mastraRun } = await this.getMastraRunContext(runId);
 
-    console.log(`[WorkflowService] Cancelling Mastra run ${run.mastra_run_id}`);
+    logger.info('WorkflowService', `Cancelling Mastra run ${run.mastra_run_id}`);
     await mastraRun.cancel();
 
     // Finalize running or suspended step
@@ -293,27 +271,21 @@ class WorkflowService {
   }
 
   async resumeWorkflow(runId: number, resumeData: { approved: boolean; comment?: string }) {
-    console.log(`[WorkflowService] resumeWorkflow called for runId: ${runId}`);
+    logger.info('WorkflowService', `resumeWorkflow called for runId: ${runId}`);
 
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
-      const error: any = new Error('Workflow run not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到工作流运行', 'Workflow run not found', { runId });
     }
 
     if (run.status !== 'SUSPENDED') {
-      const error: any = new Error(`Cannot resume workflow in status: ${run.status}`);
-      error.statusCode = 400;
-      throw error;
+      throw new BusinessError(`无法恢复状态为 ${run.status} 的工作流`, `Cannot resume workflow in status: ${run.status}`, { runId, status: run.status });
     }
 
     // Find suspended step from steps
     const suspendedStep = run.steps.find(s => s.status === 'SUSPENDED');
     if (!suspendedStep) {
-      const error: any = new Error('No suspended step found');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('未找到挂起的步骤', 'No suspended step found', { runId });
     }
 
     const { mastraRun } = await this.getMastraRunContext(runId);
@@ -324,9 +296,9 @@ class WorkflowService {
       step: suspendedStep.step_id,
       resumeData,
     }).then((result: any) => {
-      console.log(`[Workflow] Resume result status: ${result?.status}`);
+      logger.info('WorkflowService', `Resume result status: ${result?.status}`);
     }).catch((err: Error) => {
-      console.error(`[Workflow] Resume error:`, err);
+      logger.error('WorkflowService', `Resume error: ${err.message}`);
       this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});
     });
 
@@ -334,19 +306,15 @@ class WorkflowService {
   }
 
   async retryWorkflow(runId: number) {
-    console.log(`[WorkflowService] retryWorkflow called for runId: ${runId}`);
+    logger.info('WorkflowService', `retryWorkflow called for runId: ${runId}`);
 
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
-      const error: any = new Error('Workflow run not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到工作流运行', 'Workflow run not found', { runId });
     }
 
     if (run.status === 'RUNNING' || run.status === 'PENDING') {
-      const error: any = new Error('Cannot retry a running or pending workflow');
-      error.statusCode = 400;
-      throw error;
+      throw new BusinessError('无法重试正在运行或等待中的工作流', 'Cannot retry a running or pending workflow', { runId, status: run.status });
     }
 
     // Find the step to retry from:
@@ -359,12 +327,10 @@ class WorkflowService {
       || run.steps.find(s => s.status !== 'COMPLETED');
 
     if (!retryStep) {
-      const error: any = new Error('No step found to retry from');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('未找到可重试的步骤', 'No step found to retry from', { runId });
     }
 
-    console.log(`[WorkflowService] Retrying from step: ${retryStep.step_id}`);
+    logger.info('WorkflowService', `Retrying from step: ${retryStep.step_id}`);
 
     const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId);
 
@@ -380,22 +346,18 @@ class WorkflowService {
     });
 
     if (!mastraRun) {
-      const error: any = new Error('Mastra run instance not found');
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('未找到 Mastra 运行实例', 'Mastra run instance not found', { runId });
     }
 
     // Load instance for retry
     const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
     if (!instance) {
-      const error: any = new Error('Workflow instance not found');
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId: run.workflow_instance_id });
     }
 
     // Execute retry in background (non-blocking)
     this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath).catch((err) => {
-      console.error(`[Workflow] Fatal error in retry run #${runId}:`, err);
+      logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${err instanceof Error ? err.message : String(err)}`);
     });
 
     return await this.workflowRunRepo.findById(runId);
@@ -409,7 +371,7 @@ class WorkflowService {
     executionPath: string
   ) {
     try {
-      console.log(`[WorkflowService] Calling timeTravelStream for step: ${stepId}`);
+      logger.info('WorkflowService', `Calling timeTravelStream for step: ${stepId}`);
 
       await this.lifecycle.onWorkflowStart(runId);
 
@@ -425,7 +387,7 @@ class WorkflowService {
       // Wait for completion - lifecycle callbacks handle step events internally
       const result = await output.result;
 
-      console.log(`[WorkflowService] timeTravel result status: ${result.status}`);
+      logger.info('WorkflowService', `timeTravel result status: ${result.status}`);
       // Workflow lifecycle callbacks (onFinish/onError) handle final state updates
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

@@ -30,8 +30,12 @@ export async function buildApp() {
   const { getDbClient } = await import('./db/client.js');
   const result = await getDbClient().execute('SELECT COUNT(*) as count FROM projects');
   if (!result?.rows?.[0] || Number(result.rows[0].count) === 0) {
-    console.log('Database is empty, seeding sample data...');
-    await seedSampleData();
+    try {
+      console.log('Database is empty, seeding sample data...');
+      await seedSampleData();
+    } catch (seedError) {
+      console.warn('Sample data seeding skipped (data may already exist):', seedError instanceof Error ? seedError.message : String(seedError));
+    }
   }
 
   // Initialize Mastra workflow engine

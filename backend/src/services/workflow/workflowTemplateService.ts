@@ -1,17 +1,6 @@
 import { WorkflowTemplateRepository } from '../../repositories/workflowTemplateRepository.js';
+import { ValidationError, NotFoundError, ConflictError } from '../../utils/errors.js';
 import type { WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
-
-function createValidationError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 400 });
-}
-
-function createNotFoundError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 404 });
-}
-
-function createConflictError(message: string) {
-  return Object.assign(new Error(message), { statusCode: 409 });
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -19,25 +8,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
   if (!isRecord(step)) {
-    throw createValidationError('Invalid workflow template steps');
+    throw new ValidationError('无效的工作流模板步骤', 'Invalid workflow template steps');
   }
 
   const { id, name, instructionPrompt, agentId, requiresConfirmation } = step;
 
   if (typeof id !== 'string' || !id.trim()) {
-    throw createValidationError('step id must be a non-empty string');
+    throw new ValidationError('步骤 ID 必须为非空字符串', 'step id must be a non-empty string');
   }
 
   if (typeof name !== 'string' || !name.trim()) {
-    throw createValidationError('step name must be a non-empty string');
+    throw new ValidationError('步骤名称必须为非空字符串', 'step name must be a non-empty string');
   }
 
   if (typeof instructionPrompt !== 'string' || !instructionPrompt.trim()) {
-    throw createValidationError('instructionPrompt must be a non-empty string');
+    throw new ValidationError('instructionPrompt 必须为非空字符串', 'instructionPrompt must be a non-empty string');
   }
 
   if (typeof agentId !== 'number' || !Number.isInteger(agentId) || agentId < 0) {
-    throw createValidationError('agentId must be a non-negative integer');
+    throw new ValidationError('agentId 必须为非负整数', 'agentId must be a non-negative integer');
   }
 
   // Handle requiresConfirmation - optional boolean
@@ -54,26 +43,27 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
 
 function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'> {
   if (!isRecord(template)) {
-    throw createValidationError('Invalid workflow template');
+    throw new ValidationError('无效的工作流模板', 'Invalid workflow template');
   }
 
   const { template_id, name, steps } = template;
 
   if (typeof template_id !== 'string' || !template_id.trim()) {
-    throw createValidationError('Invalid workflow template id');
+    throw new ValidationError('无效的工作流模板 ID', 'Invalid workflow template id');
   }
 
   if (typeof name !== 'string' || !name.trim()) {
-    throw createValidationError('Workflow template name must be a non-empty string');
+    throw new ValidationError('工作流模板名称必须为非空字符串', 'Workflow template name must be a non-empty string');
   }
 
   if (!Array.isArray(steps) || steps.length < 1) {
-    throw createValidationError('Workflow template must include at least one step');
+    throw new ValidationError('工作流模板必须包含至少一个步骤', 'Workflow template must include at least one step');
+  }
   }
 
   const normalizedSteps = steps.map((step) => normalizeStep(step));
   if (new Set(normalizedSteps.map((step) => step.id)).size !== normalizedSteps.length) {
-    throw createValidationError('Workflow template step ids must be unique');
+    throw new ValidationError('工作流模板步骤 ID 必须唯一', 'Workflow template step ids must be unique');
   }
 
   return {
@@ -106,7 +96,7 @@ class WorkflowTemplateService {
 
     const existing = await this.workflowTemplateRepo.findByTemplateId(normalizedTemplate.template_id);
     if (existing) {
-      throw createConflictError(`Workflow template already exists: ${normalizedTemplate.template_id}`);
+      throw new ConflictError(`工作流模板已存在: ${normalizedTemplate.template_id}`, `Workflow template already exists: ${normalizedTemplate.template_id}`, { templateId: normalizedTemplate.template_id });
     }
 
     return await this.workflowTemplateRepo.create(normalizedTemplate);
@@ -115,7 +105,7 @@ class WorkflowTemplateService {
   async updateTemplate(templateId: string, template: Partial<Omit<WorkflowTemplateEntity, 'id' | 'template_id' | 'created_at' | 'updated_at'>>): Promise<WorkflowTemplateEntity | null> {
     const existing = await this.workflowTemplateRepo.findByTemplateId(templateId);
     if (!existing) {
-      throw createNotFoundError(`Workflow template not found: ${templateId}`);
+      throw new NotFoundError(`未找到工作流模板: ${templateId}`, `Workflow template not found: ${templateId}`, { templateId });
     }
 
     const updateData: Partial<Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>> = {};
@@ -132,7 +122,7 @@ class WorkflowTemplateService {
   async deleteTemplate(templateId: string): Promise<void> {
     const existing = await this.workflowTemplateRepo.findByTemplateId(templateId);
     if (!existing) {
-      throw createNotFoundError(`Workflow template not found: ${templateId}`);
+      throw new NotFoundError(`未找到工作流模板: ${templateId}`, `Workflow template not found: ${templateId}`, { templateId });
     }
 
     await this.workflowTemplateRepo.delete(existing.id);

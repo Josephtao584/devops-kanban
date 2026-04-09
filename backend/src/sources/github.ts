@@ -2,6 +2,7 @@ import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { TaskSourceAdapter, type TaskSourceLike } from './base.js';
 import type { ImportedTask, SourceDefinition, SourceRecord } from '../types/sources.ts';
+import { logger } from '../utils/logger.js';
 
 type SourceConfig = SourceRecord['config'];
 type Headers = Record<string, string>;
@@ -155,7 +156,7 @@ class GitHubAdapter extends TaskSourceAdapter {
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('GitHub connection test failed:', message);
+      logger.error('GitHub', `Connection test failed: ${message}`);
       return false;
     }
   }

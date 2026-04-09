@@ -1,20 +1,11 @@
 import { ExecutionRepository } from '../repositories/executionRepository.js';
 import { SessionRepository } from '../repositories/sessionRepository.js';
+import { NotFoundError } from '../utils/errors.js';
 import type { ExecutionEntity } from '../types/entities.js';
 import type {
   CreateExecutionInput as CreateExecutionDto,
   UpdateExecutionInput as UpdateExecutionDto,
 } from '../types/dto/executions.js';
-
-class SessionNotFoundError extends Error {
-  statusCode: number;
-
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.name = 'SessionNotFoundError';
-    this.statusCode = statusCode;
-  }
-}
 
 class ExecutionService {
   executionRepo: ExecutionRepository;
@@ -44,7 +35,7 @@ class ExecutionService {
   async create(executionData: CreateExecutionInput) {
     const session = await this.sessionRepo.findById(executionData.session_id);
     if (!session) {
-      throw new SessionNotFoundError('Session not found', 404);
+      throw new NotFoundError('未找到会话', 'Session not found', { sessionId: executionData.session_id });
     }
 
     const createData: Omit<ExecutionEntity, 'id' | 'created_at' | 'updated_at'> = {

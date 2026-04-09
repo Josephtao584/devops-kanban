@@ -5,6 +5,8 @@ import { SessionSegmentRepository } from '../repositories/sessionSegmentReposito
 import { SessionEventRepository } from '../repositories/sessionEventRepository.js';
 import { TaskService } from './taskService.js';
 import { cleanupWorktree } from '../utils/git.js';
+import { NotFoundError, ValidationError, ConflictError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 import type { SessionSegmentEntity } from '../types/entities.ts';
 import {Executor, ExecutorType} from "../types/executors.js";
 
@@ -45,9 +47,7 @@ class SessionService {
   async listEvents(sessionId: number, options: { afterSeq?: number; limit?: number } = {}) {
     const session = await this.sessionRepo.findById(sessionId);
     if (!session) {
-      const error = new Error('Session not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到会话', 'Session not found', { sessionId });
     }
 
     const requestedLimit = options.limit;
@@ -68,21 +68,15 @@ class SessionService {
   async continue(sessionId: number, input: string) {
     const session = await this.sessionRepo.findById(sessionId) as SessionLike | null;
     if (!session) {
-      const error = new Error('Session not found') as Error & { statusCode?: number };
-      error.statusCode = 404;
-      throw error;
+      throw new NotFoundError('未找到会话', 'Session not found', { sessionId });
     }
 
     if (session.status !== 'STOPPED' && session.status !== 'SUSPENDED' && session.status !== 'COMPLETED' && session.status !== 'FAILED' && session.status !== 'CANCELLED') {
-      const error = new Error('Session is not in a resumable state') as Error & { statusCode?: number };
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('会话未处于可恢复状态', 'Session is not in a resumable state', { sessionId, status: session.status });
     }
 
     if (!session.executor_type) {
-      const error = new Error('Session has no executor type') as Error & { statusCode?: number };
-      error.statusCode = 400;
-      throw error;
+      throw new ValidationError('会话没有执行器类型', 'Session has no executor type', { sessionId });
     }
 
     const worktreePath = this._requireLaunchableWorktree(session);
@@ -107,7 +101,7 @@ class SessionService {
 
     // Execute in background, return immediately
     this._executeContinue(session, segment, executor, worktreePath, latestSegment, input).catch((err) => {
-      console.error(`[Session] Continue failed for session #${sessionId}:`, err);
+      logger.error('SessionService', `Continue failed for session #${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
     });
 
     return await this.sessionRepo.findById(sessionId);
@@ -178,9 +172,7 @@ class SessionService {
 
   private _requireLaunchableWorktree(session: SessionLike) {
     if (!session.worktree_path || !fs.existsSync(session.worktree_path)) {
-      const error = new Error('Session worktree is unavailable') as Error & { statusCode?: number };
-      error.statusCode = 409;
-      throw error;
+      throw new ConflictError('会话工作区不可用', 'Session worktree is unavailable', { sessionId: session.id });
     }
 
     return session.worktree_path;
