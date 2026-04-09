@@ -91,6 +91,7 @@ export interface WorkflowStepEntity {
   retry_count: number;
   error: string | null;
   session_id: number | null;
+  agent_id?: number | null;
   provider_session_id?: string | null;
   summary: string | null;
   // Suspend/resume fields

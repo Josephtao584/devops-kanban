@@ -25,6 +25,41 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     } as WorkflowRunEntity;
   }
 
+  /**
+   * 为 steps 附加 agent_id（从 sessions 表获取）
+   */
+  private async enrichStepsWithAgentId(steps: WorkflowStepEntity[]): Promise<WorkflowStepEntity[]> {
+    const sessionIds = [...new Set(steps.filter(s => s.session_id).map(s => s.session_id!))];
+    if (sessionIds.length === 0) return steps;
+
+    const sessionResult = await this.client.execute({
+      sql: 'SELECT id, agent_id FROM sessions WHERE id IN (' + sessionIds.map(() => '?').join(',') + ')',
+      args: sessionIds,
+    });
+
+    const agentIdBySessionId = new Map(
+      sessionResult.rows.map(r => [r.id as number, ((r as Record<string, unknown>).agent_id ?? null) as number | null])
+    );
+
+    return steps.map(step => {
+      if (step.session_id && agentIdBySessionId.has(step.session_id)) {
+        return { ...step, agent_id: agentIdBySessionId.get(step.session_id)! };
+      }
+      return step;
+    });
+  }
+
+  override async findById(entityId: number): Promise<WorkflowRunEntity | null> {
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM workflow_runs WHERE id = ?',
+      args: [entityId],
+    });
+    if (result.rows.length === 0) return null;
+    const run = this.parseRow(result.rows[0] as Record<string, unknown>);
+    run.steps = await this.enrichStepsWithAgentId(run.steps);
+    return run;
+  }
+
   protected override serializeRow(entity: Partial<WorkflowRunEntity>): Record<string, unknown> {
     const result: Record<string, unknown> = { ...entity };
     if (entity.steps !== undefined) {

@@ -308,9 +308,7 @@
                   {{ getStatusText(currentViewingNode.status) }}
                 </span>
                 <span class="step-node-name">{{ currentViewingNode.name }}</span>
-                <span class="step-node-role" v-if="currentViewingAgent?.role">@{{ currentViewingAgent.role }}</span>
-                <span v-if="currentViewingAgent" class="step-agent-badge" :title="currentViewingAgent.executorType">
-                  <el-icon class="agent-icon"><component :is="getAgentIcon(currentViewingAgent.executorType)" /></el-icon>
+                <span v-if="currentViewingAgent" class="step-agent-badge">
                   {{ currentViewingAgent.name }}
                 </span>
                 <span v-if="currentViewingNode.providerSessionId" class="step-session-id" :title="'Provider Session: ' + currentViewingNode.providerSessionId">
@@ -319,7 +317,7 @@
                   </svg>
                   {{ currentViewingNode.providerSessionId }}
                 </span>
-                <span v-else-if="currentViewingNode.sessionId" class="step-session-id" :title="'Session #' + currentViewingNode.sessionId">
+                <span v-if="!currentViewingNode.providerSessionId && currentViewingNode.sessionId" class="step-session-id" :title="'Session #' + currentViewingNode.sessionId">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                   </svg>
@@ -657,6 +655,7 @@ import { normalizeWorkflowTemplate } from '../components/workflow/templateEditor
 import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
 import { useToast } from '../composables/ui/useToast'
 import { useWorktree } from '../composables/useWorktree'
+import { agentConfig, roleConfig } from '../constants/workflowPresentation.js'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -1094,14 +1093,15 @@ const updateColumnRefs = () => {
 
 const getNodeRoleIcon = (role) => {
   if (!role) return Document
-  const iconName = roleConfig[role]?.icon || 'Document'
-  return roleIconMap[iconName] || Document
+  // roleConfig uses emoji icons, not Element Plus icon components
+  return Document
 }
+
+const agentIconMap = { Monitor, VideoPlay, Edit, Cpu }
 
 const currentViewingAgent = computed(() => {
   const agentId = currentViewingNode.value?.agentId
   if (!agentId) return null
-  // JSON 解析后 agentId 可能是字符串，需要兼容数字和字符串比较
   return agentStore.agents.find(a => a.id === agentId || String(a.id) === String(agentId)) || null
 })
 
