@@ -323,21 +323,22 @@ describe('StepSessionPanel', () => {
 
     await flushPromises()
 
-    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(4)
+    // hideToolMessages defaults to true, so tool messages are hidden
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
 
     const labels = wrapper.findAll('.auto-scroll-check')
     const hideToolLabel = labels.find(l => l.text().includes('隐藏工具消息'))
     expect(hideToolLabel).toBeTruthy()
     const hideToolCheck = hideToolLabel.find('.check-box')
-    expect(hideToolCheck.classes()).not.toContain('checked')
+    expect(hideToolCheck.classes()).toContain('checked')
 
     await hideToolLabel.trigger('click')
     await flushPromises()
 
-    expect(hideToolCheck.classes()).toContain('checked')
+    expect(hideToolCheck.classes()).not.toContain('checked')
     const remaining = wrapper.findAll('.session-event-renderer-stub')
-    expect(remaining).toHaveLength(2)
-    expect(remaining.map(e => e.attributes('data-kind'))).toEqual(['message', 'message'])
+    expect(remaining).toHaveLength(4)
+    expect(remaining.map(e => e.attributes('data-kind'))).toEqual(['message', 'tool_call', 'tool_result', 'message'])
   })
 
   it('restores tool messages when the hide-tool checkbox is unchecked', async () => {
@@ -358,13 +359,15 @@ describe('StepSessionPanel', () => {
     const labels = wrapper.findAll('.auto-scroll-check')
     const hideToolLabel = labels.find(l => l.text().includes('隐藏工具消息'))
 
-    await hideToolLabel.trigger('click')
-    await flushPromises()
-    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
-
+    // hideToolMessages defaults to true, click to unhide (show all 3)
     await hideToolLabel.trigger('click')
     await flushPromises()
     expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(3)
+
+    // Click again to re-hide (show 1 message only)
+    await hideToolLabel.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
   })
 
   it('keeps metadata subordinate to the conversation title', async () => {

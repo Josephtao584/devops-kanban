@@ -63,9 +63,7 @@ describe('useWorkflowRunPolling', () => {
     await startPolling()
     expect(fetchFn).toHaveBeenCalledTimes(1)
 
-    vi.advanceTimersByTime(1000)
-    // Allow any pending promises to resolve
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(1000)
     expect(fetchFn).toHaveBeenCalledTimes(2)
 
     stopPolling()
