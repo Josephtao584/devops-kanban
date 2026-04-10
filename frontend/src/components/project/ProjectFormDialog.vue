@@ -52,9 +52,9 @@
         </el-input>
       </el-form-item>
 
-      <el-divider />
+      <el-divider v-if="!isEditing" />
 
-      <el-checkbox v-model="form.createExplorationTask" size="large">
+      <el-checkbox v-if="!isEditing" v-model="form.createExplorationTask" size="large">
         {{ $t('project.createExplorationTask') }}
         <div style="font-size: 12px; color: var(--el-text-color-secondary); font-weight: normal; margin-top: 4px;">
           {{ $t('project.createExplorationTaskHint') }}
