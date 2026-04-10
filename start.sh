@@ -111,10 +111,7 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S-%3N)
 
 echo -e "${YELLOW}[1/2] 启动后端服务 (Node.js)...${NC}"
 cd "$BACKEND_DIR"
-if [ ! -d "node_modules" ]; then
-    echo -e "${YELLOW}首次运行，安装后端依赖...${NC}"
-    npm install --loglevel=verbose --no-audit
-fi
+npm install --no-audit 2>/dev/null
 pkill -f "tsx watch src/main.ts" 2>/dev/null || true
 pkill -f "node dist/src/main.js" 2>/dev/null || true
 BACKEND_LOG="$PROJECT_ROOT/log/backend/kanban-backend-${TIMESTAMP}.log"
@@ -139,10 +136,7 @@ done
 echo ""
 echo -e "${YELLOW}[2/2] 启动前端服务...${NC}"
 cd "$FRONTEND_DIR"
-if [ ! -d "node_modules" ]; then
-    echo -e "${YELLOW}首次运行，安装前端依赖...${NC}"
-    npm install --loglevel=verbose --no-audit
-fi
+npm install --no-audit 2>/dev/null
 pkill -f "vite" 2>/dev/null || true
 FRONTEND_LOG="$PROJECT_ROOT/log/frontend/kanban-frontend-${TIMESTAMP}.log"
 LANG=en_US.UTF-8 NO_COLOR=1 npm run dev > "$FRONTEND_LOG" 2>&1 &

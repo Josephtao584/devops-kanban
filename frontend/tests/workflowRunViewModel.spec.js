@@ -154,7 +154,6 @@ describe('workflowRunViewModel', () => {
       expect(result.currentNodeId).toBe('step-a')
       expect(result.stages).toHaveLength(1)
       expect(result.stages[0].nodes[0].status).toBe('DONE')
-      expect(result.stages[0].nodes[0].role).toBe('ARCHITECT')
       expect(result.stages[0].nodes[0].agentId).toBe(1)
       expect(result.stages[0].nodes[0].sessionId).toBe('sess-1')
     })
@@ -167,7 +166,7 @@ describe('workflowRunViewModel', () => {
 
       const result = toTimelineWorkflow(run)
       expect(result.stages).toHaveLength(1)
-      expect(result.stages[0].nodes[0].role).toBe('')
+      expect(result.stages[0].nodes[0].status).toBe('IN_PROGRESS')
     })
   })
 

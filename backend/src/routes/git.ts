@@ -11,6 +11,8 @@ import { successResponse, errorResponse } from '../utils/response.js';
 import { getStatusCode, getErrorMessage, logError } from '../utils/http.js';
 import { logger } from '../utils/logger.js';
 import type { ProjectEntity } from '../types/entities.js';
+import { getFileTree } from '../utils/fileTree.js';
+import { readFileContent, readHeadFileContent, writeFileContent } from '../utils/fileEdit.js';
 
 const projectRepo = new ProjectRepository();
 const taskRepo = new TaskRepository();
@@ -510,6 +512,102 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       return errorResponse(getErrorMessage(error, 'Failed to delete worktree'));
     }
   });
+
+  // ==================== File Editing ====================
+
+  // GET /worktrees/:taskId/files - Get file tree
+  fastify.get<{ Params: { taskId: string }; Querystring: ProjectIdQuery }>('/worktrees/:taskId/files', async (request, reply) => {
+    try {
+      const taskId = parseNumber(request.params.taskId);
+      const task = await taskRepo.findById(taskId);
+      if (!task) {
+        reply.code(404);
+        return errorResponse('Task not found');
+      }
+      if (!task.worktree_path || !fs.existsSync(task.worktree_path)) {
+        reply.code(400);
+        return errorResponse('Task has no worktree');
+      }
+
+      const tree = getFileTree(task.worktree_path, task.worktree_path);
+      return successResponse(tree);
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to get file tree'));
+    }
+  });
+
+  // GET /worktrees/:taskId/files/* - Read file content
+  fastify.get<{ Params: { taskId: string; '*': string }; Querystring: ProjectIdQuery & { version?: string } }>(
+    '/worktrees/:taskId/files/*',
+    async (request, reply) => {
+      try {
+        const taskId = parseNumber(request.params.taskId);
+        const task = await taskRepo.findById(taskId);
+        if (!task) {
+          reply.code(404);
+          return errorResponse('Task not found');
+        }
+        if (!task.worktree_path || !fs.existsSync(task.worktree_path)) {
+          reply.code(400);
+          return errorResponse('Task has no worktree');
+        }
+
+        const filePath = (request.params as any)['*'];
+        const version = (request.query as any).version;
+
+        if (version === 'head') {
+          const content = readHeadFileContent(task.worktree_path, filePath);
+          return successResponse({ content, isBinary: false, size: content.length });
+        }
+
+        const result = readFileContent(task.worktree_path, filePath);
+        return successResponse(result);
+      } catch (error: any) {
+        logError(error, request);
+        if (error.statusCode === 404) {
+          reply.code(404);
+        } else {
+          reply.code(getStatusCode(error));
+        }
+        return errorResponse(getErrorMessage(error, 'Failed to read file'));
+      }
+    }
+  );
+
+  // PUT /worktrees/:taskId/files/* - Write file content
+  fastify.put<{ Params: { taskId: string; '*': string }; Querystring: ProjectIdQuery; Body: { content: string } }>(
+    '/worktrees/:taskId/files/*',
+    async (request, reply) => {
+      try {
+        const taskId = parseNumber(request.params.taskId);
+        const task = await taskRepo.findById(taskId);
+        if (!task) {
+          reply.code(404);
+          return errorResponse('Task not found');
+        }
+        if (!task.worktree_path || !fs.existsSync(task.worktree_path)) {
+          reply.code(400);
+          return errorResponse('Task has no worktree');
+        }
+
+        const filePath = (request.params as any)['*'];
+        const { content } = request.body;
+        if (content === undefined) {
+          reply.code(400);
+          return errorResponse('Content is required');
+        }
+
+        const diff = writeFileContent(task.worktree_path, filePath, content);
+        return successResponse({ filePath, diff });
+      } catch (error) {
+        logError(error, request);
+        reply.code(getStatusCode(error));
+        return errorResponse(getErrorMessage(error, 'Failed to write file'));
+      }
+    }
+  );
 
   // ==================== Changes / Untracked Files ====================
 
