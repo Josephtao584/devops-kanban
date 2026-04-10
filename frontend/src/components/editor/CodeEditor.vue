@@ -10,11 +10,11 @@
         <div class="editor-body">
           <div class="editor-sidebar">
             <div class="sidebar-tabs">
-              <button :class="['sidebar-tab', { active: sidebarTab === 'files' }]" @click="sidebarTab = 'files'">
-                文件
-              </button>
               <button :class="['sidebar-tab', { active: sidebarTab === 'changes' }]" @click="switchToChanges">
                 变更{{ changedFiles.length ? `(${changedFiles.length})` : '' }}
+              </button>
+              <button :class="['sidebar-tab', { active: sidebarTab === 'files' }]" @click="sidebarTab = 'files'">
+                文件
               </button>
             </div>
 
@@ -193,7 +193,7 @@ const cursorCol = ref(1)
 const unsavedFileSet = reactive(new Set())
 
 // Sidebar state
-const sidebarTab = ref('files')
+const sidebarTab = ref('changes')
 const searchQuery = ref('')
 const recentFiles = reactive([])
 const showRecent = ref(true)
