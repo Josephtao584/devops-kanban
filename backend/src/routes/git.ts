@@ -539,7 +539,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /worktrees/:taskId/files/* - Read file content
-  fastify.get<{ Params: { taskId: string; file: string }; Querystring: ProjectIdQuery }>(
+  fastify.get<{ Params: { taskId: string; '*': string }; Querystring: ProjectIdQuery }>(
     '/worktrees/:taskId/files/*',
     async (request, reply) => {
       try {
@@ -554,7 +554,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
           return errorResponse('Task has no worktree');
         }
 
-        const filePath = request.params.file;
+        const filePath = (request.params as any)['*'];
         const result = readFileContent(task.worktree_path, filePath);
         return successResponse(result);
       } catch (error: any) {
@@ -570,7 +570,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // PUT /worktrees/:taskId/files/* - Write file content
-  fastify.put<{ Params: { taskId: string; file: string }; Querystring: ProjectIdQuery; Body: { content: string } }>(
+  fastify.put<{ Params: { taskId: string; '*': string }; Querystring: ProjectIdQuery; Body: { content: string } }>(
     '/worktrees/:taskId/files/*',
     async (request, reply) => {
       try {
@@ -585,7 +585,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
           return errorResponse('Task has no worktree');
         }
 
-        const filePath = request.params.file;
+        const filePath = (request.params as any)['*'];
         const { content } = request.body;
         if (content === undefined) {
           reply.code(400);
