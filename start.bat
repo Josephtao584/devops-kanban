@@ -98,15 +98,7 @@ for /f "usebackq" %%i in (`powershell -NoProfile -Command "Get-Date -Format 'yyy
 echo [1/2] Starting backend...
 cd /d "!BACKEND_DIR!"
 
-if not exist "node_modules" (
-    echo [INFO] Installing backend dependencies...
-    call npm install --loglevel=verbose --no-audit
-    if !errorlevel! neq 0 (
-        echo [ERROR] Backend install failed
-        pause
-        exit /b 1
-    )
-)
+call npm install --no-audit >nul 2>&1
 
 start /b npm run dev > "!PROJECT_ROOT!\log\backend\kanban-backend-!TS!.log" 2>&1
 echo [INFO] Waiting for backend...
@@ -135,15 +127,7 @@ echo.
 echo [2/2] Starting frontend...
 cd /d "!FRONTEND_DIR!"
 
-if not exist "node_modules" (
-    echo [INFO] Installing frontend dependencies...
-    call npm install --loglevel=verbose --no-audit
-    if !errorlevel! neq 0 (
-        echo [ERROR] Frontend install failed
-        pause
-        exit /b 1
-    )
-)
+call npm install --no-audit >nul 2>&1
 
 start /b cmd /c "chcp 65001 >nul 2>&1 && set NO_COLOR=1 && npm run dev" > "!PROJECT_ROOT!\log\frontend\kanban-frontend-!TS!.log" 2>&1
 echo [INFO] Waiting for frontend...
