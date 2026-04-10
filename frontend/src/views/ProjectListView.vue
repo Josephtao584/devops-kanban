@@ -72,6 +72,8 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, FolderOpened } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
+import { createTask, startTask } from '../api/task.js'
+import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
 import ProjectCard from '../components/project/ProjectCard.vue'
 import ProjectFormDialog from '../components/project/ProjectFormDialog.vue'
 
@@ -107,8 +109,30 @@ const handleSubmit = async (formData) => {
       await projectStore.updateProject(editingProject.value.id, formData)
       ElMessage.success(t('project.updated'))
     } else {
-      await projectStore.createProject(formData)
+      const project = await projectStore.createProject(formData)
       ElMessage.success(t('project.created'))
+
+      if (formData.createExplorationTask && project?.data?.id) {
+        try {
+          const task = await createTask({
+            projectId: project.data.id,
+            title: t('project.explorationTaskTitle'),
+            description: t('project.explorationTaskDescription')
+          })
+          if (task?.data?.id) {
+            const template = await getWorkflowTemplateById('repo-explorer')
+            if (template?.data) {
+              await startTask(task.data.id, {
+                workflow_template_id: 'repo-explorer',
+                workflow_template_snapshot: template.data
+              })
+              ElMessage.success(t('project.explorationTaskCreated'))
+            }
+          }
+        } catch {
+          ElMessage.warning(t('project.explorationTaskCreateFailed'))
+        }
+      }
     }
     dialogVisible.value = false
     editingProject.value = null

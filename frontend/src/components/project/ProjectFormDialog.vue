@@ -51,6 +51,15 @@
           </template>
         </el-input>
       </el-form-item>
+
+      <el-divider />
+
+      <el-checkbox v-model="form.createExplorationTask" size="large">
+        {{ $t('project.createExplorationTask') }}
+        <div style="font-size: 12px; color: var(--el-text-color-secondary); font-weight: normal; margin-top: 4px;">
+          {{ $t('project.createExplorationTaskHint') }}
+        </div>
+      </el-checkbox>
     </el-form>
 
     <template #footer>
@@ -93,7 +102,8 @@ const form = ref({
   name: '',
   description: '',
   gitUrl: '',
-  localPath: ''
+  localPath: '',
+  createExplorationTask: false
 })
 
 const rules = {
@@ -114,7 +124,8 @@ const resetForm = () => {
     name: '',
     description: '',
     gitUrl: '',
-    localPath: ''
+    localPath: '',
+    createExplorationTask: false
   }
 }
 
@@ -138,7 +149,8 @@ const handleSubmit = async () => {
     // Only include git_url and local_path if they have values
     const submitData = {
       name: form.value.name,
-      description: form.value.description
+      description: form.value.description,
+      createExplorationTask: form.value.createExplorationTask
     }
     if (form.value.gitUrl) {
       submitData.git_url = form.value.gitUrl

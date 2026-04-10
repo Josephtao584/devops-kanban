@@ -7,6 +7,7 @@ import corsPlugin from './middleware/cors.js';
 import errorHandlerPlugin from './middleware/errorHandler.js';
 import { initWorkflows } from './services/workflow/workflows.js';
 import { initDatabase, seedSampleData } from './db/index.js';
+import { bootstrapBuiltinTemplates } from './services/workflow/workflowTemplateService.js';
 import {
   agentRoutes,
   executionRoutes,
@@ -40,6 +41,9 @@ export async function buildApp() {
 
   // Initialize Mastra workflow engine
   await initWorkflows();
+
+  // Bootstrap built-in workflow templates
+  await bootstrapBuiltinTemplates();
 
   const fastify = Fastify({
     logger: {

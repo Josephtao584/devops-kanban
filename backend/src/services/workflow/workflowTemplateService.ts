@@ -72,6 +72,31 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
   };
 }
 
+const BUILTIN_TEMPLATES: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>[] = [
+  {
+    template_id: 'repo-explorer',
+    name: '探索代码仓',
+    steps: [
+      {
+        id: 'explore',
+        name: '代码仓探索',
+        instructionPrompt: `你是一个代码分析专家。请深入分析当前代码仓库，生成一份结构化的介绍报告。
+
+分析内容：
+1. **项目概览**：目录结构、技术栈识别、主要语言统计、README 摘要
+2. **核心模块**：识别核心模块及其职责、入口文件分析
+3. **依赖关系**：主要依赖及其用途、模块间依赖关系
+4. **架构模式**：识别架构模式（MVC、分层架构等）
+
+最终输出格式化的 Markdown 报告，保存到 KANBAN_COMPASS.md 文件中。该文件将作为后续工作流执行的参考文档，其他工作流的 Agent 会读取此文件来了解项目结构。`,
+        agentId: 1,
+        requiresConfirmation: false,
+      },
+    ],
+    order: 3,
+  },
+];
+
 class WorkflowTemplateService {
   workflowTemplateRepo: WorkflowTemplateRepository;
 
@@ -142,3 +167,14 @@ class WorkflowTemplateService {
 }
 
 export { WorkflowTemplateService, normalizeTemplate };
+
+export async function bootstrapBuiltinTemplates(repo?: WorkflowTemplateRepository): Promise<void> {
+  const service = new WorkflowTemplateService(repo ? { workflowTemplateRepo: repo } : {});
+  for (const tpl of BUILTIN_TEMPLATES) {
+    const existing = await service.getTemplateById(tpl.template_id);
+    if (!existing) {
+      await service.createTemplate(tpl);
+      console.log(`[Templates] Built-in template "${tpl.name}" created.`);
+    }
+  }
+}
