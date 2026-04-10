@@ -555,7 +555,6 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const filePath = request.params.file;
-        const filePath = request.params.file;
         const result = readFileContent(task.worktree_path, filePath);
         return successResponse(result);
       } catch (error: any) {

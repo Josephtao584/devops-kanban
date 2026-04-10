@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { getFileTree } from '../src/utils/fileTree.js';
+import type { FileTreeNode } from '../src/utils/fileTree.js';
 
 async function withTempDir(run: (dir: string) => Promise<void>) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'filetree-test-'));
@@ -118,7 +119,7 @@ test.test('getFileTree handles deeply nested paths', async () => {
     assert.ok(aNode);
 
     // Navigate down the tree
-    let current = aNode;
+    let current: FileTreeNode | undefined = aNode;
     for (const name of ['b', 'c', 'd', 'e']) {
       current = current.children!.find((c) => c.name === name);
       assert.ok(current);

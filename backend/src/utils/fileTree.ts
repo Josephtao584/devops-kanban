@@ -14,11 +14,12 @@ const IGNORED_DIRS = ['.git', 'node_modules', '.DS_Store', 'dist'];
 
 function isBinaryFile(filePath: string): boolean {
   const BUFFER_SIZE = 8192;
-  const buffer = fs.readFileSync(filePath, { start: 0, end: BUFFER_SIZE - 1 });
+  const buffer = fs.readFileSync(filePath);
+  const slice = buffer.subarray(0, BUFFER_SIZE);
 
-  if (buffer.length === 0) return false;
-  for (let i = 0; i < buffer.length; i++) {
-    if (buffer[i] === 0) return true;
+  if (slice.length === 0) return false;
+  for (let i = 0; i < slice.length; i++) {
+    if (slice[i] === 0) return true;
   }
   return false;
 }
