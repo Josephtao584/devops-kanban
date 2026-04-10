@@ -111,6 +111,7 @@
             @sync="handleSyncTaskSources"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
+            @quick-edit="handleQuickEdit"
           />
 
           <KanbanColumn
@@ -129,6 +130,7 @@
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
+            @quick-edit="handleQuickEdit"
           />
 
           <KanbanColumn
@@ -147,6 +149,7 @@
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
+            @quick-edit="handleQuickEdit"
           />
 
           <KanbanColumn
@@ -165,6 +168,7 @@
             @worktree-update="handleWorktreeUpdate"
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
+            @quick-edit="handleQuickEdit"
           />
         </div>
 
@@ -186,6 +190,7 @@
           @sync="handleSyncTaskSources"
           @toggle-workflow="handleToggleWorkflow"
           @workflow-action="handleWorkflowAction"
+          @quick-edit="handleQuickEdit"
         />
       </div>
 
@@ -457,6 +462,14 @@
       @merged="handleMerged"
     />
 
+    <CodeEditor
+      v-if="showCodeEditor"
+      :project-id="codeEditorData.projectId"
+      :task-id="codeEditorData.taskId"
+      :task-title="codeEditorData.taskTitle"
+      @close="showCodeEditor = false"
+    />
+
     <BaseDialog
       v-model="showIterationManager"
       :title="$t('iteration.manageIterationsTitle')"
@@ -647,6 +660,7 @@ import IterationForm from '../components/iteration/IterationForm.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
+import CodeEditor from '../components/editor/CodeEditor.vue'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
@@ -695,6 +709,8 @@ const showCommitDialog = ref(false)
 const commitDialogData = ref(null)
 const showMergeDialog = ref(false)
 const mergeDialogData = ref(null)
+const showCodeEditor = ref(false)
+const codeEditorData = ref(null)
 const showIterationManager = ref(false)
 const showTaskSourcePanel = ref(false)
 const showIterationModal = ref(false)
@@ -1030,6 +1046,15 @@ const handleWorkflowAction = (payload) => {
     currentViewingNode.value = payload.node || null
     isChatCollapsed.value = false
   }
+}
+
+const handleQuickEdit = (task) => {
+  codeEditorData.value = {
+    projectId: task.project_id,
+    taskId: task.id,
+    taskTitle: task.title,
+  }
+  showCodeEditor.value = true
 }
 
 const tasks = computed(() => taskStore.tasks)

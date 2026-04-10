@@ -37,6 +37,7 @@
             @toggle-workflow="$emit('toggle-workflow', $event)"
             @toggle-description="$emit('toggle-description', $event)"
             @workflow-action="$emit('workflow-action', $event)"
+            @quick-edit="$emit('quick-edit', $event)"
           />
         </template>
       </draggable>
@@ -110,7 +111,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'toggle-description', 'workflow-action'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'toggle-description', 'workflow-action', 'quick-edit'])
 
 const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
 

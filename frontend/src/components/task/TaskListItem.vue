@@ -151,6 +151,18 @@
             </svg>
             启动
           </button>
+          <button
+            class="quick-action-btn"
+            :disabled="task.worktree_status !== 'created'"
+            @click.stop="$emit('quick-edit', task)"
+            title="Quick Edit"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            编辑
+          </button>
           <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'commit')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -345,7 +357,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-workflow', 'workflow-action', 'node-click'])
+const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-workflow', 'workflow-action', 'node-click', 'quick-edit'])
 
 const { t } = useI18n()
 

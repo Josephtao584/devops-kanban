@@ -55,6 +55,7 @@
               @toggle-workflow="$emit('toggle-workflow', $event)"
               @toggle-description="$emit('toggle-description', $event)"
               @workflow-action="$emit('workflow-action', $event)"
+              @quick-edit="$emit('quick-edit', $event)"
             />
           </template>
         </draggable>
@@ -114,6 +115,7 @@
               @toggle-workflow="$emit('toggle-workflow', $event)"
               @toggle-description="$emit('toggle-description', $event)"
               @workflow-action="$emit('workflow-action', $event)"
+              @quick-edit="$emit('quick-edit', $event)"
             />
           </template>
         </draggable>
@@ -170,7 +172,8 @@ const emit = defineEmits([
   'sync',
   'toggle-workflow',
   'toggle-description',
-  'workflow-action'
+  'workflow-action',
+  'quick-edit'
 ])
 
 const { t } = useI18n()
