@@ -181,7 +181,7 @@ function normalizeEvents(eventList) {
   return eventList.map((event) => normalizeEvent(event, toolCallMap))
 }
 
-export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
+export function useSessionEvents({ pollIntervalMs = 5000 } = {}) {
   const events = ref([])
   const lastSeq = ref(0)
   const isLoading = ref(false)
@@ -191,6 +191,8 @@ export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
   let pollTimer = null
   let activeSessionId = null
   let loadToken = 0
+  let retryCount = 0
+  const MAX_RETRIES = 5
 
   function normalizeResponse(response) {
     const data = response?.data ?? response ?? {}
@@ -280,7 +282,7 @@ export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
 
   function stopPolling() {
     if (pollTimer) {
-      clearInterval(pollTimer)
+      clearTimeout(pollTimer)
       pollTimer = null
     }
     isPolling.value = false
@@ -289,29 +291,48 @@ export function useSessionEvents({ pollIntervalMs = 2000 } = {}) {
   function startPolling(sessionId, isTerminal = () => false, { limit } = {}) {
     stopPolling()
     activeSessionId = sessionId
+    retryCount = 0
 
     if (!sessionId || isTerminal()) {
       return
     }
 
     isPolling.value = true
-    pollTimer = setInterval(async () => {
-      if (isTerminal()) {
-        stopPolling()
-        return
-      }
 
-      try {
-        await pollNext(sessionId, { limit })
-      } catch (err) {
-        error.value = err
-        stopPolling()
-      }
+    function scheduleNext(delay) {
+      pollTimer = setTimeout(async () => {
+        if (isTerminal()) {
+          stopPolling()
+          return
+        }
 
-      if (isTerminal()) {
-        stopPolling()
-      }
-    }, pollIntervalMs)
+        try {
+          await pollNext(sessionId, { limit })
+          retryCount = 0
+        } catch (err) {
+          error.value = err
+          retryCount++
+          if (retryCount >= MAX_RETRIES) {
+            console.error(`[useSessionEvents] Polling failed ${MAX_RETRIES} times, stopping.`, err)
+            stopPolling()
+            return
+          }
+          const backoff = Math.min(pollIntervalMs * Math.pow(2, retryCount), 30000)
+          console.warn(`[useSessionEvents] Polling failed (${retryCount}/${MAX_RETRIES}), retrying in ${backoff}ms`, err.message)
+          scheduleNext(backoff)
+          return
+        }
+
+        if (isTerminal()) {
+          stopPolling()
+          return
+        }
+
+        scheduleNext(pollIntervalMs)
+      }, delay)
+    }
+
+    scheduleNext(pollIntervalMs)
   }
 
   return {
