@@ -179,6 +179,28 @@ export function buildWorkflowFromInstance(
               },
             });
 
+            // If step requires confirmation, re-suspend for confirmation instead of auto-completing
+            if (requiresConfirmation) {
+              logger.info('Workflows', `Step ${templateStep.id} requires confirmation after AskUserQuestion, re-suspending for confirmation`);
+              const now = new Date().toISOString();
+              await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                status: 'SUSPENDED',
+                completed_at: now,
+                suspend_reason: '等待确认',
+                summary: result.summary || null,
+              });
+              await options.lifecycle.workflowRunRepo.update(options.runId, {
+                status: 'SUSPENDED',
+                current_step: templateStep.id,
+              });
+
+              return await suspend({
+                reason: '等待确认',
+                stepName: templateStep.name,
+                summary: result.summary || '',
+              });
+            }
+
             await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
             return result;
           } catch (err) {
