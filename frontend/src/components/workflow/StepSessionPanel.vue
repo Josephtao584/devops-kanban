@@ -196,14 +196,14 @@ async function sendMessage() {
   const text = message.value.trim()
   isSending.value = true
   try {
-    if (props.workflowRunId) {
-      // Resume workflow with the answer
+    if (props.workflowRunId && sessionStatus.value === 'SUSPENDED') {
+      // Resume suspended workflow step with the answer
       await resumeWorkflow(props.workflowRunId, {
         approved: true,
         ask_user_answer: text,
       })
     } else {
-      // Normal session continue
+      // Normal session continue (STOPPED, COMPLETED, FAILED, CANCELLED)
       await continueSession(props.sessionId, text)
     }
     message.value = ''
