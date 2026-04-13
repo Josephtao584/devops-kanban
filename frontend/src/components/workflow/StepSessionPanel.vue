@@ -106,6 +106,7 @@ import { useSessionEvents } from '../../composables/useSessionEvents.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
 import { getSession, continueSession } from '../../api/session.js'
 import { resumeWorkflow } from '../../api/workflow.js'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   sessionId: {
@@ -212,7 +213,7 @@ async function sendMessage() {
     startPollingWithStatusCheck()
   } catch (err) {
     console.error('Failed to send message:', err)
-    alert('发送失败: ' + (err.message || err))
+    ElMessage.error('发送失败: ' + (err.message || err))
   } finally {
     isSending.value = false
   }

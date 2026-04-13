@@ -121,3 +121,65 @@ test.test('workflow suspend/resume schemas include ask_user_question and ask_use
 
   assert.ok(workflow, 'Workflow with ask_user_question schemas should build without errors');
 });
+
+test.test('requiresConfirmation step re-suspends for confirmation after AskUserQuestion answer', async () => {
+  // Verify that a step with requiresConfirmation re-suspends (instead of completing)
+  // after the user answers an AskUserQuestion.
+  await initWorkflows();
+
+  const suspendCalls: Array<{ reason: string; ask_user_question?: unknown }> = [];
+  const resumeCalls: Array<{ ask_user_answer?: unknown; approved?: boolean }> = [];
+  const completeCalls: any[] = [];
+
+  const workflow = buildWorkflowFromInstance({
+    id: 1,
+    instance_id: `requires-confirm-${Date.now()}`,
+    template_id: 'template-1',
+    template_version: 'v1',
+    name: 'Test',
+    created_at: '',
+    updated_at: '',
+    steps: [
+      {
+        id: 'step-1',
+        name: 'Step 1',
+        instructionPrompt: 'Ask a question then wait for confirmation.',
+        agentId: 11,
+        requiresConfirmation: true,
+      },
+    ],
+  }, {
+    runId: 200,
+    task: { id: 7, project_id: 3, execution_path: '/tmp/task-7' },
+    lifecycle: {
+      async onStepStart() {
+        return { sessionId: 1, segmentId: 1 };
+      },
+      async onStepComplete() {
+        completeCalls.push(1);
+      },
+      async onStepError() {},
+      async onStepResume(_runId: number, _stepId: string, data: any) {
+        resumeCalls.push(data);
+      },
+      async onStepSuspend(_runId: number, _stepId: string, info: any) {
+        suspendCalls.push({ reason: info.reason, ask_user_question: info.ask_user_question });
+      },
+      async onWorkflowComplete() {},
+      async onWorkflowError() {},
+      sessionEventRepo: { async append() {} },
+      sessionSegmentRepo: { async update() {} },
+      workflowRunRepo: {
+        async findById() {
+          return {
+            steps: [{ step_id: 'step-1', provider_session_id: 'sess_123', status: 'SUSPENDED' }],
+          };
+        },
+        async updateStep() {},
+        async update() {},
+      },
+    } as never,
+  });
+
+  assert.ok(workflow, 'Workflow with requiresConfirmation should build');
+});

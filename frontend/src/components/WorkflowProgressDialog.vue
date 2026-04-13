@@ -233,7 +233,8 @@ const suspendedStep = computed(() => {
 })
 
 const isAskUserSuspended = computed(() => {
-  if (suspendedStep.value?.suspend_reason?.includes('确认')) return false
+  // Waiting for confirmation (after AskUserQuestion answer) — show confirm panel
+  if (suspendedStep.value?.suspend_reason === '等待确认') return false
   return suspendedStep.value?.ask_user_question?.questions?.length > 0
 })
 

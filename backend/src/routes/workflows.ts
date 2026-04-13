@@ -105,7 +105,12 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
         resumeData.comment = body.comment;
       }
       if (body.ask_user_answer !== undefined) {
-        resumeData.ask_user_answer = body.ask_user_answer;
+        const trimmed = String(body.ask_user_answer).trim();
+        if (!trimmed) {
+          reply.code(400);
+          return errorResponse('ask_user_answer must not be empty');
+        }
+        resumeData.ask_user_answer = trimmed;
       }
       const run = await workflowService.resumeWorkflow(
         parseNumber(request.params.id),

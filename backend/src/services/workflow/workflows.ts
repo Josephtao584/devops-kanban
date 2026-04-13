@@ -35,7 +35,19 @@ const suspendSchema = z.object({
   reason: z.string(),
   stepName: z.string(),
   summary: z.string().optional(),
-  ask_user_question: z.any().optional(),
+  ask_user_question: z.object({
+    tool_use_id: z.string(),
+    questions: z.array(z.object({
+      question: z.string(),
+      header: z.string().optional(),
+      options: z.array(z.object({
+        label: z.string(),
+        value: z.string().optional(),
+        description: z.string().optional(),
+      })).optional(),
+      multiSelect: z.boolean().optional(),
+    })).optional(),
+  }).optional(),
 });
 
 let _mastra: Mastra | null = null;

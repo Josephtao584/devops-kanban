@@ -119,6 +119,7 @@ describe('StepSessionPanel', () => {
   })
 
   it('shows the composer when the session can receive input', async () => {
+    getSessionMock.mockResolvedValue({ data: { status: 'SUSPENDED' } })
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
     const wrapper = mount(StepSessionPanel, {
