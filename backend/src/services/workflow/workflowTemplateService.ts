@@ -25,6 +25,10 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     throw new ValidationError('instructionPrompt 必须为非空字符串', 'instructionPrompt must be a non-empty string');
   }
 
+  if (instructionPrompt.trim().length > 2000) {
+    throw new ValidationError('instructionPrompt 不能超过 2000 个字符', 'instructionPrompt must not exceed 2000 characters');
+  }
+
   if (typeof agentId !== 'number' || !Number.isInteger(agentId) || agentId < 0) {
     throw new ValidationError('agentId 必须为非负整数', 'agentId must be a non-negative integer');
   }

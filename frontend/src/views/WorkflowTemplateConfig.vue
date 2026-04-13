@@ -281,6 +281,8 @@
                   :rows="6"
                   resize="vertical"
                   :placeholder="$t('workflowTemplate.instructionPromptHint')"
+                  :maxlength="2000"
+                  show-word-limit
                 />
               </div>
             </div>
