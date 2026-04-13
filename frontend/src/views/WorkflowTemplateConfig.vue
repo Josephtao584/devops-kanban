@@ -32,22 +32,6 @@
             >
               {{ $t('workflowTemplate.createTemplate') }}
             </el-button>
-            <div class="toolbar-actions">
-              <el-button plain @click="showImportDialog = true">
-                {{ $t('workflowTemplate.importButton') }}
-              </el-button>
-              <template v-if="exportMode">
-                <el-button type="primary" plain :disabled="selectedForExport.length === 0" @click="handleBatchExport">
-                  {{ $t('workflowTemplate.exportConfirm', { count: selectedForExport.length }) }}
-                </el-button>
-                <el-button plain @click="cancelExportMode">
-                  {{ $t('common.cancel') }}
-                </el-button>
-              </template>
-              <el-button v-else plain @click="enterExportMode">
-                {{ $t('workflowTemplate.exportButton') }}
-              </el-button>
-            </div>
           </div>
 
           <div v-if="templates.length === 0" class="state-block">
@@ -94,6 +78,23 @@
                 </button>
               </template>
             </draggable>
+
+            <div class="sidebar-bottom-actions">
+              <el-button plain @click="showImportDialog = true">
+                {{ $t('workflowTemplate.importButton') }}
+              </el-button>
+              <template v-if="exportMode">
+                <el-button type="primary" plain :disabled="selectedForExport.length === 0" @click="handleBatchExport">
+                  {{ $t('workflowTemplate.exportConfirm', { count: selectedForExport.length }) }}
+                </el-button>
+                <el-button plain @click="cancelExportMode">
+                  {{ $t('common.cancel') }}
+                </el-button>
+              </template>
+              <el-button v-else plain @click="enterExportMode">
+                {{ $t('workflowTemplate.exportButton') }}
+              </el-button>
+            </div>
           </div>
         </template>
       </el-card>
@@ -1010,6 +1011,14 @@ onMounted(() => {
   overflow: auto;
 }
 
+.sidebar-bottom-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: auto;
+  border-top: 1px solid var(--border-color);
+}
+
 .template-list-item {
   display: flex;
   flex-direction: row;
@@ -1083,11 +1092,6 @@ onMounted(() => {
 .template-list-item__checkbox {
   flex-shrink: 0;
   margin-right: 2px;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
 }
 
 .editor-header {
