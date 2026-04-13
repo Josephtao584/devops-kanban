@@ -216,6 +216,25 @@ export function buildWorkflowFromInstance(
             await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
             return result;
           } catch (err) {
+            // Handle another AskUserQuestion during resumed execution
+            const anyErr = err as any;
+            if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
+              logger.info('Workflows', `Step ${templateStep.id} suspended again for AskUserQuestion during resume`);
+
+              await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
+                reason: 'AI 需要用户提供更多信息',
+                summary: '',
+                ask_user_question: anyErr.askUserQuestion,
+              });
+
+              return await suspend({
+                reason: 'AI 需要用户提供更多信息',
+                stepName: templateStep.name,
+                summary: '',
+                ask_user_question: anyErr.askUserQuestion,
+              });
+            }
+
             const errorMessage = err instanceof Error ? err.message : String(err);
             await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
             throw err;
