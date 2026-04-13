@@ -141,6 +141,16 @@ export function buildWorkflowFromInstance(
           const answerPrompt = `[User's answer to your question]\n${typedResumeData.ask_user_answer}\n\nPlease continue based on this answer.`;
 
           try {
+            // Save user's answer as a user message event
+            await options?.lifecycle.sessionEventRepo.append({
+              session_id: sessionInfo.sessionId,
+              segment_id: sessionInfo.segmentId,
+              kind: 'message',
+              role: 'user',
+              content: answerPrompt,
+              payload: {},
+            });
+
             const result = await continueWorkflowStepWithAnswer({
               workflowInstance,
               stepId: templateStep.id,
