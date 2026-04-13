@@ -18,7 +18,19 @@ export interface ExecutorRawResult {
   summary: string;
 }
 
-export type WorkflowExecutionEventKind = 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+export type WorkflowExecutionEventKind = 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk' | 'ask_user';
+
+export interface AskUserQuestionItem {
+  question: string;
+  header?: string;
+  options?: Array<{ label: string; value: string; description?: string }>;
+  multiSelect?: boolean;
+}
+
+export interface AskUserQuestionData {
+  tool_use_id: string;
+  questions: AskUserQuestionItem[];
+}
 
 export type WorkflowExecutionEventRole = 'assistant' | 'system' | 'tool' | 'user';
 
@@ -42,6 +54,7 @@ export interface ExecutorExecutionInput {
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   abortSignal?: AbortSignal | undefined;
+  onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
 }
 
 export interface ExecutorContinueInput {
@@ -52,6 +65,7 @@ export interface ExecutorContinueInput {
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>);
   abortSignal?: AbortSignal;
+  onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
 }
 
 export interface ExecutorExecutionResult {

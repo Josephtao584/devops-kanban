@@ -270,7 +270,7 @@ class WorkflowService {
     return updatedRun;
   }
 
-  async resumeWorkflow(runId: number, resumeData: { approved: boolean; comment?: string }) {
+  async resumeWorkflow(runId: number, resumeData: { approved: boolean; comment?: string; ask_user_answer?: string }) {
     logger.info('WorkflowService', `resumeWorkflow called for runId: ${runId}`);
 
     const run = await this.workflowRunRepo.findById(runId);

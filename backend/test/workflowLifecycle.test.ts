@@ -200,6 +200,15 @@ function createLifecycleHarness({
     },
   };
 
+  const instanceRepo = {
+    async findByInstanceId() {
+      return {
+        instance_id: 'inst-test',
+        steps: template.steps,
+      };
+    },
+  };
+
   const lifecycle = new WorkflowLifecycle({
     workflowRunRepo: workflowRunRepo as never,
     taskRepo: {
@@ -208,6 +217,7 @@ function createLifecycleHarness({
       },
     } as never,
     agentRepo: agentRepo as never,
+    instanceRepo: instanceRepo as never,
     sessionRepo: sessionRepo as never,
     sessionSegmentRepo: sessionSegmentRepo as never,
     sessionEventRepo: {

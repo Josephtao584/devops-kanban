@@ -66,8 +66,47 @@
           <p class="error-text">{{ run.context.error }}</p>
         </div>
 
-        <!-- Suspended state confirmation -->
-        <div v-if="run.status === 'SUSPENDED' && suspendedStep" class="suspend-section">
+        <!-- AskUserQuestion suspended state -->
+        <div v-if="run.status === 'SUSPENDED' && suspendedStep && isAskUserSuspended" class="suspend-section ask-user-section">
+          <div class="suspend-header ask-user-header">
+            <span>AI 提出了问题</span>
+          </div>
+          <div class="ask-user-questions">
+            <div v-for="(q, idx) in suspendedStep.ask_user_question.questions" :key="idx" class="ask-user-question">
+              <div v-if="q.header" class="ask-user-q-header">{{ q.header }}</div>
+              <div class="ask-user-q-text">{{ q.question }}</div>
+              <div v-if="q.options?.length" class="ask-user-options">
+                <button
+                  v-for="opt in q.options"
+                  :key="opt.value"
+                  class="ask-user-option-btn"
+                  :class="{ selected: askUserAnswer === opt.value }"
+                  @click="askUserAnswer = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+              <div v-else class="ask-user-input">
+                <textarea
+                  v-model="askUserAnswer"
+                  placeholder="请输入你的回答..."
+                  rows="3"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="suspend-actions">
+            <el-button type="primary" @click="handleAnswerSubmit" :disabled="!askUserAnswer">
+              提交回答
+            </el-button>
+            <el-button @click="handleResume(false)">
+              取消工作流
+            </el-button>
+          </div>
+        </div>
+
+        <!-- Confirmation suspended state (existing) -->
+        <div v-else-if="run.status === 'SUSPENDED' && suspendedStep" class="suspend-section">
           <div class="suspend-header">
             <el-icon class="suspend-icon"><Loading /></el-icon>
             <span>步骤需要确认</span>
@@ -160,6 +199,7 @@ const error = ref(null)
 const cancelling = ref(false)
 const selectedStepId = ref(null)
 const selectionMode = ref('auto')
+const askUserAnswer = ref('')
 let pollTimer = null
 
 const dialogTitle = computed(() => `工作流进度${props.taskTitle ? ' - ' + props.taskTitle : ''}`)
@@ -188,6 +228,10 @@ const isTerminal = computed(() => run.value && ['COMPLETED', 'FAILED', 'CANCELLE
 const suspendedStep = computed(() => {
   if (!run.value?.steps?.length || run.value.status !== 'SUSPENDED') return null
   return run.value.steps.find((step) => step.status === 'SUSPENDED') || null
+})
+
+const isAskUserSuspended = computed(() => {
+  return suspendedStep.value?.ask_user_question?.questions?.length > 0
 })
 
 const selectedStep = computed(() => {
@@ -242,6 +286,25 @@ function formatTime(isoStr) {
 
 function isResumableRun(runData) {
   return runData?.status === 'SUSPENDED' && Array.isArray(runData.steps) && runData.steps.some((step) => step.status === 'SUSPENDED')
+}
+
+async function handleAnswerSubmit() {
+  if (!askUserAnswer.value?.trim() || !props.workflowRunId) return
+  try {
+    const response = await resumeWorkflow(props.workflowRunId, {
+      approved: true,
+      ask_user_answer: askUserAnswer.value.trim(),
+    })
+    if (response.success) {
+      ElMessage.success('回答已提交')
+      askUserAnswer.value = ''
+      await fetchRun()
+    } else {
+      ElMessage.error(response.message || '提交失败')
+    }
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || err.message || '提交失败')
+  }
 }
 
 async function handleResume(approved) {
@@ -360,6 +423,13 @@ watch(() => props.workflowRunId, () => {
   error.value = null
   selectedStepId.value = null
   selectionMode.value = 'auto'
+  askUserAnswer.value = ''
+})
+
+watch(suspendedStep, (newStep) => {
+  if (newStep?.ask_user_question) {
+    askUserAnswer.value = ''
+  }
 })
 </script>
 
@@ -536,5 +606,78 @@ watch(() => props.workflowRunId, () => {
 .suspend-actions {
   display: flex;
   gap: 12px;
+}
+
+.ask-user-section {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.ask-user-header {
+  color: #1d4ed8;
+}
+
+.ask-user-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ask-user-q-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 4px;
+}
+
+.ask-user-q-text {
+  font-size: 14px;
+  color: #1e3a5f;
+  line-height: 1.6;
+}
+
+.ask-user-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ask-user-option-btn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 2px solid #93c5fd;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ask-user-option-btn:hover {
+  background: #dbeafe;
+}
+
+.ask-user-option-btn.selected {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.ask-user-input textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+}
+
+.ask-user-input textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 </style>

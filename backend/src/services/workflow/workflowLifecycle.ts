@@ -459,7 +459,7 @@ class WorkflowLifecycle {
   async onStepSuspend(
     runId: number,
     stepId: string,
-    suspendInfo: { reason: string; summary?: string },
+    suspendInfo: { reason: string; summary?: string; ask_user_question?: Record<string, unknown> | null },
   ) {
     const completedAt = new Date().toISOString();
 
@@ -469,6 +469,7 @@ class WorkflowLifecycle {
       completed_at: completedAt,
       suspend_reason: suspendInfo.reason,
       summary: suspendInfo.summary || null,
+      ask_user_question: suspendInfo.ask_user_question || null,
     });
 
     // Update workflow run status to SUSPENDED
@@ -500,11 +501,12 @@ class WorkflowLifecycle {
   async onStepResume(
     runId: number,
     stepId: string,
-    resumeData: { approved: boolean; comment?: string },
+    resumeData: { approved: boolean; comment?: string; ask_user_answer?: string },
   ) {
     await this.workflowRunRepo.updateStep(runId, stepId, {
       confirmation_note: resumeData.comment || null,
       confirmed_at: new Date().toISOString(),
+      ask_user_answer: resumeData.ask_user_answer || null,
     });
 
     const run = await this.workflowRunRepo.findById(runId);

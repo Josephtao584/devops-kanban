@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
-import type { ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
+import type { AskUserQuestionData, ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
 import { buildEvent } from '../../../types/executors.js';
 import { logger } from '../../../utils/logger.js';
 
@@ -20,6 +20,7 @@ type ClaudeSpawnExecution = {
   cwd: string;
   prompt: string;
   proc: ExecutorProcessHandle | null;
+  askUserQuestion?: AskUserQuestionData | null | undefined;
 };
 
 /**
@@ -87,7 +88,7 @@ function toExecutorProcessHandle(proc: SpawnedProcess): ExecutorProcessHandle {
   return handle;
 }
 
-function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent | null {
+export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent | null {
   const type = json.type;
 
   // System init event
@@ -122,6 +123,22 @@ function parseStreamEvent(json: Record<string, unknown>): WorkflowExecutionEvent
       // Tool use
       if (b.type === 'tool_use') {
         const toolName = typeof b.name === 'string' ? b.name : 'unknown';
+
+        // Special handling for AskUserQuestion
+        if (toolName === 'AskUserQuestion') {
+          const input = b.input as Record<string, unknown> | undefined;
+          const questions = Array.isArray(input?.questions) ? input.questions : [];
+          return buildEvent('ask_user', 'assistant', 'AskUserQuestion', {
+            tool_name: toolName,
+            tool_id: b.id,
+            input: b.input,
+            ask_user_question: {
+              tool_use_id: typeof b.id === 'string' ? b.id : '',
+              questions,
+            },
+          });
+        }
+
         return buildEvent('tool_call', 'assistant', toolName, {
           tool_name: toolName,
           tool_id: b.id,
@@ -179,12 +196,14 @@ async function defaultSpawnImpl({
   executorConfig = {},
   abortSignal,
   onEvent,
+  onAskUser,
 }: {
   worktreePath: string;
   prompt: string;
   executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
   abortSignal?: AbortSignal;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+  onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
 }) {
   const cliArgs = buildClaudeCliArgs(prompt);
   const resolved = buildClaudeSpawnCommand(executorConfig);
@@ -207,6 +226,9 @@ async function defaultSpawnImpl({
       shell: false,
     });
     const proc = toExecutorProcessHandle(spawnedProc);
+
+    let killedByAskUser = false;
+    let capturedAskUserQuestion: AskUserQuestionData | null = null;
 
     if (abortSignal) {
       if (abortSignal.aborted) {
@@ -237,6 +259,18 @@ async function defaultSpawnImpl({
           if (event && onEvent) {
             Promise.resolve(onEvent(event)).catch(() => {});
           }
+
+          // Detect AskUserQuestion and kill process (guard against re-entry after kill)
+          if (!killedByAskUser && event?.kind === 'ask_user' && onAskUser) {
+            const questionData = event.payload?.ask_user_question as AskUserQuestionData | undefined;
+            if (questionData) {
+              capturedAskUserQuestion = questionData;
+              killedByAskUser = true;
+              Promise.resolve(onAskUser(questionData)).catch(() => {});
+              logger.info('ClaudeStepRunner', `AskUserQuestion detected, killing process. pid: ${proc.pid}`);
+              killProcessTree(proc);
+            }
+          }
         } catch {
           // Not valid JSON, ignore
         }
@@ -250,13 +284,14 @@ async function defaultSpawnImpl({
     spawnedProc.on('error', reject);
     spawnedProc.on('close', async (exitCode: number | null) => {
       resolve({
-        exitCode,
+        exitCode: killedByAskUser ? 0 : exitCode,
         stdout,
         stderr,
         commandSummary,
         cwd: worktreePath,
         prompt,
         proc,
+        askUserQuestion: killedByAskUser ? capturedAskUserQuestion : undefined,
       });
     });
   });
@@ -284,12 +319,14 @@ class ClaudeStepRunner {
     executorConfig = {},
     abortSignal,
     onEvent,
+    onAskUser,
   }: {
     prompt: string;
     worktreePath: string;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
     abortSignal?: AbortSignal;
     onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
+    onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,
@@ -297,7 +334,15 @@ class ClaudeStepRunner {
       executorConfig,
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent ? { onEvent } : {}),
+      ...(onAskUser ? { onAskUser } : {}),
     });
+
+    // If AskUserQuestion was triggered, throw a specific error for the workflow to catch
+    if (execution.askUserQuestion) {
+      const error: any = new Error('STEP_AWAITING_USER_INPUT');
+      error.askUserQuestion = execution.askUserQuestion;
+      throw error;
+    }
 
     if (execution.exitCode !== 0) {
       throw new Error(`Claude step failed with exit code ${execution.exitCode}: ${execution.stderr || execution.stdout}`);

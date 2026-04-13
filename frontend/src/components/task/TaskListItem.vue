@@ -404,7 +404,10 @@ watch(isWorkflowTerminal, (terminal, prevTerminal) => {
     if (!prevTerminal && realWorkflowRun.value?.status === 'FAILED') {
       const failedStep = (realWorkflowRun.value.steps || []).find(s => s.status === 'FAILED')
       const errorMsg = failedStep?.error || realWorkflowRun.value.context?.error || '工作流执行失败'
-      ElMessageBox.alert(errorMsg, '工作流执行失败', { type: 'error' })
+      ElMessageBox.alert(errorMsg, '工作流执行失败', {
+        type: 'error',
+        customStyle: { maxWidth: '680px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+      })
     }
   }
 })

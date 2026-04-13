@@ -8,7 +8,7 @@ export interface SessionEventListItem {
   session_id: number;
   segment_id: number;
   seq: number;
-  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk' | 'ask_user';
   role: 'assistant' | 'system' | 'tool' | 'user';
   content: string;
   payload: Record<string, unknown>;

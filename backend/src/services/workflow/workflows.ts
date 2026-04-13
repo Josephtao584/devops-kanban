@@ -4,7 +4,7 @@ import { Mastra } from '@mastra/core';
 import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
-import { executeWorkflowStep } from './workflowStepExecutor.js';
+import { executeWorkflowStep, continueWorkflowStepWithAnswer } from './workflowStepExecutor.js';
 import type { WorkflowInstanceEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
 import { logger } from '../../utils/logger.js';
@@ -28,12 +28,14 @@ const firstStepInputSchema = z.object({
 const resumeSchema = z.object({
   approved: z.boolean(),
   comment: z.string().optional(),
+  ask_user_answer: z.string().optional(),
 });
 
 const suspendSchema = z.object({
   reason: z.string(),
   stepName: z.string(),
   summary: z.string().optional(),
+  ask_user_question: z.any().optional(),
 });
 
 let _mastra: Mastra | null = null;
@@ -94,9 +96,9 @@ export function buildWorkflowFromInstance(
       inputSchema: isFirst ? firstStepInputSchema : stepOutputSchema,
       outputSchema: stepOutputSchema,
       stateSchema: sharedStateSchema,
-      // Add resume/suspend schemas for confirmation steps
-      resumeSchema: requiresConfirmation ? resumeSchema : undefined,
-      suspendSchema: requiresConfirmation ? suspendSchema : undefined,
+      // All steps support suspend/resume for both confirmation and AskUserQuestion
+      resumeSchema,
+      suspendSchema,
       execute: async ({ inputData, state, abortSignal, abort, resumeData, suspend, suspendData }) => {
         logger.info('Workflows', `Step ${templateStep.id} starting, abortSignal exists: ${!!abortSignal}, workflowRun: ${options.runId}, resumeData: ${!!resumeData}`);
 
@@ -107,11 +109,77 @@ export function buildWorkflowFromInstance(
         }
 
         // Type the resume data and suspend data
-        const typedResumeData = resumeData as { approved?: boolean; comment?: string } | undefined;
-        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string } | undefined;
+        const typedResumeData = resumeData as { approved?: boolean; comment?: string; ask_user_answer?: string } | undefined;
+        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string; ask_user_question?: Record<string, unknown> } | undefined;
 
-        // === Resume execution (user confirmed) ===
-        if (requiresConfirmation && typedResumeData?.approved) {
+        // === Resume after AskUserQuestion (user answered) ===
+        if (typedResumeData?.ask_user_answer !== undefined && typedSuspendData?.ask_user_question) {
+          logger.info('Workflows', `Step ${templateStep.id} resuming with AskUserQuestion answer`);
+
+          const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
+          if (!sessionInfo) {
+            abort();
+            return { summary: '' };
+          }
+
+          await options.lifecycle.onStepResume(options.runId, templateStep.id, {
+            approved: true,
+            ask_user_answer: typedResumeData.ask_user_answer,
+          });
+
+          // Get provider_session_id from the suspended step
+          const run = await options.lifecycle.workflowRunRepo.findById(options.runId);
+          const suspendedStep = run?.steps.find(s => s.step_id === templateStep.id);
+          const providerSessionId = suspendedStep?.provider_session_id;
+
+          if (!providerSessionId) {
+            logger.warn('Workflows', `Step ${templateStep.id} has no provider_session_id for AskUserQuestion resume`);
+            await options.lifecycle.onStepError(options.runId, templateStep.id, 'No provider session ID found for AskUserQuestion resume');
+            throw new Error('No provider session ID found for AskUserQuestion resume');
+          }
+
+          const answerPrompt = `[User's answer to your question]\n${typedResumeData.ask_user_answer}\n\nPlease continue based on this answer.`;
+
+          try {
+            const result = await continueWorkflowStepWithAnswer({
+              workflowInstance,
+              stepId: templateStep.id,
+              worktreePath: state.worktreePath,
+              providerSessionId,
+              answerPrompt,
+              onEvent: async (event) => {
+                await options?.lifecycle.sessionEventRepo.append({
+                  session_id: sessionInfo.sessionId,
+                  segment_id: sessionInfo.segmentId,
+                  kind: event.kind,
+                  role: event.role,
+                  content: event.content,
+                  payload: event.payload || {},
+                });
+              },
+              onProviderState: async (providerState) => {
+                if (sessionInfo.segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
+                  await options.lifecycle.sessionSegmentRepo.update(sessionInfo.segmentId, {
+                    provider_session_id: providerState.providerSessionId,
+                  });
+                  await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                    provider_session_id: providerState.providerSessionId,
+                  });
+                }
+              },
+            });
+
+            await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
+            return result;
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
+            throw err;
+          }
+        }
+
+        // === Resume execution (user confirmed for requiresConfirmation) ===
+        if (requiresConfirmation && typedResumeData?.approved && !typedSuspendData?.ask_user_question) {
           // Get previous result from suspendData, don't re-execute
           const previousSummary = typedSuspendData?.summary || '';
           logger.info('Workflows', `Step ${templateStep.id} resuming with approved=true, using suspendData.summary`);
@@ -197,6 +265,25 @@ export function buildWorkflowFromInstance(
 
           return result;
         } catch (err) {
+          // Handle AskUserQuestion: suspend workflow and wait for user answer
+          const anyErr = err as any;
+          if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
+            logger.info('Workflows', `Step ${templateStep.id} suspended for AskUserQuestion`);
+
+            await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
+              reason: 'AI 需要用户提供更多信息',
+              summary: '',
+              ask_user_question: anyErr.askUserQuestion,
+            });
+
+            return await suspend({
+              reason: 'AI 需要用户提供更多信息',
+              stepName: templateStep.name,
+              summary: '',
+              ask_user_question: anyErr.askUserQuestion,
+            });
+          }
+
           const errorMessage = err instanceof Error ? err.message : String(err);
           await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
           throw err;

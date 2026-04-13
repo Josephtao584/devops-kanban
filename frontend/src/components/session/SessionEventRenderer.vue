@@ -61,6 +61,13 @@
       <div class="event-system-label">执行输出</div>
       <pre class="event-stream">{{ event.content }}</pre>
     </div>
+    <div v-else-if="event.kind === 'ask_user'" class="event-system event-system-card event-ask-user">
+      <div class="event-system-label">AI 提问</div>
+      <div class="event-ask-question">{{ askQuestionText }}</div>
+      <div v-if="askQuestionOptions.length" class="event-ask-options">
+        <span v-for="opt in askQuestionOptions" :key="opt.value" class="event-ask-option">{{ opt.label }}</span>
+      </div>
+    </div>
     <div v-else class="event-system event-system-card event-fallback">
       <div class="event-system-label">{{ fallbackLabel }}</div>
       <div class="event-system-content">{{ fallbackContent }}</div>
@@ -298,6 +305,22 @@ const formattedMessageContent = computed(() => {
   })
 
   return typeof rendered === 'string' ? rendered : ''
+})
+
+const askQuestionText = computed(() => {
+  const questions = props.event?.payload?.ask_user_question?.questions
+  if (Array.isArray(questions) && questions.length > 0) {
+    return questions.map(q => q.question).join('\n')
+  }
+  return props.event?.content || ''
+})
+
+const askQuestionOptions = computed(() => {
+  const questions = props.event?.payload?.ask_user_question?.questions
+  if (Array.isArray(questions) && questions.length > 0 && questions[0]?.options) {
+    return questions[0].options
+  }
+  return []
 })
 </script>
 
@@ -1544,6 +1567,39 @@ const formattedMessageContent = computed(() => {
   word-break: break-word;
   max-height: 220px;
   overflow: auto;
+}
+
+.event-ask-user {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.event-ask-user .event-system-label {
+  color: #2563eb;
+}
+
+.event-ask-question {
+  font-size: 13px;
+  color: #1e40af;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.event-ask-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.event-ask-option {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 500;
 }
 </style>
 

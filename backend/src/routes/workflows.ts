@@ -100,9 +100,12 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const body = request.body || {};
       const approved = body.approved ?? true;
-      const resumeData: { approved: boolean; comment?: string } = { approved };
+      const resumeData: { approved: boolean; comment?: string; ask_user_answer?: string } = { approved };
       if (body.comment !== undefined) {
         resumeData.comment = body.comment;
+      }
+      if (body.ask_user_answer !== undefined) {
+        resumeData.ask_user_answer = body.ask_user_answer;
       }
       const run = await workflowService.resumeWorkflow(
         parseNumber(request.params.id),

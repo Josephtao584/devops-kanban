@@ -82,3 +82,42 @@ test.test('workflow aborts when onStepStart skips execution', async () => {
   assert.equal(onWorkflowCompleteCalls, 0);
   assert.equal(onWorkflowErrorCalls, 0);
 });
+
+// --- AskUserQuestion suspend/resume tests ---
+
+test.test('workflow suspend/resume schemas include ask_user_question and ask_user_answer', async () => {
+  // Verify the schemas support the new fields by checking the workflow build doesn't throw
+  await initWorkflows();
+
+  const suspendCalls: any[] = [];
+  const workflow = buildWorkflowFromInstance(buildInstance(`ask-user-schema-${Date.now()}`), {
+    runId: 100,
+    task: { id: 7, project_id: 3, execution_path: '/tmp/task-7' },
+    lifecycle: {
+      async onStepStart() {
+        return { sessionId: 1, segmentId: 1 };
+      },
+      async onStepComplete() {},
+      async onStepError() {},
+      async onStepResume() {},
+      async onStepSuspend(_runId: number, _stepId: string, info: any) {
+        suspendCalls.push(info);
+      },
+      async onWorkflowComplete() {},
+      async onWorkflowError() {},
+      sessionEventRepo: { async append() {} },
+      sessionSegmentRepo: { async update() {} },
+      workflowRunRepo: {
+        async findById() {
+          return {
+            steps: [{ step_id: 'step-1', provider_session_id: 'sess_123', status: 'SUSPENDED' }],
+          };
+        },
+        async updateStep() {},
+        async update() {},
+      },
+    } as never,
+  });
+
+  assert.ok(workflow, 'Workflow with ask_user_question schemas should build without errors');
+});

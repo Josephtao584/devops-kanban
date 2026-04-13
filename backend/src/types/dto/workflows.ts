@@ -9,4 +9,5 @@ export interface StartWorkflowBody {
 export interface ResumeWorkflowBody {
   approved: boolean;
   comment?: string;
+  ask_user_answer?: string;
 }

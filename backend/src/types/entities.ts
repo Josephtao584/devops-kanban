@@ -74,7 +74,7 @@ export interface SessionEventEntity {
   session_id: number;
   segment_id: number;
   seq: number;
-  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk';
+  kind: 'message' | 'tool_call' | 'tool_result' | 'status' | 'error' | 'artifact' | 'stream_chunk' | 'ask_user';
   role: 'assistant' | 'system' | 'tool' | 'user';
   content: string;
   payload: Record<string, unknown>;
@@ -98,6 +98,9 @@ export interface WorkflowStepEntity {
   suspend_reason?: string | null;
   confirmation_note?: string | null;
   confirmed_at?: string | null;
+  // AskUserQuestion fields
+  ask_user_question?: Record<string, unknown> | null;
+  ask_user_answer?: string | null;
 }
 
 export interface WorkflowTemplateStepEntity {

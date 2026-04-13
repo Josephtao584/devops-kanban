@@ -1,5 +1,6 @@
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import type {
+  AskUserQuestionData,
   ExecutorConfig,
   ExecutorExecutionResult,
   ExecutorProviderState,
@@ -29,6 +30,7 @@ interface ExecuteWorkflowStepInput {
   abortSignal?: AbortSignal;
   onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
   onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
+  onAskUser?: (data: AskUserQuestionData) => void | Promise<void>;
 }
 
 function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
@@ -70,6 +72,7 @@ export async function executeWorkflowStep({
   abortSignal,
   onEvent,
   onProviderState,
+  onAskUser,
 }: ExecuteWorkflowStepInput) {
   // 1. Find step
   const step = workflowInstance.steps.find((item) => item.id === stepId);
@@ -93,6 +96,50 @@ export async function executeWorkflowStep({
     abortSignal,
     onEvent,
     onProviderState,
+    onAskUser,
+  });
+
+  return adaptStepResult(executorConfig.type, execution);
+}
+
+export async function continueWorkflowStepWithAnswer({
+  registry = defaultRegistry,
+  workflowInstance,
+  agentRepo = defaultAgentRepo,
+  stepId,
+  worktreePath,
+  providerSessionId,
+  answerPrompt,
+  onEvent,
+  onProviderState,
+  onAskUser,
+}: {
+  registry?: AgentExecutorRegistry;
+  workflowInstance: WorkflowInstanceEntity;
+  agentRepo?: AgentRepository;
+  stepId: string;
+  worktreePath: string;
+  providerSessionId: string;
+  answerPrompt: string;
+  onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
+  onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
+  onAskUser?: (data: AskUserQuestionData) => void | Promise<void>;
+}) {
+  const step = workflowInstance.steps.find((item) => item.id === stepId);
+  if (!step) throw new Error(`Workflow instance step not found: ${stepId}`);
+
+  const agent = await resolveAgent(agentRepo, stepId, step.agentId);
+  const executorConfig = buildExecutorConfig(agent);
+  const executor = registry.getExecutor(executorConfig.type);
+
+  const execution = await executor.continue({
+    prompt: answerPrompt,
+    worktreePath,
+    providerSessionId,
+    executorConfig,
+    ...(onEvent ? { onEvent } : {}),
+    ...(onProviderState ? { onProviderState } : {}),
+    ...(onAskUser ? { onAskUser } : {}),
   });
 
   return adaptStepResult(executorConfig.type, execution);

@@ -74,7 +74,7 @@ describe('TaskListItem workflow failure notification', () => {
     vi.spyOn(ElMessageBox, 'alert').mockResolvedValue()
   })
 
-  it('shows ElMessageBox.alert with step error when workflow fails', async () => {
+  it('shows ElMessageBox.alert with step error and wide dialog style', async () => {
     const { getWorkflowRun } = await import('../src/api/workflow.js')
 
     getWorkflowRun.mockResolvedValue({
@@ -104,7 +104,10 @@ describe('TaskListItem workflow failure notification', () => {
     expect(ElMessageBox.alert).toHaveBeenCalledWith(
       'Claude Code cannot be launched inside another Claude Code session.',
       '工作流执行失败',
-      { type: 'error' }
+      {
+        type: 'error',
+        customStyle: { maxWidth: '680px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+      }
     )
   })
 
@@ -128,7 +131,10 @@ describe('TaskListItem workflow failure notification', () => {
     expect(ElMessageBox.alert).toHaveBeenCalledWith(
       'Something went wrong',
       '工作流执行失败',
-      { type: 'error' }
+      {
+        type: 'error',
+        customStyle: { maxWidth: '680px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }
+      }
     )
   })
 
