@@ -371,6 +371,90 @@ describe('StepSessionPanel', () => {
     expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
   })
 
+  it('hides thinking messages by default via the hide-thinking checkbox', async () => {
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 3, hasMore: false })
+    eventsRef.value = [
+      { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} },
+      { id: 2, seq: 2, kind: 'message', role: 'assistant', content: 'thinking...', payload: { block_type: 'thinking' }, isThinking: true },
+      { id: 3, seq: 3, kind: 'message', role: 'assistant', content: 'done', payload: {} }
+    ]
+
+    const wrapper = mount(StepSessionPanel, {
+      props: { sessionId: 102, stepName: '代码开发' },
+      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
+    })
+
+    await flushPromises()
+
+    // hideThinkingMessages defaults to true, so thinking is filtered out
+    const stubs = wrapper.findAll('.session-event-renderer-stub')
+    expect(stubs).toHaveLength(2)
+    expect(stubs.map(e => e.attributes('data-seq'))).toEqual(['1', '3'])
+
+    const labels = wrapper.findAll('.auto-scroll-check')
+    const hideThinkingLabel = labels.find(l => l.text().includes('隐藏思考过程'))
+    expect(hideThinkingLabel).toBeTruthy()
+    const hideThinkingCheck = hideThinkingLabel.find('.check-box')
+    expect(hideThinkingCheck.classes()).toContain('checked')
+  })
+
+  it('shows thinking messages when the hide-thinking checkbox is unchecked', async () => {
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
+    eventsRef.value = [
+      { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} },
+      { id: 2, seq: 2, kind: 'message', role: 'assistant', content: 'thinking...', payload: { block_type: 'thinking' }, isThinking: true }
+    ]
+
+    const wrapper = mount(StepSessionPanel, {
+      props: { sessionId: 102, stepName: '代码开发' },
+      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
+    })
+
+    await flushPromises()
+
+    // Default: thinking hidden, only 1 event shown
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
+
+    const labels = wrapper.findAll('.auto-scroll-check')
+    const hideThinkingLabel = labels.find(l => l.text().includes('隐藏思考过程'))
+
+    // Click to show thinking
+    await hideThinkingLabel.trigger('click')
+    await flushPromises()
+
+    const hideThinkingCheck = hideThinkingLabel.find('.check-box')
+    expect(hideThinkingCheck.classes()).not.toContain('checked')
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
+  })
+
+  it('keeps tool filter and thinking filter independent', async () => {
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 4, hasMore: false })
+    eventsRef.value = [
+      { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} },
+      { id: 2, seq: 2, kind: 'tool_call', role: 'tool', content: 'call', payload: {} },
+      { id: 3, seq: 3, kind: 'message', role: 'assistant', content: 'thinking...', payload: { block_type: 'thinking' }, isThinking: true },
+      { id: 4, seq: 4, kind: 'message', role: 'assistant', content: 'done', payload: {} }
+    ]
+
+    const wrapper = mount(StepSessionPanel, {
+      props: { sessionId: 102, stepName: '代码开发' },
+      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
+    })
+
+    await flushPromises()
+
+    // Both filters default to true: only non-tool, non-thinking events shown
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
+
+    // Uncheck thinking filter: now 3 events (still hiding tool)
+    const labels = wrapper.findAll('.auto-scroll-check')
+    const hideThinkingLabel = labels.find(l => l.text().includes('隐藏思考过程'))
+    await hideThinkingLabel.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(3)
+  })
+
   it('keeps metadata subordinate to the conversation title', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 

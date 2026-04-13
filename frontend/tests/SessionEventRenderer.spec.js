@@ -415,6 +415,52 @@ describe('SessionEventRenderer', () => {
     expect(wrapper.classes()).toContain('tone-status-neutral')
   })
 
+  it('renders thinking messages as collapsible system cards', () => {
+    const wrapper = mountRenderer({
+      id: 50,
+      kind: 'message',
+      role: 'assistant',
+      content: 'Let me think about this...',
+      isThinking: true
+    })
+
+    expect(wrapper.find('.event-thinking').exists()).toBe(true)
+    expect(wrapper.classes()).toContain('tone-thinking')
+    expect(wrapper.find('.event-thinking-label').text()).toBe('思考过程')
+    expect(wrapper.find('.event-thinking-content').exists()).toBe(false)
+  })
+
+  it('expands thinking content when the header is clicked', async () => {
+    const wrapper = mountRenderer({
+      id: 51,
+      kind: 'message',
+      role: 'assistant',
+      content: 'Analyzing the codebase structure...',
+      isThinking: true
+    })
+
+    expect(wrapper.find('.event-thinking-content').exists()).toBe(false)
+    expect(wrapper.find('.event-thinking-toggle').text()).toBe('展开')
+
+    await wrapper.find('.event-thinking-header').trigger('click')
+    expect(wrapper.find('.event-thinking-content').exists()).toBe(true)
+    expect(wrapper.find('.event-thinking-content').text()).toContain('Analyzing the codebase structure')
+    expect(wrapper.find('.event-thinking-toggle').text()).toBe('收起')
+  })
+
+  it('does not render thinking messages as regular chat bubbles', () => {
+    const wrapper = mountRenderer({
+      id: 52,
+      kind: 'message',
+      role: 'assistant',
+      content: 'Some thinking',
+      isThinking: true
+    })
+
+    expect(wrapper.find('.event-chat-message').exists()).toBe(false)
+    expect(wrapper.find('.event-message').exists()).toBe(false)
+  })
+
   it('renders stream_chunk events in terminal style blocks', () => {
     const wrapper = mountRenderer({
       id: 6,

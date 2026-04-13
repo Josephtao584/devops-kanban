@@ -76,6 +76,14 @@
           </span>
           <span class="check-label">隐藏工具消息</span>
         </label>
+        <label class="auto-scroll-check" @click.prevent="hideThinkingMessages = !hideThinkingMessages">
+          <span class="check-box" :class="{ checked: hideThinkingMessages }">
+            <svg v-if="hideThinkingMessages" width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5l2.5 2.5L8 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="check-label">隐藏思考过程</span>
+        </label>
       </div>
     </div>
 
@@ -138,11 +146,18 @@ const sessionStatus = ref('')
 const eventsContainer = ref(null)
 const autoScrollEnabled = ref(true)
 const hideToolMessages = ref(true)
+const hideThinkingMessages = ref(true)
 const messageInput = ref(null)
 
 const displayedEvents = computed(() => {
-  if (!hideToolMessages.value) return events.value
-  return events.value.filter(e => e.kind !== 'tool_call' && e.kind !== 'tool_result')
+  let result = events.value
+  if (hideToolMessages.value) {
+    result = result.filter(e => e.kind !== 'tool_call' && e.kind !== 'tool_result')
+  }
+  if (hideThinkingMessages.value) {
+    result = result.filter(e => !e.isThinking)
+  }
+  return result
 })
 
 const canInput = computed(() => SESSION_INPUT_STATUSES.includes(sessionStatus.value))

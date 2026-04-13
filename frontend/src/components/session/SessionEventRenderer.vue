@@ -5,7 +5,7 @@
     :class="[`kind-${event.kind}`, `role-${event.role}`, toneClass]"
   >
     <div
-      v-if="event.kind === 'message'"
+      v-if="event.kind === 'message' && !event.isThinking"
       class="event-row event-chat-message"
       :class="messageAlignmentClass"
     >
@@ -15,6 +15,17 @@
           <div class="event-content" v-html="formattedMessageContent"></div>
         </div>
       </div>
+    </div>
+
+    <div
+      v-else-if="event.kind === 'message' && event.isThinking"
+      class="event-system event-system-card event-thinking"
+    >
+      <div class="event-thinking-header" @click="toggleThinkingExpanded">
+        <span class="event-thinking-label">思考过程</span>
+        <span class="event-thinking-toggle">{{ thinkingToggleLabel }}</span>
+      </div>
+      <pre v-if="isThinkingExpanded" class="event-thinking-content">{{ event.content }}</pre>
     </div>
 
     <div v-else-if="event.kind === 'tool_call'" class="event-system event-system-card event-tool">
@@ -88,6 +99,7 @@ const props = defineProps({
 
 const isToolResultExpanded = ref(false)
 const isToolCallExpanded = ref(false)
+const isThinkingExpanded = ref(false)
 
 function toggleToolResultExpanded() {
   isToolResultExpanded.value = !isToolResultExpanded.value
@@ -95,6 +107,10 @@ function toggleToolResultExpanded() {
 
 function toggleToolCallExpanded() {
   isToolCallExpanded.value = !isToolCallExpanded.value
+}
+
+function toggleThinkingExpanded() {
+  isThinkingExpanded.value = !isThinkingExpanded.value
 }
 
 const isDebuggerOutput = computed(() => {
@@ -168,6 +184,10 @@ const displayedToolCallText = computed(() => {
 
 const toolCallToggleLabel = computed(() => {
   return isToolCallExpanded.value ? '收起' : '展开'
+})
+
+const thinkingToggleLabel = computed(() => {
+  return isThinkingExpanded.value ? '收起' : '展开'
 })
 
 const toolResultText = computed(() => {
@@ -271,6 +291,7 @@ const fallbackContent = computed(() => {
 const toneClass = computed(() => {
   if (props.event?.kind === 'tool_call') return 'tone-tool'
   if (props.event?.kind === 'status') return `tone-status-${statusTone.value}`
+  if (props.event?.kind === 'message' && props.event?.isThinking) return 'tone-thinking'
   return ''
 })
 
@@ -1600,6 +1621,75 @@ const askQuestionOptions = computed(() => {
   color: #1d4ed8;
   font-size: 12px;
   font-weight: 500;
+}
+
+.event-thinking {
+  border-style: dashed;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: min(calc(100% - 24px), 520px);
+  min-width: min(240px, 100%);
+  color: #475569;
+}
+
+.event-thinking:hover {
+  border-color: #cbd5e1;
+}
+
+.event-thinking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.tone-thinking .event-thinking {
+  background: #f6f8fb;
+  border-color: #dbe3ee;
+}
+
+.tone-thinking .event-thinking-label {
+  color: #5f6f86;
+}
+
+.event-thinking-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #94a3b8;
+}
+
+.event-thinking-label::before {
+  content: '· ';
+}
+
+.event-thinking-toggle {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.event-thinking-toggle:hover {
+  color: #475569;
+}
+
+.event-thinking-content {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
 }
 </style>
 
