@@ -339,6 +339,7 @@
               :session-id="currentViewingNode?.sessionId"
               :step-name="currentViewingNode?.name"
               :show-header="false"
+              :workflow-run-id="selectedTask?.workflow_run_id"
             />
           </div>
         </div>

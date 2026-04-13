@@ -105,6 +105,7 @@ import SessionEventRenderer from '../session/SessionEventRenderer.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
 import { getSession, continueSession } from '../../api/session.js'
+import { resumeWorkflow } from '../../api/workflow.js'
 
 const props = defineProps({
   sessionId: {
@@ -122,6 +123,10 @@ const props = defineProps({
   initialMessage: {
     type: String,
     default: ''
+  },
+  workflowRunId: {
+    type: [Number, String],
+    default: null
   }
 })
 
@@ -187,9 +192,19 @@ async function fetchSessionStatus() {
 async function sendMessage() {
   if (!message.value.trim() || isSending.value || !props.sessionId) return
 
+  const text = message.value.trim()
   isSending.value = true
   try {
-    await continueSession(props.sessionId, message.value.trim())
+    if (props.workflowRunId) {
+      // Resume workflow with the answer
+      await resumeWorkflow(props.workflowRunId, {
+        approved: true,
+        ask_user_answer: text,
+      })
+    } else {
+      // Normal session continue
+      await continueSession(props.sessionId, text)
+    }
     message.value = ''
     await fetchSessionStatus()
     await loadInitial(props.sessionId)
@@ -580,6 +595,12 @@ onBeforeUnmount(() => {
 .event-ask-user-option-btn:hover {
   background: #bfdbfe;
   border-color: #60a5fa;
+}
+
+.event-ask-user-option-btn.selected {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
 }
 </style>
 
