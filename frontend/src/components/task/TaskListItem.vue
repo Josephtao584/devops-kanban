@@ -369,6 +369,9 @@ const isAskUserSuspended = computed(() => {
   if (!realWorkflowRun.value || realWorkflowRun.value.status !== 'SUSPENDED') return false
   const steps = realWorkflowRun.value.steps || []
   const suspendedStep = steps.find((s) => s.status === 'SUSPENDED')
+  // If waiting for confirmation, show confirm button (not ask_user suspended)
+  if (suspendedStep?.suspend_reason?.includes('确认')) return false
+  // Has pending question to answer
   return suspendedStep?.ask_user_question?.questions?.length > 0
 })
 

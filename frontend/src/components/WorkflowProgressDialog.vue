@@ -233,6 +233,7 @@ const suspendedStep = computed(() => {
 })
 
 const isAskUserSuspended = computed(() => {
+  if (suspendedStep.value?.suspend_reason?.includes('确认')) return false
   return suspendedStep.value?.ask_user_question?.questions?.length > 0
 })
 
