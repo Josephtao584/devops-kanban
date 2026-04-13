@@ -261,12 +261,14 @@ async function defaultSpawnImpl({
           }
 
           // Detect AskUserQuestion and kill process (guard against re-entry after kill)
-          if (!killedByAskUser && event?.kind === 'ask_user' && onAskUser) {
+          if (!killedByAskUser && event?.kind === 'ask_user') {
             const questionData = event.payload?.ask_user_question as AskUserQuestionData | undefined;
             if (questionData) {
               capturedAskUserQuestion = questionData;
               killedByAskUser = true;
-              Promise.resolve(onAskUser(questionData)).catch(() => {});
+              if (onAskUser) {
+                Promise.resolve(onAskUser(questionData)).catch(() => {});
+              }
               logger.info('ClaudeStepRunner', `AskUserQuestion detected, killing process. pid: ${proc.pid}`);
               killProcessTree(proc);
             }
