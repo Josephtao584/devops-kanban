@@ -25,12 +25,18 @@ export function resolveCommand({
 
   const [command, ...args] = baseParts;
 
+  const env = {
+    ...processEnv,
+    ...(executorConfig?.env || {}),
+  };
+
+  // Remove env vars that cause "nested session" detection
+  delete env.CLAUDECODE;
+  delete env.CLAUDE_CODE_ENTRYPOINT;
+
   return {
     command,
     args: [...args, ...(executorConfig?.args || [])],
-    env: {
-      ...processEnv,
-      ...(executorConfig?.env || {}),
-    },
+    env,
   };
 }
