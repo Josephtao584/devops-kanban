@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import i18n from '../src/locales'
 import KanbanView from '../src/views/KanbanView.vue'
@@ -344,6 +344,7 @@ describe('KanbanView workflow start entrypoint', () => {
 
     vi.spyOn(ElMessage, 'success').mockImplementation(() => {})
     vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
+    vi.spyOn(ElMessageBox, 'alert').mockResolvedValue()
   })
 
   it('opens template selection before starting the task', async () => {
@@ -508,5 +509,60 @@ describe('KanbanView workflow start entrypoint', () => {
     expect(description.html()).not.toContain('<script>alert(1)</script>')
     expect(description.text()).toContain('alert(1)')
     expect(description.text()).toContain('• 条目')
+  })
+
+  it('shows ElMessageBox.alert when startTask API returns success: false', async () => {
+    startTask.mockResolvedValue({ success: false, message: '只有待处理的任务可以启动' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-template-selection').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-workflow-edit').trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.alert).toHaveBeenCalledWith('只有待处理的任务可以启动', '启动失败', { type: 'error' })
+    expect(ElMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('shows ElMessageBox.alert when startTask API throws an error', async () => {
+    startTask.mockRejectedValue(new Error('网络错误'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-template-selection').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-workflow-edit').trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.alert).toHaveBeenCalledWith('网络错误', '启动失败', { type: 'error' })
+    expect(ElMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('shows ElMessageBox.alert when worktree creation fails during task start', async () => {
+    handleWorktreeMock.mockRejectedValue(new Error('Worktree 创建失败'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.select-task-7').trigger('click')
+    await wrapper.find('.start-task-7').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-template-selection-with-worktree').trigger('click')
+    await flushPromises()
+    await wrapper.find('.confirm-workflow-edit').trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.alert).toHaveBeenCalledWith('Worktree 创建失败', '启动失败', { type: 'error' })
+    expect(ElMessage.error).not.toHaveBeenCalled()
+    expect(startTask).not.toHaveBeenCalled()
   })
 })

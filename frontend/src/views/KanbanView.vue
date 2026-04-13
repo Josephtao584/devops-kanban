@@ -927,7 +927,7 @@ const startSelectedTaskWithTemplate = async (
       await handleWorktree(selectedTask.value)
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Worktree 创建失败，无法启动任务'
-      ElMessage.error(msg)
+      ElMessageBox.alert(msg, '启动失败', { type: 'error' })
       return
     }
   }
@@ -954,12 +954,12 @@ const startSelectedTaskWithTemplate = async (
         }
       }
     } else {
-      ElMessage.error(response.message || '启动失败')
+      ElMessageBox.alert(response.message || '启动失败', '启动失败', { type: 'error' })
     }
   } catch (error) {
     console.error('启动任务失败:', error)
     const msg = error?.response?.data?.message || error?.message || '启动失败'
-    ElMessage.error(msg)
+    ElMessageBox.alert(msg, '启动失败', { type: 'error' })
   }
 }
 
