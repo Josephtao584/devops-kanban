@@ -39,6 +39,7 @@
           </div>
 
           <div v-else class="template-list">
+            <div class="template-scroll-area">
             <draggable
               v-model="templates"
               item-key="template_id"
@@ -78,22 +79,28 @@
                 </button>
               </template>
             </draggable>
+            </div>
 
             <div class="sidebar-bottom-actions">
-              <el-button plain @click="showImportDialog = true">
-                {{ $t('workflowTemplate.importButton') }}
-              </el-button>
               <template v-if="exportMode">
-                <el-button type="primary" plain :disabled="selectedForExport.length === 0" @click="handleBatchExport">
+                <el-button type="primary" plain size="small" :disabled="selectedForExport.length === 0" @click="handleBatchExport">
                   {{ $t('workflowTemplate.exportConfirm', { count: selectedForExport.length }) }}
                 </el-button>
-                <el-button plain @click="cancelExportMode">
+                <el-button plain size="small" :disabled="selectedForExport.length === 0" @click="handleBundleExportFromMode">
+                  {{ $t('bundle.exportTitle') }}
+                </el-button>
+                <el-button plain size="small" @click="cancelExportMode">
                   {{ $t('common.cancel') }}
                 </el-button>
               </template>
-              <el-button v-else plain @click="enterExportMode">
-                {{ $t('workflowTemplate.exportButton') }}
-              </el-button>
+              <template v-else>
+                <el-button plain @click="enterExportMode">
+                  {{ $t('common.export') }}
+                </el-button>
+                <el-button plain @click="showBundleImportDialog = true">
+                  {{ $t('common.import') }}
+                </el-button>
+              </template>
             </div>
           </div>
         </template>
@@ -339,6 +346,17 @@
       :agents="agents"
       @imported="handleImportComplete"
     />
+
+    <BundleExportDialog
+      v-model="showBundleExportDialog"
+      :templates="templates"
+      @exported="handleBundleExported"
+    />
+
+    <BundleImportDialog
+      v-model="showBundleImportDialog"
+      @imported="handleBundleImported"
+    />
   </div>
 </template>
 
@@ -349,6 +367,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument, Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import WorkflowTemplateImportDialog from '../components/workflow/WorkflowTemplateImportDialog.vue'
+import BundleExportDialog from '../components/bundle/BundleExportDialog.vue'
+import BundleImportDialog from '../components/bundle/BundleImportDialog.vue'
 import BaseDialog from '../components/BaseDialog.vue'
 import {
   createWorkflowTemplate,
@@ -401,6 +421,8 @@ let templateDetailRequestToken = 0
 let latestTemplateDetailRequestToken = 0
 
 const showImportDialog = ref(false)
+const showBundleExportDialog = ref(false)
+const showBundleImportDialog = ref(false)
 const exportMode = ref(false)
 const selectedForExport = ref([])
 
@@ -953,6 +975,23 @@ const handleImportComplete = async () => {
   ElMessage.success(t('workflowTemplate.importSuccess'))
 }
 
+const handleBundleExported = () => {
+  showBundleExportDialog.value = false
+  exportMode.value = false
+  selectedForExport.value = []
+}
+
+const handleBundleExportFromMode = () => {
+  // Open bundle export with currently selected templates pre-filled
+  showBundleExportDialog.value = true
+}
+
+const handleBundleImported = async () => {
+  showBundleImportDialog.value = false
+  await loadTemplateList(selectedTemplateId.value || DEFAULT_TEMPLATE_ID)
+  ElMessage.success(t('bundle.importSuccess'))
+}
+
 onMounted(() => {
   loadPage()
 })
@@ -1006,12 +1045,21 @@ const handlePreviewPrompt = async () => {
 .template-layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: 1fr;
   gap: 20px;
   padding: 0 20px 20px;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  height: 0;
+  overflow: hidden;
   background: var(--page-bg);
+}
+
+.template-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .template-sidebar,
@@ -1030,8 +1078,10 @@ const handlePreviewPrompt = async () => {
 :deep(.template-sidebar .el-card__body) {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 18px;
+  overflow: hidden;
 }
 
 :deep(.template-card .el-card__body) {
@@ -1063,12 +1113,18 @@ const handlePreviewPrompt = async () => {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
-  overflow: auto;
+}
+
+.template-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sidebar-bottom-actions {
   display: flex;
-  gap: 8px;
+  flex-shrink: 0;
+  gap: 6px;
   padding-top: 12px;
   margin-top: auto;
   border-top: 1px solid var(--border-color);

@@ -56,3 +56,31 @@ export interface ImportConfirmInput {
   strategy: 'skip' | 'overwrite' | 'copy';
   agentMappings: Record<string, number>;
 }
+
+// MCP Server Export/Import types
+
+export interface ExportedMcpServer {
+  name: string;
+  description?: string;
+  server_type: 'stdio' | 'http';
+  config: Record<string, unknown>;
+  auto_install: number;
+  install_command?: string;
+}
+
+export interface McpServerExportFile {
+  version: string;
+  exportedAt: string;
+  servers: ExportedMcpServer[];
+}
+
+export interface McpServerImportPreview {
+  servers: ExportedMcpServer[];
+  existingServerNames: string[];
+}
+
+export interface McpServerImportConfirmInput {
+  servers: ExportedMcpServer[];
+  strategy: 'skip' | 'overwrite' | 'copy';
+  nameMappings: Record<string, string>;
+}

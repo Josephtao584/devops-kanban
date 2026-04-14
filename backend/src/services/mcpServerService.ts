@@ -1,8 +1,9 @@
 import { McpServerRepository } from '../repositories/mcpServerRepository.js';
 import { AgentRepository } from '../repositories/agentRepository.js';
 import type { McpServerEntity } from '../types/entities.js';
+import type { ExportedMcpServer, McpServerExportFile, McpServerImportPreview, McpServerImportConfirmInput } from '../types/dto/workflowTemplates.js';
 import { execSync } from 'node:child_process';
-import { ConflictError } from '../utils/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
 class McpServerService {
@@ -81,6 +82,125 @@ class McpServerService {
       await this.cleanupAgentReferences(id);
     }
     return deleted;
+  }
+
+  // --- Export/Import ---
+
+  async exportMcpServer(id: number): Promise<McpServerExportFile> {
+    const server = await this.mcpServerRepo.findById(id);
+    if (!server) {
+      throw new NotFoundError(`未找到 MCP 服务器: ${id}`, `MCP server not found: ${id}`, { id });
+    }
+    return this.buildExportFile([server]);
+  }
+
+  async exportMcpServers(ids: number[]): Promise<McpServerExportFile> {
+    const servers: McpServerEntity[] = [];
+    for (const id of ids) {
+      const server = await this.mcpServerRepo.findById(id);
+      if (server) servers.push(server);
+    }
+    if (servers.length === 0) {
+      throw new NotFoundError('未找到指定的 MCP 服务器', 'No matching MCP servers found');
+    }
+    return this.buildExportFile(servers);
+  }
+
+  private buildExportFile(servers: McpServerEntity[]): McpServerExportFile {
+    const exportedServers: ExportedMcpServer[] = servers.map(s => {
+      const result: ExportedMcpServer = {
+        name: s.name,
+        server_type: s.server_type,
+        config: s.config,
+        auto_install: s.auto_install,
+      };
+      if (s.description !== undefined) result.description = s.description;
+      if (s.install_command !== undefined) result.install_command = s.install_command;
+      return result;
+    });
+
+    return {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      servers: exportedServers,
+    };
+  }
+
+  async previewImport(exportData: McpServerExportFile): Promise<McpServerImportPreview> {
+    const existingServers = await this.listMcpServers();
+    const existingNames = new Set(existingServers.map(s => s.name));
+
+    return {
+      servers: exportData.servers,
+      existingServerNames: exportData.servers
+        .filter(s => existingNames.has(s.name))
+        .map(s => s.name),
+    };
+  }
+
+  async confirmImport(input: McpServerImportConfirmInput): Promise<{ imported: McpServerEntity[]; skipped: string[] }> {
+    const validStrategies = new Set(['skip', 'overwrite', 'copy']);
+    if (!validStrategies.has(input.strategy)) {
+      throw new ValidationError('无效的导入策略', `Invalid import strategy: ${input.strategy}`);
+    }
+
+    const imported: McpServerEntity[] = [];
+    const skipped: string[] = [];
+
+    for (const server of input.servers) {
+      const existingServers = await this.listMcpServers();
+      const existing = existingServers.find(s => s.name === server.name);
+
+      if (existing && input.strategy === 'skip') {
+        skipped.push(server.name);
+        continue;
+      }
+
+      if (existing && input.strategy === 'copy') {
+        const mappedName = input.nameMappings[server.name];
+        let finalName = mappedName || `${server.name}-copy`;
+        // Ensure uniqueness
+        let suffix = 1;
+        let candidate = finalName;
+        while (existingServers.some(s => s.name === candidate) || imported.some(s => s.name === candidate)) {
+          suffix += 1;
+          candidate = `${server.name}-copy-${suffix}`;
+        }
+        finalName = candidate;
+
+        const created = await this.mcpServerRepo.create({
+          name: finalName,
+          description: server.description,
+          server_type: server.server_type,
+          config: server.config,
+          auto_install: server.auto_install,
+          install_command: server.install_command,
+        });
+        imported.push(created);
+      } else if (existing && input.strategy === 'overwrite') {
+        const updated = await this.mcpServerRepo.update(existing.id, {
+          description: server.description,
+          server_type: server.server_type,
+          config: server.config,
+          auto_install: server.auto_install,
+          install_command: server.install_command,
+        });
+        if (updated) imported.push(updated);
+      } else {
+        // New server (no existing conflict)
+        const created = await this.mcpServerRepo.create({
+          name: server.name,
+          description: server.description,
+          server_type: server.server_type,
+          config: server.config,
+          auto_install: server.auto_install,
+          install_command: server.install_command,
+        });
+        imported.push(created);
+      }
+    }
+
+    return { imported, skipped };
   }
 
   /**

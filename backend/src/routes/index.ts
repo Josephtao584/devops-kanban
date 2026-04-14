@@ -10,3 +10,4 @@ export { workflowTemplateRoutes } from './workflowTemplate.js';
 export { gitRoutes } from './git.js';
 export { skillRoutes } from './skills.js';
 export { mcpServerRoutes } from './mcpServers.js';
+export { bundleRoutes } from './bundle.js';

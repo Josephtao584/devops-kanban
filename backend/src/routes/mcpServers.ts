@@ -3,6 +3,7 @@ import { McpServerService } from '../services/mcpServerService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { parseNumber, getErrorMessage, getStatusCode, logError } from '../utils/http.js';
 import type { IdParams } from '../types/http/params.js';
+import type { McpServerExportFile, McpServerImportConfirmInput } from '../types/dto/workflowTemplates.js';
 
 const VALID_SERVER_TYPES = ['stdio', 'http'];
 
@@ -147,6 +148,80 @@ export const mcpServerRoutes: FastifyPluginAsync<McpServerRouteOptions> = async 
       logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete MCP server'));
+    }
+  });
+
+  // Export single MCP server
+  fastify.get<{ Params: IdParams }>('/export/:id', async (request, reply) => {
+    try {
+      const id = parseNumber(request.params.id);
+      const server = await mcpServerService.getMcpServer(id);
+      if (!server) {
+        reply.code(404);
+        return errorResponse('MCP server not found');
+      }
+      const safeFilename = server.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const exportFile = await mcpServerService.exportMcpServer(id);
+      reply.header('Content-Type', 'application/json');
+      reply.header('Content-Disposition', `attachment; filename="${safeFilename}.json"`);
+      return exportFile;
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to export MCP server'));
+    }
+  });
+
+  // Batch export
+  fastify.post<{ Body: { serverIds?: number[] } }>('/export', async (request, reply) => {
+    try {
+      const { serverIds } = request.body || {};
+      if (!Array.isArray(serverIds) || serverIds.length === 0) {
+        reply.code(400);
+        return errorResponse('serverIds must be a non-empty array');
+      }
+      const exportFile = await mcpServerService.exportMcpServers(serverIds);
+      reply.header('Content-Type', 'application/json');
+      reply.header('Content-Disposition', `attachment; filename="mcp-servers-${Date.now()}.json"`);
+      return exportFile;
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to export MCP servers'));
+    }
+  });
+
+  // Import preview
+  fastify.post<{ Body: McpServerExportFile }>('/import', async (request, reply) => {
+    try {
+      const exportData = request.body;
+      if (!exportData || !Array.isArray(exportData.servers)) {
+        reply.code(400);
+        return errorResponse('Invalid import file: servers array is required');
+      }
+      const preview = await mcpServerService.previewImport(exportData);
+      return successResponse(preview);
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to preview import'));
+    }
+  });
+
+  // Confirm import
+  fastify.post<{ Body: McpServerImportConfirmInput }>('/import/confirm', async (request, reply) => {
+    try {
+      const input = request.body;
+      if (!input || !Array.isArray(input.servers)) {
+        reply.code(400);
+        return errorResponse('Invalid import data: servers array is required');
+      }
+      const result = await mcpServerService.confirmImport(input);
+      return successResponse(result, 'Import completed');
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to import MCP servers'));
     }
   });
 };

@@ -1,0 +1,438 @@
+<template>
+  <BaseDialog :model-value="modelValue" :title="$t('bundle.importTitle')" width="700px" @close="handleClose">
+    <div class="import-dialog">
+      <!-- Step 1: Upload -->
+      <div v-if="step === 'upload'" class="import-step">
+        <div class="upload-zone" @click="triggerFileInput" @drop.prevent="handleDrop" @dragover.prevent>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".json"
+            style="display: none"
+            @change="handleFileSelect"
+          />
+          <el-icon :size="32" class="upload-icon"><Upload /></el-icon>
+          <p class="upload-text">{{ $t('bundle.importDropHint') }}</p>
+          <el-button type="primary" plain>{{ $t('bundle.importSelectFile') }}</el-button>
+        </div>
+      </div>
+
+      <!-- Step 2: Preview -->
+      <div v-else-if="step === 'preview'" class="import-step">
+        <div class="preview-summary">
+          {{ $t('bundle.importPreviewSummary') }}
+        </div>
+
+        <!-- Workflow Templates -->
+        <div v-if="previewData.templates.length > 0" class="dep-group">
+          <div class="dep-group-header">
+            <span class="dep-icon">📋</span>
+            <span>{{ $t('bundle.workflowLabel') }} ({{ previewData.templates.length }})</span>
+          </div>
+          <div v-for="tpl in previewData.templates" :key="tpl.template_id" class="dep-item">
+            <span class="dep-name">{{ tpl.name }}</span>
+            <span class="dep-meta">{{ tpl.template_id }}</span>
+            <el-tag v-if="conflicts.templateIds.includes(tpl.template_id)" type="warning" size="small">
+              {{ $t('bundle.importConflict') }}
+            </el-tag>
+          </div>
+        </div>
+
+        <!-- Agents -->
+        <div v-if="previewData.agents.length > 0" class="dep-group">
+          <div class="dep-group-header">
+            <span class="dep-icon">👤</span>
+            <span>{{ $t('bundle.agentLabel') }} ({{ previewData.agents.length }})</span>
+          </div>
+          <div v-for="agent in previewData.agents" :key="agent.name" class="dep-item">
+            <span class="dep-name">{{ agent.name }}</span>
+            <span class="dep-meta">{{ agent.role }}</span>
+            <el-tag v-if="conflicts.agentNames.includes(agent.name)" type="warning" size="small">
+              {{ $t('bundle.importConflict') }}
+            </el-tag>
+          </div>
+        </div>
+
+        <!-- Skills -->
+        <div v-if="previewData.skills.length > 0" class="dep-group">
+          <div class="dep-group-header">
+            <span class="dep-icon">📄</span>
+            <span>{{ $t('bundle.skillLabel') }} ({{ previewData.skills.length }})</span>
+          </div>
+          <div v-for="skill in previewData.skills" :key="skill.identifier" class="dep-item">
+            <span class="dep-name">{{ skill.name }}</span>
+            <span class="dep-meta">{{ skill.identifier }}</span>
+            <el-tag v-if="conflicts.skillIdentifiers.includes(skill.identifier)" type="warning" size="small">
+              {{ $t('bundle.importConflict') }}
+            </el-tag>
+          </div>
+        </div>
+
+        <!-- MCP Servers -->
+        <div v-if="previewData.mcpServers.length > 0" class="dep-group">
+          <div class="dep-group-header">
+            <span class="dep-icon">🔧</span>
+            <span>{{ $t('bundle.mcpLabel') }} ({{ previewData.mcpServers.length }})</span>
+          </div>
+          <div v-for="server in previewData.mcpServers" :key="server.name" class="dep-item">
+            <span class="dep-name">{{ server.name }}</span>
+            <span class="dep-meta">{{ server.server_type }}</span>
+            <el-tag v-if="conflicts.mcpServerNames.includes(server.name)" type="warning" size="small">
+              {{ $t('bundle.importConflict') }}
+            </el-tag>
+          </div>
+        </div>
+
+        <!-- Conflict strategy -->
+        <div v-if="hasConflicts" class="import-section">
+          <div class="import-section-title">{{ $t('bundle.importConflictStrategy') }}</div>
+          <el-radio-group v-model="strategy">
+            <el-radio value="skip">{{ $t('bundle.importStrategySkip') }}</el-radio>
+            <el-radio value="overwrite">{{ $t('bundle.importStrategyOverwrite') }}</el-radio>
+            <el-radio value="copy">{{ $t('bundle.importStrategyCopy') }}</el-radio>
+          </el-radio-group>
+        </div>
+      </div>
+
+      <!-- Step 3: Result -->
+      <div v-else-if="step === 'result'" class="import-step">
+        <div class="import-result-summary">
+          <el-tag type="success" size="large">
+            {{ $t('bundle.importResultSuccess') }}
+          </el-tag>
+          <el-tag v-if="totalSkipped > 0" type="info" size="large" style="margin-left: 8px">
+            {{ $t('bundle.importResultSkipped', { count: totalSkipped }) }}
+          </el-tag>
+        </div>
+        <div class="import-result-details">
+          <div v-if="result.imported.templates > 0" class="result-row">
+            <span>📋 {{ $t('bundle.workflowLabel') }}</span>
+            <span>{{ result.imported.templates }} {{ $t('bundle.imported') }}</span>
+          </div>
+          <div v-if="result.imported.agents > 0" class="result-row">
+            <span>👤 {{ $t('bundle.agentLabel') }}</span>
+            <span>{{ result.imported.agents }} {{ $t('bundle.imported') }}</span>
+          </div>
+          <div v-if="result.imported.skills > 0" class="result-row">
+            <span>📄 {{ $t('bundle.skillLabel') }}</span>
+            <span>{{ result.imported.skills }} {{ $t('bundle.imported') }}</span>
+          </div>
+          <div v-if="result.imported.mcpServers > 0" class="result-row">
+            <span>🔧 {{ $t('bundle.mcpLabel') }}</span>
+            <span>{{ result.imported.mcpServers }} {{ $t('bundle.imported') }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="handleClose">{{ $t('common.cancel') }}</el-button>
+        <el-button v-if="step === 'preview'" @click="resetToUpload">{{ $t('bundle.back') }}</el-button>
+        <el-button
+          v-if="step === 'preview'"
+          type="primary"
+          :disabled="importing"
+          @click="handleConfirmImport"
+        >
+          {{ importing ? $t('common.saving') : $t('bundle.importConfirm') }}
+        </el-button>
+        <el-button v-if="step === 'result'" type="primary" @click="handleClose">
+          {{ $t('common.confirm') }}
+        </el-button>
+      </div>
+    </template>
+  </BaseDialog>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
+import { Upload } from '@element-plus/icons-vue'
+import BaseDialog from '../BaseDialog.vue'
+import { previewImportBundle, confirmImportBundle } from '../../api/bundle.js'
+import { previewImportWorkflowTemplates, confirmImportWorkflowTemplates } from '../../api/workflowTemplate.js'
+
+const props = defineProps({
+  modelValue: { type: Boolean, default: false },
+})
+
+const emit = defineEmits(['update:modelValue', 'imported'])
+
+const { t } = useI18n()
+
+const step = ref('upload')
+const fileInput = ref(null)
+const strategy = ref('copy')
+const importing = ref(false)
+const importVersion = ref('')
+
+const previewData = ref({ templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } })
+const result = ref({ imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } })
+
+const conflicts = computed(() => previewData.value.conflicts || { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] })
+const hasConflicts = computed(() => {
+  const c = conflicts.value
+  return c.templateIds.length > 0 || c.agentNames.length > 0 || c.skillIdentifiers.length > 0 || c.mcpServerNames.length > 0
+})
+const totalSkipped = computed(() => {
+  const s = result.value.skipped
+  return s.templates + s.agents + s.skills + s.mcpServers
+})
+
+const triggerFileInput = () => { fileInput.value?.click() }
+
+const handleFileSelect = (event) => {
+  const file = event.target.files?.[0]
+  if (file) parseFile(file)
+}
+
+const handleDrop = (event) => {
+  const file = event.dataTransfer?.files?.[0]
+  if (file) parseFile(file)
+}
+
+const parseFile = async (file) => {
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+    importVersion.value = data.version || '1.0'
+
+    if (importVersion.value === '2.0') {
+      // Bundle import (v2.0)
+      if (!data.templates || !Array.isArray(data.templates)) {
+        ElMessage.error(t('bundle.importInvalidFile'))
+        return
+      }
+      await doPreview(data)
+    } else {
+      // Legacy workflow template import (v1.0) — delegate to existing API
+      if (!data.templates || !Array.isArray(data.templates)) {
+        ElMessage.error(t('bundle.importInvalidFile'))
+        return
+      }
+      const res = await previewImportWorkflowTemplates(data)
+      if (!res?.success) {
+        ElMessage.error(res?.message || t('bundle.importPreviewFailed'))
+        return
+      }
+      // Convert to v1 compatible preview format and use legacy flow
+      previewData.value = {
+        templates: res.data.templates,
+        agents: [],
+        skills: [],
+        mcpServers: [],
+        conflicts: {
+          templateIds: res.data.existingTemplateIds || [],
+          agentNames: [],
+          skillIdentifiers: [],
+          mcpServerNames: [],
+        },
+      }
+      // Store original data for legacy import
+      importVersion.value = '1.0'
+      step.value = 'preview'
+    }
+  } catch {
+    ElMessage.error(t('bundle.importInvalidFile'))
+  }
+}
+
+const doPreview = async (exportData) => {
+  try {
+    const response = await previewImportBundle(exportData)
+    if (!response?.success) {
+      ElMessage.error(response?.message || t('bundle.importPreviewFailed'))
+      return
+    }
+    previewData.value = response.data
+    step.value = 'preview'
+  } catch (error) {
+    ElMessage.error(error?.message || t('bundle.importPreviewFailed'))
+  }
+}
+
+const handleConfirmImport = async () => {
+  importing.value = true
+  try {
+    let response
+    if (importVersion.value === '1.0') {
+      // Legacy import
+      response = await confirmImportWorkflowTemplates({
+        templates: previewData.value.templates,
+        strategy: strategy.value,
+        agentMappings: {},
+      })
+      if (!response?.success) {
+        ElMessage.error(response?.message || t('bundle.importFailed'))
+        return
+      }
+      const legacyResult = response.data
+      result.value = {
+        imported: { templates: legacyResult.imported?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
+        skipped: { templates: legacyResult.skipped?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
+      }
+    } else {
+      // Bundle import (v2.0)
+      response = await confirmImportBundle({
+        templates: previewData.value.templates,
+        agents: previewData.value.agents,
+        skills: previewData.value.skills,
+        mcpServers: previewData.value.mcpServers,
+        strategy: strategy.value,
+      })
+      if (!response?.success) {
+        ElMessage.error(response?.message || t('bundle.importFailed'))
+        return
+      }
+      result.value = response.data
+    }
+    step.value = 'result'
+    emit('imported', result.value)
+  } catch (error) {
+    ElMessage.error(error?.message || t('bundle.importFailed'))
+  } finally {
+    importing.value = false
+  }
+}
+
+const resetToUpload = () => {
+  step.value = 'upload'
+  previewData.value = { templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } }
+  if (fileInput.value) fileInput.value.value = ''
+}
+
+const handleClose = () => {
+  step.value = 'upload'
+  previewData.value = { templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } }
+  result.value = { imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } }
+  importing.value = false
+  importVersion.value = ''
+  emit('update:modelValue', false)
+}
+</script>
+
+<style scoped>
+.import-dialog {
+  min-height: 120px;
+}
+
+.import-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.upload-zone:hover {
+  border-color: var(--accent-color);
+  background: rgba(37, 198, 201, 0.03);
+}
+
+.upload-icon {
+  color: var(--text-secondary);
+}
+
+.upload-text {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.preview-summary {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.dep-group {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.dep-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.dep-icon {
+  font-size: 14px;
+}
+
+.dep-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: var(--font-size-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.dep-name {
+  font-weight: 500;
+}
+
+.dep-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-section-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.import-result-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-result-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>

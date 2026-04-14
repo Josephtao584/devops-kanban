@@ -6,9 +6,27 @@
         <h1 class="page-header__title">{{ $t('mcpServer.title') }}</h1>
         <p class="page-header__description page-description">{{ $t('mcpServer.pageDescription') }}</p>
       </div>
-      <button class="btn btn-primary" data-testid="open-create-mcp-server" @click="openAddForm">
-        + {{ $t('mcpServer.createServer') }}
-      </button>
+      <div class="header-actions">
+        <template v-if="exportMode">
+          <button class="btn btn-primary" :disabled="selectedForExport.length === 0" @click="handleBatchExport">
+            {{ $t('mcpServer.exportConfirm', { count: selectedForExport.length }) }}
+          </button>
+          <button class="btn btn-secondary" @click="cancelExportMode">
+            {{ $t('common.cancel') }}
+          </button>
+        </template>
+        <template v-else>
+          <button class="btn btn-secondary" @click="enterExportMode">
+            {{ $t('mcpServer.exportButton') }}
+          </button>
+          <button class="btn btn-secondary" @click="showImportDialog = true">
+            {{ $t('mcpServer.importButton') }}
+          </button>
+          <button class="btn btn-primary" data-testid="open-create-mcp-server" @click="openAddForm">
+            + {{ $t('mcpServer.createServer') }}
+          </button>
+        </template>
+      </div>
     </div>
 
     <!-- Main content: left-right split -->
@@ -25,9 +43,17 @@
             v-for="server in mcpServerStore.mcpServers"
             :key="server.id"
             :class="{ 'active': selectedServer?.id === server.id }"
-            @click="selectServer(server)"
+            @click="exportMode ? toggleExportSelect(server.id, !selectedForExport.includes(server.id)) : selectServer(server)"
           >
             <div class="server-item-info">
+              <input
+                v-if="exportMode"
+                type="checkbox"
+                :checked="selectedForExport.includes(server.id)"
+                class="export-checkbox"
+                @click.stop
+                @change="(e) => toggleExportSelect(server.id, e.target.checked)"
+              />
               <span class="server-name">{{ server.name }}</span>
             </div>
             <div class="server-item-meta">
@@ -209,15 +235,23 @@
     <div v-if="toast.show" class="toast" :class="toast.type">
       {{ toast.message }}
     </div>
+
+    <!-- Import Dialog -->
+    <McpServerImportDialog
+      v-model="showImportDialog"
+      @imported="handleImportComplete"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import { useMcpServerStore } from '../stores/mcpServerStore'
 import { mcpServerApi } from '../api/mcpServer'
 import BaseDialog from '../components/BaseDialog.vue'
+import McpServerImportDialog from '../components/mcp/McpServerImportDialog.vue'
 
 const { t } = useI18n()
 const mcpServerStore = useMcpServerStore()
@@ -230,6 +264,9 @@ const inputMode = ref('form')
 const jsonText = ref('')
 const jsonError = ref('')
 const validating = ref(false)
+const exportMode = ref(false)
+const selectedForExport = ref([])
+const showImportDialog = ref(false)
 
 function getDefaultForm() {
   return {
@@ -507,6 +544,56 @@ const confirmDelete = async () => {
   }
 }
 
+// --- Export/Import ---
+
+const toggleExportSelect = (serverId, checked) => {
+  if (checked) {
+    if (!selectedForExport.value.includes(serverId)) {
+      selectedForExport.value = [...selectedForExport.value, serverId]
+    }
+  } else {
+    selectedForExport.value = selectedForExport.value.filter(id => id !== serverId)
+  }
+}
+
+const enterExportMode = () => {
+  exportMode.value = true
+  selectedForExport.value = []
+}
+
+const cancelExportMode = () => {
+  exportMode.value = false
+  selectedForExport.value = []
+}
+
+const downloadJson = (data, filename) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const handleBatchExport = async () => {
+  if (selectedForExport.value.length === 0) return
+  try {
+    const res = await mcpServerApi.exportMcpServers(selectedForExport.value)
+    // Backend returns raw export file (not wrapped in success/data)
+    downloadJson(res, `mcp-servers-${Date.now()}.json`)
+    ElMessage.success(t('mcpServer.exportSuccess'))
+    exportMode.value = false
+    selectedForExport.value = []
+  } catch (e) {
+    ElMessage.error(e?.message || t('mcpServer.exportFailed'))
+  }
+}
+
+const handleImportComplete = async () => {
+  await loadServers()
+}
+
 const closeForm = () => {
   showForm.value = false
   editingServer.value = null
@@ -520,6 +607,20 @@ onMounted(loadServers)
 
 .mcp-server-config {
   padding: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.export-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-color);
 }
 
 /* Left panel */
