@@ -80,8 +80,8 @@
             </draggable>
 
             <div class="sidebar-bottom-actions">
-              <el-button plain @click="showImportDialog = true">
-                {{ $t('workflowTemplate.importButton') }}
+              <el-button plain @click="showBundleImportDialog = true">
+                {{ $t('bundle.importTitle') }}
               </el-button>
               <template v-if="exportMode">
                 <el-button type="primary" plain :disabled="selectedForExport.length === 0" @click="handleBatchExport">
@@ -91,9 +91,14 @@
                   {{ $t('common.cancel') }}
                 </el-button>
               </template>
-              <el-button v-else plain @click="enterExportMode">
-                {{ $t('workflowTemplate.exportButton') }}
-              </el-button>
+              <template v-else>
+                <el-button plain @click="enterExportMode">
+                  {{ $t('workflowTemplate.exportButton') }}
+                </el-button>
+                <el-button plain @click="showBundleExportDialog = true">
+                  {{ $t('bundle.exportTitle') }}
+                </el-button>
+              </template>
             </div>
           </div>
         </template>
@@ -339,6 +344,17 @@
       :agents="agents"
       @imported="handleImportComplete"
     />
+
+    <BundleExportDialog
+      v-model="showBundleExportDialog"
+      :templates="templates"
+      @exported="handleBundleExported"
+    />
+
+    <BundleImportDialog
+      v-model="showBundleImportDialog"
+      @imported="handleBundleImported"
+    />
   </div>
 </template>
 
@@ -349,6 +365,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument, Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import WorkflowTemplateImportDialog from '../components/workflow/WorkflowTemplateImportDialog.vue'
+import BundleExportDialog from '../components/bundle/BundleExportDialog.vue'
+import BundleImportDialog from '../components/bundle/BundleImportDialog.vue'
 import BaseDialog from '../components/BaseDialog.vue'
 import {
   createWorkflowTemplate,
@@ -401,6 +419,8 @@ let templateDetailRequestToken = 0
 let latestTemplateDetailRequestToken = 0
 
 const showImportDialog = ref(false)
+const showBundleExportDialog = ref(false)
+const showBundleImportDialog = ref(false)
 const exportMode = ref(false)
 const selectedForExport = ref([])
 
@@ -951,6 +971,16 @@ const handleImportComplete = async () => {
   showImportDialog.value = false
   await loadTemplateList(selectedTemplateId.value || DEFAULT_TEMPLATE_ID)
   ElMessage.success(t('workflowTemplate.importSuccess'))
+}
+
+const handleBundleExported = () => {
+  showBundleExportDialog.value = false
+}
+
+const handleBundleImported = async () => {
+  showBundleImportDialog.value = false
+  await loadTemplateList(selectedTemplateId.value || DEFAULT_TEMPLATE_ID)
+  ElMessage.success(t('bundle.importSuccess'))
 }
 
 onMounted(() => {
