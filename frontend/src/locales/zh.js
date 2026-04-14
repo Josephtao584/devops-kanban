@@ -344,7 +344,7 @@ export default {
     previewPromptFailed: '生成预览失败'
   },
   bundle: {
-    exportTitle: '打包导出',
+    exportTitle: '联合导出',
     importTitle: '打包导入',
     selectTemplatesHint: '选择要导出的工作流模板：',
     noTemplates: '暂无可导出的模板',
@@ -710,8 +710,11 @@ export default {
     permissionGranted: '已授权',
     permissionDenied: '已拒绝',
     permissionDefault: '未授权',
+    permissionDeniedHint: '请在浏览器设置中开启通知',
     enabled: '启用推送通知',
     events: '通知事件',
-    workflowSuspended: '工作流暂停等待确认'
+    workflowSuspended: '工作流暂停等待确认',
+    suspendedTitle: '工作流等待确认',
+    suspendedBody: '工作流执行已暂停，需要您确认后继续'
   }
 }
