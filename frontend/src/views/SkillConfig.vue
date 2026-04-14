@@ -2,7 +2,10 @@
   <div class="skill-config page-shell">
     <!-- 顶部操作栏 -->
     <div class="header page-header page-header--compact">
-      <h1 class="page-header__title">{{ $t('skill.title') }}</h1>
+      <div class="page-header__content">
+        <h1 class="page-header__title">{{ $t('skill.title') }}</h1>
+        <p class="page-header__description page-description">{{ $t('skill.pageDescription') }}</p>
+      </div>
       <div class="header-actions">
         <button class="btn btn-secondary" data-testid="open-create-skill-from-zip" @click="showCreateDialog = true">
           {{ $t('skill.createFromZip') }}
@@ -188,7 +191,7 @@
     <BaseDialog
       v-model="showForm"
       :title="editingSkill ? $t('skill.editSkill') : $t('skill.createSkill')"
-      width="450px"
+      width="500px"
     >
       <el-form data-testid="skill-form" label-position="top" @submit.prevent="saveSkill">
         <el-form-item :label="$t('skill.skillName')">
@@ -203,7 +206,8 @@
             v-model="form.description"
             data-testid="skill-description-input"
             type="textarea"
-            :rows="3"
+            :rows="6"
+            resize="vertical"
             :placeholder="$t('skill.descriptionPlaceholder')"
           />
         </el-form-item>

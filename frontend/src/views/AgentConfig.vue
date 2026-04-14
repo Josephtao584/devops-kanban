@@ -2,7 +2,10 @@
   <div class="agent-config page-shell">
     <!-- 顶部操作栏 -->
     <div class="header page-header page-header--compact">
-      <h1 class="page-header__title">{{ $t('agent.title') }}</h1>
+      <div class="page-header__content">
+        <h1 class="page-header__title">{{ $t('agent.title') }}</h1>
+        <p class="page-header__description page-description">{{ $t('agent.pageDescription') }}</p>
+      </div>
       <button class="btn btn-primary" data-testid="open-create-agent" @click="openAddForm">
         + {{ $t('agent.createAgent') }}
       </button>

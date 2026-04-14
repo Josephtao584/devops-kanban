@@ -27,7 +27,7 @@ export default {
     taskSources: '任务源',
     agents: '我的团队',
     workflowTemplate: '工作流模板',
-    skills: '技能',
+    skills: '技能管理',
     mcpServers: 'MCP 服务器',
     settings: '设置'
   },
@@ -342,6 +342,7 @@ export default {
   },
   agent: {
     title: '我的团队',
+    pageDescription: '管理 AI Agent 团队成员，配置执行器类型、系统提示词和技能，用于工作流步骤执行任务。',
     teamList: '团队列表',
     createAgent: '添加成员',
     editAgent: '编辑成员',
@@ -529,6 +530,7 @@ export default {
   },
   skill: {
     title: '技能管理',
+    pageDescription: '管理 AI 技能配置文件，支持创建、编辑和上传技能，供工作流步骤调用。',
     skillList: '技能列表',
     filterAllTemplates: '全部工作流模板',
     createSkill: '创建技能',
@@ -566,6 +568,7 @@ export default {
   },
   mcpServer: {
     title: 'MCP 服务器',
+    pageDescription: '管理 MCP 服务器配置，为 AI Agent 提供外部工具和资源调用能力。',
     serverList: '服务器列表',
     createServer: '创建服务器',
     editServer: '编辑服务器',
