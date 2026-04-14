@@ -274,6 +274,7 @@ import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
+import { useBrowserNotifications } from '../../composables/notifications/useBrowserNotifications'
 import { getWorkflowRun, cancelWorkflow, retryWorkflow, resumeWorkflow } from '../../api/workflow'
 import {
   toTimelineWorkflow,
@@ -388,11 +389,25 @@ const fetchWorkflowRun = async () => {
   }
 }
 
+// Browser notifications
+const { showNotification } = useBrowserNotifications()
+
+function handleWorkflowStatusChange(oldStatus, newStatus) {
+  if (newStatus === 'SUSPENDED') {
+    showNotification(`${props.task.title} - ${t('notification.suspendedTitle')}`, {
+      body: t('notification.suspendedBody'),
+      eventType: 'workflowSuspended'
+    })
+  }
+}
+
 // Polling composable for auto-refresh
 const { pollingEnabled, isPolling, startPolling, stopPolling, togglePolling } = useWorkflowRunPolling({
   fetchFn: fetchWorkflowRun,
   isTerminal: () => isWorkflowTerminal.value,
-  interval: 3000
+  interval: 3000,
+  getStatus: () => realWorkflowRun.value?.status || null,
+  onStatusChange: handleWorkflowStatusChange
 })
 
 // Fetch workflow run when expanded and start/stop polling accordingly

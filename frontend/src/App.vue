@@ -75,6 +75,7 @@
 
       <!-- 底部操作区 -->
       <div class="sidebar-footer">
+        <NotificationBell :sidebar-collapsed="isSidebarCollapsed" />
       </div>
     </aside>
 
@@ -87,6 +88,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import NotificationBell from './components/NotificationBell.vue'
 
 const isSidebarCollapsed = ref(true)
 
