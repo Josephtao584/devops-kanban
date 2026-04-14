@@ -2,7 +2,10 @@
   <div class="mcp-server-config page-shell">
     <!-- Header -->
     <div class="header page-header page-header--compact">
-      <h1 class="page-header__title">{{ $t('mcpServer.title') }}</h1>
+      <div class="page-header__content">
+        <h1 class="page-header__title">{{ $t('mcpServer.title') }}</h1>
+        <p class="page-header__description page-description">{{ $t('mcpServer.pageDescription') }}</p>
+      </div>
       <button class="btn btn-primary" data-testid="open-create-mcp-server" @click="openAddForm">
         + {{ $t('mcpServer.createServer') }}
       </button>

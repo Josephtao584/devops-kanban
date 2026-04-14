@@ -8,10 +8,11 @@ import {
   parseStreamEvent,
 } from '../src/services/workflow/executors/openCodeStepRunner.js';
 
-test.test('buildOpenCodeCliArgs uses run subcommand with json format', () => {
+test.test('buildOpenCodeCliArgs uses run subcommand with json format and thinking', () => {
   assert.deepEqual(buildOpenCodeCliArgs('implement the feature'), [
     'run',
     '--format', 'json',
+    '--thinking',
     'implement the feature',
   ]);
 });
@@ -20,6 +21,7 @@ test.test('buildOpenCodeCliArgs includes model flag when provided', () => {
   assert.deepEqual(buildOpenCodeCliArgs('fix the bug', { model: 'anthropic/claude-3.7-sonnet' }), [
     'run',
     '--format', 'json',
+    '--thinking',
     '--model', 'anthropic/claude-3.7-sonnet',
     'fix the bug',
   ]);
@@ -29,6 +31,7 @@ test.test('buildOpenCodeCliArgs includes session flag for continue', () => {
   assert.deepEqual(buildOpenCodeCliArgs('continue work', { session: 'sess-123' }), [
     'run',
     '--format', 'json',
+    '--thinking',
     '--session', 'sess-123',
     'continue work',
   ]);
@@ -261,6 +264,52 @@ test.test('parseStreamEvent returns null for text event with whitespace-only par
     sessionID: 'ses_test',
     part: { type: 'text', text: '   \n\t  ' },
   });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent converts reasoning event to thinking message', () => {
+  const event = parseStreamEvent({
+    type: 'reasoning',
+    timestamp: 1776135993451,
+    sessionID: 'ses_2760b8f8cffe3tmf4FCYhzRQeV',
+    part: {
+      id: 'prt_d89f4772f001StnySwrZ3vpdrX',
+      messageID: 'msg_d89f47137001xpdM7s1WtZu3tG',
+      sessionID: 'ses_2760b8f8cffe3tmf4FCYhzRQeV',
+      type: 'reasoning',
+      text: 'I need to analyze the code structure first.',
+      time: { start: 1776135993135, end: 1776135993448 },
+    },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'message');
+  assert.equal(event!.role, 'assistant');
+  assert.equal(event!.content, 'I need to analyze the code structure first.');
+  assert.equal(event!.payload!.block_type, 'thinking');
+});
+
+test.test('parseStreamEvent returns null for reasoning event with empty text', () => {
+  const event = parseStreamEvent({
+    type: 'reasoning',
+    timestamp: 123,
+    sessionID: 'ses_test',
+    part: { type: 'reasoning', text: '' },
+  });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent returns null for reasoning event with whitespace-only text', () => {
+  const event = parseStreamEvent({
+    type: 'reasoning',
+    timestamp: 123,
+    sessionID: 'ses_test',
+    part: { type: 'reasoning', text: '   \n\t  ' },
+  });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent returns null for reasoning event without part', () => {
+  const event = parseStreamEvent({ type: 'reasoning', timestamp: 123 });
   assert.equal(event, null);
 });
 

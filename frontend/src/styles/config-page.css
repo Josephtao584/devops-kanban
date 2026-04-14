@@ -2,7 +2,12 @@
 
 /* Header */
 .header {
-  align-items: center;
+  align-items: flex-start;
+}
+
+.header .page-header__content + .btn,
+.header .page-header__content + .header-actions {
+  margin-top: 4px;
 }
 
 .header .btn {

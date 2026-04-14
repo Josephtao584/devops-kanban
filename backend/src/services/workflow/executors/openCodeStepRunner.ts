@@ -59,7 +59,8 @@ function validateModelFormat(model: string): boolean {
  * @throws Error if model format is invalid
  */
 export function buildOpenCodeCliArgs(prompt: string, options: OpenCodeCliOptions = {}): string[] {
-  const args = ['run', '--format', 'json'];
+  // --thinking: always enabled so reasoning events are emitted (matching Claude Code behavior)
+  const args = ['run', '--format', 'json', '--thinking'];
 
   if (options.model) {
     if (!validateModelFormat(options.model)) {
@@ -114,6 +115,15 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
     const part = json.part as Record<string, unknown> | undefined;
     if (typeof part?.text === 'string' && part.text.trim()) {
       return buildEvent('message', 'assistant', part.text);
+    }
+    return null;
+  }
+
+  // Reasoning event: emitted with --thinking flag, content in part.text
+  if (type === 'reasoning') {
+    const part = json.part as Record<string, unknown> | undefined;
+    if (typeof part?.text === 'string' && part.text.trim()) {
+      return buildEvent('message', 'assistant', part.text, { block_type: 'thinking' });
     }
     return null;
   }
