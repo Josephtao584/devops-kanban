@@ -183,6 +183,7 @@ export default {
       GITHUB: 'GitHub',
       CODEHUB: 'CodeHub',
       INTERNAL_API: '内部接口',
+      CLOUDDEVOPS_BUG: 'CloudDevOps Bug',
       REQUIREMENT: '需求',
       JIRA: 'Jira',
       LINEAR: 'Linear',

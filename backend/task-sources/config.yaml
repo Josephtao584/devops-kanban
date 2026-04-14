@@ -210,6 +210,52 @@ adapterTypes:
         description: "是否拒绝自签名证书（默认 false，接受自签名证书）"
         default: false
 
+  - key: CLOUDDEVOPS_BUG
+    name: CloudDevOps Bug
+    description: 从 CloudDevOps 同步 Bug 任务
+    configFields:
+      baseUrl:
+        type: string
+        required: true
+        description: "CloudDevOps 基础地址"
+      token:
+        type: string
+        required: true
+        description: "Authorization 请求头值"
+      userId:
+        type: string
+        required: true
+        description: "用于 current_owners 过滤的用户标识"
+      pageSize:
+        type: string
+        required: false
+        description: "每页 Bug 数量"
+        default: "10"
+        hidden: true
+      listPath:
+        type: string
+        required: false
+        description: "Bug 列表 API 的相对路径"
+        default: "/vision-defect-management/api/query/issues"
+        hidden: true
+      detailPath:
+        type: string
+        required: false
+        description: "Bug 详情 API 的相对路径模板"
+        default: "/vision-defect-management/api/bugs/bugDetail/{number}"
+        hidden: true
+      detailIdField:
+        type: string
+        required: false
+        description: "列表项中用于填充详情路径占位符的字段"
+        default: "number"
+        hidden: true
+      rejectUnauthorized:
+        type: boolean
+        required: false
+        description: "是否拒绝自签名证书（默认 false，接受自签名证书）"
+        default: false
+
 # Future adapters can be added here, e.g.:
 #   - key: JIRA
 #     name: Jira Issues
