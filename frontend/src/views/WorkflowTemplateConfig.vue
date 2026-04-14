@@ -81,13 +81,13 @@
 
             <div class="sidebar-bottom-actions">
               <template v-if="exportMode">
-                <el-button type="primary" plain :disabled="selectedForExport.length === 0" @click="handleBatchExport">
+                <el-button type="primary" plain size="small" :disabled="selectedForExport.length === 0" @click="handleBatchExport">
                   {{ $t('workflowTemplate.exportConfirm', { count: selectedForExport.length }) }}
                 </el-button>
-                <el-button plain :disabled="selectedForExport.length === 0" @click="handleBundleExportFromMode">
+                <el-button plain size="small" :disabled="selectedForExport.length === 0" @click="handleBundleExportFromMode">
                   {{ $t('bundle.exportTitle') }}
                 </el-button>
-                <el-button plain @click="cancelExportMode">
+                <el-button plain size="small" @click="cancelExportMode">
                   {{ $t('common.cancel') }}
                 </el-button>
               </template>
@@ -1105,8 +1105,7 @@ const handlePreviewPrompt = async () => {
 
 .sidebar-bottom-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   padding-top: 12px;
   margin-top: auto;
   border-top: 1px solid var(--border-color);
