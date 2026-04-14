@@ -93,10 +93,10 @@
               </template>
               <template v-else>
                 <el-button plain @click="enterExportMode">
-                  {{ $t('workflowTemplate.exportButton') }}
+                  {{ $t('common.export') }}
                 </el-button>
                 <el-button plain @click="showBundleImportDialog = true">
-                  {{ $t('bundle.importTitle') }}
+                  {{ $t('common.import') }}
                 </el-button>
               </template>
             </div>

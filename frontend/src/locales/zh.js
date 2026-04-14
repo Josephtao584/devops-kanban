@@ -19,7 +19,9 @@ export default {
     disabled: '已禁用',
     none: '无',
     close: '关闭',
-    refresh: '刷新'
+    refresh: '刷新',
+    export: '导出',
+    import: '导入',
   },
   nav: {
     projects: '项目列表',
@@ -700,5 +702,16 @@ export default {
     deleteSuccess: '迭代已删除',
     deleteFailed: '删除迭代失败',
     refreshAfterDeleteFailed: '迭代已删除，但刷新列表失败'
+  },
+  notification: {
+    title: '通知设置',
+    permission: '浏览器权限',
+    requestPermission: '授权通知',
+    permissionGranted: '已授权',
+    permissionDenied: '已拒绝',
+    permissionDefault: '未授权',
+    enabled: '启用推送通知',
+    events: '通知事件',
+    workflowSuspended: '工作流暂停等待确认'
   }
 }
