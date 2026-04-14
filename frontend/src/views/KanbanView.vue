@@ -287,7 +287,12 @@
         </template>
       </BaseDialog>
 
-      <div class="chat-container" :class="{ collapsed: isChatCollapsed }">
+      <div
+        v-if="!isChatCollapsed"
+        class="chat-resize-handle"
+        @mousedown="startResize"
+      ></div>
+      <div class="chat-container" :class="{ collapsed: isChatCollapsed }" :style="!isChatCollapsed ? { width: chatWidth + 'px' } : {}">
         <div class="chat-toggle-btn" @click="isChatCollapsed = !isChatCollapsed" :title="isChatCollapsed ? 'Expand Chat' : 'Collapse Chat'">
           <span class="collapse-arrow" :class="{ collapsed: isChatCollapsed }">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -510,6 +515,8 @@
     <WorkflowStartEditorDialog
       v-model="showWorkflowStartEditorDialog"
       :draft-template="workflowStartDraftTemplate"
+      :task-title="selectedTask?.title || ''"
+      :task-description="selectedTask?.description || ''"
       @confirm="handleWorkflowStartEditorConfirm"
     />
 
@@ -721,6 +728,41 @@ const progressRunId = ref(null)
 const isEditing = ref(false)
 const editingTaskId = ref(null)
 const isChatCollapsed = ref(false)
+
+const CHAT_WIDTH_KEY = 'kanban-chat-width'
+const DEFAULT_CHAT_WIDTH = 720
+const MIN_CHAT_WIDTH = 360
+const MAX_CHAT_WIDTH = 1200
+const savedWidth = localStorage.getItem(CHAT_WIDTH_KEY)
+const chatWidth = ref(savedWidth ? parseInt(savedWidth, 10) : DEFAULT_CHAT_WIDTH)
+const isResizing = ref(false)
+
+function startResize(e) {
+  e.preventDefault()
+  isResizing.value = true
+  const startX = e.clientX
+  const startWidth = chatWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+
+  function onMouseMove(e) {
+    const delta = startX - e.clientX
+    const newWidth = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, startWidth + delta))
+    chatWidth.value = newWidth
+  }
+
+  function onMouseUp() {
+    isResizing.value = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    localStorage.setItem(CHAT_WIDTH_KEY, String(chatWidth.value))
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 const expandedTaskId = ref(null)
 const expandedPreviewDescriptions = ref(new Set())
 const overflowPreviewDescriptions = ref(new Set())
@@ -2570,7 +2612,6 @@ onUnmounted(() => {
 }
 
 .chat-container {
-  width: 720px;
   background: var(--panel-bg);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -2585,6 +2626,20 @@ onUnmounted(() => {
   overflow: visible;
   border-left: none;
   box-shadow: none;
+}
+
+.chat-resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  transition: background 0.2s;
+}
+
+.chat-resize-handle:hover {
+  background: var(--el-color-primary, #409eff);
 }
 
 .chat-toggle-btn {
