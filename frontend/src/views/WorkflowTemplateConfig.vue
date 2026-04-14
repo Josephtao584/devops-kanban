@@ -1067,8 +1067,9 @@ const handlePreviewPrompt = async () => {
 :deep(.template-sidebar .el-card__body) {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 0;
   padding: 18px;
+  overflow: hidden;
 }
 
 :deep(.template-card .el-card__body) {
@@ -1105,6 +1106,7 @@ const handlePreviewPrompt = async () => {
 
 .sidebar-bottom-actions {
   display: flex;
+  flex-shrink: 0;
   gap: 6px;
   padding-top: 12px;
   margin-top: auto;
