@@ -152,6 +152,7 @@ function normalizeEvent(event, toolCallMap) {
   const toolInput = Object.prototype.hasOwnProperty.call(payload, 'input') ? payload.input : null
   const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id : ''
   const toolIsError = payload.is_error === true
+  const isThinking = payload.block_type === 'thinking'
 
   if (event?.kind === 'tool_call' && toolCallId) {
     toolCallMap.set(toolCallId, buildToolDisplayLabel(toolName))
@@ -169,6 +170,7 @@ function normalizeEvent(event, toolCallMap) {
     ...toolMeta,
     toolUseId,
     toolIsError,
+    isThinking,
     toolResultText: toolResultMeta.toolResultText,
     toolResultSummary: toolResultMeta.toolResultSummary,
     toolResultCollapsedByDefault: toolResultMeta.toolResultCollapsedByDefault,

@@ -308,6 +308,9 @@
                   :maxlength="2000"
                   show-word-limit
                 />
+                <el-button class="preview-prompt-btn" plain @click="handlePreviewPrompt">
+                  {{ $t('workflowTemplate.previewPrompt') }}
+                </el-button>
               </div>
             </div>
 
@@ -320,6 +323,17 @@
         </template>
       </el-card>
     </div>
+
+    <BaseDialog
+      :model-value="showPreviewDialog"
+      :title="t('workflowTemplate.previewPromptTitle', { stepName: selectedStep?.name || '' })"
+      width="720px"
+      @update:model-value="showPreviewDialog = $event"
+      @close="showPreviewDialog = false"
+    >
+      <div v-if="previewLoading" class="preview-prompt-loading">{{ $t('workflowTemplate.previewPromptLoading') }}</div>
+      <pre v-else class="preview-prompt-content">{{ previewContent }}</pre>
+    </BaseDialog>
 
     <WorkflowTemplateImportDialog
       v-model="showImportDialog"
@@ -336,6 +350,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument, Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import WorkflowTemplateImportDialog from '../components/workflow/WorkflowTemplateImportDialog.vue'
+import BaseDialog from '../components/BaseDialog.vue'
 import {
   createWorkflowTemplate,
   deleteWorkflowTemplate,
@@ -343,7 +358,8 @@ import {
   getWorkflowTemplates,
   updateWorkflowTemplate,
   reorderWorkflowTemplates,
-  exportWorkflowTemplates
+  exportWorkflowTemplates,
+  previewPrompt
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
 import { useSkillStore } from '../stores/skillStore'
@@ -941,6 +957,46 @@ const handleImportComplete = async () => {
 onMounted(() => {
   loadPage()
 })
+
+// --- Prompt Preview ---
+
+const showPreviewDialog = ref(false)
+const previewContent = ref('')
+const previewLoading = ref(false)
+
+const handlePreviewPrompt = async () => {
+  if (!selectedStep.value) return
+  const step = selectedStep.value
+  if (!step.instructionPrompt?.trim()) {
+    ElMessage.warning(t('workflowTemplate.promptPreviewEmpty'))
+    return
+  }
+  const steps = template.value?.steps || []
+  const currentIndex = selectedStepIndex.value
+  const upstreamSteps = steps.slice(0, currentIndex).map(s => ({ stepId: s.id, name: s.name }))
+
+  previewLoading.value = true
+  showPreviewDialog.value = true
+  previewContent.value = ''
+
+  try {
+    const response = await previewPrompt({
+      step: { name: step.name, instructionPrompt: step.instructionPrompt || '', agentId: step.agentId },
+      upstreamSteps
+    })
+    if (response?.success) {
+      previewContent.value = response.data?.prompt || ''
+    } else {
+      previewContent.value = ''
+      ElMessage.error(response?.message || t('workflowTemplate.previewPromptFailed'))
+    }
+  } catch (error) {
+    previewContent.value = ''
+    ElMessage.error(error?.response?.data?.message || error?.message || t('workflowTemplate.previewPromptFailed'))
+  } finally {
+    previewLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -1551,6 +1607,34 @@ onMounted(() => {
 
 .editor-field--prompt {
   margin-top: 12px;
+}
+
+.preview-prompt-btn {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.preview-prompt-loading {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.preview-prompt-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 16px;
+  margin: 0;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  max-height: 60vh;
+  overflow-y: auto;
+  color: var(--text-primary);
 }
 
 .confirmation-header {

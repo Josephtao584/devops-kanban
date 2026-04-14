@@ -29,3 +29,7 @@ export const previewImportWorkflowTemplates = (exportData) =>
 // Confirm import with strategy and agent mappings
 export const confirmImportWorkflowTemplates = (data) =>
   api.post('/workflow-template/import/confirm', data)
+
+// Preview assembled prompt for a step
+export const previewPrompt = (data) =>
+  api.post('/workflow-template/preview-prompt', data)

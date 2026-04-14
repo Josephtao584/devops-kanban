@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
 
 import { WorkflowTemplateService } from '../services/workflow/workflowTemplateService.js';
+import { AgentRepository } from '../repositories/agentRepository.js';
+import { assembleWorkflowPrompt } from '../services/workflow/workflowPromptAssembler.js';
 import type { WorkflowTemplateEntity } from '../types/entities.js';
 import type { CreateWorkflowTemplateInput, UpdateWorkflowTemplateInput, ReorderWorkflowTemplatesInput, ExportFile, ImportPreview, ImportConfirmInput } from '../types/dto/workflowTemplates.js';
 import { successResponse, errorResponse } from '../utils/response.js';
@@ -138,6 +140,58 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
       logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to import workflow templates'));
+    }
+  });
+
+  // Preview assembled prompt for a step
+  fastify.post<{
+    Body: {
+      step: { name: string; instructionPrompt: string; agentId?: number };
+      upstreamSteps?: Array<{ stepId: string; name: string }>;
+      taskTitle?: string;
+      taskDescription?: string;
+    };
+  }>('/preview-prompt', async (request, reply) => {
+    try {
+      const { step, upstreamSteps = [], taskTitle, taskDescription } = request.body || {};
+      if (!step || typeof step.name !== 'string' || typeof step.instructionPrompt !== 'string') {
+        reply.code(400);
+        return errorResponse('step.name and step.instructionPrompt are required');
+      }
+
+      const agentRepo = new AgentRepository();
+      let agent: { name: string; role: string; description?: string; skills: number[] } | undefined = undefined;
+      if (typeof step.agentId === 'number') {
+        const agentEntity = await agentRepo.findById(step.agentId);
+        if (agentEntity) {
+          const agentInfo: { name: string; role: string; skills: number[]; description?: string } = {
+            name: agentEntity.name, role: agentEntity.role, skills: agentEntity.skills
+          };
+          if (typeof agentEntity.description === 'string' && agentEntity.description.trim()) {
+            agentInfo.description = agentEntity.description;
+          }
+          agent = agentInfo;
+        }
+      }
+
+      const inputData: Record<string, unknown> = {};
+      for (const us of upstreamSteps) {
+        inputData[us.stepId] = { summary: `[模拟] 上游步骤「${us.name}」的执行摘要` };
+      }
+
+      const prompt = assembleWorkflowPrompt({
+        step,
+        state: { taskTitle: taskTitle || '示例需求标题', taskDescription: taskDescription || '示例需求描述内容' },
+        inputData,
+        upstreamStepIds: upstreamSteps.map((s) => s.stepId),
+        ...(agent ? { agent } : {}),
+      });
+
+      return successResponse({ prompt: prompt.replaceAll('\\n', '\n') });
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to preview prompt'));
     }
   });
 

@@ -191,7 +191,23 @@
       </div>
 
       <template #footer>
+        <el-button plain @click="handlePreviewPrompt">{{ $t('workflowTemplate.previewPrompt') }}</el-button>
         <el-button @click="closeStepDetails">{{ $t('common.close') }}</el-button>
+      </template>
+    </BaseDialog>
+
+    <BaseDialog
+      :model-value="showPreviewDialog"
+      :title="t('workflowTemplate.previewPromptTitle', { stepName: selectedStep?.name || '' })"
+      width="720px"
+      :append-to-body="true"
+      @update:model-value="showPreviewDialog = $event"
+      @close="showPreviewDialog = false"
+    >
+      <div v-if="previewLoading" class="preview-prompt-loading">{{ $t('workflowTemplate.previewPromptLoading') }}</div>
+      <pre v-else class="preview-prompt-content">{{ previewContent }}</pre>
+      <template #footer>
+        <el-button @click="showPreviewDialog = false">{{ $t('common.close') }}</el-button>
       </template>
     </BaseDialog>
   </BaseDialog>
@@ -223,6 +239,7 @@ import {
   isDisabledAgent as checkDisabledAgent,
   formatBoundAgentState as formatAgentBindingState,
 } from './templateEditorShared.js'
+import { previewPrompt } from '../../api/workflowTemplate'
 
 const MIN_START_EDITOR_STEPS = 1
 
@@ -436,6 +453,45 @@ const handleCancel = () => {
   emit('update:modelValue', false)
 }
 const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTemplate.value))
+
+// --- Prompt Preview ---
+const showPreviewDialog = ref(false)
+const previewContent = ref('')
+const previewLoading = ref(false)
+
+const handlePreviewPrompt = async () => {
+  if (!selectedStep.value) return
+  const step = selectedStep.value
+  if (!step.instructionPrompt?.trim()) {
+    ElMessage.warning(t('workflowTemplate.promptPreviewEmpty'))
+    return
+  }
+  const steps = localTemplate.value?.steps || []
+  const currentIndex = selectedStepIndex.value
+  const upstreamSteps = steps.slice(0, currentIndex).map(s => ({ stepId: s.id, name: s.name }))
+
+  previewLoading.value = true
+  showPreviewDialog.value = true
+  previewContent.value = ''
+
+  try {
+    const response = await previewPrompt({
+      step: { name: step.name, instructionPrompt: step.instructionPrompt || '', agentId: step.agentId },
+      upstreamSteps
+    })
+    if (response?.success) {
+      previewContent.value = response.data?.prompt || ''
+    } else {
+      previewContent.value = ''
+      ElMessage.error(response?.message || t('workflowTemplate.previewPromptFailed'))
+    }
+  } catch (error) {
+    previewContent.value = ''
+    ElMessage.error(error?.response?.data?.message || error?.message || t('workflowTemplate.previewPromptFailed'))
+  } finally {
+    previewLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -806,5 +862,28 @@ const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTe
   .workflow-start-editor-step {
     width: 180px;
   }
+}
+
+.preview-prompt-loading {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+}
+
+.preview-prompt-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 16px;
+  margin: 0;
+  background: var(--bg-secondary, #f8fafc);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  max-height: 60vh;
+  overflow-y: auto;
+  color: var(--text-primary, #0f172a);
 }
 </style>

@@ -334,7 +334,11 @@ export default {
     importSuccess: '模板已导入',
     importFailed: '导入模板失败',
     importResultSuccess: '成功导入 {count} 个模板',
-    importResultSkipped: '跳过 {count} 个模板'
+    importResultSkipped: '跳过 {count} 个模板',
+    previewPrompt: '预览 Prompt',
+    previewPromptTitle: 'Prompt 预览 — {stepName}',
+    previewPromptLoading: '正在生成预览...',
+    previewPromptFailed: '生成预览失败'
   },
   agent: {
     title: '我的团队',
