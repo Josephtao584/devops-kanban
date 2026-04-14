@@ -251,13 +251,6 @@
             </div>
 
             <div v-if="selectedStep" class="step-editor-card">
-              <div class="step-editor-card__switch">
-                <el-switch
-                  v-model="selectedStep.requiresConfirmation"
-                  :active-text="$t('workflowTemplate.requiresConfirmation')"
-                />
-              </div>
-
               <div
                 v-if="isMissingAgent(selectedStep) || isDisabledAgent(selectedStep) || typeof selectedStep.agentId !== 'number'"
                 class="step-editor-state-row binding-state-row"
@@ -282,17 +275,23 @@
                   />
                 </div>
 
-                <div class="editor-field editor-field--full">
+                <div class="editor-field editor-field--with-switch">
                   <label>{{ $t('workflowTemplate.executor') }}</label>
-                  <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
-                    <el-option
-                      v-for="agent in agents"
-                      :key="agent.id"
-                      :label="formatWorkflowAgentOption(agent)"
-                      :value="agent.id"
-                      :disabled="agent.enabled === false"
+                  <div class="editor-field__row">
+                    <el-select v-model="selectedStep.agentId" clearable style="flex: 1">
+                      <el-option
+                        v-for="agent in agents"
+                        :key="agent.id"
+                        :label="formatWorkflowAgentOption(agent)"
+                        :value="agent.id"
+                        :disabled="agent.enabled === false"
+                      />
+                    </el-select>
+                    <el-switch
+                      v-model="selectedStep.requiresConfirmation"
+                      :active-text="$t('workflowTemplate.requiresConfirmation')"
                     />
-                  </el-select>
+                  </div>
                 </div>
               </div>
 
@@ -1545,12 +1544,6 @@ const handlePreviewPrompt = async () => {
   box-shadow: var(--shadow-sm);
 }
 
-.step-editor-card__switch {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-}
-
 .step-editor-card__header {
   display: flex;
   align-items: flex-start;
@@ -1581,6 +1574,12 @@ const handlePreviewPrompt = async () => {
   grid-template-columns: 1fr;
   gap: 12px;
   max-width: 520px;
+}
+
+.editor-field--with-switch .editor-field__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .editor-field {

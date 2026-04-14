@@ -176,12 +176,12 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
 
       const inputData: Record<string, unknown> = {};
       for (const us of upstreamSteps) {
-        inputData[us.stepId] = { summary: `[模拟] 上游步骤「${us.name}」的执行摘要` };
+        inputData[us.stepId] = { summary: `{{上游步骤「${us.name}」的执行摘要}}` };
       }
 
       const prompt = assembleWorkflowPrompt({
         step,
-        state: { taskTitle: taskTitle || '示例需求标题', taskDescription: taskDescription || '示例需求描述内容' },
+        state: { taskTitle: taskTitle || '{{示例需求标题}}', taskDescription: taskDescription || '{{示例需求描述内容}}' },
         inputData,
         upstreamStepIds: upstreamSteps.map((s) => s.stepId),
         ...(agent ? { agent } : {}),

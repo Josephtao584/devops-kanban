@@ -245,7 +245,9 @@ const MIN_START_EDITOR_STEPS = 1
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  draftTemplate: { type: Object, default: null }
+  draftTemplate: { type: Object, default: null },
+  taskTitle: { type: String, default: '' },
+  taskDescription: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
@@ -477,7 +479,9 @@ const handlePreviewPrompt = async () => {
   try {
     const response = await previewPrompt({
       step: { name: step.name, instructionPrompt: step.instructionPrompt || '', agentId: step.agentId },
-      upstreamSteps
+      upstreamSteps,
+      ...(props.taskTitle ? { taskTitle: props.taskTitle } : {}),
+      ...(props.taskDescription ? { taskDescription: props.taskDescription } : {}),
     })
     if (response?.success) {
       previewContent.value = response.data?.prompt || ''
