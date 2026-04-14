@@ -39,6 +39,7 @@
           </div>
 
           <div v-else class="template-list">
+            <div class="template-scroll-area">
             <draggable
               v-model="templates"
               item-key="template_id"
@@ -78,6 +79,7 @@
                 </button>
               </template>
             </draggable>
+            </div>
 
             <div class="sidebar-bottom-actions">
               <template v-if="exportMode">
@@ -1043,12 +1045,21 @@ const handlePreviewPrompt = async () => {
 .template-layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: 1fr;
   gap: 20px;
   padding: 0 20px 20px;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  height: 0;
+  overflow: hidden;
   background: var(--page-bg);
+}
+
+.template-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .template-sidebar,
@@ -1067,6 +1078,7 @@ const handlePreviewPrompt = async () => {
 :deep(.template-sidebar .el-card__body) {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   padding: 18px;
   overflow: hidden;
@@ -1101,7 +1113,12 @@ const handlePreviewPrompt = async () => {
   flex-direction: column;
   gap: 6px;
   min-height: 0;
-  overflow: auto;
+}
+
+.template-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sidebar-bottom-actions {
