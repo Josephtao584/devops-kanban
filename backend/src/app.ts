@@ -24,6 +24,7 @@ import {
   bundleRoutes,
   notificationRoutes,
 } from './routes/index.js';
+import { SchedulerService } from './services/schedulerService.js';
 
 export async function buildApp() {
   // Initialize database tables
@@ -47,6 +48,10 @@ export async function buildApp() {
   // Bootstrap built-in workflow templates
   await bootstrapBuiltinTemplates();
 
+  // Initialize scheduler for automated task source sync
+  const schedulerService = new SchedulerService();
+  await schedulerService.initialize();
+
   const fastify = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || 'warn',
@@ -54,6 +59,8 @@ export async function buildApp() {
   });
 
   fastify.config = config;
+
+  fastify.decorate('schedulerService', schedulerService);
 
   fastify.register(corsPlugin);
   fastify.register(errorHandlerPlugin);

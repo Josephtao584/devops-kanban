@@ -22,6 +22,10 @@ const start = async () => {
 process.on('SIGTERM', () => {
   console.log('👋 DevOps Kanban Backend shutting down...');
 
+  if (app.schedulerService) {
+    app.schedulerService.shutdown();
+  }
+
   app.close(() => {
     console.log('Fastify server closed');
     process.exit(0);
