@@ -42,6 +42,11 @@
           </div>
         </div>
 
+        <div v-if="source.sync_schedule" class="source-schedule-badge">
+          <span class="schedule-dot"></span>
+          <span class="schedule-text">{{ formatScheduleLabel(source.sync_schedule) }}</span>
+        </div>
+
         <div class="source-actions">
           <el-button size="small" @click="previewAndSync(source)" :disabled="taskSourceStore.syncing">
             {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
@@ -165,6 +170,57 @@
             <el-form-item :label="$t('taskSource.enabled', '启用')" prop="enabled">
               <el-switch v-model="formData.enabled" />
             </el-form-item>
+          </div>
+
+          <div class="form-section">
+            <div class="section-title">⏱ {{ $t('taskSource.scheduleConfig', '定时同步配置') }}</div>
+
+            <el-form-item :label="$t('taskSource.syncFrequency', '同步频率')">
+              <el-select v-model="formData.sync_schedule" clearable :placeholder="$t('taskSource.scheduleDisabled', '不启用')">
+                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" :value="null" />
+                <el-option label="每 5 分钟" value="*/5 * * * *" />
+                <el-option label="每 15 分钟" value="*/15 * * * *" />
+                <el-option label="每 30 分钟" value="*/30 * * * *" />
+                <el-option label="每小时" value="0 * * * *" />
+                <el-option label="每 6 小时" value="0 */6 * * *" />
+                <el-option label="每天" value="0 0 * * *" />
+                <el-option label="自定义" value="__custom__" />
+              </el-select>
+              <el-input
+                v-if="formData.sync_schedule === '__custom__'"
+                v-model="customCronExpression"
+                style="margin-top: 8px;"
+                :placeholder="$t('taskSource.scheduleCustomPlaceholder', '输入 cron 表达式')"
+              />
+            </el-form-item>
+
+            <div v-if="formData.sync_schedule && formData.sync_schedule !== '__custom__'" style="margin-bottom: 14px;">
+              <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">
+                {{ $t('taskSource.autoWorkflowRules', '自动工作流规则') }}
+              </div>
+              <div style="font-size: 11px; color: #909399; margin-bottom: 8px;">
+                {{ $t('taskSource.autoWorkflowRulesHint', '根据任务标签自动匹配工作流模板') }}
+              </div>
+
+              <div v-for="(rule, index) in formData.auto_workflow_rules" :key="index"
+                style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                <el-input v-model="rule.label" placeholder="标签" style="width: 140px;" size="small" />
+                <span style="color: #909399;">→</span>
+                <el-select v-model="rule.template_id" placeholder="工作流模板" style="flex: 1;" size="small">
+                  <el-option
+                    v-for="tpl in workflowTemplates"
+                    :key="tpl.template_id"
+                    :label="tpl.name"
+                    :value="tpl.template_id"
+                  />
+                </el-select>
+                <el-button size="small" type="danger" link @click="formData.auto_workflow_rules.splice(index, 1)">✕</el-button>
+              </div>
+
+              <el-button size="small" @click="formData.auto_workflow_rules.push({ label: '', template_id: '' })">
+                + {{ $t('taskSource.autoWorkflowAddRule', '添加规则') }}
+              </el-button>
+            </div>
           </div>
         </el-form>
       </div>
@@ -299,6 +355,7 @@ import BaseDialog from '../BaseDialog.vue'
 import { ElMessageBox } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useToast } from '../../composables/ui/useToast'
+import api from '../../api/index.js'
 
 const props = defineProps({
   projectId: {
@@ -333,12 +390,17 @@ const descriptionRefs = ref({})
 
 const availableLabels = ref({})
 
+const customCronExpression = ref('')
+const workflowTemplates = ref([])
+
 const formData = ref({
   name: '',
   type: '',
   project_id: null,
   config: {},
-  enabled: true
+  enabled: true,
+  sync_schedule: null,
+  auto_workflow_rules: [],
 })
 
 const formRules = {
@@ -358,6 +420,7 @@ const loadData = async () => {
     taskSourceStore.fetchTaskSources(props.projectId),
     taskSourceStore.loadAvailableTypes()
   ])
+  await taskSourceStore.fetchAllScheduleStatuses()
 }
 
 watch(() => props.visible, async (newVal) => {
@@ -389,6 +452,30 @@ const handleCollapse = () => {
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleString()
+}
+
+const scheduleLabels = {
+  '*/5 * * * *': '每5分钟',
+  '*/15 * * * *': '每15分钟',
+  '*/30 * * * *': '每30分钟',
+  '0 * * * *': '每小时',
+  '0 */6 * * *': '每6小时',
+  '0 0 * * *': '每天',
+}
+
+const formatScheduleLabel = (cronExpr) => {
+  return scheduleLabels[cronExpr] || cronExpr
+}
+
+const loadWorkflowTemplates = async () => {
+  try {
+    const response = await api.get('/workflow-template')
+    if (response.data?.success) {
+      workflowTemplates.value = response.data.data || []
+    }
+  } catch (e) {
+    console.warn('Failed to load workflow templates:', e)
+  }
 }
 
 const getTypeLabel = (type) => {
@@ -516,9 +603,13 @@ const showAddDialog = () => {
     type,
     project_id: props.projectId,
     config: defaultConfig,
-    enabled: true
+    enabled: true,
+    sync_schedule: null,
+    auto_workflow_rules: [],
   }
+  customCronExpression.value = ''
   dialogVisible.value = true
+  loadWorkflowTemplates()
 }
 
 const editSource = (source) => {
@@ -529,15 +620,28 @@ const editSource = (source) => {
     config.token = '****'
   }
 
+  let rules = []
+  if (source.auto_workflow_rules) {
+    try {
+      rules = JSON.parse(source.auto_workflow_rules)
+    } catch {
+      rules = []
+    }
+  }
+
   formData.value = {
     id: source.id,
     name: source.name,
     type: source.type,
     project_id: source.project_id,
     config,
-    enabled: source.enabled
+    enabled: source.enabled,
+    sync_schedule: source.sync_schedule || null,
+    auto_workflow_rules: rules,
   }
+  customCronExpression.value = ''
   dialogVisible.value = true
+  loadWorkflowTemplates()
 }
 
 const sanitizeTokenForSubmit = (payload, originalSource) => {
@@ -574,13 +678,29 @@ const submitForm = async () => {
     await formRef.value.validate()
     submitting.value = true
 
+    const payload = { ...formData.value }
+
+    // Handle custom cron expression
+    if (payload.sync_schedule === '__custom__') {
+      payload.sync_schedule = customCronExpression.value || null
+    }
+
+    // Serialize auto_workflow_rules
+    if (payload.auto_workflow_rules && payload.auto_workflow_rules.length > 0) {
+      payload.auto_workflow_rules = JSON.stringify(
+        payload.auto_workflow_rules.filter(r => r.label && r.template_id)
+      )
+    } else {
+      payload.auto_workflow_rules = null
+    }
+
     if (isEditMode.value) {
-      const currentSource = findCurrentSource(formData.value.id)
-      const payload = sanitizeTokenForSubmit(formData.value, currentSource)
-      await taskSourceStore.updateTaskSource(formData.value.id, payload)
+      const currentSource = findCurrentSource(payload.id)
+      const sanitized = sanitizeTokenForSubmit(payload, currentSource)
+      await taskSourceStore.updateTaskSource(payload.id, sanitized)
       toast.success('更新成功')
     } else {
-      await taskSourceStore.createTaskSource(formData.value)
+      await taskSourceStore.createTaskSource(payload)
       toast.success('创建成功')
     }
 
@@ -1114,5 +1234,36 @@ const toggleDescription = (externalId) => {
 .test-fail {
   color: #f56c6c;
   background: #fef0f0;
+}
+
+.source-schedule-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fffe;
+  border: 1px solid rgba(37, 198, 201, 0.2);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+
+.schedule-dot {
+  width: 8px;
+  height: 8px;
+  background: #25c6c9;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.schedule-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #25c6c9;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
 }
 </style>
