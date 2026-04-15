@@ -125,7 +125,7 @@ import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useNotificationSettings } from '../composables/notifications/useNotificationSettings'
 import { useI18n } from 'vue-i18n'
 import { getNotificationConfig, saveNotificationConfig, sendNotification } from '../api/notification.js'
-import { getSettings, updateSettings, getSchedulerStatus, triggerDispatch } from '../api/settings.js'
+import { getSettings, updateSettings as updateSchedulerSettings, getSchedulerStatus, triggerDispatch } from '../api/settings.js'
 
 const props = defineProps({
   sidebarCollapsed: {
@@ -257,7 +257,7 @@ async function refreshStatus() {
 async function saveSchedulerConfig() {
   try {
     const cronVal = dispatchCronPreset.value === '__custom__' ? customCron.value : dispatchCronPreset.value
-    await updateSettings({
+    await updateSchedulerSettings({
       'scheduler.workflow_dispatch_cron': cronVal,
       'scheduler.max_concurrent_workflows': String(schedulerConfig.value['scheduler.max_concurrent_workflows']),
       'scheduler.max_tasks_per_execution': String(schedulerConfig.value['scheduler.max_tasks_per_execution']),
