@@ -336,17 +336,21 @@ class SchedulerService {
       // Take top N
       const batch = eligible.slice(0, maxTasks);
 
+      // Use local counter to avoid race condition with async startTask
+      const dbActiveCount = await this.getActiveWorkflowCount();
+      let localDispatched = dbActiveCount;
+
       for (const task of batch) {
-        const currentActive = await this.getActiveWorkflowCount();
-        if (currentActive >= maxConcurrent) {
-          result.skipped += batch.length - result.dispatched - result.skipped;
-          break;
+        if (localDispatched >= maxConcurrent) {
+          result.skipped++;
+          continue;
         }
 
         try {
           await this.taskService.startTask(task.id, {
             workflow_template_id: task.auto_execute_template_id!,
           });
+          localDispatched++;
           result.dispatched++;
           console.log(`[Scheduler] Dispatched task ${task.id} with template ${task.auto_execute_template_id}`);
         } catch (error) {
