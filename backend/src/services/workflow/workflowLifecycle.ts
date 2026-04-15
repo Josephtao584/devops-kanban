@@ -15,13 +15,7 @@ import { prepareExecutionMcp } from './executorMcpPreparation.js';
 import { cleanupMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
-
-interface WorkflowNotificationEvent {
-  type: 'SUSPENDED' | 'COMPLETED' | 'FAILED';
-  runId: number;
-  taskId: number;
-  taskTitle: string;
-}
+import { WorkflowNotificationEvent } from '../notificationEvents.js';
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
@@ -66,13 +60,17 @@ class WorkflowLifecycle {
 
   private async _emitNotification(type: WorkflowNotificationEvent['type'], runId: number, taskId: number) {
     if (!this.onWorkflowNotification) return;
-    const task = await this.taskRepo.findById(taskId);
-    this.onWorkflowNotification({
-      type,
-      runId,
-      taskId,
-      taskTitle: task?.title || `Task #${taskId}`,
-    });
+    try {
+      const task = await this.taskRepo.findById(taskId);
+      this.onWorkflowNotification({
+        type,
+        runId,
+        taskId,
+        taskTitle: task?.title || `Task #${taskId}`,
+      });
+    } catch (error) {
+      logger.warn('WorkflowLifecycle', `Notification hook failed: ${(error as Error).message}`);
+    }
   }
 
   private _getStepAttemptSegmentKey(runId: number, stepId: string) {
@@ -609,7 +607,9 @@ class WorkflowLifecycle {
     }
 
     // Emit notification hook
-    await this._emitNotification('COMPLETED', runId, run.task_id);
+    if (run.task_id) {
+      await this._emitNotification('COMPLETED', runId, run.task_id);
+    }
   }
 
   async onWorkflowError(runId: number, errorMessage: string) {
@@ -632,7 +632,9 @@ class WorkflowLifecycle {
     }
 
     // Emit notification hook
-    await this._emitNotification('FAILED', runId, run.task_id);
+    if (run.task_id) {
+      await this._emitNotification('FAILED', runId, run.task_id);
+    }
   }
 
 }

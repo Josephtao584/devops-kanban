@@ -8,5 +8,6 @@ interface WorkflowNotificationEvent {
 }
 
 const notificationEvents = new EventEmitter();
+notificationEvents.setMaxListeners(50);
 
 export { notificationEvents, WorkflowNotificationEvent };

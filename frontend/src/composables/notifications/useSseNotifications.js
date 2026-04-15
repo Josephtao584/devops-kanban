@@ -1,16 +1,18 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useBrowserNotifications } from './useBrowserNotifications'
+import { useI18n } from 'vue-i18n'
 
 const eventSource = ref(null)
 const connected = ref(false)
 
 export function useSseNotifications() {
   const { showNotification } = useBrowserNotifications()
+  const { t } = useI18n()
 
   const eventMessages = {
-    SUSPENDED: { title: '工作流等待确认', body: '工作流执行已暂停，需要您确认后继续' },
-    COMPLETED: { title: '工作流已完成', body: '工作流执行已完成' },
-    FAILED: { title: '工作流执行失败', body: '工作流执行失败，请查看详情' },
+    SUSPENDED: { titleKey: 'notification.suspendedTitle', bodyKey: 'notification.suspendedBody', event: 'workflowSuspended' },
+    COMPLETED: { titleKey: 'notification.completedTitle', bodyKey: 'notification.completedBody', event: 'workflowCompleted' },
+    FAILED: { titleKey: 'notification.failedTitle', bodyKey: 'notification.failedBody', event: 'workflowFailed' },
   }
 
   function connect() {
@@ -28,9 +30,9 @@ export function useSseNotifications() {
         const event = JSON.parse(e.data)
         const msg = eventMessages[event.type]
         if (msg) {
-          showNotification(`${event.taskTitle} - ${msg.title}`, {
-            body: msg.body,
-            eventType: `workflow${event.type.charAt(0) + event.type.slice(1).toLowerCase()}`,
+          showNotification(`${event.taskTitle} - ${t(msg.titleKey)}`, {
+            body: t(msg.bodyKey),
+            eventType: msg.event,
           })
         }
       } catch {
@@ -40,7 +42,6 @@ export function useSseNotifications() {
 
     es.onerror = () => {
       connected.value = false
-      // Auto reconnect after 5s
       es.close()
       eventSource.value = null
       setTimeout(connect, 5000)
