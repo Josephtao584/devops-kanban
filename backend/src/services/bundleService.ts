@@ -13,23 +13,29 @@ import type {
 } from '../types/dto/bundle.js';
 import type { ExportedWorkflowTemplate, ExportedMcpServer } from '../types/dto/workflowTemplates.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
+import AdmZip from 'adm-zip';
+import { existsSync, readdirSync, readFileSync, statSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve, sep, dirname as pathDirname } from 'node:path';
 
 class BundleService {
   templateRepo: WorkflowTemplateRepository;
   agentRepo: AgentRepository;
   skillRepo: SkillRepository;
   mcpServerRepo: McpServerRepository;
+  storagePath: string;
 
   constructor(options: {
     templateRepo?: WorkflowTemplateRepository;
     agentRepo?: AgentRepository;
     skillRepo?: SkillRepository;
     mcpServerRepo?: McpServerRepository;
+    storagePath?: string;
   } = {}) {
     this.templateRepo = options.templateRepo || new WorkflowTemplateRepository();
     this.agentRepo = options.agentRepo || new AgentRepository();
     this.skillRepo = options.skillRepo || new SkillRepository();
     this.mcpServerRepo = options.mcpServerRepo || new McpServerRepository();
+    this.storagePath = options.storagePath || process.cwd();
   }
 
   // --- Resolve dependencies ---
@@ -354,7 +360,118 @@ class BundleService {
     return { imported, skipped };
   }
 
+  // --- ZIP Export ---
+
+  async exportBundleAsZipBuffer(input: {
+    templateIds: string[];
+    agentNames: string[];
+    skillIdentifiers: string[];
+    mcpServerNames: string[];
+  }): Promise<Buffer> {
+    const bundleData = await this.exportBundle(input);
+    bundleData.version = '2.1';
+
+    const zip = new AdmZip();
+    zip.addFile('bundle.json', Buffer.from(JSON.stringify(bundleData, null, 2)));
+
+    // Add skill files
+    const skillsBase = resolve(this.storagePath, 'skills');
+    for (const identifier of input.skillIdentifiers) {
+      const skillDir = resolve(skillsBase, identifier);
+      if (!existsSync(skillDir)) continue;
+      const files = this.listFilesRecursive(skillDir);
+      for (const file of files) {
+        const fullPath = resolve(skillDir, file);
+        const content = readFileSync(fullPath);
+        zip.addFile(`skills/${identifier}/${file}`, content);
+      }
+    }
+
+    return zip.toBuffer();
+  }
+
+  // --- ZIP Import Preview ---
+
+  async previewImportFromZip(zipBuffer: Buffer): Promise<BundleImportPreview> {
+    const data = this.extractBundleJsonFromZip(zipBuffer);
+    return await this.previewImport(data);
+  }
+
+  // --- ZIP Import Confirm ---
+
+  async confirmImportFromZip(zipBuffer: Buffer, strategy: 'skip' | 'overwrite' | 'copy'): Promise<{
+    imported: { templates: number; agents: number; skills: number; mcpServers: number };
+    skipped: { templates: number; agents: number; skills: number; mcpServers: number };
+  }> {
+    const zip = new AdmZip(zipBuffer);
+    const bundleEntry = zip.getEntry('bundle.json');
+    if (!bundleEntry) {
+      throw new ValidationError('ZIP 中未找到 bundle.json', 'bundle.json not found in ZIP');
+    }
+    const data: BundleExportFile = JSON.parse(bundleEntry.getData().toString('utf-8'));
+
+    const result = await this.confirmImport({
+      templates: data.templates,
+      agents: data.agents,
+      skills: data.skills,
+      mcpServers: data.mcpServers,
+      strategy,
+    });
+
+    // Extract skill files from ZIP to disk
+    const skillsBase = resolve(this.storagePath, 'skills');
+    for (const skill of data.skills) {
+      // Validate skill identifier to prevent path traversal
+      if (skill.identifier.includes('..') || skill.identifier.includes('/') || skill.identifier.includes(sep)) {
+        continue;
+      }
+      const skillDir = resolve(skillsBase, skill.identifier);
+      const prefix = `skills/${skill.identifier}/`;
+      const entries = zip.getEntries().filter(e => !e.isDirectory && e.entryName.startsWith(prefix));
+
+      if (entries.length > 0 && !existsSync(skillDir)) {
+        mkdirSync(skillDir, { recursive: true });
+      }
+
+      for (const entry of entries) {
+        const relativePath = entry.entryName.slice(prefix.length);
+        if (!relativePath) continue;
+        // Prevent path traversal in entry names
+        if (relativePath.includes('..')) continue;
+        const fullPath = resolve(skillDir, relativePath);
+        // Verify the resolved path stays within the skill directory
+        if (!fullPath.startsWith(skillDir + sep) && fullPath !== skillDir) continue;
+        const parentDir = pathDirname(fullPath);
+        if (!existsSync(parentDir)) {
+          mkdirSync(parentDir, { recursive: true });
+        }
+        writeFileSync(fullPath, entry.getData());
+      }
+    }
+
+    return result;
+  }
+
   // --- Helpers ---
+
+  private listFilesRecursive(dir: string): string[] {
+    if (!existsSync(dir)) return [];
+    const entries = readdirSync(dir, { recursive: true })
+      .filter((p): p is string => typeof p === 'string');
+    return entries.filter(entry => {
+      const fullPath = resolve(dir, entry);
+      return existsSync(fullPath) && statSync(fullPath).isFile();
+    }).map(entry => entry.split(sep).join('/'));
+  }
+
+  private extractBundleJsonFromZip(zipBuffer: Buffer): BundleExportFile {
+    const zip = new AdmZip(zipBuffer);
+    const entry = zip.getEntry('bundle.json');
+    if (!entry) {
+      throw new ValidationError('ZIP 中未找到 bundle.json', 'bundle.json not found in ZIP');
+    }
+    return JSON.parse(entry.getData().toString('utf-8'));
+  }
 
   private buildExportedAgent(agent: AgentEntity, allSkills: SkillEntity[], allMcpServers: McpServerEntity[]): ExportedAgent {
     const skillMap = new Map(allSkills.map(s => [s.id, s.identifier]));

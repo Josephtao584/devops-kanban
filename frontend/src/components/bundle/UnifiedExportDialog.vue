@@ -24,9 +24,16 @@
           </div>
           <div v-if="templates.length === 0" class="empty-hint">{{ $t('bundle.noTemplates') }}</div>
         </div>
+
+        <div class="bundle-toggle">
+          <el-checkbox v-model="bundleMode">
+            {{ $t('bundle.bundleExportLabel') }}
+          </el-checkbox>
+          <div v-if="bundleMode" class="bundle-hint">{{ $t('bundle.bundleExportHint') }}</div>
+        </div>
       </div>
 
-      <!-- Step 2: Confirm dependencies -->
+      <!-- Step 2: Confirm dependencies (only in bundle mode) -->
       <div v-else-if="step === 'confirm'" class="export-step">
         <div class="step-hint">{{ $t('bundle.confirmDepsHint') }}</div>
 
@@ -128,7 +135,8 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import BaseDialog from '../BaseDialog.vue'
-import { resolveBundle, exportBundle } from '../../api/bundle.js'
+import { resolveBundle, exportBundleZip, exportBundle } from '../../api/bundle.js'
+import { exportWorkflowTemplates } from '../../api/workflowTemplate.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -141,6 +149,7 @@ const { t } = useI18n()
 
 const step = ref('select')
 const selectedTemplateIds = ref([])
+const bundleMode = ref(false)
 const resolveResult = ref({ templates: [], agents: [], skills: [], mcpServers: [] })
 const selectedAgents = ref([])
 const selectedSkills = ref([])
@@ -172,6 +181,15 @@ const toggleMcpServer = (name) => {
 }
 
 const handleNext = async () => {
+  if (selectedTemplateIds.value.length === 0) return
+
+  if (!bundleMode.value) {
+    // Simple export: download JSON directly
+    await handleSimpleExport()
+    return
+  }
+
+  // Bundle mode: resolve dependencies first
   try {
     const res = await resolveBundle(selectedTemplateIds.value)
     if (!res?.success) {
@@ -179,13 +197,27 @@ const handleNext = async () => {
       return
     }
     resolveResult.value = res.data
-    // Pre-select all dependencies
     selectedAgents.value = res.data.agents.map(a => a.name)
     selectedSkills.value = res.data.skills.map(s => s.identifier)
     selectedMcpServers.value = res.data.mcpServers.map(s => s.name)
     step.value = 'confirm'
   } catch (e) {
     ElMessage.error(e?.message || t('bundle.resolveFailed'))
+  }
+}
+
+const handleSimpleExport = async () => {
+  exporting.value = true
+  try {
+    const data = await exportWorkflowTemplates(selectedTemplateIds.value)
+    downloadJson(data, `workflow-templates-${Date.now()}.json`)
+    ElMessage.success(t('bundle.exportSuccess'))
+    emit('exported')
+    handleClose()
+  } catch (e) {
+    ElMessage.error(e?.message || t('bundle.exportFailed'))
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -199,21 +231,42 @@ const downloadJson = (data, filename) => {
   URL.revokeObjectURL(url)
 }
 
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 const handleExport = async () => {
   exporting.value = true
   try {
-    const data = await exportBundle({
+    const blob = await exportBundleZip({
       templateIds: selectedTemplateIds.value,
       agentNames: selectedAgents.value,
       skillIdentifiers: selectedSkills.value,
       mcpServerNames: selectedMcpServers.value,
     })
-    downloadJson(data, `bundle-${Date.now()}.json`)
+    downloadBlob(blob, `bundle-${Date.now()}.zip`)
     ElMessage.success(t('bundle.exportSuccess'))
     emit('exported')
     handleClose()
   } catch (e) {
-    ElMessage.error(e?.message || t('bundle.exportFailed'))
+    // When responseType is 'blob', error responses are Blobs too — try to read the actual error message
+    let message = t('bundle.exportFailed')
+    const errorData = e?.response?.data
+    if (errorData instanceof Blob) {
+      try {
+        const text = await errorData.text()
+        const parsed = JSON.parse(text)
+        message = parsed?.message || parsed?.error || message
+      } catch { /* use default message */ }
+    } else if (e?.message) {
+      message = e.message
+    }
+    ElMessage.error(message)
   } finally {
     exporting.value = false
   }
@@ -222,6 +275,7 @@ const handleExport = async () => {
 const handleClose = () => {
   step.value = 'select'
   selectedTemplateIds.value = []
+  bundleMode.value = false
   resolveResult.value = { templates: [], agents: [], skills: [], mcpServers: [] }
   selectedAgents.value = []
   selectedSkills.value = []
@@ -293,6 +347,20 @@ const handleClose = () => {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin-left: auto;
+}
+
+.bundle-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.bundle-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  padding-left: 24px;
 }
 
 .dep-group {

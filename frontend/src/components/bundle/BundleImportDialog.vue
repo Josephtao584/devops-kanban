@@ -7,7 +7,7 @@
           <input
             ref="fileInput"
             type="file"
-            accept=".json"
+            accept=".json,.zip"
             style="display: none"
             @change="handleFileSelect"
           />
@@ -151,7 +151,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { previewImportBundle, confirmImportBundle } from '../../api/bundle.js'
+import { previewImportBundle, confirmImportBundle, previewImportBundleZip, confirmImportBundleZip } from '../../api/bundle.js'
 import { previewImportWorkflowTemplates, confirmImportWorkflowTemplates } from '../../api/workflowTemplate.js'
 
 const props = defineProps({
@@ -167,6 +167,7 @@ const fileInput = ref(null)
 const strategy = ref('copy')
 const importing = ref(false)
 const importVersion = ref('')
+const storedZipBase64 = ref(null)
 
 const previewData = ref({ templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } })
 const result = ref({ imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } })
@@ -194,10 +195,21 @@ const handleDrop = (event) => {
 }
 
 const parseFile = async (file) => {
+  const isZip = file.name.endsWith('.zip')
+
+  if (isZip) {
+    await parseZipFile(file)
+  } else {
+    await parseJsonFile(file)
+  }
+}
+
+const parseJsonFile = async (file) => {
   try {
     const text = await file.text()
     const data = JSON.parse(text)
     importVersion.value = data.version || '1.0'
+    storedZipBase64.value = null
 
     if (importVersion.value === '2.0') {
       // Bundle import (v2.0)
@@ -217,7 +229,6 @@ const parseFile = async (file) => {
         ElMessage.error(res?.message || t('bundle.importPreviewFailed'))
         return
       }
-      // Convert to v1 compatible preview format and use legacy flow
       previewData.value = {
         templates: res.data.templates,
         agents: [],
@@ -230,10 +241,34 @@ const parseFile = async (file) => {
           mcpServerNames: [],
         },
       }
-      // Store original data for legacy import
       importVersion.value = '1.0'
       step.value = 'preview'
     }
+  } catch {
+    ElMessage.error(t('bundle.importInvalidFile'))
+  }
+}
+
+const parseZipFile = async (file) => {
+  try {
+    const buffer = await file.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    const chunks = []
+    const chunkSize = 8192
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length))
+      chunks.push(String.fromCharCode.apply(null, chunk))
+    }
+    storedZipBase64.value = btoa(chunks.join(''))
+    importVersion.value = '2.1'
+
+    const res = await previewImportBundleZip({ zip: storedZipBase64.value })
+    if (!res?.success) {
+      ElMessage.error(res?.message || t('bundle.importPreviewFailed'))
+      return
+    }
+    previewData.value = res.data
+    step.value = 'preview'
   } catch {
     ElMessage.error(t('bundle.importInvalidFile'))
   }
@@ -257,7 +292,18 @@ const handleConfirmImport = async () => {
   importing.value = true
   try {
     let response
-    if (importVersion.value === '1.0') {
+    if (storedZipBase64.value) {
+      // ZIP import
+      response = await confirmImportBundleZip({
+        zip: storedZipBase64.value,
+        strategy: strategy.value,
+      })
+      if (!response?.success) {
+        ElMessage.error(response?.message || t('bundle.importFailed'))
+        return
+      }
+      result.value = response.data
+    } else if (importVersion.value === '1.0') {
       // Legacy import
       response = await confirmImportWorkflowTemplates({
         templates: previewData.value.templates,
@@ -274,7 +320,7 @@ const handleConfirmImport = async () => {
         skipped: { templates: legacyResult.skipped?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
       }
     } else {
-      // Bundle import (v2.0)
+      // Bundle import (v2.0 JSON)
       response = await confirmImportBundle({
         templates: previewData.value.templates,
         agents: previewData.value.agents,
@@ -300,6 +346,7 @@ const handleConfirmImport = async () => {
 const resetToUpload = () => {
   step.value = 'upload'
   previewData.value = { templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } }
+  storedZipBase64.value = null
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -309,6 +356,7 @@ const handleClose = () => {
   result.value = { imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } }
   importing.value = false
   importVersion.value = ''
+  storedZipBase64.value = null
   emit('update:modelValue', false)
 }
 </script>

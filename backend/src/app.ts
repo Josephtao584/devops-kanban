@@ -98,7 +98,7 @@ export async function buildApp() {
   fastify.register(gitRoutes, { prefix: '/api/git' });
   fastify.register(skillRoutes, { prefix: '/api/skills' });
   fastify.register(mcpServerRoutes, { prefix: '/api/mcp-servers' });
-  fastify.register(bundleRoutes, { prefix: '/api/bundle' });
+  fastify.register(bundleRoutes, { prefix: '/api/bundle', storagePath: config.STORAGE_PATH });
 
   return fastify;
 }

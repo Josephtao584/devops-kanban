@@ -56,13 +56,6 @@
                   :class="{ 'is-active': item.template_id === selectedTemplateId }"
                   @click="selectTemplate(item.template_id)"
                 >
-                  <el-checkbox
-                    v-if="exportMode && !item.isDraft"
-                    :model-value="selectedForExport.includes(item.template_id)"
-                    class="template-list-item__checkbox"
-                    @change="(val) => toggleExportSelect(item.template_id, val)"
-                    @click.stop
-                  />
                   <span class="template-list-item__name">{{ item.name }}</span>
                   <span
                     v-if="!item.isDraft"
@@ -82,25 +75,12 @@
             </div>
 
             <div class="sidebar-bottom-actions">
-              <template v-if="exportMode">
-                <el-button type="primary" plain size="small" :disabled="selectedForExport.length === 0" @click="handleBatchExport">
-                  {{ $t('workflowTemplate.exportConfirm', { count: selectedForExport.length }) }}
-                </el-button>
-                <el-button plain size="small" :disabled="selectedForExport.length === 0" @click="handleBundleExportFromMode">
-                  {{ $t('bundle.exportTitle') }}
-                </el-button>
-                <el-button plain size="small" @click="cancelExportMode">
-                  {{ $t('common.cancel') }}
-                </el-button>
-              </template>
-              <template v-else>
-                <el-button plain @click="enterExportMode">
+                <el-button plain @click="showExportDialog = true">
                   {{ $t('common.export') }}
                 </el-button>
                 <el-button plain @click="showBundleImportDialog = true">
                   {{ $t('common.import') }}
                 </el-button>
-              </template>
             </div>
           </div>
         </template>
@@ -347,10 +327,10 @@
       @imported="handleImportComplete"
     />
 
-    <BundleExportDialog
-      v-model="showBundleExportDialog"
+    <UnifiedExportDialog
+      v-model="showExportDialog"
       :templates="templates"
-      @exported="handleBundleExported"
+      @exported="handleExported"
     />
 
     <BundleImportDialog
@@ -367,7 +347,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument, Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import WorkflowTemplateImportDialog from '../components/workflow/WorkflowTemplateImportDialog.vue'
-import BundleExportDialog from '../components/bundle/BundleExportDialog.vue'
+import UnifiedExportDialog from '../components/bundle/UnifiedExportDialog.vue'
 import BundleImportDialog from '../components/bundle/BundleImportDialog.vue'
 import BaseDialog from '../components/BaseDialog.vue'
 import {
@@ -377,7 +357,6 @@ import {
   getWorkflowTemplates,
   updateWorkflowTemplate,
   reorderWorkflowTemplates,
-  exportWorkflowTemplates,
   previewPrompt
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
@@ -421,10 +400,8 @@ let templateDetailRequestToken = 0
 let latestTemplateDetailRequestToken = 0
 
 const showImportDialog = ref(false)
-const showBundleExportDialog = ref(false)
+const showExportDialog = ref(false)
 const showBundleImportDialog = ref(false)
-const exportMode = ref(false)
-const selectedForExport = ref([])
 
 const canDeleteSelected = computed(() => {
   return Boolean(template.value?.template_id) && template.value.template_id !== DEFAULT_TEMPLATE_ID
@@ -926,64 +903,14 @@ const handleDeleteTemplate = async () => {
 
 // --- Export/Import ---
 
-const toggleExportSelect = (templateId, checked) => {
-  if (checked) {
-    if (!selectedForExport.value.includes(templateId)) {
-      selectedForExport.value = [...selectedForExport.value, templateId]
-    }
-  } else {
-    selectedForExport.value = selectedForExport.value.filter(id => id !== templateId)
-  }
-}
-
-const enterExportMode = () => {
-  exportMode.value = true
-  selectedForExport.value = []
-}
-
-const cancelExportMode = () => {
-  exportMode.value = false
-  selectedForExport.value = []
-}
-
-const downloadJson = (data, filename) => {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-const handleBatchExport = async () => {
-  if (selectedForExport.value.length === 0) return
-  try {
-    const data = await exportWorkflowTemplates(selectedForExport.value)
-    downloadJson(data, `workflow-templates-${Date.now()}.json`)
-    ElMessage.success(t('workflowTemplate.exportSuccess'))
-    exportMode.value = false
-    selectedForExport.value = []
-  } catch (error) {
-    ElMessage.error(error?.message || t('workflowTemplate.exportFailed'))
-  }
+const handleExported = () => {
+  showExportDialog.value = false
 }
 
 const handleImportComplete = async () => {
   showImportDialog.value = false
   await loadTemplateList(selectedTemplateId.value || DEFAULT_TEMPLATE_ID)
   ElMessage.success(t('workflowTemplate.importSuccess'))
-}
-
-const handleBundleExported = () => {
-  showBundleExportDialog.value = false
-  exportMode.value = false
-  selectedForExport.value = []
-}
-
-const handleBundleExportFromMode = () => {
-  // Open bundle export with currently selected templates pre-filled
-  showBundleExportDialog.value = true
 }
 
 const handleBundleImported = async () => {
