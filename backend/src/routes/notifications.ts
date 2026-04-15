@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { NotificationService } from '../services/notificationService.js';
+import { notificationEvents } from '../services/notificationEvents.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../config/index.js';
 import path from 'node:path';
@@ -57,5 +58,25 @@ export async function notificationRoutes(fastify: FastifyInstance) {
     } catch (error) {
       return errorResponse('Failed to send notification');
     }
+  });
+
+  // GET /api/notifications/events — SSE endpoint for browser push
+  fastify.get('/events', async (request, reply) => {
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    reply.hijack();
+
+    const send = (event: { type: string; runId: number; taskId: number; taskTitle: string }) => {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    notificationEvents.on('workflow', send);
+
+    request.raw.on('close', () => {
+      notificationEvents.off('workflow', send);
+    });
   });
 }

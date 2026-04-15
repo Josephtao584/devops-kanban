@@ -89,8 +89,12 @@
 <script setup>
 import { ref } from 'vue'
 import NotificationBell from './components/NotificationBell.vue'
+import { useSseNotifications } from './composables/notifications/useSseNotifications'
 
 const isSidebarCollapsed = ref(true)
+
+// SSE push notifications — connects on mount, auto-reconnects
+useSseNotifications()
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value

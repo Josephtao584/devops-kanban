@@ -10,6 +10,10 @@ import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
+import { notificationEvents } from '../notificationEvents.js';
+import { NotificationService } from '../notificationService.js';
+import { STORAGE_PATH, BACKEND_ROOT } from '../../config/index.js';
+import path from 'node:path';
 
 
 function toStepState(instance: WorkflowInstanceEntity) {
@@ -56,7 +60,29 @@ class WorkflowService {
     this.projectRepo = projectRepo || new ProjectRepository();
     this.instanceService = instanceService || new WorkflowInstanceService();
     this.agentRepo = agentRepo || new AgentRepository();
-    this.lifecycle = lifecycle || new WorkflowLifecycle({ workflowRunRepo: this.workflowRunRepo, taskRepo: this.taskRepo });
+    const notificationService = new NotificationService({
+      filePath: path.join(STORAGE_PATH, 'notification-config.json'),
+      defaultYamlPath: path.join(BACKEND_ROOT, 'notification-config.yaml'),
+    });
+
+    this.lifecycle = lifecycle || new WorkflowLifecycle({
+      workflowRunRepo: this.workflowRunRepo,
+      taskRepo: this.taskRepo,
+      onWorkflowNotification: (event) => {
+        // Broadcast for SSE clients (browser notifications)
+        notificationEvents.emit('workflow', event);
+        // Send chat/webhook notification
+        const statusMessages: Record<string, string> = {
+          SUSPENDED: '工作流等待确认',
+          COMPLETED: '工作流已完成',
+          FAILED: '工作流执行失败',
+        };
+        const content = `${event.taskTitle}: ${statusMessages[event.type] || event.type}`;
+        notificationService.sendNotification(content).catch((err) => {
+          logger.warn('WorkflowService', `Notification hook failed: ${err.message}`);
+        });
+      },
+    });
   }
 
   async startWorkflow(taskId: number, options: StartWorkflowOptions) {

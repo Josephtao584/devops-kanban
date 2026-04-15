@@ -274,7 +274,6 @@ import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
-import { useBrowserNotifications } from '../../composables/notifications/useBrowserNotifications'
 import { getWorkflowRun, cancelWorkflow, retryWorkflow, resumeWorkflow } from '../../api/workflow'
 import {
   toTimelineWorkflow,
@@ -389,44 +388,12 @@ const fetchWorkflowRun = async () => {
   }
 }
 
-// Browser and chat notifications
-const { showNotification, sendChatNotification } = useBrowserNotifications()
-
-const eventMessages = {
-  workflowSuspended: { title: t('notification.suspendedTitle'), body: t('notification.suspendedBody') },
-  workflowCompleted: { title: t('notification.completedTitle'), body: t('notification.completedBody') },
-  workflowFailed: { title: t('notification.failedTitle'), body: t('notification.failedBody') }
-}
-
-function handleWorkflowStatusChange(oldStatus, newStatus) {
-  if (!oldStatus || oldStatus === newStatus) return
-  const taskTitle = props.task.title
-  let eventType = null
-
-  if (newStatus === 'SUSPENDED') eventType = 'workflowSuspended'
-  else if (newStatus === 'COMPLETED') eventType = 'workflowCompleted'
-  else if (newStatus === 'FAILED') eventType = 'workflowFailed'
-
-  if (!eventType) return
-
-  const msg = eventMessages[eventType]
-  showNotification(`${taskTitle} - ${msg.title}`, {
-    body: msg.body,
-    eventType
-  })
-
-  if (eventType === 'workflowFailed') {
-    sendChatNotification(`${taskTitle}: ${msg.body}`)
-  }
-}
-
-// Polling composable for auto-refresh
+// Polling composable for auto-refresh (UI updates only; notifications via SSE hook)
 const { pollingEnabled, isPolling, startPolling, stopPolling, togglePolling } = useWorkflowRunPolling({
   fetchFn: fetchWorkflowRun,
   isTerminal: () => isWorkflowTerminal.value,
   interval: 3000,
   getStatus: () => realWorkflowRun.value?.status || null,
-  onStatusChange: handleWorkflowStatusChange
 })
 
 // Fetch workflow run when expanded and start/stop polling accordingly
