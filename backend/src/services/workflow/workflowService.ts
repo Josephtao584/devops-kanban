@@ -10,7 +10,6 @@ import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
-import { notificationEvents } from '../notificationEvents.js';
 import { NotificationService } from '../notificationService.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../../config/index.js';
 import path from 'node:path';
@@ -69,8 +68,6 @@ class WorkflowService {
       workflowRunRepo: this.workflowRunRepo,
       taskRepo: this.taskRepo,
       onWorkflowNotification: (event) => {
-        // Broadcast for SSE clients (browser notifications)
-        notificationEvents.emit('workflow', event);
         // Send chat/webhook notification
         const statusMessages: Record<string, string> = {
           SUSPENDED: '工作流等待确认',

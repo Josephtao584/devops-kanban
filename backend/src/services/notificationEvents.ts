@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { logger } from '../utils/logger.js';
 
 interface WorkflowNotificationEvent {
   type: 'SUSPENDED' | 'COMPLETED' | 'FAILED';
@@ -7,7 +7,4 @@ interface WorkflowNotificationEvent {
   taskTitle: string;
 }
 
-const notificationEvents = new EventEmitter();
-notificationEvents.setMaxListeners(50);
-
-export { notificationEvents, WorkflowNotificationEvent };
+export { WorkflowNotificationEvent };
