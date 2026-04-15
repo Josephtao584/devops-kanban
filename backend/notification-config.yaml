@@ -1,0 +1,7 @@
+# 聊天通知默认配置
+# 用户可通过前端 UI 配置（会保存到此文件同目录的 notification-config.json）
+# 此文件为版本控制的默认模板
+
+url: ""
+receiver: ""
+auth: ""

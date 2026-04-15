@@ -13,7 +13,10 @@ test.test('NotificationService loads config from JSON file', async () => {
 });
 
 test.test('NotificationService returns null config when file missing', async () => {
-  const service = new NotificationService({ filePath: 'test/fixtures/nonexistent.json' });
+  const service = new NotificationService({
+    filePath: 'test/fixtures/nonexistent.json',
+    defaultYamlPath: 'test/fixtures/nonexistent.yaml',
+  });
   const config = await service.getConfig();
   assert.equal(config, null);
 });
@@ -54,7 +57,10 @@ test.test('NotificationService sends HTTP POST with correct payload', async () =
 });
 
 test.test('NotificationService returns false when config missing', async () => {
-  const service = new NotificationService({ filePath: 'test/fixtures/nonexistent.json' });
+  const service = new NotificationService({
+    filePath: 'test/fixtures/nonexistent.json',
+    defaultYamlPath: 'test/fixtures/nonexistent.yaml',
+  });
 
   let posted = false;
   service._httpPost = async () => {
@@ -87,4 +93,16 @@ test.test('NotificationService returns false when HTTP response not ok', async (
 
   const result = await service.sendNotification('test');
   assert.equal(result, false);
+});
+
+test.test('NotificationService falls back to YAML default when JSON missing', async () => {
+  const service = new NotificationService({
+    filePath: 'test/fixtures/nonexistent.json',
+    defaultYamlPath: 'test/fixtures/notification-config-default.yaml',
+  });
+
+  const config = await service.getConfig();
+  assert.equal(config!.url, 'https://yaml-default.example.com/api/notify');
+  assert.equal(config!.receiver, 'yaml-user');
+  assert.equal(config!.auth, 'yaml-token');
 });

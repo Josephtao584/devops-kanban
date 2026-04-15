@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as http from 'node:http';
 import * as https from 'node:https';
+import * as yaml from 'yaml';
 import { logger } from '../utils/logger.js';
 
 interface NotificationConfig {
@@ -17,17 +18,33 @@ interface HttpResponse {
 
 class NotificationService {
   private filePath: string;
+  private defaultYamlPath: string;
 
-  constructor(options: { filePath: string }) {
+  constructor(options: { filePath: string; defaultYamlPath?: string }) {
     this.filePath = path.resolve(options.filePath);
+    this.defaultYamlPath = options.defaultYamlPath
+      ? path.resolve(options.defaultYamlPath)
+      : path.resolve(options.filePath, '..', 'notification-config.yaml');
   }
 
   async getConfig(): Promise<NotificationConfig | null> {
+    // 优先读取用户配置的 JSON 文件
     try {
       const raw = await fs.readFile(this.filePath, 'utf-8');
       const config = JSON.parse(raw);
       if (typeof config.url === 'string' && config.url) {
         return config as NotificationConfig;
+      }
+    } catch {
+      // JSON 不存在或无效，继续尝试 YAML 默认配置
+    }
+
+    // 回退到 YAML 默认配置
+    try {
+      const raw = await fs.readFile(this.defaultYamlPath, 'utf-8');
+      const config = yaml.parse(raw) as NotificationConfig;
+      if (config && typeof config.url === 'string' && config.url) {
+        return config;
       }
       return null;
     } catch {

@@ -1,0 +1,3 @@
+url: "https://yaml-default.example.com/api/notify"
+receiver: "yaml-user"
+auth: "yaml-token"

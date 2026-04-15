@@ -1,13 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import { NotificationService } from '../services/notificationService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
-import { STORAGE_PATH } from '../config/index.js';
+import { STORAGE_PATH, BACKEND_ROOT } from '../config/index.js';
 import path from 'node:path';
 
 const NOTIFICATION_CONFIG_FILE = path.join(STORAGE_PATH, 'notification-config.json');
+const NOTIFICATION_DEFAULT_YAML = path.join(BACKEND_ROOT, 'notification-config.yaml');
 
 export async function notificationRoutes(fastify: FastifyInstance) {
-  const service = new NotificationService({ filePath: NOTIFICATION_CONFIG_FILE });
+  const service = new NotificationService({
+    filePath: NOTIFICATION_CONFIG_FILE,
+    defaultYamlPath: NOTIFICATION_DEFAULT_YAML,
+  });
 
   // GET /api/notifications/config
   fastify.get('/config', async (_request, reply) => {
