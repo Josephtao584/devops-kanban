@@ -1,21 +1,11 @@
 import { ref, onBeforeUnmount } from 'vue'
 
-export function useWorkflowRunPolling({ fetchFn, isTerminal, interval = 3000, getStatus, onStatusChange } = {}) {
+export function useWorkflowRunPolling({ fetchFn, isTerminal, interval = 3000 } = {}) {
   const pollingEnabled = ref(true)
   const isPolling = ref(false)
   let pollTimer = null
   let retryCount = 0
   const MAX_RETRIES = 5
-  let previousStatus = null
-
-  function notifyStatusChange() {
-    if (!onStatusChange || !getStatus) return
-    const currentStatus = getStatus()
-    if (previousStatus !== null && previousStatus !== currentStatus) {
-      onStatusChange(previousStatus, currentStatus)
-    }
-    previousStatus = currentStatus
-  }
 
   function stopPolling() {
     if (pollTimer) {
@@ -30,7 +20,6 @@ export function useWorkflowRunPolling({ fetchFn, isTerminal, interval = 3000, ge
     if (!pollingEnabled.value) return
     isPolling.value = true
     retryCount = 0
-    previousStatus = getStatus ? getStatus() : null
 
     function scheduleNext(delay) {
       pollTimer = setTimeout(async () => {
@@ -42,7 +31,6 @@ export function useWorkflowRunPolling({ fetchFn, isTerminal, interval = 3000, ge
         try {
           await fetchFn()
           retryCount = 0
-          notifyStatusChange()
         } catch (err) {
           retryCount++
           if (retryCount >= MAX_RETRIES) {
@@ -68,7 +56,6 @@ export function useWorkflowRunPolling({ fetchFn, isTerminal, interval = 3000, ge
     // Initial fetch immediately, then start polling
     fetchFn().then(() => {
       retryCount = 0
-      notifyStatusChange()
     }).catch(() => {
       // Ignore initial fetch errors, will retry in scheduleNext
     }).finally(() => {

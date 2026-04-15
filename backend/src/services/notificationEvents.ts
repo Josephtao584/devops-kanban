@@ -1,5 +1,3 @@
-import { logger } from '../utils/logger.js';
-
 interface WorkflowNotificationEvent {
   type: 'SUSPENDED' | 'COMPLETED' | 'FAILED';
   runId: number;

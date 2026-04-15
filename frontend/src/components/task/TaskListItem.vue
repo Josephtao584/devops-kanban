@@ -388,7 +388,7 @@ const fetchWorkflowRun = async () => {
   }
 }
 
-// Polling composable for auto-refresh (UI updates only; notifications via SSE hook)
+// Polling composable for auto-refresh (UI updates only; notifications via backend hook)
 const { pollingEnabled, isPolling, startPolling, stopPolling, togglePolling } = useWorkflowRunPolling({
   fetchFn: fetchWorkflowRun,
   isTerminal: () => isWorkflowTerminal.value,
