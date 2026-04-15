@@ -69,6 +69,9 @@ export async function notificationRoutes(fastify: FastifyInstance) {
     });
     reply.hijack();
 
+    // Tell browser to retry after 5s if connection drops
+    reply.raw.write('retry: 5000\n');
+
     const send = (event: { type: string; runId: number; taskId: number; taskTitle: string }) => {
       reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
     };
