@@ -24,9 +24,9 @@ export async function notificationRoutes(fastify: FastifyInstance) {
   });
 
   // PUT /api/notifications/config
-  fastify.put<{ Body: { url: string; receiver: string; auth: string } }>('/config', async (request, reply) => {
+  fastify.put<{ Body: { url: string; receiver: string; auth: string; events?: { workflowSuspended: boolean; workflowCompleted: boolean; workflowFailed: boolean } } }>('/config', async (request, reply) => {
     try {
-      const { url, receiver, auth } = request.body;
+      const { url, receiver, auth, events } = request.body;
       if (!url || typeof url !== 'string') {
         reply.code(400);
         return errorResponse('url is required');
@@ -37,7 +37,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
         reply.code(400);
         return errorResponse('url must be a valid HTTP/HTTPS URL');
       }
-      await service.saveConfig({ url, receiver: receiver || '', auth: auth || '' });
+      await service.saveConfig({ url, receiver: receiver || '', auth: auth || '', events });
       return successResponse(null, 'Notification config saved');
     } catch (error) {
       return errorResponse('Failed to save notification config');

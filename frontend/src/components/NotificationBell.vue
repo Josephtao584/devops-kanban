@@ -22,6 +22,32 @@
           </div>
         </div>
 
+        <!-- 通知事件 -->
+        <div class="panel-section">
+          <div class="section-label">{{ $t('notification.events') }}</div>
+          <div class="toggle-row">
+            <span>{{ $t('notification.workflowSuspended') }}</span>
+            <label class="toggle">
+              <input type="checkbox" :checked="events.workflowSuspended" @change="toggleEvent('workflowSuspended', $event)" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row" style="margin-top: 6px">
+            <span>{{ $t('notification.workflowCompleted') }}</span>
+            <label class="toggle">
+              <input type="checkbox" :checked="events.workflowCompleted" @change="toggleEvent('workflowCompleted', $event)" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row" style="margin-top: 6px">
+            <span>{{ $t('notification.workflowFailed') }}</span>
+            <label class="toggle">
+              <input type="checkbox" :checked="events.workflowFailed" @change="toggleEvent('workflowFailed', $event)" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div v-if="chatEnabled" class="panel-section">
           <div class="input-row">
             <label>{{ $t('notification.apiUrl') }}</label>
@@ -84,6 +110,11 @@ const panelStyle = ref({})
 const chatConfig = ref({ url: '', receiver: '', auth: '' })
 const chatLoading = ref(false)
 const chatConfigLoaded = ref(false)
+const events = ref({
+  workflowSuspended: true,
+  workflowCompleted: false,
+  workflowFailed: false
+})
 
 async function loadChatConfig() {
   if (chatConfigLoaded.value) return
@@ -95,6 +126,9 @@ async function loadChatConfig() {
         receiver: response.data.receiver || '',
         auth: response.data.auth || ''
       }
+      if (response.data.events) {
+        events.value = { ...events.value, ...response.data.events }
+      }
       chatConfigLoaded.value = true
     }
   } catch {
@@ -105,10 +139,15 @@ async function loadChatConfig() {
 async function saveChatConfig() {
   if (!chatConfig.value.url) return
   try {
-    await saveNotificationConfig(chatConfig.value)
+    await saveNotificationConfig({ ...chatConfig.value, events: events.value })
   } catch {
     // Silently fail
   }
+}
+
+function toggleEvent(key, e) {
+  events.value[key] = e.target.checked
+  saveChatConfig()
 }
 
 async function handleTestSend() {
@@ -232,6 +271,13 @@ onBeforeUnmount(() => {
 
 .notification-panel .panel-section:last-child {
   border-bottom: none;
+}
+
+.notification-panel .section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
 }
 
 .notification-panel .toggle-row {

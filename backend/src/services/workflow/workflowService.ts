@@ -68,15 +68,20 @@ class WorkflowService {
       workflowRunRepo: this.workflowRunRepo,
       taskRepo: this.taskRepo,
       onWorkflowNotification: (event) => {
-        // Send chat/webhook notification
-        const statusMessages: Record<string, string> = {
-          SUSPENDED: '工作流等待确认',
-          COMPLETED: '工作流已完成',
-          FAILED: '工作流执行失败',
-        };
-        const content = `${event.taskTitle}: ${statusMessages[event.type] || event.type}`;
-        notificationService.sendNotification(content).catch((err) => {
-          logger.warn('WorkflowService', `Notification hook failed: ${err.message}`);
+        // Check if this event type is enabled before sending
+        notificationService.shouldNotify(event.type).then((enabled) => {
+          if (!enabled) return;
+          const statusMessages: Record<string, string> = {
+            SUSPENDED: '工作流等待确认',
+            COMPLETED: '工作流已完成',
+            FAILED: '工作流执行失败',
+          };
+          const content = `${event.taskTitle}: ${statusMessages[event.type] || event.type}`;
+          notificationService.sendNotification(content).catch((err) => {
+            logger.warn('WorkflowService', `Notification hook failed: ${err.message}`);
+          });
+        }).catch((err) => {
+          logger.warn('WorkflowService', `Notification event check failed: ${err.message}`);
         });
       },
     });
