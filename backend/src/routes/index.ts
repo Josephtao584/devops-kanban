@@ -12,3 +12,4 @@ export { skillRoutes } from './skills.js';
 export { mcpServerRoutes } from './mcpServers.js';
 export { bundleRoutes } from './bundle.js';
 export { notificationRoutes } from './notifications.js';
+export { settingsRoutes } from './settings.js';

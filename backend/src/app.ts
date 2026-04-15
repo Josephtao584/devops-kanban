@@ -23,6 +23,7 @@ import {
   mcpServerRoutes,
   bundleRoutes,
   notificationRoutes,
+  settingsRoutes,
 } from './routes/index.js';
 import { SchedulerService } from './services/schedulerService.js';
 
@@ -108,6 +109,7 @@ export async function buildApp() {
   fastify.register(mcpServerRoutes, { prefix: '/api/mcp-servers' });
   fastify.register(bundleRoutes, { prefix: '/api/bundle', storagePath: config.STORAGE_PATH });
   fastify.register(notificationRoutes, { prefix: '/api/notifications' });
+  fastify.register(settingsRoutes, { prefix: '/api/settings' });
 
   return fastify;
 }
