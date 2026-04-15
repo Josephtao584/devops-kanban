@@ -29,7 +29,7 @@ export interface TaskEntity {
   iteration_id?: number | null;
   source: string;
   labels?: string[];
-  auto_execute: number;
+  auto_execute?: number;
   auto_execute_template_id?: string | null;
   created_at: string;
   updated_at: string;
