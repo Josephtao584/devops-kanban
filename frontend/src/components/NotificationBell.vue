@@ -26,7 +26,7 @@
           </div>
         </div>
 
-        <!-- 全局开关 -->
+        <!-- 浏览器通知开关 -->
         <div class="panel-section">
           <div class="toggle-row">
             <span>{{ $t('notification.enabled') }}</span>
@@ -44,6 +44,59 @@
             <input type="checkbox" :checked="events.workflowSuspended" @change="toggleEvent('workflowSuspended')" />
             <span>{{ $t('notification.workflowSuspended') }}</span>
           </label>
+          <label class="checkbox-row">
+            <input type="checkbox" :checked="events.workflowCompleted" @change="toggleEvent('workflowCompleted')" />
+            <span>{{ $t('notification.workflowCompleted') }}</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" :checked="events.workflowFailed" @change="toggleEvent('workflowFailed')" />
+            <span>{{ $t('notification.workflowFailed') }}</span>
+          </label>
+        </div>
+
+        <!-- 聊天通知 -->
+        <div class="panel-section">
+          <div class="toggle-row">
+            <span>{{ $t('notification.chatEnabled') }}</span>
+            <label class="toggle">
+              <input type="checkbox" :checked="chatEnabled" @change="toggleChatEnabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div v-if="chatEnabled" class="panel-section">
+          <div class="input-row">
+            <label>{{ $t('notification.apiUrl') }}</label>
+            <input
+              v-model="chatConfig.url"
+              class="text-input"
+              :placeholder="$t('notification.apiUrlPlaceholder')"
+              @blur="saveChatConfig"
+            />
+          </div>
+          <div class="input-row">
+            <label>{{ $t('notification.apiReceiver') }}</label>
+            <input
+              v-model="chatConfig.receiver"
+              class="text-input"
+              :placeholder="$t('notification.apiReceiverPlaceholder')"
+              @blur="saveChatConfig"
+            />
+          </div>
+          <div class="input-row">
+            <label>{{ $t('notification.apiAuth') }}</label>
+            <input
+              v-model="chatConfig.auth"
+              class="text-input"
+              type="password"
+              :placeholder="$t('notification.apiAuthPlaceholder')"
+              @blur="saveChatConfig"
+            />
+          </div>
+          <button class="test-btn" :disabled="chatLoading" @click="handleTestSend">
+            {{ chatLoading ? $t('notification.sending') : $t('notification.testSend') }}
+          </button>
         </div>
       </div>
     </Teleport>
@@ -55,6 +108,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useBrowserNotifications } from '../composables/notifications/useBrowserNotifications'
 import { useNotificationSettings } from '../composables/notifications/useNotificationSettings'
 import { useI18n } from 'vue-i18n'
+import { getNotificationConfig, saveNotificationConfig } from '../api/notification.js'
 
 const props = defineProps({
   sidebarCollapsed: {
@@ -64,13 +118,18 @@ const props = defineProps({
 })
 
 const { t } = useI18n()
-const { permission, requestPermission } = useBrowserNotifications()
-const { enabled, events, updateSettings } = useNotificationSettings()
+const { permission, requestPermission, sendChatNotification } = useBrowserNotifications()
+const { enabled, chatEnabled, events, updateSettings } = useNotificationSettings()
 
 const showPanel = ref(false)
 const bellRef = ref(null)
 const panelRef = ref(null)
 const panelStyle = ref({})
+
+// Chat notification config
+const chatConfig = ref({ url: '', receiver: '', auth: '' })
+const chatLoading = ref(false)
+const chatConfigLoaded = ref(false)
 
 const permissionText = computed(() => {
   const map = {
@@ -81,18 +140,55 @@ const permissionText = computed(() => {
   return map[permission.value] || permission.value
 })
 
+async function loadChatConfig() {
+  if (chatConfigLoaded.value) return
+  try {
+    const response = await getNotificationConfig()
+    if (response.success && response.data) {
+      chatConfig.value = {
+        url: response.data.url || '',
+        receiver: response.data.receiver || '',
+        auth: response.data.auth || ''
+      }
+      chatConfigLoaded.value = true
+    }
+  } catch {
+    // Silently fail
+  }
+}
+
+async function saveChatConfig() {
+  if (!chatConfig.value.url) return
+  try {
+    await saveNotificationConfig(chatConfig.value)
+  } catch {
+    // Silently fail
+  }
+}
+
+async function handleTestSend() {
+  if (!chatConfig.value.url) return
+  chatLoading.value = true
+  try {
+    const result = await sendChatNotification('通知测试 — 测试消息')
+    if (result) {
+      // Could show a toast here
+    }
+  } finally {
+    chatLoading.value = false
+  }
+}
+
 function updatePanelPosition() {
   if (!bellRef.value) return
   const rect = bellRef.value.getBoundingClientRect()
   if (props.sidebarCollapsed) {
-    // 收起时：面板在铃铛右侧，从底部对齐向上生长
     panelStyle.value = {
       position: 'fixed',
       left: `${rect.right + 8}px`,
       bottom: `${window.innerHeight - rect.bottom}px`
     }
   } else {
-    // 展开时：面板在铃铛正上方
     panelStyle.value = {
       position: 'fixed',
       left: `${rect.left}px`,
@@ -106,6 +202,9 @@ async function togglePanel() {
   if (showPanel.value) {
     await nextTick()
     updatePanelPosition()
+    if (chatEnabled.value) {
+      loadChatConfig()
+    }
   }
 }
 
@@ -115,6 +214,13 @@ async function handleRequestPermission() {
 
 function toggleEnabled(e) {
   updateSettings({ enabled: e.target.checked })
+}
+
+function toggleChatEnabled(e) {
+  updateSettings({ chatEnabled: e.target.checked })
+  if (e.target.checked) {
+    loadChatConfig()
+  }
 }
 
 function toggleEvent(eventType) {
@@ -174,7 +280,6 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* Teleported panel needs global (unscoped) styles since it's in <body> */
 .notification-panel {
   position: fixed;
   background: var(--bg-primary);
@@ -182,7 +287,9 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   padding: 16px;
-  width: 260px;
+  width: 280px;
+  max-height: 90vh;
+  overflow-y: auto;
   z-index: 9999;
 }
 
@@ -303,10 +410,64 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.notification-panel .checkbox-row + .checkbox-row {
+  margin-top: 4px;
+}
+
 .notification-panel .checkbox-row input[type="checkbox"] {
   accent-color: var(--accent-color);
   width: 16px;
   height: 16px;
   cursor: pointer;
+}
+
+.notification-panel .input-row {
+  margin-bottom: 8px;
+}
+
+.notification-panel .input-row label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.notification-panel .text-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.notification-panel .text-input:focus {
+  border-color: var(--accent-color);
+}
+
+.notification-panel .test-btn {
+  width: 100%;
+  padding: 6px;
+  font-size: 12px;
+  border: 1px solid var(--accent-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.notification-panel .test-btn:hover:not(:disabled) {
+  background: var(--accent-color);
+  color: white;
+}
+
+.notification-panel .test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

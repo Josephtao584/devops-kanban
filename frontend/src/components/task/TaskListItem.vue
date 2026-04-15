@@ -389,15 +389,34 @@ const fetchWorkflowRun = async () => {
   }
 }
 
-// Browser notifications
-const { showNotification } = useBrowserNotifications()
+// Browser and chat notifications
+const { showNotification, sendChatNotification } = useBrowserNotifications()
+
+const eventMessages = {
+  workflowSuspended: { title: t('notification.suspendedTitle'), body: t('notification.suspendedBody') },
+  workflowCompleted: { title: t('notification.completedTitle'), body: t('notification.completedBody') },
+  workflowFailed: { title: t('notification.failedTitle'), body: t('notification.failedBody') }
+}
 
 function handleWorkflowStatusChange(oldStatus, newStatus) {
-  if (newStatus === 'SUSPENDED') {
-    showNotification(`${props.task.title} - ${t('notification.suspendedTitle')}`, {
-      body: t('notification.suspendedBody'),
-      eventType: 'workflowSuspended'
-    })
+  if (!oldStatus || oldStatus === newStatus) return
+  const taskTitle = props.task.title
+  let eventType = null
+
+  if (newStatus === 'SUSPENDED') eventType = 'workflowSuspended'
+  else if (newStatus === 'COMPLETED') eventType = 'workflowCompleted'
+  else if (newStatus === 'FAILED') eventType = 'workflowFailed'
+
+  if (!eventType) return
+
+  const msg = eventMessages[eventType]
+  showNotification(`${taskTitle} - ${msg.title}`, {
+    body: msg.body,
+    eventType
+  })
+
+  if (eventType === 'workflowFailed') {
+    sendChatNotification(`${taskTitle}: ${msg.body}`)
   }
 }
 

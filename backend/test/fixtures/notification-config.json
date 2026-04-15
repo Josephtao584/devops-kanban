@@ -1,0 +1,5 @@
+{
+  "url": "https://example.com/api/send",
+  "receiver": "user-123",
+  "auth": "test-token"
+}

@@ -11,3 +11,4 @@ export { gitRoutes } from './git.js';
 export { skillRoutes } from './skills.js';
 export { mcpServerRoutes } from './mcpServers.js';
 export { bundleRoutes } from './bundle.js';
+export { notificationRoutes } from './notifications.js';

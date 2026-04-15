@@ -8,10 +8,11 @@ describe('useNotificationSettings', () => {
   })
 
   it('returns default settings when no saved config', () => {
-    const { enabled, events } = useNotificationSettings()
+    const { enabled, chatEnabled, events } = useNotificationSettings()
 
     expect(enabled.value).toBe(true)
-    expect(events.value).toEqual({ workflowSuspended: true })
+    expect(chatEnabled.value).toBe(false)
+    expect(events.value).toEqual({ workflowSuspended: true, workflowCompleted: false, workflowFailed: false })
   })
 
   it('persists settings to localStorage on update', () => {
@@ -27,13 +28,17 @@ describe('useNotificationSettings', () => {
   it('restores settings from localStorage', () => {
     localStorage.setItem('notification-settings', JSON.stringify({
       enabled: false,
-      events: { workflowSuspended: false }
+      chatEnabled: true,
+      events: { workflowSuspended: false, workflowCompleted: true, workflowFailed: true }
     }))
 
-    const { enabled, events } = useNotificationSettings()
+    const { enabled, chatEnabled, events } = useNotificationSettings()
 
     expect(enabled.value).toBe(false)
+    expect(chatEnabled.value).toBe(true)
     expect(events.value.workflowSuspended).toBe(false)
+    expect(events.value.workflowCompleted).toBe(true)
+    expect(events.value.workflowFailed).toBe(true)
   })
 
   it('updates individual event settings', () => {
@@ -44,5 +49,15 @@ describe('useNotificationSettings', () => {
     expect(events.value.workflowSuspended).toBe(false)
     const saved = JSON.parse(localStorage.getItem('notification-settings'))
     expect(saved.events.workflowSuspended).toBe(false)
+  })
+
+  it('updates chatEnabled setting', () => {
+    const { updateSettings, chatEnabled } = useNotificationSettings()
+
+    updateSettings({ chatEnabled: true })
+
+    expect(chatEnabled.value).toBe(true)
+    const saved = JSON.parse(localStorage.getItem('notification-settings'))
+    expect(saved.chatEnabled).toBe(true)
   })
 })

@@ -1,8 +1,9 @@
 import { ref } from 'vue'
 import { useNotificationSettings } from './useNotificationSettings'
+import { sendNotification as apiSendNotification } from '../../api/notification'
 
 export function useBrowserNotifications() {
-  const { enabled, events } = useNotificationSettings()
+  const { enabled, chatEnabled, events } = useNotificationSettings()
 
   const supported = typeof window !== 'undefined' && 'Notification' in window
   const permission = ref(supported ? window.Notification.permission : 'denied')
@@ -30,5 +31,15 @@ export function useBrowserNotifications() {
     return notification
   }
 
-  return { permission, supported, requestPermission, showNotification }
+  async function sendChatNotification(content) {
+    if (!chatEnabled.value) return false
+    try {
+      await apiSendNotification(content)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  return { permission, supported, requestPermission, showNotification, sendChatNotification }
 }

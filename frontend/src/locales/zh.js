@@ -717,6 +717,21 @@ export default {
     events: '通知事件',
     workflowSuspended: '工作流暂停等待确认',
     suspendedTitle: '工作流等待确认',
-    suspendedBody: '工作流执行已暂停，需要您确认后继续'
+    suspendedBody: '工作流执行已暂停，需要您确认后继续',
+    chatEnabled: '聊天通知',
+    apiUrl: '请求地址',
+    apiUrlPlaceholder: 'https://your-webhook-url.com/notify',
+    apiReceiver: '接收人',
+    apiReceiverPlaceholder: '用户名或频道',
+    apiAuth: '认证密钥',
+    apiAuthPlaceholder: 'Bearer token 或 API Key',
+    testSend: '发送测试',
+    sending: '发送中...',
+    workflowCompleted: '工作流完成',
+    completedTitle: '工作流已完成',
+    completedBody: '工作流执行已完成',
+    workflowFailed: '工作流失败',
+    failedTitle: '工作流执行失败',
+    failedBody: '工作流执行失败，请查看详情'
   }
 }
