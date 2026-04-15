@@ -173,3 +173,163 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
+
+<style scoped>
+.notification-bell {
+  position: relative;
+}
+
+.notification-bell.sidebar-collapsed {
+  display: flex;
+  justify-content: center;
+}
+
+.bell-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+.bell-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+</style>
+
+<style>
+.notification-panel {
+  position: fixed;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 16px;
+  width: 280px;
+  max-height: 90vh;
+  overflow-y: auto;
+  z-index: 9999;
+}
+
+.notification-panel .panel-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.notification-panel .panel-section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.notification-panel .panel-section:last-child {
+  border-bottom: none;
+}
+
+.notification-panel .toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.notification-panel .toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.notification-panel .toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.notification-panel .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--border-color);
+  transition: 0.2s;
+  border-radius: 20px;
+}
+
+.notification-panel .slider::before {
+  content: '';
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.notification-panel .toggle input:checked + .slider {
+  background-color: var(--accent-color);
+}
+
+.notification-panel .toggle input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+.notification-panel .input-row {
+  margin-bottom: 8px;
+}
+
+.notification-panel .input-row label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.notification-panel .text-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.notification-panel .text-input:focus {
+  border-color: var(--accent-color);
+}
+
+.notification-panel .test-btn {
+  width: 100%;
+  padding: 6px;
+  font-size: 12px;
+  border: 1px solid var(--accent-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.notification-panel .test-btn:hover:not(:disabled) {
+  background: var(--accent-color);
+  color: white;
+}
+
+.notification-panel .test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>
