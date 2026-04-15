@@ -213,6 +213,9 @@ CREATE TABLE IF NOT EXISTS task_sources (
   config TEXT NOT NULL DEFAULT '{}',
   enabled INTEGER NOT NULL DEFAULT 1,
   last_sync_at TEXT,
+  sync_schedule TEXT,
+  auto_workflow_rules TEXT,
+  last_scheduled_sync_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
