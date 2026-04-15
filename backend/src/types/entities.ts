@@ -29,6 +29,8 @@ export interface TaskEntity {
   iteration_id?: number | null;
   source: string;
   labels?: string[];
+  auto_execute: number;
+  auto_execute_template_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -216,5 +218,11 @@ export interface McpServerEntity {
   auto_install: number;
   install_command: string | undefined;
   created_at: string;
+  updated_at: string;
+}
+
+export interface SettingEntity {
+  key: string;
+  value: string;
   updated_at: string;
 }

@@ -134,6 +134,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   source TEXT NOT NULL DEFAULT 'internal',
   labels TEXT DEFAULT '[]',
   worktree_status TEXT DEFAULT 'none',
+  auto_execute INTEGER NOT NULL DEFAULT 0,
+  auto_execute_template_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -233,3 +235,10 @@ CREATE TABLE IF NOT EXISTS executions (
 
 CREATE INDEX IF NOT EXISTS idx_executions_session_id ON executions(session_id);
 CREATE INDEX IF NOT EXISTS idx_executions_task_id ON executions(task_id);
+
+-- settings: 全局配置表
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
