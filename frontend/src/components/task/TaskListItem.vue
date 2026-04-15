@@ -271,6 +271,7 @@ import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
+import { formatDateTime } from '../../utils/dateFormat'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
@@ -604,17 +605,7 @@ const workflowStatusText = computed(() => {
   return textMap[workflowStatus.value] || '待启动'
 })
 
-const formatDateTime = (isoString) => {
-  if (!isoString) return ''
-  const date = new Date(isoString)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-}
+const formatDateTimeIso = (isoString) => formatDateTime(isoString, { fallback: '', style: 'iso' })
 
 const workflowStartTime = computed(() => {
   const steps = realWorkflowRun.value?.steps
@@ -625,7 +616,7 @@ const workflowStartTime = computed(() => {
     .filter(t => t)
     .map(t => new Date(t).getTime())
   if (startTimes.length === 0) return null
-  return formatDateTime(new Date(Math.min(...startTimes)).toISOString())
+  return formatDateTimeIso(new Date(Math.min(...startTimes)).toISOString())
 })
 
 const workflowEndTime = computed(() => {
@@ -637,7 +628,7 @@ const workflowEndTime = computed(() => {
     .filter(t => t)
     .map(t => new Date(t).getTime())
   if (endTimes.length === 0) return null
-  return formatDateTime(new Date(Math.max(...endTimes)).toISOString())
+  return formatDateTimeIso(new Date(Math.max(...endTimes)).toISOString())
 })
 
 // Handle node click

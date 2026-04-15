@@ -54,6 +54,14 @@ function createWrapper(props = {}) {
   })
 }
 
+async function simulateFileUpload(wrapper, jsonData) {
+  const file = new File([JSON.stringify(jsonData)], 'test.json', { type: 'application/json' })
+  const input = wrapper.find('input[type="file"]')
+  Object.defineProperty(input.element, 'files', { value: [file] })
+  await input.trigger('change')
+  await nextTick()
+}
+
 describe('WorkflowTemplateImportDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -76,18 +84,11 @@ describe('WorkflowTemplateImportDialog', () => {
     previewImportWorkflowTemplates.mockResolvedValue(mockPreviewResult)
 
     const wrapper = createWrapper()
-    const file = new File([JSON.stringify({
+    await simulateFileUpload(wrapper, {
       version: '1.0',
       exportedAt: '2026-04-13T00:00:00Z',
       templates: [{ template_id: 'test', name: 'Test', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }]
-    })], 'test.json', { type: 'application/json' })
-
-    // Simulate file input change
-    const input = wrapper.find('input[type="file"]')
-    Object.defineProperty(input.element, 'files', { value: [file] })
-    await input.trigger('change')
-
-    await nextTick()
+    })
 
     expect(previewImportWorkflowTemplates).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -100,28 +101,21 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('shows preview table after successful preview', async () => {
-    const mockPreviewResult = {
+    previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'test', name: 'Test', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }],
         existingTemplateIds: [],
         unmatchedAgentNames: []
       }
-    }
-    previewImportWorkflowTemplates.mockResolvedValue(mockPreviewResult)
+    })
 
     const wrapper = createWrapper()
-
-    // Directly trigger parseFile via internal method - simulate by calling doPreview
-    // We need to access the component's internal method
-    const vm = wrapper.vm
-    await vm.doPreview({
+    await simulateFileUpload(wrapper, {
       version: '1.0',
       exportedAt: '2026-04-13T00:00:00Z',
       templates: [{ template_id: 'test', name: 'Test', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }]
     })
-
-    await nextTick()
 
     expect(wrapper.find('.preview-table').exists()).toBe(true)
     expect(wrapper.find('.preview-template-name').text()).toBe('Test')
@@ -138,14 +132,12 @@ describe('WorkflowTemplateImportDialog', () => {
     })
 
     const wrapper = createWrapper()
-    await wrapper.vm.doPreview({
+    await simulateFileUpload(wrapper, {
       version: '1.0',
       templates: [{ template_id: 'existing', name: 'Existing', steps: [] }]
     })
-    await nextTick()
 
     expect(wrapper.find('.import-section').exists()).toBe(true)
-    // Conflict tag renders inside preview-template-meta (ElTag stub = span)
     const metaSpans = wrapper.findAll('.preview-template-meta span')
     const conflictTag = metaSpans.find(s => s.text().includes('已存在'))
     expect(conflictTag).toBeTruthy()
@@ -162,11 +154,10 @@ describe('WorkflowTemplateImportDialog', () => {
     })
 
     const wrapper = createWrapper()
-    await wrapper.vm.doPreview({
+    await simulateFileUpload(wrapper, {
       version: '1.0',
       templates: [{ template_id: 'new', name: 'New', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Unknown Agent' }] }]
     })
-    await nextTick()
 
     expect(wrapper.find('.agent-mapping-row').exists()).toBe(true)
     expect(wrapper.find('.agent-mapping-source').text()).toBe('Unknown Agent')
@@ -191,11 +182,10 @@ describe('WorkflowTemplateImportDialog', () => {
     })
 
     const wrapper = createWrapper()
-    await wrapper.vm.doPreview({
+    await simulateFileUpload(wrapper, {
       version: '1.0',
       templates: [{ template_id: 'new', name: 'New', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }]
     })
-    await nextTick()
 
     await wrapper.vm.handleConfirmImport()
     await nextTick()
@@ -228,11 +218,10 @@ describe('WorkflowTemplateImportDialog', () => {
     })
 
     const wrapper = createWrapper()
-    await wrapper.vm.doPreview({
+    await simulateFileUpload(wrapper, {
       version: '1.0',
       templates: [{ template_id: 'new', name: 'New', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }]
     })
-    await nextTick()
 
     await wrapper.vm.handleConfirmImport()
     await nextTick()
@@ -252,8 +241,10 @@ describe('WorkflowTemplateImportDialog', () => {
     })
 
     const wrapper = createWrapper()
-    await wrapper.vm.doPreview({ version: '1.0', templates: [{ template_id: 'test', name: 'Test', steps: [] }] })
-    await nextTick()
+    await simulateFileUpload(wrapper, {
+      version: '1.0',
+      templates: [{ template_id: 'test', name: 'Test', steps: [] }]
+    })
 
     expect(wrapper.find('.preview-table').exists()).toBe(true)
 

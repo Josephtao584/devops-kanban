@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { NotificationService } from '../services/notificationService.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../config/index.js';
-import path from 'node:path';
+import * as path from 'node:path';
 
 const NOTIFICATION_CONFIG_FILE = path.join(STORAGE_PATH, 'notification-config.json');
 const NOTIFICATION_DEFAULT_YAML = path.join(BACKEND_ROOT, 'notification-config.yaml');
@@ -14,7 +14,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
   });
 
   // GET /api/notifications/config
-  fastify.get('/config', async (_request, reply) => {
+  fastify.get('/config', async (_request) => {
     try {
       const config = await service.getConfig();
       return successResponse(config || {}, 'Notification config loaded');
@@ -37,7 +37,7 @@ export async function notificationRoutes(fastify: FastifyInstance) {
         reply.code(400);
         return errorResponse('url must be a valid HTTP/HTTPS URL');
       }
-      await service.saveConfig({ url, receiver: receiver || '', auth: auth || '', events });
+      await service.saveConfig({ url, receiver: receiver || '', auth: auth || '', events: events ?? undefined });
       return successResponse(null, 'Notification config saved');
     } catch (error) {
       return errorResponse('Failed to save notification config');

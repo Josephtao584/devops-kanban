@@ -12,7 +12,7 @@ import { ValidationError, NotFoundError, ConflictError, BusinessError } from '..
 import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../../config/index.js';
-import path from 'node:path';
+import * as path from 'node:path';
 
 
 function toStepState(instance: WorkflowInstanceEntity) {

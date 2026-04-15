@@ -80,10 +80,6 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     return this.parseRow(result.rows[0] as Record<string, unknown>);
   }
 
-  async findByTaskId(taskId: number): Promise<WorkflowRunEntity | null> {
-    return await this.findLatestByTaskId(taskId);
-  }
-
   async deleteByTaskId(taskId: number): Promise<void> {
     await withRetry(() => this.client.execute({
       sql: 'DELETE FROM workflow_runs WHERE task_id = ?',

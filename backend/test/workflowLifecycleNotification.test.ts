@@ -36,11 +36,11 @@ function createNotificationHarness() {
   const lifecycle = new WorkflowLifecycle({
     workflowRunRepo: {
       async findById() { return run; },
-      async update(runId: number, data: Record<string, unknown>) {
+      async update(_runId: number, data: Record<string, unknown>) {
         Object.assign(run, data);
         return run;
       },
-      async updateStep(runId: number, stepId: string, data: Record<string, unknown>) {
+      async updateStep(_runId: number, stepId: string, data: Record<string, unknown>) {
         const step = run.steps.find((s) => s.step_id === stepId);
         if (step) Object.assign(step, data);
         return run;
@@ -77,10 +77,10 @@ test.test('onWorkflowComplete emits notification with task info', async () => {
   await lifecycle.onWorkflowComplete(7, { result: 'success' });
 
   assert.equal(notifications.length, 1);
-  assert.equal(notifications[0].type, 'COMPLETED');
-  assert.equal(notifications[0].runId, 7);
-  assert.equal(notifications[0].taskId, 42);
-  assert.equal(notifications[0].taskTitle, 'My Important Task');
+  assert.equal(notifications[0]!.type, 'COMPLETED');
+  assert.equal(notifications[0]!.runId, 7);
+  assert.equal(notifications[0]!.taskId, 42);
+  assert.equal(notifications[0]!.taskTitle, 'My Important Task');
 });
 
 test.test('onWorkflowError emits notification with task info', async () => {
@@ -89,10 +89,10 @@ test.test('onWorkflowError emits notification with task info', async () => {
   await lifecycle.onWorkflowError(7, 'Something went wrong');
 
   assert.equal(notifications.length, 1);
-  assert.equal(notifications[0].type, 'FAILED');
-  assert.equal(notifications[0].runId, 7);
-  assert.equal(notifications[0].taskId, 42);
-  assert.equal(notifications[0].taskTitle, 'My Important Task');
+  assert.equal(notifications[0]!.type, 'FAILED');
+  assert.equal(notifications[0]!.runId, 7);
+  assert.equal(notifications[0]!.taskId, 42);
+  assert.equal(notifications[0]!.taskTitle, 'My Important Task');
 });
 
 test.test('onStepSuspend emits notification with task info', async () => {
@@ -104,10 +104,10 @@ test.test('onStepSuspend emits notification with task info', async () => {
   });
 
   assert.equal(notifications.length, 1);
-  assert.equal(notifications[0].type, 'SUSPENDED');
-  assert.equal(notifications[0].runId, 7);
-  assert.equal(notifications[0].taskId, 42);
-  assert.equal(notifications[0].taskTitle, 'My Important Task');
+  assert.equal(notifications[0]!.type, 'SUSPENDED');
+  assert.equal(notifications[0]!.runId, 7);
+  assert.equal(notifications[0]!.taskId, 42);
+  assert.equal(notifications[0]!.taskTitle, 'My Important Task');
 });
 
 test.test('no notification emitted when callback not provided', async () => {

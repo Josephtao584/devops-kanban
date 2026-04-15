@@ -98,7 +98,7 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
       }
       // Reload scheduler job if schedule-related fields changed
       if (request.server.schedulerService) {
-        await request.server.schedulerService.reloadSource(request.params.id);
+        await request.server.schedulerService.reloadSource(parseInt(request.params.id, 10));
       }
       return successResponse(source, 'Task source updated successfully');
     } catch (error) {

@@ -14,11 +14,6 @@ class IterationRepository extends BaseRepository<IterationEntity> {
     return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
-  async exists(iterationId: number): Promise<boolean> {
-    const iteration = await this.findById(iterationId);
-    return iteration !== null;
-  }
-
   async deleteByProject(projectId: number): Promise<number> {
     const result = await this.client.execute({
       sql: 'DELETE FROM iterations WHERE project_id = ?',

@@ -145,6 +145,14 @@ class BaseRepository<T extends BaseEntity> {
   }
 
   /**
+   * Check if a record exists by its ID.
+   */
+  async exists(entityId: number): Promise<boolean> {
+    const entity = await this.findById(entityId);
+    return entity !== null;
+  }
+
+  /**
    * Count all records in the table.
    */
   async count(): Promise<number> {

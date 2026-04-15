@@ -26,7 +26,7 @@ class WorkflowLifecycle {
   sessionEventRepo: SessionEventRepository;
   instanceRepo: WorkflowInstanceRepository;
   _stepAttemptSegmentIds: Map<string, number | null>;
-  private onWorkflowNotification?: (event: WorkflowNotificationEvent) => void;
+  private onWorkflowNotification?: ((event: WorkflowNotificationEvent) => void) | undefined;
 
   constructor({
     workflowRunRepo,
@@ -55,7 +55,7 @@ class WorkflowLifecycle {
     this.sessionEventRepo = sessionEventRepo || new SessionEventRepository();
     this.instanceRepo = instanceRepo || new WorkflowInstanceRepository();
     this._stepAttemptSegmentIds = new Map();
-    this.onWorkflowNotification = onWorkflowNotification;
+    this.onWorkflowNotification = onWorkflowNotification ?? undefined;
   }
 
   private async _emitNotification(type: WorkflowNotificationEvent['type'], runId: number, taskId: number) {

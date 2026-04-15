@@ -109,11 +109,11 @@
             </div>
             <div class="info-item">
               <span class="info-label">{{ $t('skill.createdAt') }}</span>
-              <span class="info-value">{{ formatDate(selectedSkill.created_at) }}</span>
+              <span class="info-value">{{ formatDateWithFallback(selectedSkill.created_at) }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">{{ $t('skill.updatedAt') }}</span>
-              <span class="info-value">{{ formatDate(selectedSkill.updated_at) }}</span>
+              <span class="info-value">{{ formatDateWithFallback(selectedSkill.updated_at) }}</span>
             </div>
           </div>
 
@@ -252,6 +252,7 @@ import { useSkillStore } from '../stores/skillStore'
 import { useAgentStore } from '../stores/agentStore'
 import { getWorkflowTemplates } from '../api/workflowTemplate'
 import { filterSkillsByTemplate } from '../utils/skillWorkflowFilter'
+import { formatDate } from '../utils/dateFormat'
 import BaseDialog from '../components/BaseDialog.vue'
 
 const { t } = useI18n()
@@ -499,11 +500,7 @@ const truncateDescription = (description) => {
   return description.length > 30 ? description.substring(0, 30) + '...' : description
 }
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleDateString()
-}
+const formatDateWithFallback = (dateStr) => formatDate(dateStr, { fallback: '-' })
 
 const openAddForm = () => {
   editingSkill.value = null

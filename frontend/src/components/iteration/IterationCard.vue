@@ -53,6 +53,7 @@
 import { computed } from 'vue'
 import { Timer, Calendar, Edit, Delete } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { formatDate } from '../../utils/dateFormat'
 
 const { t } = useI18n()
 
@@ -93,11 +94,7 @@ const progressStatus = computed(() => {
   return progress.value === 100 ? 'success' : ''
 })
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleDateString()
-}
+
 </script>
 
 <style scoped>

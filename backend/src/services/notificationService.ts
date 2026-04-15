@@ -15,7 +15,7 @@ interface NotificationConfig {
   url: string;
   receiver: string;
   auth: string;
-  events?: NotificationEvents;
+  events?: NotificationEvents | undefined;
 }
 
 interface HttpResponse {

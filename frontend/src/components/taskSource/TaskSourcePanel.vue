@@ -34,7 +34,7 @@
         <div class="source-details">
           <div class="detail-row">
             <span class="label">{{ $t('taskSource.lastSync', '最后同步') }}:</span>
-            <span class="value">{{ formatDateTime(source.last_sync_at) || '-' }}</span>
+            <span class="value">{{ formatDateTimeWithFallback(source.last_sync_at) }}</span>
           </div>
           <div class="detail-row">
             <span class="label">{{ $t('taskSource.status', '状态') }}:</span>
@@ -355,6 +355,7 @@ import BaseDialog from '../BaseDialog.vue'
 import { ElMessageBox } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useToast } from '../../composables/ui/useToast'
+import { formatDateTime } from '../../utils/dateFormat'
 import api from '../../api/index.js'
 
 const props = defineProps({
@@ -449,10 +450,7 @@ const handleCollapse = () => {
 }
 
 // --- Helpers ---
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString()
-}
+const formatDateTimeWithFallback = (dateStr) => formatDateTime(dateStr, { fallback: '-' })
 
 const scheduleLabels = {
   '*/5 * * * *': '每5分钟',

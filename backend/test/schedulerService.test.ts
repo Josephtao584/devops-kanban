@@ -6,7 +6,6 @@ import * as path from 'node:path';
 
 import { SchedulerService } from '../src/services/schedulerService.js';
 import { TaskSourceRepository } from '../src/repositories/taskSourceRepository.js';
-import { TaskRepository } from '../src/repositories/taskRepository.js';
 
 async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scheduler-test-'));
@@ -38,8 +37,8 @@ test.test('registerJob and getStatus work correctly', async () => {
 
     const status = scheduler.getStatus();
     assert.equal(status.length, 2);
-    assert.equal(status[0].sourceId, 1);
-    assert.equal(status[0].running, true);
+    assert.equal(status[0]!.sourceId, 1);
+    assert.equal(status[0]!.running, true);
 
     const invalid = scheduler.registerJob(3, 'invalid');
     assert.equal(invalid, false);

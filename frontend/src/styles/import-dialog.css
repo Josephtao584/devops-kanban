@@ -1,0 +1,136 @@
+/* Shared styles for import dialog components (Bundle, WorkflowTemplate, McpServer) */
+.import-dialog {
+  min-height: 120px;
+}
+
+.import-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.upload-zone:hover {
+  border-color: var(--accent-color);
+  background: rgba(37, 198, 201, 0.03);
+}
+
+.upload-icon {
+  color: var(--text-secondary);
+}
+
+.upload-text {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.preview-summary {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.preview-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.preview-template-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+
+.preview-template-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preview-template-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.preview-template-id {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.preview-template-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-step-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-section-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.import-result-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.import-result-id {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  margin-left: auto;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

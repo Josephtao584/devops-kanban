@@ -1,8 +1,9 @@
-import { describe, it, mock, beforeEach } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, mock } from 'node:test';
+import * as assert from 'node:assert/strict';
 import { BundleService } from '../src/services/bundleService.js';
 import { NotFoundError } from '../src/utils/errors.js';
 import type { WorkflowTemplateEntity, AgentEntity, SkillEntity, McpServerEntity } from '../src/types/entities.js';
+import { ExecutorType } from '../src/types/executors.js';
 import type { BundleExportFile, BundleImportConfirmInput } from '../src/types/dto/bundle.js';
 
 // --- Mock factories ---
@@ -129,21 +130,21 @@ const mcpPlaywright: McpServerEntity = {
 };
 
 const agentAnalyst: AgentEntity = {
-  id: 1, name: '分析师', executorType: 'claude-code', role: 'analyzer',
+  id: 1, name: '分析师', executorType: ExecutorType.CLAUDE_CODE, role: 'analyzer',
   description: 'Analyzes code', enabled: true,
   skills: [1], mcpServers: [10],
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 const agentDev: AgentEntity = {
-  id: 2, name: '开发者', executorType: 'claude-code', role: 'developer',
+  id: 2, name: '开发者', executorType: ExecutorType.CLAUDE_CODE, role: 'developer',
   description: 'Writes code', enabled: true,
   skills: [1, 2], mcpServers: [10, 20],
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 const agentNoDeps: AgentEntity = {
-  id: 3, name: '测试员', executorType: 'claude-code', role: 'tester',
+  id: 3, name: '测试员', executorType: ExecutorType.CLAUDE_CODE, role: 'tester',
   description: 'Tests code', enabled: true,
   skills: [], mcpServers: [],
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
@@ -201,8 +202,8 @@ describe('BundleService - resolve', () => {
     const result = await service.resolve(['cve-fix']);
 
     assert.equal(result.templates.length, 1);
-    assert.equal(result.templates[0].template_id, 'cve-fix');
-    assert.equal(result.templates[0].stepCount, 2);
+    assert.equal(result.templates[0]!.template_id, 'cve-fix');
+    assert.equal(result.templates[0]!.stepCount, 2);
 
     // Two agents referenced by template1
     assert.equal(result.agents.length, 2);
@@ -251,8 +252,8 @@ describe('BundleService - resolve', () => {
     const result = await service.resolve(['simple']);
 
     assert.equal(result.agents.length, 1);
-    assert.deepEqual(result.agents[0].skillNames, []);
-    assert.deepEqual(result.agents[0].mcpServerNames, []);
+    assert.deepEqual(result.agents[0]!.skillNames, []);
+    assert.deepEqual(result.agents[0]!.mcpServerNames, []);
     assert.equal(result.skills.length, 0);
     assert.equal(result.mcpServers.length, 0);
   });
@@ -289,9 +290,9 @@ describe('BundleService - exportBundle', () => {
     assert.equal(result.version, '2.0');
     assert.ok(result.exportedAt);
     assert.equal(result.templates.length, 1);
-    assert.equal(result.templates[0].template_id, 'cve-fix');
-    assert.equal(result.templates[0].steps[0].agentName, '分析师');
-    assert.equal(result.templates[0].steps[1].agentName, '开发者');
+    assert.equal(result.templates[0]!.template_id, 'cve-fix');
+    assert.equal(result.templates[0]!.steps[0]!.agentName, '分析师');
+    assert.equal(result.templates[0]!.steps[1]!.agentName, '开发者');
     assert.equal(result.agents.length, 2);
     assert.equal(result.skills.length, 2);
     assert.equal(result.mcpServers.length, 1);
@@ -313,7 +314,7 @@ describe('BundleService - exportBundle', () => {
     });
 
     assert.equal(result.agents.length, 1);
-    assert.equal(result.agents[0].name, '分析师');
+    assert.equal(result.agents[0]!.name, '分析师');
     assert.equal(result.skills.length, 0);
     assert.equal(result.mcpServers.length, 0);
   });
@@ -334,7 +335,7 @@ describe('BundleService - previewImport', () => {
       templates: [{ template_id: 'cve-fix', name: 'CVE', steps: [] }],
       agents: [{ name: '分析师', executorType: 'claude-code', role: 'analyzer', enabled: true, skillNames: [], mcpServerNames: [] }],
       skills: [{ identifier: 'git', name: 'Git', description: '' }],
-      mcpServers: [{ name: 'context7', server_type: 'stdio', config: {}, auto_install: 0, install_command: undefined }],
+      mcpServers: [{ name: 'context7', server_type: 'stdio', config: {}, auto_install: 0 }],
     };
 
     const result = await service.previewImport(exportData);
@@ -354,7 +355,7 @@ describe('BundleService - previewImport', () => {
       templates: [{ template_id: 'new-tpl', name: 'New', steps: [] }],
       agents: [{ name: 'New Agent', executorType: 'claude-code', role: 'dev', enabled: true, skillNames: [], mcpServerNames: [] }],
       skills: [{ identifier: 'new-skill', name: 'New Skill' }],
-      mcpServers: [{ name: 'new-mcp', server_type: 'stdio', config: {}, auto_install: 0, install_command: undefined }],
+      mcpServers: [{ name: 'new-mcp', server_type: 'stdio', config: {}, auto_install: 0 }],
     };
 
     const result = await service.previewImport(exportData);
@@ -368,7 +369,7 @@ describe('BundleService - previewImport', () => {
 
 describe('BundleService - confirmImport', () => {
   it('should import new entities with correct dependency resolution', async () => {
-    const { service, skillRepo, mcpServerRepo, agentRepo, templateRepo } = createService([], [], [], []);
+    const { service, agentRepo, templateRepo } = createService([], [], [], []);
 
     const input: BundleImportConfirmInput = {
       templates: [{
@@ -380,7 +381,7 @@ describe('BundleService - confirmImport', () => {
         enabled: true, skillNames: ['new-skill'], mcpServerNames: ['new-mcp'],
       }],
       skills: [{ identifier: 'new-skill', name: 'New Skill', description: 'A skill' }],
-      mcpServers: [{ name: 'new-mcp', server_type: 'stdio', config: { command: 'npx' }, auto_install: 0, install_command: undefined }],
+      mcpServers: [{ name: 'new-mcp', server_type: 'stdio', config: { command: 'npx' }, auto_install: 0 }],
       strategy: 'skip',
     };
 
@@ -392,13 +393,13 @@ describe('BundleService - confirmImport', () => {
     assert.equal(result.imported.templates, 1);
 
     // Verify agent has correct skill and MCP references (resolved by name → ID)
-    const createdAgent = (await agentRepo.findAll())[0];
+    const createdAgent = (await agentRepo.findAll())[0]!;
     assert.equal(createdAgent.skills.length, 1);
     assert.equal(createdAgent.mcpServers.length, 1);
 
     // Verify template step references the created agent
-    const createdTemplate = (await templateRepo.findAll())[0];
-    assert.equal(createdTemplate.steps[0].agentId, createdAgent.id);
+    const createdTemplate = (await templateRepo.findAll())[0]!;
+    assert.equal(createdTemplate.steps[0]!.agentId, createdAgent.id);
   });
 
   it('should skip conflicting entities with skip strategy', async () => {
@@ -442,7 +443,7 @@ describe('BundleService - confirmImport', () => {
     const result = await service.confirmImport(input);
 
     assert.equal(result.imported.skills, 1);
-    const updated = (await skillRepo.findAll())[0];
+    const updated = (await skillRepo.findAll())[0]!;
     assert.equal(updated.description, 'New desc');
   });
 
@@ -499,7 +500,7 @@ describe('BundleService - confirmImport', () => {
     const copiedSkill = allSkills.find(s => s.identifier === 'git-copy');
     assert.ok(copiedSkill);
 
-    const agent = (await agentRepo.findAll())[0];
-    assert.equal(agent.skills[0], copiedSkill.id);
+    const agent = (await agentRepo.findAll())[0]!;
+    assert.equal(agent.skills[0], copiedSkill!.id);
   });
 });

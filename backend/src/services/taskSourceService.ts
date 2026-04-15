@@ -23,7 +23,7 @@ class TaskSourceService {
   repository: TaskSourceRepository;
   taskRepository: TaskRepository;
 
-  constructor() {
+  constructor(_options?: { taskSourceStoragePath?: string; taskStoragePath?: string }) {
     this.repository = new TaskSourceRepository();
     this.taskRepository = new TaskRepository();
   }
