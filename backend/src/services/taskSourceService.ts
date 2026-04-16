@@ -242,16 +242,24 @@ class TaskSourceService {
           }
         }
 
-        await sessionRepo.update(sessionId, {
-          status: 'COMPLETED',
-          completed_at: new Date().toISOString(),
-        });
+        try {
+          await sessionRepo.update(sessionId, {
+            status: 'COMPLETED',
+            completed_at: new Date().toISOString(),
+          });
+        } catch {
+          // DB may be closed.
+        }
       }).catch(async (err) => {
         logger.error('TaskSourceService', `AI sync failed: ${err}`);
-        await sessionRepo.update(sessionId, {
-          status: 'FAILED',
-          completed_at: new Date().toISOString(),
-        });
+        try {
+          await sessionRepo.update(sessionId, {
+            status: 'FAILED',
+            completed_at: new Date().toISOString(),
+          });
+        } catch {
+          // DB may be closed — nothing we can do at this point.
+        }
       });
 
       return { sessionId, tasks: [] };

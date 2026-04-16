@@ -5,6 +5,11 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { TaskSourceService } from '../../src/services/taskSourceService.js';
+import { AgentRepository } from '../../src/repositories/agentRepository.js';
+import { SessionRepository } from '../../src/repositories/sessionRepository.js';
+import { closeDbClient } from '../../src/db/client.js';
+import { initDatabase } from '../../src/db/schema.js';
+import { ExecutorType } from '../../src/types/executors.js';
 import type {
   CreateTaskSourceInput,
 } from '../../src/types/dto/taskSources.ts';
@@ -44,11 +49,23 @@ class TestTaskSourceService extends TaskSourceService {
   }
 }
 
+const origStorage = process.env.STORAGE_PATH;
+
 async function withIsolatedTaskSourceStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'task-source-service-test-'));
+  process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
   try {
     await run(tempRoot);
   } finally {
+    if (origStorage === undefined) {
+      delete process.env.STORAGE_PATH;
+    } else {
+      process.env.STORAGE_PATH = origStorage;
+    }
+    await closeDbClient();
+    await initDatabase();
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 }
@@ -159,5 +176,134 @@ test.test('delete returns false when source not found', async () => {
     const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
     const result = await service.delete('99999');
     assert.equal(result, false);
+  });
+});
+
+test.test('syncWithSession creates session with agent executorType when agentId configured', async () => {
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+
+    const uniqueId = Date.now().toString(36);
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), `sync-test-${uniqueId}-`));
+    try {
+      await fs.writeFile(path.join(dir, `task-${uniqueId}.txt`), 'hello', 'utf-8');
+
+      const agentRepo = new AgentRepository();
+      const agent = await agentRepo.create({
+        name: 'OpenCode Agent',
+        role: 'AI coding agent',
+        executorType: ExecutorType.OPEN_CODE,
+        enabled: true,
+        skills: [],
+        mcpServers: [],
+      });
+
+      const source = await service.create({
+        name: 'Local Dir AI Sync',
+        type: 'LOCAL_DIRECTORY',
+        project_id: 1,
+        config: {
+          directoryPath: dir,
+          descriptionMode: 'ai',
+          agentId: agent.id,
+        },
+        enabled: true,
+      });
+
+      const result = await service.syncWithSession(String(source.id));
+
+      // Session should have been created with the agent's executor type
+      assert.ok(result.sessionId, 'Session should have been created');
+
+      const sessionRepo = new SessionRepository();
+      const session = await sessionRepo.findById(result.sessionId!);
+      assert.ok(session);
+      assert.equal(session!.executor_type, ExecutorType.OPEN_CODE, 'Should use agent executor type');
+      assert.equal(session!.agent_id, agent.id, 'Should have agent_id set');
+    } finally {
+      await fs.rm(dir, { recursive: true });
+    }
+  });
+});
+
+test.test('syncWithSession creates session with CLAUDE_CODE when agentId configured but agent deleted', async () => {
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+
+    const uniqueId = Date.now().toString(36);
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), `sync-test-${uniqueId}-`));
+    try {
+      await fs.writeFile(path.join(dir, `task-${uniqueId}.txt`), 'hello', 'utf-8');
+
+      // Create an agent, then delete it
+      const agentRepo = new AgentRepository();
+      const agent = await agentRepo.create({
+        name: 'Temp Agent',
+        role: 'Temp agent',
+        executorType: ExecutorType.OPEN_CODE,
+        enabled: true,
+        skills: [],
+        mcpServers: [],
+      });
+      await agentRepo.delete(agent.id);
+
+      const source = await service.create({
+        name: 'Local Dir AI Sync',
+        type: 'LOCAL_DIRECTORY',
+        project_id: 1,
+        config: {
+          directoryPath: dir,
+          descriptionMode: 'ai',
+          agentId: agent.id,
+        },
+        enabled: true,
+      });
+
+      const result = await service.syncWithSession(String(source.id));
+
+      assert.ok(result.sessionId, 'Session should still be created');
+
+      const sessionRepo = new SessionRepository();
+      const session = await sessionRepo.findById(result.sessionId!);
+      assert.ok(session);
+      assert.equal(session!.executor_type, ExecutorType.CLAUDE_CODE, 'Should fallback to CLAUDE_CODE');
+      assert.equal(session!.agent_id, null, 'Should not have agent_id');
+
+      // Wait for fire-and-forget async to settle before closing DB.
+      // The async callback in syncWithSession updates session status after AI execution.
+      // We update it ourselves to prevent the callback from writing after DB closes.
+      await sessionRepo.update(result.sessionId!, {
+        status: 'COMPLETED',
+        completed_at: new Date().toISOString(),
+      });
+      await new Promise((r) => setTimeout(r, 5000));
+    } finally {
+      await fs.rm(dir, { recursive: true });
+    }
+  });
+});
+
+test.test('syncWithSession skips session when no new files', async () => {
+  await withIsolatedTaskSourceStorage(async (tempRoot) => {
+    const service = new TaskSourceService({ taskSourceStoragePath: tempRoot, taskStoragePath: tempRoot });
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'sync-test-empty-'));
+    try {
+      const source = await service.create({
+        name: 'Local Dir AI Sync',
+        type: 'LOCAL_DIRECTORY',
+        project_id: 1,
+        config: {
+          directoryPath: dir,
+          descriptionMode: 'ai',
+        },
+        enabled: true,
+      });
+
+      const result = await service.syncWithSession(String(source.id));
+      assert.equal(result.sessionId, null, 'No session should be created for empty directory');
+    } finally {
+      await fs.rm(dir, { recursive: true });
+    }
   });
 });

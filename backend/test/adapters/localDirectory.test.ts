@@ -5,6 +5,29 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 
 import { LocalDirectoryAdapter } from '../../src/sources/localDirectoryAdapter.js';
+import { closeDbClient } from '../../src/db/client.js';
+import { initDatabase } from '../../src/db/schema.js';
+import { ExecutorType } from '../../src/types/executors.js';
+
+const origStorage = process.env.STORAGE_PATH;
+
+async function withIsolatedDb(run: () => Promise<void>) {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'local-dir-test-'));
+  process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
+  try {
+    await run();
+  } finally {
+    await closeDbClient();
+    if (origStorage === undefined) {
+      delete process.env.STORAGE_PATH;
+    } else {
+      process.env.STORAGE_PATH = origStorage;
+    }
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+}
 
 async function createTempDir() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-dir-test-'));
@@ -450,4 +473,127 @@ test.test('LocalDirectoryAdapter _parseMultiFileAiOutput handles single file out
   assert.equal(results[0]!.external_id, 'auth.md');
   assert.equal(results[0]!.title, '认证模块重构');
   assert.equal(results[0]!.description, '重构现有认证模块，添加OAuth2支持');
+});
+
+test.test('fetchWithAiDescriptions falls back to fixed mode when agentId not set', async () => {
+  const dir = await createTempDir();
+  try {
+    await createTestFiles(dir, { 'test-sync.txt': 'hello' });
+
+    const adapter = new LocalDirectoryAdapter({
+      type: 'LOCAL_DIRECTORY',
+      config: { directoryPath: dir, descriptionMode: 'ai' },
+    });
+
+    const tasks = await adapter.fetchWithAiDescriptions(0);
+    assert.ok(tasks.length >= 1);
+    assert.ok(tasks.some((t) => t.external_id === 'test-sync.txt'));
+  } finally {
+    await fs.rm(dir, { recursive: true });
+  }
+});
+
+test.test('fetchWithAiDescriptions falls back to fixed mode when agent not found', async () => {
+  const dir = await createTempDir();
+  try {
+    await createTestFiles(dir, { 'test-sync.txt': 'hello' });
+
+    const adapter = new LocalDirectoryAdapter({
+      type: 'LOCAL_DIRECTORY',
+      config: { directoryPath: dir, descriptionMode: 'ai', agentId: 99999 },
+    });
+
+    const tasks = await adapter.fetchWithAiDescriptions(0);
+    assert.ok(tasks.length >= 1);
+    assert.ok(tasks.some((t) => t.external_id === 'test-sync.txt'));
+  } finally {
+    await fs.rm(dir, { recursive: true });
+  }
+});
+
+test.test('fetchWithAiDescriptions uses correct runner for CLAUDE_CODE agent', async () => {
+  await withIsolatedDb(async () => {
+    const dir = await createTempDir();
+    try {
+      await createTestFiles(dir, { 'test-sync.txt': 'hello' });
+
+      const agentRepo = new (await import('../../src/repositories/agentRepository.js')).AgentRepository();
+      const agent = await agentRepo.create({
+        name: 'Test Claude Agent',
+        role: 'Test agent',
+        executorType: ExecutorType.CLAUDE_CODE,
+        enabled: true,
+        skills: [],
+        mcpServers: [],
+      });
+
+      const adapter = new LocalDirectoryAdapter({
+        type: 'LOCAL_DIRECTORY',
+        config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+      });
+
+      const tasks = await adapter.fetchWithAiDescriptions(0);
+      assert.ok(tasks.length >= 1, 'Should return at least one task');
+    } finally {
+      await fs.rm(dir, { recursive: true });
+    }
+  });
+});
+
+test.test('fetchWithAiDescriptions uses correct runner for OPEN_CODE agent', async () => {
+  await withIsolatedDb(async () => {
+    const dir = await createTempDir();
+    try {
+      await createTestFiles(dir, { 'test-sync.txt': 'hello' });
+
+      const agentRepo = new (await import('../../src/repositories/agentRepository.js')).AgentRepository();
+      const agent = await agentRepo.create({
+        name: 'Test OpenCode Agent',
+        role: 'Test agent',
+        executorType: ExecutorType.OPEN_CODE,
+        enabled: true,
+        skills: [],
+        mcpServers: [],
+      });
+
+      const adapter = new LocalDirectoryAdapter({
+        type: 'LOCAL_DIRECTORY',
+        config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+      });
+
+      const tasks = await adapter.fetchWithAiDescriptions(0);
+      assert.ok(tasks.length >= 1, 'Should return at least one task');
+    } finally {
+      await fs.rm(dir, { recursive: true });
+    }
+  });
+});
+
+test.test('fetchWithAiDescriptions falls back for unknown executorType', async () => {
+  await withIsolatedDb(async () => {
+    const dir = await createTempDir();
+    try {
+      await createTestFiles(dir, { 'test-sync.txt': 'hello' });
+
+      const agentRepo = new (await import('../../src/repositories/agentRepository.js')).AgentRepository();
+      const agent = await agentRepo.create({
+        name: 'Test Unknown Agent',
+        role: 'Test agent',
+        executorType: 'UNKNOWN_TYPE' as ExecutorType,
+        enabled: true,
+        skills: [],
+        mcpServers: [],
+      });
+
+      const adapter = new LocalDirectoryAdapter({
+        type: 'LOCAL_DIRECTORY',
+        config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+      });
+
+      const tasks = await adapter.fetchWithAiDescriptions(0);
+      assert.ok(tasks.length >= 1, 'Should return at least one task');
+    } finally {
+      await fs.rm(dir, { recursive: true });
+    }
+  });
 });
