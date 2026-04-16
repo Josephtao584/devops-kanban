@@ -161,7 +161,7 @@ export function diffSchemas(
         }
         const notNullSql = col.notNull ? ' NOT NULL' : '';
         changes.push(
-          `ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}${notNullSql} ${defaultExpr}`,
+          `ALTER TABLE ${table} ADD COLUMN "${col.name}" ${col.type}${notNullSql} ${defaultExpr}`,
         );
       }
     }
@@ -170,7 +170,7 @@ export function diffSchemas(
     const expectedSet = new Set(expectedCols.map(c => c.name));
     for (const colName of actualColNames) {
       if (!expectedSet.has(colName)) {
-        changes.push(`ALTER TABLE ${table} DROP COLUMN ${colName}`);
+        changes.push(`ALTER TABLE ${table} DROP COLUMN "${colName}"`);
       }
     }
   }
