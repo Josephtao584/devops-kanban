@@ -69,7 +69,22 @@ vi.mock('../src/stores/taskSourceStore', () => ({
     selectAllSyncTasks: selectAllSyncTasksMock,
     deselectAllSyncTasks: deselectAllSyncTasksMock,
     importSelectedPreviewTasks: importSelectedPreviewTasksMock,
-    fetchAllScheduleStatuses: fetchAllScheduleStatusesMock
+    fetchAllScheduleStatuses: fetchAllScheduleStatusesMock,
+    // AI preview state
+    aiPreviewDialog: false,
+    aiPreviewStep: 'prompt',
+    aiPreviewPrompt: '',
+    aiPreviewFiles: [],
+    aiPreviewResults: [],
+    aiPreviewSessionId: null,
+    aiPreviewSelected: new Set(),
+    aiPreviewLoading: false,
+    aiPreviewProcessing: false,
+    aiPreviewError: null,
+    openAiPreview: vi.fn(() => Promise.resolve(false)),
+    startAiPreview: vi.fn(() => Promise.resolve()),
+    closeAiPreviewDialog: vi.fn(),
+    toggleAiPreviewItem: vi.fn()
   })
 }))
 

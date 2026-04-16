@@ -54,6 +54,10 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const aiPreviewSelected = ref(new Set())
   const aiPreviewLoading = ref(false)
   const aiPreviewSourceId = ref(null)
+  const aiPreviewProcessing = ref(false)
+  const aiPreviewError = ref(null)
+  let aiPreviewPoller = null
+  let aiPreviewTimeout = null
 
   const enabledSources = computed(() =>
     crud.items.value.filter(s => s.enabled)
@@ -416,41 +420,83 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
-  async function executeAiPreview() {
+  async function startAiPreview() {
     aiPreviewStep.value = 'results'
     aiPreviewLoading.value = true
+    aiPreviewProcessing.value = true
+    aiPreviewError.value = null
     aiPreviewSelected.value = new Set()
     try {
       const response = await taskSourceApi.previewResults(aiPreviewSourceId.value)
       const data = unwrap(response, 'Failed to start AI preview')
       aiPreviewSessionId.value = data.sessionId
 
-      // Poll session status until PENDING_REVIEW or FAILED
-      const api = (await import('../api/index.js')).default
-      const maxAttempts = 600 // 5 minutes at 500ms interval
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 500))
-        const sessionResp = await api.get(`/sessions/${data.sessionId}`)
-        const session = sessionResp.data?.data || sessionResp.data
-        if (!session) continue
-
-        if (session.status === 'PENDING_REVIEW') {
-          const results = session.metadata?.aiResults || []
-          aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
-          aiPreviewSelected.value = new Set(results.map(r => r.externalId))
-          return
-        }
-        if (session.status === 'FAILED') {
-          throw new Error('AI 分析失败，请检查 Agent 配置')
-        }
-      }
-      throw new Error('AI 分析超时（5分钟）')
-    } catch (e) {
-      error.value = e.message
-      throw e
-    } finally {
+      // Close loading, start background polling
       aiPreviewLoading.value = false
+
+      // 15-minute timeout
+      aiPreviewTimeout = setTimeout(() => {
+        stopAiPreviewPolling()
+        aiPreviewProcessing.value = false
+        aiPreviewError.value = 'AI 分析超时（15分钟）'
+      }, 900000) // 15 minutes
+
+      // Start background polling (every 5 seconds, max 15 minutes)
+      stopAiPreviewPolling()
+      aiPreviewPoller = setInterval(() => pollAiPreviewSession(), 5000)
+    } catch (e) {
+      aiPreviewProcessing.value = false
+      aiPreviewError.value = e.message
+      throw e
     }
+  }
+
+  async function pollAiPreviewSession() {
+    try {
+      const api = (await import('../api/index.js')).default
+      const sessionResp = await api.get(`/sessions/${aiPreviewSessionId.value}`)
+      const session = sessionResp.data?.data || sessionResp.data
+      if (!session) return
+
+      if (session.status === 'PENDING_REVIEW') {
+        if (aiPreviewTimeout) {
+          clearTimeout(aiPreviewTimeout)
+          aiPreviewTimeout = null
+        }
+        stopAiPreviewPolling()
+        aiPreviewProcessing.value = false
+        const results = session.metadata?.aiResults || []
+        aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
+        aiPreviewSelected.value = new Set(results.map(r => r.externalId))
+      }
+      if (session.status === 'FAILED') {
+        if (aiPreviewTimeout) {
+          clearTimeout(aiPreviewTimeout)
+          aiPreviewTimeout = null
+        }
+        stopAiPreviewPolling()
+        aiPreviewProcessing.value = false
+        aiPreviewError.value = 'AI 分析失败，请检查 Agent 配置'
+      }
+    } catch {
+      // Network error — keep polling, next attempt may succeed
+    }
+  }
+
+  function stopAiPreviewPolling() {
+    if (aiPreviewPoller) {
+      clearInterval(aiPreviewPoller)
+      aiPreviewPoller = null
+    }
+    if (aiPreviewTimeout) {
+      clearTimeout(aiPreviewTimeout)
+      aiPreviewTimeout = null
+    }
+  }
+
+  function cleanupAiPreview() {
+    stopAiPreviewPolling()
+    closeAiPreviewDialog()
   }
 
   async function confirmAiPreviewImport(projectId) {
@@ -464,7 +510,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         items,
       })
       const data = unwrap(response, 'Failed to confirm sync')
-      closeAiPreviewDialog()
+      cleanupAiPreview()
       return data
     } catch (e) {
       error.value = e.message
@@ -479,11 +525,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewStep.value = 'prompt'
     aiPreviewPrompt.value = ''
     aiPreviewFiles.value = []
-    aiPreviewResults.value = []
-    aiPreviewSessionId.value = null
-    aiPreviewSelected.value = new Set()
+    // Keep aiPreviewResults, aiPreviewSessionId, aiPreviewSelected for when polling completes in background
     aiPreviewLoading.value = false
-    aiPreviewSourceId.value = null
   }
 
   function toggleAiPreviewItem(externalId) {
@@ -570,10 +613,14 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewSessionId,
     aiPreviewSelected,
     aiPreviewLoading,
+    aiPreviewProcessing,
+    aiPreviewError,
     openAiPreview,
-    executeAiPreview,
+    startAiPreview,
     confirmAiPreviewImport,
     closeAiPreviewDialog,
-    toggleAiPreviewItem
+    toggleAiPreviewItem,
+    stopAiPreviewPolling,
+    cleanupAiPreview
   }
 })

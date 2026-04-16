@@ -297,6 +297,8 @@ export default {
     syncHistoryModeAi: 'AI',
     noNewFiles: '没有新文件',
     // AI Preview
+    aiProcessingInBackground: 'AI 正在后台分析，可关闭对话框稍后查看',
+    aiProcessing: 'AI 正在分析文件，可关闭对话框稍后查看...',
     aiPreviewPromptTitle: '同步预览 - Prompt',
     aiPreviewResultsTitle: '同步预览 - AI 结果',
     aiFilesToAnalyze: '个文件将被分析',

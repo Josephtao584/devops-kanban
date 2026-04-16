@@ -188,7 +188,7 @@
           <div class="form-section">
             <el-form-item :label="$t('taskSource.syncFrequency', '同步频率')">
               <el-select v-model="formData.sync_schedule" clearable :placeholder="$t('taskSource.scheduleDisabled', '不启用')">
-                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" :value="null" />
+                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" value="" />
                 <el-option label="每 5 分钟" value="*/5 * * * *" />
                 <el-option label="每 15 分钟" value="*/15 * * * *" />
                 <el-option label="每 30 分钟" value="*/30 * * * *" />
@@ -345,45 +345,59 @@
         </div>
       </div>
 
-      <!-- Step 2: AI Results Preview -->
+      <!-- Step 2: AI Results / Processing -->
       <div v-else>
-        <div class="ai-results-controls">
-          <el-button size="small" @click="selectAllAiResults">{{ $t('taskSource.selectAll', '全选') }}</el-button>
-          <el-button size="small" @click="deselectAllAiResults">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
-          <span class="selected-count">
-            {{ taskSourceStore.aiPreviewSelected.size }} / {{ taskSourceStore.aiPreviewResults.length }} {{ $t('taskSource.selected', '已选') }}
-          </span>
+        <!-- Processing -->
+        <div v-if="taskSourceStore.aiPreviewProcessing" class="ai-processing">
+          <div class="processing-spinner"></div>
+          <p>{{ $t('taskSource.aiProcessing', 'AI 正在分析文件，可关闭对话框稍后查看...') }}</p>
         </div>
-        <div class="ai-results-list">
-          <div
-            v-for="item in taskSourceStore.aiPreviewResults"
-            :key="item.externalId"
-            class="ai-result-item"
-            :class="{ selected: taskSourceStore.aiPreviewSelected.has(item.externalId) }"
-          >
-            <input
-              type="checkbox"
-              :checked="taskSourceStore.aiPreviewSelected.has(item.externalId)"
-              @change="taskSourceStore.toggleAiPreviewItem(item.externalId)"
-            />
-            <div class="result-content">
-              <div class="result-filename">{{ item.externalId }}</div>
-              <el-input v-model="item.title" size="small" :placeholder="$t('taskSource.aiTaskTitle', '任务标题')" class="result-title-input" />
-              <el-input
-                v-model="item.description"
-                type="textarea"
-                :rows="2"
-                size="small"
-                :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
-                class="result-desc-input"
+
+        <!-- Error -->
+        <div v-else-if="taskSourceStore.aiPreviewError" class="ai-error">
+          <el-alert type="error" :title="taskSourceStore.aiPreviewError" :closable="false" />
+        </div>
+
+        <!-- Results -->
+        <template v-else>
+          <div class="ai-results-controls">
+            <el-button size="small" @click="selectAllAiResults">{{ $t('taskSource.selectAll', '全选') }}</el-button>
+            <el-button size="small" @click="deselectAllAiResults">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
+            <span class="selected-count">
+              {{ taskSourceStore.aiPreviewSelected.size }} / {{ taskSourceStore.aiPreviewResults.length }} {{ $t('taskSource.selected', '已选') }}
+            </span>
+          </div>
+          <div class="ai-results-list">
+            <div
+              v-for="item in taskSourceStore.aiPreviewResults"
+              :key="item.externalId"
+              class="ai-result-item"
+              :class="{ selected: taskSourceStore.aiPreviewSelected.has(item.externalId) }"
+            >
+              <input
+                type="checkbox"
+                :checked="taskSourceStore.aiPreviewSelected.has(item.externalId)"
+                @change="taskSourceStore.toggleAiPreviewItem(item.externalId)"
               />
+              <div class="result-content">
+                <div class="result-filename">{{ item.externalId }}</div>
+                <el-input v-model="item.title" size="small" :placeholder="$t('taskSource.aiTaskTitle', '任务标题')" class="result-title-input" />
+                <el-input
+                  v-model="item.description"
+                  type="textarea"
+                  :rows="2"
+                  size="small"
+                  :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
+                  class="result-desc-input"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
 
       <template #footer>
-        <el-button @click="taskSourceStore.closeAiPreviewDialog()">{{ $t('common.cancel', '取消') }}</el-button>
+        <el-button @click="taskSourceStore.closeAiPreviewDialog()">{{ taskSourceStore.aiPreviewProcessing ? '关闭' : $t('common.cancel', '取消') }}</el-button>
         <el-button
           v-if="taskSourceStore.aiPreviewStep === 'prompt'"
           type="primary"
@@ -394,7 +408,7 @@
           {{ $t('taskSource.aiConfirmExecute', '确认执行') }}
         </el-button>
         <el-button
-          v-else
+          v-else-if="!taskSourceStore.aiPreviewProcessing && !taskSourceStore.aiPreviewError"
           type="primary"
           @click="confirmAiPreviewAndImport"
           :loading="taskSourceStore.aiPreviewLoading"
@@ -876,7 +890,6 @@ const confirmDelete = (source) => {
 
 // --- Sync ---
 const handleSync = async (source) => {
-  console.log('[handleSync] source.type:', source.type, '| config:', JSON.stringify(source.config), '| descriptionMode:', source.config?.descriptionMode)
   const isLocalAiMode = source.type === 'LOCAL_DIRECTORY' && source.config?.descriptionMode === 'ai'
   if (isLocalAiMode) {
     try {
@@ -1016,10 +1029,11 @@ const formatFileSize = (bytes) => {
 
 const executeAiPreviewAndSync = async () => {
   try {
-    await taskSourceStore.executeAiPreview()
+    await taskSourceStore.startAiPreview()
+    toast.info(t('taskSource.aiProcessingInBackground', 'AI 正在后台分析，可关闭对话框稍后查看'))
   } catch (err) {
-    console.error('AI preview execution failed:', err)
-    toast.error('AI 分析失败: ' + (err.message || '未知错误'))
+    console.error('Failed to start AI preview:', err)
+    toast.error('AI 分析启动失败: ' + (err.message || '未知错误'))
   }
 }
 
@@ -1570,6 +1584,38 @@ const deselectAllAiResults = () => {
   font-size: 12px;
   color: var(--text-secondary);
   margin-left: auto;
+}
+
+.ai-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.processing-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ai-processing p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.ai-error {
+  padding: 24px 0;
 }
 
 .ai-results-list {
