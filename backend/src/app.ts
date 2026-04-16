@@ -111,5 +111,10 @@ export async function buildApp() {
   fastify.register(notificationRoutes, { prefix: '/api/notifications' });
   fastify.register(settingsRoutes, { prefix: '/api/settings' });
 
+  // Shutdown scheduler when app closes
+  fastify.addHook('onClose', async () => {
+    schedulerService.shutdown();
+  });
+
   return fastify;
 }
