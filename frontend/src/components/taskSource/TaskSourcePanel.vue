@@ -320,6 +320,91 @@
       </template>
     </BaseDialog>
 
+    <!-- AI Preview 2-Step Dialog -->
+    <BaseDialog
+      v-model="taskSourceStore.aiPreviewDialog"
+      :title="taskSourceStore.aiPreviewStep === 'prompt' ? $t('taskSource.aiPreviewPromptTitle', '同步预览 - Prompt') : $t('taskSource.aiPreviewResultsTitle', '同步预览 - AI 结果')"
+      width="700px"
+      custom-class="ai-preview-dialog"
+      append-to-body
+    >
+      <!-- Step 1: Prompt Preview -->
+      <div v-if="taskSourceStore.aiPreviewStep === 'prompt'">
+        <div class="ai-prompt-header">
+          <span class="prompt-file-count">{{ taskSourceStore.aiPreviewFiles.length }} {{ $t('taskSource.aiFilesToAnalyze', '个文件将被分析') }}</span>
+        </div>
+        <div class="ai-prompt-content">
+          <pre class="ai-prompt-text">{{ taskSourceStore.aiPreviewPrompt }}</pre>
+        </div>
+        <div class="ai-prompt-files">
+          <div v-for="file in taskSourceStore.aiPreviewFiles" :key="file.filename" class="ai-prompt-file-item">
+            <span class="file-icon">&#x1F4C4;</span>
+            <span class="file-name">{{ file.filename }}</span>
+            <span class="file-size">{{ formatFileSize(file.size) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: AI Results Preview -->
+      <div v-else>
+        <div class="ai-results-controls">
+          <el-button size="small" @click="selectAllAiResults">{{ $t('taskSource.selectAll', '全选') }}</el-button>
+          <el-button size="small" @click="deselectAllAiResults">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
+          <span class="selected-count">
+            {{ taskSourceStore.aiPreviewSelected.size }} / {{ taskSourceStore.aiPreviewResults.length }} {{ $t('taskSource.selected', '已选') }}
+          </span>
+        </div>
+        <div class="ai-results-list">
+          <div
+            v-for="item in taskSourceStore.aiPreviewResults"
+            :key="item.externalId"
+            class="ai-result-item"
+            :class="{ selected: taskSourceStore.aiPreviewSelected.has(item.externalId) }"
+          >
+            <input
+              type="checkbox"
+              :checked="taskSourceStore.aiPreviewSelected.has(item.externalId)"
+              @change="taskSourceStore.toggleAiPreviewItem(item.externalId)"
+            />
+            <div class="result-content">
+              <div class="result-filename">{{ item.externalId }}</div>
+              <el-input v-model="item.title" size="small" :placeholder="$t('taskSource.aiTaskTitle', '任务标题')" class="result-title-input" />
+              <el-input
+                v-model="item.description"
+                type="textarea"
+                :rows="2"
+                size="small"
+                :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
+                class="result-desc-input"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="taskSourceStore.closeAiPreviewDialog()">{{ $t('common.cancel', '取消') }}</el-button>
+        <el-button
+          v-if="taskSourceStore.aiPreviewStep === 'prompt'"
+          type="primary"
+          @click="executeAiPreviewAndSync"
+          :loading="taskSourceStore.aiPreviewLoading"
+          :disabled="taskSourceStore.aiPreviewFiles.length === 0"
+        >
+          {{ $t('taskSource.aiConfirmExecute', '确认执行') }}
+        </el-button>
+        <el-button
+          v-else
+          type="primary"
+          @click="confirmAiPreviewAndImport"
+          :loading="taskSourceStore.aiPreviewLoading"
+          :disabled="taskSourceStore.aiPreviewSelected.size === 0"
+        >
+          {{ $t('taskSource.aiConfirmImport', '确认导入') }} ({{ taskSourceStore.aiPreviewSelected.size }})
+        </el-button>
+      </template>
+    </BaseDialog>
+
     <!-- Sync History Dialog -->
     <BaseDialog
       v-model="syncHistoryDialogVisible"
@@ -781,13 +866,13 @@ const handleSync = async (source) => {
   const isLocalAiMode = source.type === 'LOCAL_DIRECTORY' && source.config?.descriptionMode === 'ai'
   if (isLocalAiMode) {
     try {
-      const response = await taskSourceStore.syncTaskSource(source.id)
-      if (response?.success && !response.data?.sessionId) {
+      const opened = await taskSourceStore.openAiPreview(source.id)
+      if (!opened) {
         toast.info(t('taskSource.noNewFiles', '没有新文件'))
       }
     } catch (err) {
-      console.error('Failed to sync task source:', err)
-      toast.error('同步失败: ' + (err.message || '未知错误'))
+      console.error('Failed to open AI preview:', err)
+      toast.error('预览失败: ' + (err.message || '未知错误'))
     }
   } else {
     await previewAndSync(source)
@@ -883,6 +968,48 @@ const toggleDescription = (externalId) => {
     newSet.add(externalId)
   }
   expandedPreviewDescriptions.value = newSet
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+const executeAiPreviewAndSync = async () => {
+  try {
+    await taskSourceStore.executeAiPreview()
+  } catch (err) {
+    console.error('AI preview execution failed:', err)
+    toast.error('AI 分析失败: ' + (err.message || '未知错误'))
+  }
+}
+
+const confirmAiPreviewAndImport = async () => {
+  try {
+    const result = await taskSourceStore.confirmAiPreviewImport(props.projectId)
+    if (result?.created > 0) {
+      toast.success(`成功导入 ${result.created} 个任务`)
+      await taskStore.fetchTasks(props.projectId)
+      emit('tasks-imported')
+    } else {
+      toast.info('没有新任务被创建')
+    }
+  } catch (err) {
+    console.error('Confirm import failed:', err)
+    toast.error('导入失败: ' + (err.message || '未知错误'))
+  }
+}
+
+const selectAllAiResults = () => {
+  taskSourceStore.aiPreviewSelected = new Set(
+    taskSourceStore.aiPreviewResults.map(r => r.externalId)
+  )
+}
+
+const deselectAllAiResults = () => {
+  taskSourceStore.aiPreviewSelected = new Set()
 }
 </script>
 
@@ -1308,5 +1435,129 @@ const toggleDescription = (externalId) => {
   0% { opacity: 1; }
   50% { opacity: 0.4; }
   100% { opacity: 1; }
+}
+
+/* AI Preview dialog */
+.ai-prompt-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.prompt-file-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.ai-prompt-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.ai-prompt-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+}
+
+.ai-prompt-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.ai-prompt-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.file-icon {
+  font-size: 14px;
+}
+
+.file-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.file-size {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ai-results-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.selected-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.ai-results-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ai-result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ai-result-item.selected {
+  background: var(--bg-secondary);
+}
+
+.ai-result-item input[type="checkbox"] {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.result-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-filename {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+:deep(.result-title-input .el-input__inner) {
+  font-weight: 500;
+}
+
+.ai-preview-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px;
 }
 </style>
