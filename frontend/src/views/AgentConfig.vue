@@ -132,7 +132,7 @@
     >
       <el-form data-testid="agent-form" label-position="top" @submit.prevent="saveAgent">
         <el-form-item :label="$t('agent.agentName')">
-          <el-input v-model="form.name" data-testid="agent-name-input" />
+          <el-input v-model="form.name" data-testid="agent-name-input" maxlength="200" show-word-limit />
         </el-form-item>
 
         <el-form-item :label="$t('agent.agentType')">
@@ -175,7 +175,7 @@
         </el-form-item>
 
         <el-form-item :label="$t('agent.description')">
-          <el-input v-model="form.description" :placeholder="$t('agent.descriptionPlaceholder')" />
+          <el-input v-model="form.description" :placeholder="$t('agent.descriptionPlaceholder')" maxlength="5000" show-word-limit />
         </el-form-item>
 
         <el-form-item>

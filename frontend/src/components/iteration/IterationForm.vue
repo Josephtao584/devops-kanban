@@ -11,7 +11,7 @@
       label-position="top"
     >
       <el-form-item :label="$t('iteration.iterationName')" prop="name">
-        <el-input v-model="form.name" :placeholder="$t('iteration.enterIterationName')" />
+        <el-input v-model="form.name" :placeholder="$t('iteration.enterIterationName')" maxlength="200" show-word-limit />
       </el-form-item>
 
       <el-form-item :label="$t('iteration.description')">
@@ -20,6 +20,8 @@
           type="textarea"
           :rows="3"
           :placeholder="$t('iteration.enterDescription')"
+          maxlength="5000"
+          show-word-limit
         />
       </el-form-item>
 
@@ -27,6 +29,8 @@
         <el-input
           v-model="form.goal"
           :placeholder="$t('iteration.enterGoal')"
+          maxlength="5000"
+          show-word-limit
         />
       </el-form-item>
 
