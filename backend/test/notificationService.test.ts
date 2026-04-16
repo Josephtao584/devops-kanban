@@ -7,9 +7,9 @@ import { NotificationService } from '../src/services/notificationService.js';
 test.test('NotificationService loads config from JSON file', async () => {
   const service = new NotificationService({ filePath: 'test/fixtures/notification-config.json' });
   const config = await service.getConfig();
-  assert.equal(config.url, 'https://example.com/api/send');
-  assert.equal(config.receiver, 'user-123');
-  assert.equal(config.auth, 'test-token');
+  assert.equal(config!.url, 'https://example.com/api/send');
+  assert.equal(config!.receiver, 'user-123');
+  assert.equal(config!.auth, 'test-token');
 });
 
 test.test('NotificationService returns null config when file missing', async () => {

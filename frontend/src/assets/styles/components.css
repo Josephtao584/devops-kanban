@@ -434,6 +434,6 @@
   to { transform: rotate(360deg); }
 }
 
-.is-loading {
+.el-icon.is-loading {
   animation: spin 1s linear infinite;
 }

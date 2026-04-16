@@ -25,7 +25,8 @@ vi.mock('../src/api/task.js', async () => {
   const actual = await vi.importActual('../src/api/task.js')
   return {
     ...actual,
-    startTask: vi.fn()
+    startTask: vi.fn(),
+    updateTask: vi.fn().mockResolvedValue({ success: true })
   }
 })
 

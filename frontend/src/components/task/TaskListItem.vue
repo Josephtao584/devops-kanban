@@ -39,6 +39,10 @@
       <div class="task-title-row">
         <div class="task-title-left">
           <div class="task-title">{{ task.title || $t('task.untitled') }}</div>
+          <span v-if="task.auto_execute === 1 && task.auto_execute_template_id" class="auto-execute-template-name">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            {{ getTemplateName(task.auto_execute_template_id) }}
+          </span>
           <a
             v-if="task.external_url"
             :href="task.external_url"
@@ -50,6 +54,14 @@
               外部链接
             </el-tag>
           </a>
+        </div>
+        <!-- Auto-execute controls -->
+        <div class="auto-execute-row">
+          <label class="toggle" :title="$t('autoExecute.label')">
+            <input type="checkbox" :checked="task.auto_execute === 1" @change="toggleAutoExecute($event)" />
+            <span class="slider"></span>
+          </label>
+          <span class="auto-execute-label">{{ $t('autoExecute.label') }}</span>
         </div>
         <div class="task-actions">
           <button
@@ -150,6 +162,16 @@
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
             启动
+          </button>
+          <button
+            class="quick-action-btn"
+            @click.stop="emit('workflow-action', { action: 'configure', task: props.task })"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            模板
           </button>
           <button
             class="quick-action-btn"
@@ -271,6 +293,7 @@ import { useI18n } from 'vue-i18n'
 import { Loading, FolderOpened, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
+import { formatDateTime } from '../../utils/dateFormat'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
@@ -343,13 +366,42 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-workflow', 'workflow-action', 'node-click', 'quick-edit'])
+const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-workflow', 'workflow-action', 'node-click', 'quick-edit', 'update-task'])
 
 const { t } = useI18n()
 
 // Use composables
 const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, getWorktreeStatusText, createWorktree, deleteWorktree } = useWorktree()
 const { getStatusClass } = useStatusStyle()
+
+// Auto-execute controls
+import { getWorkflowTemplates } from '../../api/workflowTemplate.js'
+const workflowTemplates = ref([])
+
+async function loadTemplates() {
+  if (workflowTemplates.value.length > 0) return
+  try {
+    const res = await getWorkflowTemplates()
+    if (res.success && res.data) {
+      workflowTemplates.value = res.data
+    }
+  } catch { /* silently fail */ }
+}
+
+function getTemplateName(templateId) {
+  const tmpl = workflowTemplates.value.find(t => t.template_id === templateId)
+  return tmpl ? tmpl.name : templateId
+}
+
+// Load templates when task has auto_execute_template_id
+watch(() => props.task.auto_execute_template_id, (id) => {
+  if (id) loadTemplates()
+}, { immediate: true })
+
+async function toggleAutoExecute(event) {
+  const checked = event.target.checked
+  emit('update-task', { id: props.task.id, auto_execute: checked ? 1 : 0 })
+}
 
 // Real workflow run data from API
 const realWorkflowRun = ref(null)
@@ -604,17 +656,7 @@ const workflowStatusText = computed(() => {
   return textMap[workflowStatus.value] || '待启动'
 })
 
-const formatDateTime = (isoString) => {
-  if (!isoString) return ''
-  const date = new Date(isoString)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-}
+const formatDateTimeIso = (isoString) => formatDateTime(isoString, { fallback: '', style: 'iso' })
 
 const workflowStartTime = computed(() => {
   const steps = realWorkflowRun.value?.steps
@@ -625,7 +667,7 @@ const workflowStartTime = computed(() => {
     .filter(t => t)
     .map(t => new Date(t).getTime())
   if (startTimes.length === 0) return null
-  return formatDateTime(new Date(Math.min(...startTimes)).toISOString())
+  return formatDateTimeIso(new Date(Math.min(...startTimes)).toISOString())
 })
 
 const workflowEndTime = computed(() => {
@@ -637,7 +679,7 @@ const workflowEndTime = computed(() => {
     .filter(t => t)
     .map(t => new Date(t).getTime())
   if (endTimes.length === 0) return null
-  return formatDateTime(new Date(Math.max(...endTimes)).toISOString())
+  return formatDateTimeIso(new Date(Math.max(...endTimes)).toISOString())
 })
 
 // Handle node click
@@ -676,6 +718,79 @@ const openWorktreeDirectory = () => {
 </script>
 
 <style scoped>
+.auto-execute-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.auto-execute-row .toggle {
+  position: relative;
+  display: inline-block;
+  width: 28px;
+  height: 16px;
+}
+
+.auto-execute-row .toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.auto-execute-row .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--border-color);
+  transition: 0.2s;
+  border-radius: 16px;
+}
+
+.auto-execute-row .slider::before {
+  content: '';
+  position: absolute;
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+.auto-execute-row .toggle input:checked + .slider {
+  background-color: var(--accent-color);
+}
+
+.auto-execute-row .toggle input:checked + .slider::before {
+  transform: translateX(12px);
+}
+
+.auto-execute-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.auto-execute-template-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--text-secondary);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auto-execute-template-name svg {
+  flex-shrink: 0;
+}
+
 .task-item {
   display: flex;
   align-items: flex-start;
@@ -803,8 +918,7 @@ const openWorktreeDirectory = () => {
 
 .task-title-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   margin-bottom: 6px;
 }
@@ -815,6 +929,7 @@ const openWorktreeDirectory = () => {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex: 1;
   flex-wrap: wrap;
 }
 
@@ -1423,7 +1538,7 @@ const openWorktreeDirectory = () => {
 }
 
 /* Loading animation */
-.is-loading {
+.el-icon.is-loading {
   animation: spin 1s linear infinite;
 }
 

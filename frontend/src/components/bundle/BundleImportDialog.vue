@@ -147,12 +147,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
 import { previewImportBundle, confirmImportBundle, previewImportBundleZip, confirmImportBundleZip } from '../../api/bundle.js'
 import { previewImportWorkflowTemplates, confirmImportWorkflowTemplates } from '../../api/workflowTemplate.js'
+import { useImportDialog } from '../../composables/useImportDialog'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -160,51 +159,66 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'imported'])
 
-const { t } = useI18n()
-
-const step = ref('upload')
-const fileInput = ref(null)
-const strategy = ref('copy')
-const importing = ref(false)
 const importVersion = ref('')
 const storedZipBase64 = ref(null)
 
-const previewData = ref({ templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } })
-const result = ref({ imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } })
+const defaultPreview = { templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } }
+const defaultResult = { imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } }
 
-const conflicts = computed(() => previewData.value.conflicts || { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] })
-const hasConflicts = computed(() => {
-  const c = conflicts.value
-  return c.templateIds.length > 0 || c.agentNames.length > 0 || c.skillIdentifiers.length > 0 || c.mcpServerNames.length > 0
-})
-const totalSkipped = computed(() => {
-  const s = result.value.skipped
-  return s.templates + s.agents + s.skills + s.mcpServers
-})
-
-const triggerFileInput = () => { fileInput.value?.click() }
-
-const handleFileSelect = (event) => {
-  const file = event.target.files?.[0]
-  if (file) parseFile(file)
-}
-
-const handleDrop = (event) => {
-  const file = event.dataTransfer?.files?.[0]
-  if (file) parseFile(file)
-}
-
-const parseFile = async (file) => {
-  const isZip = file.name.endsWith('.zip')
-
-  if (isZip) {
-    await parseZipFile(file)
-  } else {
-    await parseJsonFile(file)
+const {
+  step, fileInput, strategy, importing, previewData, result,
+  triggerFileInput, handleFileSelect, handleDrop,
+  handleConfirmImport: doConfirmImport,
+  resetToUpload: doResetToUpload, handleClose: doClose
+} = useImportDialog({
+  defaultPreviewData: defaultPreview,
+  defaultResultData: defaultResult,
+  onParseFile: async (file, { setPreview, setError, t }) => {
+    const isZip = file.name.endsWith('.zip')
+    if (isZip) {
+      await parseZipFile(file, setPreview, setError, t)
+    } else {
+      await parseJsonFile(file, setPreview, setError, t)
+    }
+  },
+  onConfirmImport: async ({ previewData, strategy }) => {
+    let response
+    if (storedZipBase64.value) {
+      response = await confirmImportBundleZip({ zip: storedZipBase64.value, strategy })
+      if (!response?.success) throw new Error(response?.message || 'Import failed')
+      return response.data
+    }
+    if (importVersion.value === '1.0') {
+      response = await confirmImportWorkflowTemplates({
+        templates: previewData.templates,
+        strategy,
+        agentMappings: {},
+      })
+      if (!response?.success) throw new Error(response?.message || 'Import failed')
+      const legacyResult = response.data
+      return {
+        imported: { templates: legacyResult.imported?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
+        skipped: { templates: legacyResult.skipped?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
+      }
+    }
+    response = await confirmImportBundle({
+      templates: previewData.templates,
+      agents: previewData.agents,
+      skills: previewData.skills,
+      mcpServers: previewData.mcpServers,
+      strategy,
+    })
+    if (!response?.success) throw new Error(response?.message || 'Import failed')
+    return response.data
+  },
+  onClose: () => {
+    importVersion.value = ''
+    storedZipBase64.value = null
+    emit('update:modelValue', false)
   }
-}
+})
 
-const parseJsonFile = async (file) => {
+async function parseJsonFile(file, setPreview, setError, t) {
   try {
     const text = await file.text()
     const data = JSON.parse(text)
@@ -212,24 +226,28 @@ const parseJsonFile = async (file) => {
     storedZipBase64.value = null
 
     if (importVersion.value === '2.0') {
-      // Bundle import (v2.0)
       if (!data.templates || !Array.isArray(data.templates)) {
-        ElMessage.error(t('bundle.importInvalidFile'))
+        setError(t('bundle.importInvalidFile'))
         return
       }
-      await doPreview(data)
+      const response = await previewImportBundle(data)
+      if (!response?.success) {
+        setError(response?.message || t('bundle.importPreviewFailed'))
+        return
+      }
+      setPreview(response.data)
     } else {
-      // Legacy workflow template import (v1.0) — delegate to existing API
       if (!data.templates || !Array.isArray(data.templates)) {
-        ElMessage.error(t('bundle.importInvalidFile'))
+        setError(t('bundle.importInvalidFile'))
         return
       }
       const res = await previewImportWorkflowTemplates(data)
       if (!res?.success) {
-        ElMessage.error(res?.message || t('bundle.importPreviewFailed'))
+        setError(res?.message || t('bundle.importPreviewFailed'))
         return
       }
-      previewData.value = {
+      importVersion.value = '1.0'
+      setPreview({
         templates: res.data.templates,
         agents: [],
         skills: [],
@@ -240,16 +258,14 @@ const parseJsonFile = async (file) => {
           skillIdentifiers: [],
           mcpServerNames: [],
         },
-      }
-      importVersion.value = '1.0'
-      step.value = 'preview'
+      })
     }
   } catch {
-    ElMessage.error(t('bundle.importInvalidFile'))
+    setError(t('bundle.importInvalidFile'))
   }
 }
 
-const parseZipFile = async (file) => {
+async function parseZipFile(file, setPreview, setError, t) {
   try {
     const buffer = await file.arrayBuffer()
     const bytes = new Uint8Array(buffer)
@@ -264,146 +280,44 @@ const parseZipFile = async (file) => {
 
     const res = await previewImportBundleZip({ zip: storedZipBase64.value })
     if (!res?.success) {
-      ElMessage.error(res?.message || t('bundle.importPreviewFailed'))
+      setError(res?.message || t('bundle.importPreviewFailed'))
       return
     }
-    previewData.value = res.data
-    step.value = 'preview'
+    setPreview(res.data)
   } catch {
-    ElMessage.error(t('bundle.importInvalidFile'))
+    setError(t('bundle.importInvalidFile'))
   }
 }
 
-const doPreview = async (exportData) => {
-  try {
-    const response = await previewImportBundle(exportData)
-    if (!response?.success) {
-      ElMessage.error(response?.message || t('bundle.importPreviewFailed'))
-      return
-    }
-    previewData.value = response.data
-    step.value = 'preview'
-  } catch (error) {
-    ElMessage.error(error?.message || t('bundle.importPreviewFailed'))
-  }
-}
+const conflicts = computed(() => previewData.value.conflicts || { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] })
+const hasConflicts = computed(() => {
+  const c = conflicts.value
+  return c.templateIds.length > 0 || c.agentNames.length > 0 || c.skillIdentifiers.length > 0 || c.mcpServerNames.length > 0
+})
+const totalSkipped = computed(() => {
+  const s = result.value.skipped
+  return s.templates + s.agents + s.skills + s.mcpServers
+})
 
 const handleConfirmImport = async () => {
-  importing.value = true
-  try {
-    let response
-    if (storedZipBase64.value) {
-      // ZIP import
-      response = await confirmImportBundleZip({
-        zip: storedZipBase64.value,
-        strategy: strategy.value,
-      })
-      if (!response?.success) {
-        ElMessage.error(response?.message || t('bundle.importFailed'))
-        return
-      }
-      result.value = response.data
-    } else if (importVersion.value === '1.0') {
-      // Legacy import
-      response = await confirmImportWorkflowTemplates({
-        templates: previewData.value.templates,
-        strategy: strategy.value,
-        agentMappings: {},
-      })
-      if (!response?.success) {
-        ElMessage.error(response?.message || t('bundle.importFailed'))
-        return
-      }
-      const legacyResult = response.data
-      result.value = {
-        imported: { templates: legacyResult.imported?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
-        skipped: { templates: legacyResult.skipped?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
-      }
-    } else {
-      // Bundle import (v2.0 JSON)
-      response = await confirmImportBundle({
-        templates: previewData.value.templates,
-        agents: previewData.value.agents,
-        skills: previewData.value.skills,
-        mcpServers: previewData.value.mcpServers,
-        strategy: strategy.value,
-      })
-      if (!response?.success) {
-        ElMessage.error(response?.message || t('bundle.importFailed'))
-        return
-      }
-      result.value = response.data
-    }
-    step.value = 'result'
-    emit('imported', result.value)
-  } catch (error) {
-    ElMessage.error(error?.message || t('bundle.importFailed'))
-  } finally {
-    importing.value = false
+  const importResult = await doConfirmImport()
+  if (importResult) {
+    emit('imported', importResult)
   }
 }
 
 const resetToUpload = () => {
-  step.value = 'upload'
-  previewData.value = { templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } }
   storedZipBase64.value = null
-  if (fileInput.value) fileInput.value.value = ''
+  doResetToUpload()
 }
 
 const handleClose = () => {
-  step.value = 'upload'
-  previewData.value = { templates: [], agents: [], skills: [], mcpServers: [], conflicts: { templateIds: [], agentNames: [], skillIdentifiers: [], mcpServerNames: [] } }
-  result.value = { imported: { templates: 0, agents: 0, skills: 0, mcpServers: 0 }, skipped: { templates: 0, agents: 0, skills: 0, mcpServers: 0 } }
-  importing.value = false
-  importVersion.value = ''
-  storedZipBase64.value = null
-  emit('update:modelValue', false)
+  doClose()
 }
 </script>
 
 <style scoped>
-.import-dialog {
-  min-height: 120px;
-}
-
-.import-step {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.upload-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 40px 20px;
-  border: 2px dashed var(--border-color);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.upload-zone:hover {
-  border-color: var(--accent-color);
-  background: rgba(37, 198, 201, 0.03);
-}
-
-.upload-icon {
-  color: var(--text-secondary);
-}
-
-.upload-text {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.preview-summary {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  padding: 4px 0;
-}
+@import '../../styles/import-dialog.css';
 
 .dep-group {
   border: 1px solid var(--border-color);
@@ -444,25 +358,6 @@ const handleClose = () => {
   margin-left: auto;
 }
 
-.import-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.import-section-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.import-result-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .import-result-details {
   display: flex;
   flex-direction: column;
@@ -476,11 +371,5 @@ const handleClose = () => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 </style>

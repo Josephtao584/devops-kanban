@@ -1,11 +1,10 @@
+import { createCrudApi } from './createCrudApi.js'
 import api from './index.js'
 
+const crud = createCrudApi('/skills')
+
 export const skillApi = {
-  list: () => api.get('/skills'),
-  get: (id) => api.get(`/skills/${id}`),
-  create: (data) => api.post('/skills', data),
-  update: (id, data) => api.put(`/skills/${id}`, data),
-  delete: (id) => api.delete(`/skills/${id}`),
+  ...crud,
   listFiles: (id) => api.get(`/skills/${id}/files`),
   getFile: (id, filePath) => api.get(`/skills/${id}/files/${filePath}`),
   updateFile: (id, filePath, content) => api.put(`/skills/${id}/files/${filePath}`, { content }),

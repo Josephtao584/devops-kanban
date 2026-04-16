@@ -23,7 +23,9 @@ import {
   mcpServerRoutes,
   bundleRoutes,
   notificationRoutes,
+  settingsRoutes,
 } from './routes/index.js';
+import { SchedulerService } from './services/schedulerService.js';
 
 export async function buildApp() {
   // Initialize database tables
@@ -47,6 +49,10 @@ export async function buildApp() {
   // Bootstrap built-in workflow templates
   await bootstrapBuiltinTemplates();
 
+  // Initialize scheduler for automated task source sync
+  const schedulerService = new SchedulerService();
+  await schedulerService.initialize();
+
   const fastify = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || 'warn',
@@ -54,6 +60,8 @@ export async function buildApp() {
   });
 
   fastify.config = config;
+
+  fastify.decorate('schedulerService', schedulerService);
 
   fastify.register(corsPlugin);
   fastify.register(errorHandlerPlugin);
@@ -101,6 +109,7 @@ export async function buildApp() {
   fastify.register(mcpServerRoutes, { prefix: '/api/mcp-servers' });
   fastify.register(bundleRoutes, { prefix: '/api/bundle', storagePath: config.STORAGE_PATH });
   fastify.register(notificationRoutes, { prefix: '/api/notifications' });
+  fastify.register(settingsRoutes, { prefix: '/api/settings' });
 
   return fastify;
 }

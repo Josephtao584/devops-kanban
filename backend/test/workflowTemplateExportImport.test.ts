@@ -1,8 +1,9 @@
 import { describe, it, mock, beforeEach } from 'node:test';
-import assert from 'node:assert/strict';
+import * as assert from 'node:assert/strict';
 import { WorkflowTemplateService } from '../src/services/workflow/workflowTemplateService.js';
 import { NotFoundError } from '../src/utils/errors.js';
 import type { WorkflowTemplateEntity, AgentEntity } from '../src/types/entities.js';
+import { ExecutorType } from '../src/types/executors.js';
 import type { ExportFile } from '../src/types/dto/workflowTemplates.js';
 
 // --- Mock factories ---
@@ -48,7 +49,7 @@ function createMockAgentRepo(agents: AgentEntity[] = []) {
 const sampleAgent: AgentEntity = {
   id: 1,
   name: 'Claude Code',
-  executorType: 'claude-code',
+  executorType: ExecutorType.CLAUDE_CODE,
   role: 'Developer',
   description: 'Test agent',
   enabled: true,
@@ -94,9 +95,9 @@ describe('WorkflowTemplateService - Export', () => {
 
     assert.equal(result.version, '1.0');
     assert.equal(result.templates.length, 1);
-    assert.equal(result.templates[0].template_id, 'test-workflow');
-    assert.equal(result.templates[0].steps[0].agentName, 'Claude Code');
-    assert.equal(result.templates[0].steps[1].agentName, 'Claude Code');
+    assert.equal(result.templates[0]!.template_id, 'test-workflow');
+    assert.equal(result.templates[0]!.steps[0]!.agentName, 'Claude Code');
+    assert.equal(result.templates[0]!.steps[1]!.agentName, 'Claude Code');
     assert.ok(result.exportedAt);
   });
 
@@ -141,7 +142,7 @@ describe('WorkflowTemplateService - Export', () => {
     });
 
     const result = await service.exportTemplate('test-workflow');
-    assert.equal(result.templates[0].steps[0].agentName, 'Agent#1');
+    assert.equal(result.templates[0]!.steps[0]!.agentName, 'Agent#1');
   });
 });
 
@@ -237,8 +238,8 @@ describe('WorkflowTemplateService - Import Confirm', () => {
     });
 
     assert.equal(result.imported.length, 1);
-    assert.equal(result.imported[0].template_id, 'brand-new');
-    assert.equal(result.imported[0].steps[0].agentId, 1);
+    assert.equal(result.imported[0]!.template_id, 'brand-new');
+    assert.equal(result.imported[0]!.steps[0]!.agentId, 1);
     assert.deepEqual(result.skipped, []);
   });
 
@@ -269,7 +270,7 @@ describe('WorkflowTemplateService - Import Confirm', () => {
     });
 
     assert.equal(result.imported.length, 1);
-    assert.equal(result.imported[0].name, 'Updated Name');
+    assert.equal(result.imported[0]!.name, 'Updated Name');
   });
 
   it('should create a copy with renamed ID with copy strategy', async () => {
@@ -284,8 +285,8 @@ describe('WorkflowTemplateService - Import Confirm', () => {
     });
 
     assert.equal(result.imported.length, 1);
-    assert.equal(result.imported[0].template_id, 'test-workflow-copy');
-    assert.ok(result.imported[0].name.includes('副本'));
+    assert.equal(result.imported[0]!.template_id, 'test-workflow-copy');
+    assert.ok(result.imported[0]!.name.includes('副本'));
   });
 
   it('should use agentMappings for unmatched agents', async () => {
@@ -299,7 +300,7 @@ describe('WorkflowTemplateService - Import Confirm', () => {
       agentMappings: { 'Missing Agent': 1 },
     });
 
-    assert.equal(result.imported[0].steps[0].agentId, 1);
+    assert.equal(result.imported[0]!.steps[0]!.agentId, 1);
   });
 
   it('should fallback to agentId 0 when agent not found and no mapping', async () => {
@@ -313,14 +314,14 @@ describe('WorkflowTemplateService - Import Confirm', () => {
       agentMappings: {},
     });
 
-    assert.equal(result.imported[0].steps[0].agentId, 0);
+    assert.equal(result.imported[0]!.steps[0]!.agentId, 0);
   });
 
   it('should reject invalid strategy', async () => {
     await assert.rejects(
       () => service.confirmImport({
         templates: [{ template_id: 'test', name: 'Test', steps: [{ id: 's1', name: 'Step', instructionPrompt: 'Do it', agentName: 'Claude Code' }] }],
-        strategy: 'invalid',
+        strategy: 'invalid' as 'skip',
         agentMappings: {},
       }),
       (error: unknown) => {

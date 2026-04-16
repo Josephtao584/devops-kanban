@@ -30,11 +30,6 @@ class TaskSourceRepository extends BaseRepository<TaskSourceEntity> {
     return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
-  async exists(sourceId: number): Promise<boolean> {
-    const source = await this.findById(sourceId);
-    return source !== null;
-  }
-
   async deleteByProject(projectId: number): Promise<number> {
     const result = await this.client.execute({
       sql: 'DELETE FROM task_sources WHERE project_id = ?',

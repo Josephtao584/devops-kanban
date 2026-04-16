@@ -56,8 +56,7 @@ describe('useBrowserNotifications', () => {
 
   it('does not show notification when globally disabled', () => {
     localStorage.setItem('notification-settings', JSON.stringify({
-      enabled: false,
-      events: { workflowSuspended: true }
+      enabled: false
     }))
 
     const mockNotification = vi.fn()
@@ -67,23 +66,6 @@ describe('useBrowserNotifications', () => {
 
     const { showNotification } = useBrowserNotifications()
     showNotification('Test', { body: 'Body' })
-
-    expect(mockNotification).not.toHaveBeenCalled()
-  })
-
-  it('does not show notification when event type disabled', () => {
-    localStorage.setItem('notification-settings', JSON.stringify({
-      enabled: true,
-      events: { workflowSuspended: false }
-    }))
-
-    const mockNotification = vi.fn()
-    window.Notification = mockNotification
-    mockNotification.permission = 'granted'
-    mockNotification.requestPermission = vi.fn()
-
-    const { showNotification } = useBrowserNotifications()
-    showNotification('Test', { body: 'Body', eventType: 'workflowSuspended' })
 
     expect(mockNotification).not.toHaveBeenCalled()
   })

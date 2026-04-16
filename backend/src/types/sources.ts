@@ -28,6 +28,9 @@ export interface SourceRecord {
   config: Record<string, unknown>;
   enabled?: boolean;
   last_sync_at?: string | null;
+  sync_schedule?: string | null;
+  default_workflow_template_id?: string | null;
+  last_scheduled_sync_at?: string | null;
 }
 
 export interface ImportedTask {

@@ -12,7 +12,7 @@ import { ValidationError, NotFoundError, ConflictError, BusinessError } from '..
 import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../../config/index.js';
-import path from 'node:path';
+import * as path from 'node:path';
 
 
 function toStepState(instance: WorkflowInstanceEntity) {
@@ -68,15 +68,65 @@ class WorkflowService {
       workflowRunRepo: this.workflowRunRepo,
       taskRepo: this.taskRepo,
       onWorkflowNotification: (event) => {
-        // Send chat/webhook notification
-        const statusMessages: Record<string, string> = {
-          SUSPENDED: '工作流等待确认',
-          COMPLETED: '工作流已完成',
-          FAILED: '工作流执行失败',
-        };
-        const content = `${event.taskTitle}: ${statusMessages[event.type] || event.type}`;
-        notificationService.sendNotification(content).catch((err) => {
-          logger.warn('WorkflowService', `Notification hook failed: ${err.message}`);
+        notificationService.shouldNotify(event.type).then(async (enabled) => {
+          if (!enabled) return;
+
+          try {
+            // Fetch project name for header
+            const task = await this.taskRepo.findById(event.taskId);
+            let projectName = '';
+            if (task?.project_id) {
+              const project = await this.projectRepo.findById(task.project_id);
+              projectName = project?.name || '';
+            }
+            const header = projectName
+              ? `[DevOps-Kanban:${projectName}] ${event.taskTitle}`
+              : `[DevOps-Kanban] ${event.taskTitle}`;
+
+            const completedSteps = event.steps
+              .filter((s) => s.status === 'COMPLETED' && s.summary)
+              .map((s) => `${s.name}: ${s.summary}`);
+
+            let content = '';
+            if (event.type === 'SUSPENDED') {
+              const stepName = event.steps.find((s) => s.stepId === event.currentStepId)?.name || event.currentStepId || '';
+              const parts = [`${header} - 工作流等待确认`];
+              if (stepName) parts.push(`步骤: ${stepName}`);
+              if (event.suspendInfo?.reason) parts.push(`原因: ${event.suspendInfo.reason}`);
+              const question = event.suspendInfo?.askUserQuestion;
+              if (question && typeof question === 'object' && 'question' in question) {
+                parts.push(`问题: ${(question as { question: string }).question}`);
+              }
+              if (completedSteps.length > 0) {
+                parts.push(`已完成步骤: ${completedSteps.join('; ')}`);
+              }
+              content = parts.join('\n');
+            } else if (event.type === 'COMPLETED') {
+              const parts = [`${header} - 工作流已完成`];
+              if (completedSteps.length > 0) {
+                parts.push(`步骤概要: ${completedSteps.join('; ')}`);
+              }
+              content = parts.join('\n');
+            } else if (event.type === 'FAILED') {
+              const failedStep = event.steps.find((s) => s.status === 'FAILED');
+              const stepName = failedStep?.name || event.steps.find((s) => s.stepId === event.currentStepId)?.name || '';
+              const parts = [`${header} - 工作流执行失败`];
+              if (stepName) parts.push(`失败步骤: ${stepName}`);
+              parts.push(`错误: ${event.errorMessage || '未知错误'}`);
+              if (completedSteps.length > 0) {
+                parts.push(`已完成步骤: ${completedSteps.join('; ')}`);
+              }
+              content = parts.join('\n');
+            } else {
+              content = `${header}: ${event.type}`;
+            }
+
+            await notificationService.sendNotification(content);
+          } catch (err) {
+            logger.warn('WorkflowService', `Notification enrichment failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }).catch((err) => {
+          logger.warn('WorkflowService', `Notification event check failed: ${err.message}`);
         });
       },
     });

@@ -62,7 +62,7 @@ test.test('_buildBugListBody handles non-numeric userId', () => {
   const adapter = createAdapter({ userId: 'user-abc' });
   const body = adapter._buildBugListBody(2);
 
-  const ownerFilter = body.filters[1];
+  const ownerFilter = (body.filters as Array<Record<string, unknown>>)[1];
   assert.ok(ownerFilter);
   assert.deepEqual(ownerFilter.value, ['user-abc']);
   assert.deepEqual(body.pagination, { current_page: 2, page_size: 10 });
@@ -78,7 +78,7 @@ test.test('_buildBugListBody handles missing userId', () => {
     },
   });
   const body = adapter._buildBugListBody(1);
-  const ownerFilter = body.filters[1];
+  const ownerFilter = (body.filters as Array<Record<string, unknown>>)[1];
   assert.ok(ownerFilter);
   assert.deepEqual(ownerFilter.value, ['']);
 });
@@ -252,8 +252,8 @@ test.test('BugAdapter fetches paginated list and detail, maps to tasks', async (
 
 test.test('BugAdapter fetch throws when baseUrl is missing', async () => {
   const adapter = createAdapter({});
-  delete (adapter as Record<string, unknown>).baseUrl;
-  (adapter as Record<string, unknown>).baseUrl = '';
+  delete (adapter as unknown as Record<string, unknown>).baseUrl;
+  (adapter as unknown as Record<string, unknown>).baseUrl = '';
 
   await assert.rejects(() => adapter.fetch(), /baseUrl is required/);
 });
@@ -301,8 +301,8 @@ test.test('BugAdapter testConnection returns false when API returns non-200', as
 
 test.test('BugAdapter testConnection returns false when baseUrl missing', async () => {
   const adapter = createAdapter({});
-  delete (adapter as Record<string, unknown>).baseUrl;
-  (adapter as Record<string, unknown>).baseUrl = '';
+  delete (adapter as unknown as Record<string, unknown>).baseUrl;
+  (adapter as unknown as Record<string, unknown>).baseUrl = '';
 
   assert.equal(await adapter.testConnection(), false);
 });

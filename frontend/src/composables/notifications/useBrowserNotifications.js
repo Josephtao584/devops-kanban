@@ -3,7 +3,7 @@ import { useNotificationSettings } from './useNotificationSettings'
 import { sendNotification as apiSendNotification } from '../../api/notification'
 
 export function useBrowserNotifications() {
-  const { enabled, chatEnabled, events } = useNotificationSettings()
+  const { enabled, chatEnabled } = useNotificationSettings()
 
   const supported = typeof window !== 'undefined' && 'Notification' in window
   const permission = ref(supported ? window.Notification.permission : 'denied')
@@ -20,10 +20,7 @@ export function useBrowserNotifications() {
     if (permission.value !== 'granted') return null
     if (!enabled.value) return null
 
-    const { eventType, ...notificationOptions } = options
-    if (eventType && events.value[eventType] === false) return null
-
-    const notification = new window.Notification(title, notificationOptions)
+    const notification = new window.Notification(title, options)
     notification.onclick = () => {
       window.focus()
       notification.close()

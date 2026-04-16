@@ -77,6 +77,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         'title', 'description', 'project_id', 'iteration_id', 'status',
         'priority', 'assignee', 'due_date', 'external_id', 'workflow_run_id',
         'worktree_path', 'worktree_branch', 'order',
+        'auto_execute', 'auto_execute_template_id',
       ];
       for (const key of allowedKeys) {
         if ((body as any)[key] !== undefined) {

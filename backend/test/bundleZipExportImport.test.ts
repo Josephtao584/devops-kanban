@@ -1,5 +1,5 @@
-import { describe, it, mock, beforeEach } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, mock } from 'node:test';
+import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -7,7 +7,8 @@ import AdmZip from 'adm-zip';
 import { BundleService } from '../src/services/bundleService.js';
 import { ValidationError } from '../src/utils/errors.js';
 import type { WorkflowTemplateEntity, AgentEntity, SkillEntity, McpServerEntity } from '../src/types/entities.js';
-import type { BundleExportFile, BundleImportConfirmInput } from '../src/types/dto/bundle.js';
+import { ExecutorType } from '../src/types/executors.js';
+import type { BundleExportFile } from '../src/types/dto/bundle.js';
 
 // --- Mock factories (same as bundleExportImport.test.ts) ---
 
@@ -110,7 +111,7 @@ const skillGit: SkillEntity = {
 };
 
 const agentAnalyst: AgentEntity = {
-  id: 1, name: '分析师', executorType: 'claude-code', role: 'analyzer',
+  id: 1, name: '分析师', executorType: ExecutorType.CLAUDE_CODE, role: 'analyzer',
   description: 'Analyzes code', enabled: true,
   skills: [1], mcpServers: [],
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
@@ -178,10 +179,10 @@ describe('BundleService - exportBundleAsZipBuffer', () => {
       const bundleEntry = zip.getEntry('bundle.json');
       assert.ok(bundleEntry, 'ZIP should contain bundle.json');
 
-      const bundle: BundleExportFile = JSON.parse(bundleEntry.getData().toString('utf-8'));
+      const bundle: BundleExportFile = JSON.parse(bundleEntry!.getData().toString('utf-8'));
       assert.equal(bundle.version, '2.1');
       assert.equal(bundle.templates.length, 1);
-      assert.equal(bundle.templates[0].template_id, 'cve-fix');
+      assert.equal(bundle.templates[0]!.template_id, 'cve-fix');
       assert.equal(bundle.agents.length, 1);
       assert.equal(bundle.skills.length, 1);
     });
@@ -210,8 +211,8 @@ describe('BundleService - exportBundleAsZipBuffer', () => {
 
       assert.ok(skillMd, 'ZIP should contain skills/git/SKILL.md');
       assert.ok(instructionsMd, 'ZIP should contain skills/git/instructions.md');
-      assert.equal(skillMd.getData().toString('utf-8'), '---\nname: Git\n---\nGit skill content');
-      assert.equal(instructionsMd.getData().toString('utf-8'), 'Use git commands');
+      assert.equal(skillMd!.getData().toString('utf-8'), '---\nname: Git\n---\nGit skill content');
+      assert.equal(instructionsMd!.getData().toString('utf-8'), 'Use git commands');
     });
   });
 
@@ -231,7 +232,7 @@ describe('BundleService - exportBundleAsZipBuffer', () => {
       const bundleEntry = zip.getEntry('bundle.json');
       assert.ok(bundleEntry);
 
-      const bundle: BundleExportFile = JSON.parse(bundleEntry.getData().toString('utf-8'));
+      const bundle: BundleExportFile = JSON.parse(bundleEntry!.getData().toString('utf-8'));
       // Skill metadata still in bundle.json even though files don't exist
       assert.equal(bundle.skills.length, 1);
 
@@ -337,7 +338,7 @@ describe('BundleService - previewImportFromZip', () => {
 describe('BundleService - confirmImportFromZip', () => {
   it('should import entities and extract skill files to disk', async () => {
     await withTempDir(async (tmp) => {
-      const { service, agentRepo, templateRepo } = createService([], [], [], [], tmp);
+      const { service } = createService([], [], [], [], tmp);
 
       const zip = new AdmZip();
       const bundleData: BundleExportFile = {
@@ -452,7 +453,7 @@ describe('BundleService - confirmImportFromZip', () => {
       const result = await service.confirmImportFromZip(zipBuffer, 'overwrite');
 
       assert.equal(result.imported.skills, 1);
-      const updated = (await skillRepo.findAll())[0];
+      const updated = (await skillRepo.findAll())[0]!;
       assert.equal(updated.description, 'New');
 
       // Skill file should be written

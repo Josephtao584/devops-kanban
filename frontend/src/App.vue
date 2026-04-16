@@ -75,6 +75,7 @@
 
       <!-- 底部操作区 -->
       <div class="sidebar-footer">
+        <SchedulerConfig :sidebar-collapsed="isSidebarCollapsed" />
         <NotificationBell :sidebar-collapsed="isSidebarCollapsed" />
       </div>
     </aside>
@@ -89,6 +90,7 @@
 <script setup>
 import { ref } from 'vue'
 import NotificationBell from './components/NotificationBell.vue'
+import SchedulerConfig from './components/SchedulerConfig.vue'
 
 const isSidebarCollapsed = ref(true)
 

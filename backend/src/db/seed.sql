@@ -54,3 +54,8 @@ INSERT INTO tasks (id, title, description, project_id, status, priority, source,
 -- === task_sources ===
 INSERT INTO task_sources (id, name, type, project_id, config, enabled, last_sync_at, created_at, updated_at) VALUES
   (1, 'git', 'GITHUB', 1, '{"repo":"https://github.com/example/your-repo.git","token":"","state":"open"}', 1, '2026-03-18T06:30:45.183Z', '2026-03-18T11:36:52.653Z', '2026-03-18T06:30:45.183Z');
+
+-- === settings ===
+INSERT INTO settings (key, value, updated_at) VALUES ('scheduler.workflow_dispatch_cron', '*/5 * * * *', datetime('now'));
+INSERT INTO settings (key, value, updated_at) VALUES ('scheduler.max_concurrent_workflows', '3', datetime('now'));
+INSERT INTO settings (key, value, updated_at) VALUES ('scheduler.max_tasks_per_execution', '10', datetime('now'));

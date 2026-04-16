@@ -5,16 +5,29 @@ import * as https from 'node:https';
 import * as yaml from 'yaml';
 import { logger } from '../utils/logger.js';
 
+interface NotificationEvents {
+  workflowSuspended: boolean;
+  workflowCompleted: boolean;
+  workflowFailed: boolean;
+}
+
 interface NotificationConfig {
   url: string;
   receiver: string;
   auth: string;
+  events?: NotificationEvents | undefined;
 }
 
 interface HttpResponse {
   ok: boolean;
   status: number;
 }
+
+const DEFAULT_EVENTS: NotificationEvents = {
+  workflowSuspended: true,
+  workflowCompleted: false,
+  workflowFailed: false,
+};
 
 class NotificationService {
   private filePath: string;
@@ -33,7 +46,7 @@ class NotificationService {
       const raw = await fs.readFile(this.filePath, 'utf-8');
       const config = JSON.parse(raw);
       if (typeof config.url === 'string' && config.url) {
-        return config as NotificationConfig;
+        return { ...config, events: { ...DEFAULT_EVENTS, ...config.events } } as NotificationConfig;
       }
     } catch {
       // JSON 不存在或无效，继续尝试 YAML 默认配置
@@ -44,7 +57,7 @@ class NotificationService {
       const raw = await fs.readFile(this.defaultYamlPath, 'utf-8');
       const config = yaml.parse(raw) as NotificationConfig;
       if (config && typeof config.url === 'string' && config.url) {
-        return config;
+        return { ...config, events: { ...DEFAULT_EVENTS, ...config.events } };
       }
       return null;
     } catch {
@@ -90,6 +103,14 @@ class NotificationService {
       req.write(bodyStr);
       req.end();
     });
+  }
+
+  async shouldNotify(eventType: string): Promise<boolean> {
+    const config = await this.getConfig();
+    if (!config) return false;
+    const events = config.events || DEFAULT_EVENTS;
+    const key = `workflow${eventType.charAt(0) + eventType.slice(1).toLowerCase()}` as keyof NotificationEvents;
+    return events[key] !== false;
   }
 
   async sendNotification(content: string): Promise<boolean> {

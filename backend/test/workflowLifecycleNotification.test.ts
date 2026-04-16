@@ -1,9 +1,10 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import { WorkflowLifecycle } from '../src/services/workflow/workflowLifecycle.js';
+import type { WorkflowNotificationEvent } from '../src/services/notificationEvents.js';
 
 function createNotificationHarness() {
-  const notifications: Array<{ type: string; runId: number; taskId: number; taskTitle: string }> = [];
+  const notifications: WorkflowNotificationEvent[] = [];
 
   const run = {
     id: 7,
@@ -11,7 +12,9 @@ function createNotificationHarness() {
     workflow_id: 'test-wf',
     workflow_template_id: 'test-wf',
     workflow_template_snapshot: { steps: [] },
+    workflow_instance_id: 'inst-1',
     status: 'RUNNING',
+    mastra_run_id: null,
     current_step: 'step-1',
     steps: [
       {
@@ -36,11 +39,11 @@ function createNotificationHarness() {
   const lifecycle = new WorkflowLifecycle({
     workflowRunRepo: {
       async findById() { return run; },
-      async update(runId: number, data: Record<string, unknown>) {
+      async update(_runId: number, data: Record<string, unknown>) {
         Object.assign(run, data);
         return run;
       },
-      async updateStep(runId: number, stepId: string, data: Record<string, unknown>) {
+      async updateStep(_runId: number, stepId: string, data: Record<string, unknown>) {
         const step = run.steps.find((s) => s.step_id === stepId);
         if (step) Object.assign(step, data);
         return run;
@@ -71,8 +74,11 @@ function createNotificationHarness() {
   return { lifecycle, notifications, run };
 }
 
-test.test('onWorkflowComplete emits notification with task info', async () => {
-  const { lifecycle, notifications } = createNotificationHarness();
+test.test('onWorkflowComplete emits notification with task info and steps', async () => {
+  const { lifecycle, notifications, run } = createNotificationHarness();
+  // Simulate step completed before workflow completes
+  run.steps[0].status = 'COMPLETED';
+  run.steps[0].summary = 'All done';
 
   await lifecycle.onWorkflowComplete(7, { result: 'success' });
 
@@ -81,10 +87,15 @@ test.test('onWorkflowComplete emits notification with task info', async () => {
   assert.equal(notifications[0].runId, 7);
   assert.equal(notifications[0].taskId, 42);
   assert.equal(notifications[0].taskTitle, 'My Important Task');
+  assert.equal(notifications[0].steps.length, 1);
+  assert.equal(notifications[0].steps[0].name, 'Test Step');
+  assert.equal(notifications[0].steps[0].status, 'COMPLETED');
+  assert.equal(notifications[0].steps[0].summary, 'All done');
+  assert.equal(notifications[0].currentStepId, null);
 });
 
-test.test('onWorkflowError emits notification with task info', async () => {
-  const { lifecycle, notifications } = createNotificationHarness();
+test.test('onWorkflowError emits notification with error message and step', async () => {
+  const { lifecycle, notifications, run } = createNotificationHarness();
 
   await lifecycle.onWorkflowError(7, 'Something went wrong');
 
@@ -93,9 +104,12 @@ test.test('onWorkflowError emits notification with task info', async () => {
   assert.equal(notifications[0].runId, 7);
   assert.equal(notifications[0].taskId, 42);
   assert.equal(notifications[0].taskTitle, 'My Important Task');
+  assert.equal(notifications[0].errorMessage, 'Something went wrong');
+  assert.equal(notifications[0].currentStepId, 'step-1');
+  assert.equal(notifications[0].steps.length, 1);
 });
 
-test.test('onStepSuspend emits notification with task info', async () => {
+test.test('onStepSuspend emits notification with suspend info', async () => {
   const { lifecycle, notifications } = createNotificationHarness();
 
   await lifecycle.onStepSuspend(7, 'step-1', {
@@ -108,6 +122,30 @@ test.test('onStepSuspend emits notification with task info', async () => {
   assert.equal(notifications[0].runId, 7);
   assert.equal(notifications[0].taskId, 42);
   assert.equal(notifications[0].taskTitle, 'My Important Task');
+  assert.equal(notifications[0].currentStepId, 'step-1');
+  assert.ok(notifications[0].suspendInfo);
+  assert.equal(notifications[0].suspendInfo.reason, 'Waiting for confirmation');
+  assert.equal(notifications[0].suspendInfo.summary, 'Please confirm');
+  assert.equal(notifications[0].suspendInfo.askUserQuestion, undefined);
+});
+
+test.test('onStepSuspend includes ask_user_question in notification', async () => {
+  const { lifecycle, notifications } = createNotificationHarness();
+
+  await lifecycle.onStepSuspend(7, 'step-1', {
+    reason: 'Needs approval',
+    ask_user_question: { question: 'Should we proceed?', options: ['Yes', 'No'] },
+  });
+
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].type, 'SUSPENDED');
+  assert.ok(notifications[0].suspendInfo);
+  assert.equal(notifications[0].suspendInfo.reason, 'Needs approval');
+  assert.deepEqual(notifications[0].suspendInfo.askUserQuestion, {
+    question: 'Should we proceed?',
+    options: ['Yes', 'No'],
+  });
+
 });
 
 test.test('no notification emitted when callback not provided', async () => {

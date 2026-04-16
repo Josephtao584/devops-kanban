@@ -90,12 +90,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { computed } from 'vue'
 import { Check, Upload } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
 import { mcpServerApi } from '../../api/mcpServer.js'
+import { useImportDialog } from '../../composables/useImportDialog'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -103,226 +102,63 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'imported'])
 
-const { t } = useI18n()
-
-const step = ref('upload')
-const fileInput = ref(null)
-const previewData = ref({ servers: [], existingServerNames: [] })
-const strategy = ref('copy')
-const importing = ref(false)
-const result = ref({ imported: [], skipped: [] })
+const {
+  step, fileInput, strategy, importing, previewData, result,
+  triggerFileInput, handleFileSelect, handleDrop,
+  handleConfirmImport: doConfirmImport,
+  resetToUpload, handleClose: doClose
+} = useImportDialog({
+  defaultPreviewData: { servers: [], existingServerNames: [] },
+  defaultResultData: { imported: [], skipped: [] },
+  onParseFile: async (file, { setPreview, setError, t }) => {
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      if (!data.servers || !Array.isArray(data.servers)) {
+        setError(t('mcpServer.importInvalidFile'))
+        return
+      }
+      const response = await mcpServerApi.previewImportMcpServers(data)
+      if (!response?.success) {
+        setError(response?.message || t('mcpServer.importPreviewFailed'))
+        return
+      }
+      setPreview(response.data)
+    } catch {
+      setError(t('mcpServer.importInvalidFile'))
+    }
+  },
+  onConfirmImport: async ({ previewData, strategy }) => {
+    const response = await mcpServerApi.confirmImportMcpServers({
+      servers: previewData.servers,
+      strategy,
+      nameMappings: {},
+    })
+    if (!response?.success) {
+      throw new Error(response?.message || 'Import failed')
+    }
+    return response.data
+  },
+  onClose: () => {
+    emit('update:modelValue', false)
+  }
+})
 
 const hasConflicts = computed(() => previewData.value.existingServerNames.length > 0)
 const isExisting = (name) => previewData.value.existingServerNames.includes(name)
 
-const triggerFileInput = () => {
-  fileInput.value?.click()
-}
-
-const handleFileSelect = (event) => {
-  const file = event.target.files?.[0]
-  if (file) parseFile(file)
-}
-
-const handleDrop = (event) => {
-  const file = event.dataTransfer?.files?.[0]
-  if (file) parseFile(file)
-}
-
-const parseFile = async (file) => {
-  try {
-    const text = await file.text()
-    const data = JSON.parse(text)
-    if (!data.servers || !Array.isArray(data.servers)) {
-      ElMessage.error(t('mcpServer.importInvalidFile'))
-      return
-    }
-    await doPreview(data)
-  } catch {
-    ElMessage.error(t('mcpServer.importInvalidFile'))
-  }
-}
-
-const doPreview = async (exportData) => {
-  try {
-    const response = await mcpServerApi.previewImportMcpServers(exportData)
-    if (!response?.success) {
-      ElMessage.error(response?.message || t('mcpServer.importPreviewFailed'))
-      return
-    }
-    previewData.value = response.data
-    step.value = 'preview'
-  } catch (error) {
-    ElMessage.error(error?.message || t('mcpServer.importPreviewFailed'))
-  }
-}
-
 const handleConfirmImport = async () => {
-  importing.value = true
-  try {
-    const response = await mcpServerApi.confirmImportMcpServers({
-      servers: previewData.value.servers,
-      strategy: strategy.value,
-      nameMappings: {},
-    })
-    if (!response?.success) {
-      ElMessage.error(response?.message || t('mcpServer.importFailed'))
-      return
-    }
-    result.value = response.data
-    step.value = 'result'
-    emit('imported', result.value)
-  } catch (error) {
-    ElMessage.error(error?.message || t('mcpServer.importFailed'))
-  } finally {
-    importing.value = false
+  const importResult = await doConfirmImport()
+  if (importResult) {
+    emit('imported', importResult)
   }
-}
-
-const resetToUpload = () => {
-  step.value = 'upload'
-  previewData.value = { servers: [], existingServerNames: [] }
-  if (fileInput.value) fileInput.value.value = ''
 }
 
 const handleClose = () => {
-  step.value = 'upload'
-  previewData.value = { servers: [], existingServerNames: [] }
-  result.value = { imported: [], skipped: [] }
-  importing.value = false
-  emit('update:modelValue', false)
+  doClose()
 }
 </script>
 
 <style scoped>
-.import-dialog {
-  min-height: 120px;
-}
-
-.import-step {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.upload-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 40px 20px;
-  border: 2px dashed var(--border-color);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.upload-zone:hover {
-  border-color: var(--accent-color);
-  background: rgba(37, 198, 201, 0.03);
-}
-
-.upload-icon {
-  color: var(--text-secondary);
-}
-
-.upload-text {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.preview-summary {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  padding: 8px 0;
-}
-
-.preview-table {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.preview-template-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-}
-
-.preview-template-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.preview-template-name {
-  font-weight: 600;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-}
-
-.preview-template-id {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-.preview-template-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.import-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.import-section-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.import-result-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.import-result-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.import-result-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
-
-.import-result-id {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-  margin-left: auto;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
+@import '../../styles/import-dialog.css';
 </style>

@@ -95,6 +95,17 @@ const ElIconStub = defineComponent({
   }
 })
 
+const ElCheckboxStub = defineComponent({
+  name: 'ElCheckboxStub',
+  props: {
+    modelValue: { type: Boolean, default: false }
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () => h('div', { class: 'el-checkbox-stub' })
+  }
+})
+
 const ElInputStub = defineComponent({
   name: 'ElInputStub',
   props: {
@@ -223,7 +234,8 @@ function mountDialog(props = {}) {
         'el-select': ElSelectStub,
         'el-option': ElOptionStub,
         'el-tag': ElTagStub,
-        'el-switch': ElSwitchStub
+        'el-switch': ElSwitchStub,
+        'el-checkbox': ElCheckboxStub
       }
     }
   })
@@ -376,7 +388,8 @@ describe('WorkflowStartEditorDialog', () => {
             requiresConfirmation: false
           }
         ]
-      }
+      },
+      true
     ]])
   })
 
@@ -445,6 +458,7 @@ describe('WorkflowStartEditorDialog', () => {
     const emitted = wrapper.emitted('confirm')
     expect(emitted).toHaveLength(1)
     const payload = emitted[0][0]
+    expect(emitted[0][1]).toBe(true) // autoCreateWorktree
     expect(payload.steps.map((step) => step.name)).toContain('回归验证')
     expect(payload.steps.find((step) => step.name === '回归验证').agentId).toBe(3)
     expect(payload.steps.find((step) => step.name === '回归验证').instructionPrompt).toBe('执行回归验证并记录结果。')

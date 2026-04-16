@@ -34,12 +34,17 @@
         <div class="source-details">
           <div class="detail-row">
             <span class="label">{{ $t('taskSource.lastSync', '最后同步') }}:</span>
-            <span class="value">{{ formatDateTime(source.last_sync_at) || '-' }}</span>
+            <span class="value">{{ formatDateTimeWithFallback(source.last_sync_at) }}</span>
           </div>
           <div class="detail-row">
             <span class="label">{{ $t('taskSource.status', '状态') }}:</span>
             <span class="value">{{ source.enabled ? $t('taskSource.enabled', '已启用') : $t('taskSource.disabled', '已禁用') }}</span>
           </div>
+        </div>
+
+        <div v-if="source.sync_schedule" class="source-schedule-badge">
+          <span class="schedule-dot"></span>
+          <span class="schedule-text">{{ formatScheduleLabel(source.sync_schedule) }}</span>
         </div>
 
         <div class="source-actions">
@@ -69,7 +74,7 @@
       append-to-body
     >
       <div class="dialog-content">
-        <el-form ref="formRef" :model="formData" :rules="formRules" label-position="top">
+        <el-form ref="formRef" :model="formData" :rules="formRules" label-position="top" size="small">
           <div class="form-section">
             <div class="section-title">基本信息</div>
             <el-form-item :label="$t('taskSource.name', '名称')" prop="name">
@@ -164,6 +169,38 @@
           <div class="form-section">
             <el-form-item :label="$t('taskSource.enabled', '启用')" prop="enabled">
               <el-switch v-model="formData.enabled" />
+            </el-form-item>
+          </div>
+
+          <div class="form-section">
+            <el-form-item :label="$t('taskSource.syncFrequency', '同步频率')">
+              <el-select v-model="formData.sync_schedule" clearable :placeholder="$t('taskSource.scheduleDisabled', '不启用')">
+                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" :value="null" />
+                <el-option label="每 5 分钟" value="*/5 * * * *" />
+                <el-option label="每 15 分钟" value="*/15 * * * *" />
+                <el-option label="每 30 分钟" value="*/30 * * * *" />
+                <el-option label="每小时" value="0 * * * *" />
+                <el-option label="每 6 小时" value="0 */6 * * *" />
+                <el-option label="每天" value="0 0 * * *" />
+                <el-option label="自定义" value="__custom__" />
+              </el-select>
+              <el-input
+                v-if="formData.sync_schedule === '__custom__'"
+                v-model="customCronExpression"
+                style="margin-top: 8px;"
+                :placeholder="$t('taskSource.scheduleCustomPlaceholder', '输入 cron 表达式')"
+              />
+            </el-form-item>
+
+            <el-form-item v-if="formData.sync_schedule && formData.sync_schedule !== '__custom__'" :label="$t('taskSource.defaultWorkflowTemplate', '默认工作流模板')">
+              <el-select v-model="formData.default_workflow_template_id" :placeholder="$t('taskSource.autoWorkflowNone', '不自动触发')" clearable style="width: 100%;">
+                <el-option
+                  v-for="tpl in workflowTemplates"
+                  :key="tpl.template_id"
+                  :label="tpl.name"
+                  :value="tpl.template_id"
+                />
+              </el-select>
             </el-form-item>
           </div>
         </el-form>
@@ -299,6 +336,8 @@ import BaseDialog from '../BaseDialog.vue'
 import { ElMessageBox } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useToast } from '../../composables/ui/useToast'
+import { formatDateTime } from '../../utils/dateFormat'
+import api from '../../api/index.js'
 
 const props = defineProps({
   projectId: {
@@ -333,12 +372,17 @@ const descriptionRefs = ref({})
 
 const availableLabels = ref({})
 
+const customCronExpression = ref('')
+const workflowTemplates = ref([])
+
 const formData = ref({
   name: '',
   type: '',
   project_id: null,
   config: {},
-  enabled: true
+  enabled: true,
+  sync_schedule: null,
+  default_workflow_template_id: null,
 })
 
 const formRules = {
@@ -358,6 +402,7 @@ const loadData = async () => {
     taskSourceStore.fetchTaskSources(props.projectId),
     taskSourceStore.loadAvailableTypes()
   ])
+  await taskSourceStore.fetchAllScheduleStatuses()
 }
 
 watch(() => props.visible, async (newVal) => {
@@ -386,9 +431,30 @@ const handleCollapse = () => {
 }
 
 // --- Helpers ---
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString()
+const formatDateTimeWithFallback = (dateStr) => formatDateTime(dateStr, { fallback: '-' })
+
+const scheduleLabels = {
+  '*/5 * * * *': '每5分钟',
+  '*/15 * * * *': '每15分钟',
+  '*/30 * * * *': '每30分钟',
+  '0 * * * *': '每小时',
+  '0 */6 * * *': '每6小时',
+  '0 0 * * *': '每天',
+}
+
+const formatScheduleLabel = (cronExpr) => {
+  return scheduleLabels[cronExpr] || cronExpr
+}
+
+const loadWorkflowTemplates = async () => {
+  try {
+    const response = await api.get('/workflow-template')
+    if (response?.success) {
+      workflowTemplates.value = response.data || []
+    }
+  } catch (e) {
+    console.warn('Failed to load workflow templates:', e)
+  }
 }
 
 const getTypeLabel = (type) => {
@@ -516,9 +582,13 @@ const showAddDialog = () => {
     type,
     project_id: props.projectId,
     config: defaultConfig,
-    enabled: true
+    enabled: true,
+    sync_schedule: null,
+    default_workflow_template_id: null,
   }
+  customCronExpression.value = ''
   dialogVisible.value = true
+  loadWorkflowTemplates()
 }
 
 const editSource = (source) => {
@@ -529,15 +599,29 @@ const editSource = (source) => {
     config.token = '****'
   }
 
+  // Detect if schedule is a custom (non-preset) cron expression
+  const presetCrons = ['*/5 * * * *', '*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 */6 * * *', '0 0 * * *']
+  let scheduleValue = source.sync_schedule || null
+  let customCron = ''
+
+  if (scheduleValue && !presetCrons.includes(scheduleValue)) {
+    customCron = scheduleValue
+    scheduleValue = '__custom__'
+  }
+
   formData.value = {
     id: source.id,
     name: source.name,
     type: source.type,
     project_id: source.project_id,
     config,
-    enabled: source.enabled
+    enabled: source.enabled,
+    sync_schedule: scheduleValue,
+    default_workflow_template_id: source.default_workflow_template_id || null,
   }
+  customCronExpression.value = customCron
   dialogVisible.value = true
+  loadWorkflowTemplates()
 }
 
 const sanitizeTokenForSubmit = (payload, originalSource) => {
@@ -574,13 +658,20 @@ const submitForm = async () => {
     await formRef.value.validate()
     submitting.value = true
 
+    const payload = { ...formData.value }
+
+    // Handle custom cron expression
+    if (payload.sync_schedule === '__custom__') {
+      payload.sync_schedule = customCronExpression.value || null
+    }
+
     if (isEditMode.value) {
-      const currentSource = findCurrentSource(formData.value.id)
-      const payload = sanitizeTokenForSubmit(formData.value, currentSource)
-      await taskSourceStore.updateTaskSource(formData.value.id, payload)
+      const currentSource = findCurrentSource(payload.id)
+      const sanitized = sanitizeTokenForSubmit(payload, currentSource)
+      await taskSourceStore.updateTaskSource(payload.id, sanitized)
       toast.success('更新成功')
     } else {
-      await taskSourceStore.createTaskSource(formData.value)
+      await taskSourceStore.createTaskSource(payload)
       toast.success('创建成功')
     }
 
@@ -1114,5 +1205,36 @@ const toggleDescription = (externalId) => {
 .test-fail {
   color: #f56c6c;
   background: #fef0f0;
+}
+
+.source-schedule-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fffe;
+  border: 1px solid rgba(37, 198, 201, 0.2);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+
+.schedule-dot {
+  width: 8px;
+  height: 8px;
+  background: #25c6c9;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.schedule-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #25c6c9;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
 }
 </style>

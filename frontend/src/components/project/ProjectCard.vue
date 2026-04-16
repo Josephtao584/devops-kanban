@@ -61,6 +61,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Folder, Edit, Delete, MoreFilled } from '@element-plus/icons-vue'
+import { formatDate } from '../../utils/dateFormat'
 
 const props = defineProps({
   project: {
@@ -89,13 +90,6 @@ const footerStatus = computed(() => {
 })
 
 const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString()
-}
 </script>
 
 <style scoped>

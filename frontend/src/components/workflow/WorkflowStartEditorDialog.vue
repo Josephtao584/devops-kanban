@@ -120,6 +120,16 @@
       </section>
     </template>
 
+    <div class="worktree-option">
+      <el-checkbox v-model="autoCreateWorktree">
+        自动创建 worktree（沙箱环境）
+      </el-checkbox>
+      <div v-if="!autoCreateWorktree" class="worktree-warning">
+        <el-icon><Warning /></el-icon>
+        <span>警告：不创建 worktree 将在主分支直接修改代码，可能导致代码冲突和丢失。建议勾选此选项。</span>
+      </div>
+    </div>
+
     <template #footer>
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
       <el-button data-testid="confirm-start-button" type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
@@ -217,7 +227,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { Delete, Plus, Warning } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import BaseDialog from '../BaseDialog.vue'
 import { getAgents } from '../../api/agent.js'
@@ -259,6 +269,7 @@ const agentsLoaded = ref(false)
 const localTemplate = ref({ template_id: '', name: '', steps: [] })
 const selectedStepIndex = ref(0)
 const showStepDetailsDialog = ref(false)
+const autoCreateWorktree = ref(true)
 
 const normalizeTemplate = (rawTemplate) => {
   const normalized = normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
@@ -454,7 +465,7 @@ const handleCancel = () => {
   showStepDetailsDialog.value = false
   emit('update:modelValue', false)
 }
-const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTemplate.value))
+const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTemplate.value), autoCreateWorktree.value)
 
 // --- Prompt Preview ---
 const showPreviewDialog = ref(false)
@@ -889,5 +900,31 @@ const handlePreviewPrompt = async () => {
   max-height: 60vh;
   overflow-y: auto;
   color: var(--text-primary, #0f172a);
+}
+
+.worktree-option {
+  margin: 12px 0 0;
+  padding: 8px 0;
+}
+
+.worktree-option :deep(.el-checkbox__label) {
+  font-size: 13px;
+}
+
+.worktree-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px;
+  background: rgba(230, 162, 60, 0.08);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #E6A23C;
+}
+
+.worktree-warning .el-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 </style>

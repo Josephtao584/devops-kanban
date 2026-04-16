@@ -37,6 +37,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const syncPreviewTasks = ref([])
   const selectedSyncTasks = ref(new Set())
   const syncError = ref(null)
+  const scheduleStatuses = ref({})
 
   const enabledSources = computed(() =>
     crud.items.value.filter(s => s.enabled)
@@ -79,10 +80,20 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       return []
     }
 
-    return Object.entries(types).map(([key, metadata]) => ({
+    const items = Object.entries(types).map(([key, metadata]) => ({
       key: metadata?.key || key,
       ...(metadata || {})
     }))
+
+    // Put CloudDevOps types first (CLOUDDEVOPS_* and INTERNAL_API which is CloudDevOps Story)
+    const cloudDevOpsKeys = new Set(['CLOUDDEVOPS_BUG', 'CLOUDDEVOPS_RR', 'INTERNAL_API'])
+    items.sort((a, b) => {
+      const aPriority = cloudDevOpsKeys.has(a.key) ? 0 : 1
+      const bPriority = cloudDevOpsKeys.has(b.key) ? 0 : 1
+      return aPriority - bPriority
+    })
+
+    return items
   }
 
   async function loadAvailableTypes() {
@@ -331,6 +342,25 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
   }
 
+  async function fetchScheduleStatus(sourceId) {
+    try {
+      const response = await taskSourceApi.getTaskSourceScheduleStatus(sourceId)
+      const data = unwrap(response, 'Failed to fetch schedule status')
+      scheduleStatuses.value[sourceId] = data
+      return data
+    } catch (e) {
+      error.value = e.message
+      return null
+    }
+  }
+
+  async function fetchAllScheduleStatuses() {
+    const promises = crud.items.value
+      .filter(source => source.sync_schedule)
+      .map(source => fetchScheduleStatus(source.id).catch(() => null))
+    await Promise.all(promises)
+  }
+
   return {
     taskSources: crud.items,
     currentTaskSource: crud.currentItem,
@@ -366,6 +396,9 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     closePreviewDialog,
     fetchTaskSource: crud.fetchById,
     clearTaskSources,
-    clearError
+    clearError,
+    scheduleStatuses,
+    fetchScheduleStatus,
+    fetchAllScheduleStatuses
   }
 })

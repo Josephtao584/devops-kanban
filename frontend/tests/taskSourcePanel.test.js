@@ -13,7 +13,8 @@ const {
   toggleSyncTaskMock,
   selectAllSyncTasksMock,
   deselectAllSyncTasksMock,
-  importSelectedPreviewTasksMock
+  importSelectedPreviewTasksMock,
+  fetchAllScheduleStatusesMock
 } = vi.hoisted(() => ({
   fetchTaskSourcesMock: vi.fn(() => Promise.resolve()),
   loadAvailableTypesMock: vi.fn(() => Promise.resolve()),
@@ -26,7 +27,8 @@ const {
   toggleSyncTaskMock: vi.fn(),
   selectAllSyncTasksMock: vi.fn(),
   deselectAllSyncTasksMock: vi.fn(),
-  importSelectedPreviewTasksMock: vi.fn(() => Promise.resolve(2))
+  importSelectedPreviewTasksMock: vi.fn(() => Promise.resolve(2)),
+  fetchAllScheduleStatusesMock: vi.fn(() => Promise.resolve())
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -60,7 +62,8 @@ vi.mock('../src/stores/taskSourceStore', () => ({
     toggleSyncTask: toggleSyncTaskMock,
     selectAllSyncTasks: selectAllSyncTasksMock,
     deselectAllSyncTasks: deselectAllSyncTasksMock,
-    importSelectedPreviewTasks: importSelectedPreviewTasksMock
+    importSelectedPreviewTasks: importSelectedPreviewTasksMock,
+    fetchAllScheduleStatuses: fetchAllScheduleStatusesMock
   })
 }))
 

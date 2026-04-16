@@ -191,6 +191,7 @@
           @toggle-workflow="handleToggleWorkflow"
           @workflow-action="handleWorkflowAction"
           @quick-edit="handleQuickEdit"
+          @update-task="handleUpdateTask"
         />
       </div>
 
@@ -410,6 +411,11 @@
             class="full-width"
           />
           <p class="form-help">{{ $t('task.iterationHint') }}</p>
+        </el-form-item>
+        <el-form-item :label="$t('task.workflowTemplate')">
+          <el-select v-model="taskForm.auto_execute_template_id" class="full-width" clearable :placeholder="$t('task.noTemplate')">
+            <el-option v-for="tmpl in workflowTemplates" :key="tmpl.template_id" :value="tmpl.template_id" :label="tmpl.name" />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -673,7 +679,8 @@ import { useTaskTimer } from '../composables/kanban/useTaskTimer'
 import { useWorkflowManager } from '../composables/kanban/useWorkflowManager'
 import { useKanbanSelection } from '../composables/kanban/useKanbanSelection'
 import { analyzeTaskCategory, getRecommendedWorkflowTemplateId } from '../mock/workflowAssignment'
-import { reorderTasks, startTask, deleteTask } from '../api/task.js'
+import { getWorkflowTemplates } from '../api/workflowTemplate.js'
+import { reorderTasks, startTask, deleteTask, updateTask } from '../api/task.js'
 import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { formatTaskDescription } from '../utils/taskDescriptionFormatter'
@@ -796,6 +803,7 @@ const togglePreviewDescription = (externalId) => {
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
 const showWorkflowTemplateDialog = ref(false)
+const templateDialogMode = ref('start') // 'start' or 'save'
 const showDeleteConfirm = ref(false)
 const deleteWorktreeChecked = ref(false)
 const pendingDeleteTaskId = ref(null)
@@ -1015,12 +1023,38 @@ const startSelectedTaskWithTemplate = async (
 }
 
 const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree }) => {
+  if (templateDialogMode.value === 'save') {
+    // Save template to task without starting
+    try {
+      await updateTask(selectedTask.value.id, {
+        auto_execute: 1,
+        auto_execute_template_id: templateId,
+      })
+      showWorkflowTemplateDialog.value = false
+      ElMessage.success('模板已保存')
+      await taskStore.fetchTasks(selectedProjectId.value)
+      const updated = taskStore.tasks.find(t => t.id === selectedTask.value?.id)
+      if (updated) selectedTask.value = updated
+    } catch (error) {
+      console.error('保存模板失败:', error)
+      ElMessage.error('保存模板失败')
+    }
+    return
+  }
+
+  // Start mode: load template and open editor
   try {
     const response = await getWorkflowTemplateById(templateId)
     if (!response?.success) {
       ElMessage.error(response?.message || '加载工作流模板失败')
       return
     }
+
+    // Save selected template to task
+    await updateTask(selectedTask.value.id, {
+      auto_execute: 1,
+      auto_execute_template_id: templateId,
+    })
 
     selectedWorkflowTemplateId.value = templateId
     workflowStartDraftTemplate.value = normalizeWorkflowTemplate(response.data)
@@ -1034,11 +1068,11 @@ const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree })
   }
 }
 
-const handleWorkflowStartEditorConfirm = async (draftTemplate) => {
+const handleWorkflowStartEditorConfirm = async (draftTemplate, autoCreateWorktree) => {
   await startSelectedTaskWithTemplate(
     selectedWorkflowTemplateId.value,
     normalizeWorkflowTemplate(draftTemplate),
-    Boolean(workflowStartDraftTemplate.value?.autoCreateWorktree)
+    Boolean(autoCreateWorktree ?? workflowStartDraftTemplate.value?.autoCreateWorktree)
   )
 }
 
@@ -1052,10 +1086,18 @@ const handleWorkflowAction = (payload) => {
     console.log('[KanbanView] start action, task:', task?.id)
     if (task) {
       selectedTask.value = task
-      const category = task.category || analyzeTaskCategory(task.title, task.description)
-      recommendedWorkflowTemplateId.value = getRecommendedWorkflowTemplateId(category)
-      console.log('[KanbanView] showing workflow template dialog')
-      showWorkflowTemplateDialog.value = true
+
+      // If task has a configured template, start directly without selection dialog
+      if (task.auto_execute_template_id) {
+        console.log('[KanbanView] task has auto_execute_template_id, starting directly')
+        handleStartWithConfiguredTemplate(task)
+      } else {
+        const category = task.category || analyzeTaskCategory(task.title, task.description)
+        recommendedWorkflowTemplateId.value = getRecommendedWorkflowTemplateId(category)
+        templateDialogMode.value = 'start'
+        console.log('[KanbanView] showing workflow template dialog')
+        showWorkflowTemplateDialog.value = true
+      }
     } else {
       console.log('[KanbanView] no task, cannot start')
     }
@@ -1091,12 +1133,42 @@ const handleWorkflowAction = (payload) => {
         worktreeBranch: selectedTask.value.worktree_branch
       })
     }
+  } else if (action === 'configure') {
+    if (task) {
+      selectedTask.value = task
+      handleConfigureWorkflow(task)
+    }
   } else if (payload && payload.action === 'node-click') {
     selectedTask.value = payload.task || null
     currentViewingNodeId.value = payload.node?.id || null
     currentViewingNode.value = payload.node || null
     isChatCollapsed.value = false
   }
+}
+
+const handleStartWithConfiguredTemplate = async (task) => {
+  try {
+    const response = await getWorkflowTemplateById(task.auto_execute_template_id)
+    if (!response?.success) {
+      ElMessage.error(response?.message || '加载工作流模板失败')
+      return
+    }
+    selectedWorkflowTemplateId.value = task.auto_execute_template_id
+    workflowStartDraftTemplate.value = normalizeWorkflowTemplate(response.data)
+    workflowStartDraftTemplate.value.autoCreateWorktree = true
+    showWorkflowStartEditorDialog.value = true
+  } catch (error) {
+    console.error('加载工作流模板失败:', error)
+    ElMessage.error('加载工作流模板失败')
+  }
+}
+
+const handleConfigureWorkflow = async (task) => {
+  // Always open template selection in 'save' mode
+  selectedTask.value = task
+  recommendedWorkflowTemplateId.value = task.auto_execute_template_id || ''
+  templateDialogMode.value = 'save'
+  showWorkflowTemplateDialog.value = true
 }
 
 const handleQuickEdit = (task) => {
@@ -1106,6 +1178,15 @@ const handleQuickEdit = (task) => {
     taskTitle: task.title,
   }
   showCodeEditor.value = true
+}
+
+const handleUpdateTask = async ({ id, ...data }) => {
+  try {
+    await updateTask(id, data)
+    await taskStore.fetchTasks(currentProject.value?.id)
+  } catch (error) {
+    console.error('Failed to update task:', error)
+  }
 }
 
 const tasks = computed(() => taskStore.tasks)
@@ -1147,8 +1228,24 @@ const taskForm = reactive({
   status: 'TODO',
   priority: 'MEDIUM',
   assignee: '',
-  iteration_id: null
+  iteration_id: null,
+  auto_execute_template_id: null,
+  auto_execute: 0,
 })
+
+const workflowTemplates = ref([])
+const workflowTemplatesLoaded = ref(false)
+
+async function loadWorkflowTemplates() {
+  if (workflowTemplatesLoaded.value) return
+  try {
+    const res = await getWorkflowTemplates()
+    if (res.success && res.data) {
+      workflowTemplates.value = res.data
+    }
+    workflowTemplatesLoaded.value = true
+  } catch { /* silently fail */ }
+}
 
 const showAgentSelector = ref(false)
 const pendingTask = ref(null)
@@ -1240,6 +1337,8 @@ const openTaskModal = (task = null) => {
     taskForm.priority = task.priority || 'MEDIUM'
     taskForm.assignee = task.assignee || ''
     taskForm.iteration_id = task.iteration_id || null
+    taskForm.auto_execute_template_id = task.auto_execute_template_id || null
+    taskForm.auto_execute = task.auto_execute || 0
   } else {
     isEditing.value = false
     editingTaskId.value = null
@@ -1250,7 +1349,10 @@ const openTaskModal = (task = null) => {
     taskForm.priority = 'MEDIUM'
     taskForm.assignee = ''
     taskForm.iteration_id = null
+    taskForm.auto_execute_template_id = null
+    taskForm.auto_execute = 0
   }
+  loadWorkflowTemplates()
   showTaskModal.value = true
 }
 
@@ -1273,7 +1375,8 @@ const saveTask = async () => {
     const taskData = {
       ...taskForm,
       category: category || 'FEATURE',
-      projectId: selectedProjectId.value
+      projectId: selectedProjectId.value,
+      auto_execute: taskForm.auto_execute_template_id ? 1 : 0,
     }
 
     let savedTask

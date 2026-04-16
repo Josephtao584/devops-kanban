@@ -12,6 +12,7 @@ import type {
   TaskSourceImportResult,
 } from './sources.ts';
 import type {TaskEntity} from "./entities.js";
+import type { SchedulerService } from '../services/schedulerService.js';
 
 export interface FastifyRuntimeConfig {
   SERVER_PORT: number;
@@ -37,6 +38,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     config: FastifyRuntimeConfig;
     taskSourceService?: TaskSourceServiceContract;
+    schedulerService?: SchedulerService;
   }
 
   interface FastifyBaseLogger {

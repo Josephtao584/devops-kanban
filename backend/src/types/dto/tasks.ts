@@ -12,6 +12,8 @@ export interface CreateTaskInput {
   worktree_path?: string | null;
   worktree_branch?: string | null;
   order?: number;
+  auto_execute?: number;
+  auto_execute_template_id?: string | null;
 }
 
 import type { WorkflowTemplateEntity } from '../entities.ts';
@@ -35,4 +37,6 @@ export interface UpdateTaskInput {
   worktree_path?: string | null;
   worktree_branch?: string | null;
   order?: number;
+  auto_execute?: number;
+  auto_execute_template_id?: string | null;
 }

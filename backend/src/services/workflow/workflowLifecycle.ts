@@ -15,7 +15,7 @@ import { prepareExecutionMcp } from './executorMcpPreparation.js';
 import { cleanupMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
-import { WorkflowNotificationEvent } from '../notificationEvents.js';
+import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
 
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
@@ -58,15 +58,46 @@ class WorkflowLifecycle {
     this.onWorkflowNotification = onWorkflowNotification;
   }
 
-  private async _emitNotification(type: WorkflowNotificationEvent['type'], runId: number, taskId: number) {
+  private async _emitNotification(
+    type: WorkflowNotificationEvent['type'],
+    runId: number,
+    taskId: number,
+    extra?: {
+      currentStepId?: string | null;
+      suspendInfo?: {
+        reason: string;
+        summary?: string | null;
+        askUserQuestion?: Record<string, unknown> | null;
+      };
+      errorMessage?: string;
+    },
+  ) {
     if (!this.onWorkflowNotification) return;
     try {
       const task = await this.taskRepo.findById(taskId);
+      const run = await this.workflowRunRepo.findById(runId);
+      const steps: StepSnapshot[] = (run?.steps || []).map((s) => ({
+        stepId: s.step_id,
+        name: s.name,
+        status: s.status,
+        summary: s.summary,
+      }));
+
       this.onWorkflowNotification({
         type,
         runId,
         taskId,
         taskTitle: task?.title || `Task #${taskId}`,
+        steps,
+        currentStepId: extra?.currentStepId ?? run?.current_step ?? null,
+        suspendInfo: extra?.suspendInfo
+          ? {
+              reason: extra.suspendInfo.reason,
+              summary: extra.suspendInfo.summary,
+              askUserQuestion: extra.suspendInfo.askUserQuestion,
+            }
+          : undefined,
+        errorMessage: extra?.errorMessage,
       });
     } catch (error) {
       logger.warn('WorkflowLifecycle', `Notification hook failed: ${(error as Error).message}`);
@@ -520,7 +551,14 @@ class WorkflowLifecycle {
     // Emit notification hook
     const { run: suspendRun } = await this._getRunStep(runId, stepId);
     if (suspendRun?.task_id) {
-      await this._emitNotification('SUSPENDED', runId, suspendRun.task_id);
+      await this._emitNotification('SUSPENDED', runId, suspendRun.task_id, {
+        currentStepId: stepId,
+        suspendInfo: {
+          reason: suspendInfo.reason,
+          summary: suspendInfo.summary,
+          askUserQuestion: suspendInfo.ask_user_question,
+        },
+      });
     }
   }
 
@@ -616,6 +654,8 @@ class WorkflowLifecycle {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) return;
 
+    const failedStepId = run.current_step;
+
     // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
     if (run.worktree_path) {
       await this._cleanupPreviousStepSkills(run.worktree_path, runId);
@@ -633,7 +673,10 @@ class WorkflowLifecycle {
 
     // Emit notification hook
     if (run.task_id) {
-      await this._emitNotification('FAILED', runId, run.task_id);
+      await this._emitNotification('FAILED', runId, run.task_id, {
+        currentStepId: failedStepId,
+        errorMessage,
+      });
     }
   }
 
