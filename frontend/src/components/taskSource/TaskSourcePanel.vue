@@ -51,9 +51,6 @@
           <el-button size="small" @click="handleSync(source)" :disabled="taskSourceStore.syncing">
             {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
           </el-button>
-          <el-button size="small" @click="testSource(source)" :disabled="taskSourceStore.testing">
-            {{ taskSourceStore.testing ? '测试中...' : $t('taskSource.test', '测试') }}
-          </el-button>
           <el-button size="small" @click="openSyncHistory(source)">
             {{ $t('taskSource.syncHistory', '同步历史') }}
           </el-button>
@@ -323,23 +320,6 @@
       </template>
     </BaseDialog>
 
-    <!-- Test Result Dialog -->
-    <BaseDialog
-      v-model="testDialogVisible"
-      :title="$t('taskSource.testResult', '测试结果')"
-      width="400px"
-      append-to-body
-    >
-      <div v-if="testResult !== null">
-        <div :class="['test-result', testResult ? 'test-success' : 'test-fail']">
-          {{ testResult ? $t('taskSource.connectionSuccess', '连接成功') : $t('taskSource.connectionFailed', '连接失败') }}
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="testDialogVisible = false">{{ $t('common.close', '关闭') }}</el-button>
-      </template>
-    </BaseDialog>
-
     <!-- Sync History Dialog -->
     <BaseDialog
       v-model="syncHistoryDialogVisible"
@@ -426,8 +406,6 @@ const isEditMode = ref(false)
 const submitting = ref(false)
 const formRef = ref(null)
 
-const testDialogVisible = ref(false)
-const testResult = ref(null)
 const syncHistoryDialogVisible = ref(false)
 
 const expandedPreviewDescriptions = ref(new Set())
@@ -862,23 +840,6 @@ const closeSyncPreview = () => {
   taskSourceStore.closePreviewDialog()
 }
 
-// --- Test ---
-const testSource = async (source) => {
-  testResult.value = null
-  testDialogVisible.value = true
-
-  try {
-    const response = await taskSourceStore.testTaskSource(source.id)
-    if (response && response.success) {
-      testResult.value = response.data?.connected || false
-    } else {
-      testResult.value = false
-    }
-  } catch (e) {
-    testResult.value = false
-  }
-}
-
 const openSyncHistory = async (source) => {
   syncHistoryDialogVisible.value = true
   await taskSourceStore.fetchSyncHistory(source.id)
@@ -1307,25 +1268,6 @@ const toggleDescription = (externalId) => {
   text-align: center;
   padding: 40px;
   color: #c0c4cc;
-}
-
-/* Test result */
-.test-result {
-  text-align: center;
-  padding: 20px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 8px;
-}
-
-.test-success {
-  color: #67c23a;
-  background: #f0f9eb;
-}
-
-.test-fail {
-  color: #f56c6c;
-  background: #fef0f0;
 }
 
 .source-schedule-badge {

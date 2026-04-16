@@ -171,16 +171,6 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: IdParams }>('/:id/test', async (request, reply) => {
-    try {
-      const connected = await getService().testConnection(request.params.id);
-      return successResponse({ connected });
-    } catch (error) {
-      logError(error, request);
-      return handleTaskSourceError(reply, error, 'Failed to test task source connection');
-    }
-  });
-
   fastify.get<{ Params: IdParams }>('/:id/sync-history', async (request, reply) => {
     try {
       const history = await getService().getSyncHistory(request.params.id);
