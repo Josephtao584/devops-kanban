@@ -8,15 +8,20 @@ import { IterationService } from '../src/services/iterationService.js';
 import { TaskRepository } from '../src/repositories/taskRepository.js';
 import { ProjectRepository } from '../src/repositories/projectRepository.js';
 import { IterationRepository } from '../src/repositories/iterationRepository.js';
+import { closeDbClient } from '../src/db/client.js';
+import { initDatabase } from '../src/db/schema.js';
 
 const origStorage = process.env.STORAGE_PATH;
 
 async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'iteration-service-test-'));
   process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
   try {
     await run(tempRoot);
   } finally {
+    await closeDbClient();
     if (origStorage === undefined) {
       delete process.env.STORAGE_PATH;
     } else {

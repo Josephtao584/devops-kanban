@@ -7,6 +7,8 @@ import * as path from 'node:path';
 import { TaskSourceService } from '../src/services/taskSourceService.js';
 import { TaskRepository } from '../src/repositories/taskRepository.js';
 import { TaskSourceRepository } from '../src/repositories/taskSourceRepository.js';
+import { closeDbClient } from '../src/db/client.js';
+import { initDatabase } from '../src/db/schema.js';
 import { registerAdapter } from '../src/sources/index.js';
 import { TaskSourceAdapter } from '../src/sources/base.js';
 import type { ImportedTask } from '../src/types/sources.ts';
@@ -42,10 +44,13 @@ async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const originalStoragePath = process.env.STORAGE_PATH;
 
   process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
 
   try {
     await run(tempRoot);
   } finally {
+    await closeDbClient();
     if (originalStoragePath === undefined) {
       delete process.env.STORAGE_PATH;
     } else {

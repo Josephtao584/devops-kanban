@@ -5,12 +5,19 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { SkillService } from '../src/services/skillService.js';
+import { closeDbClient } from '../src/db/client.js';
+import { initDatabase } from '../src/db/schema.js';
 
 async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-service-test-'));
+  process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
   try {
     await run(tempRoot);
   } finally {
+    await closeDbClient();
+    delete process.env.STORAGE_PATH;
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 }
