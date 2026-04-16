@@ -401,11 +401,27 @@ class TaskSourceService {
       return { sessionId: null, results: [] };
     }
 
+    const agentRepo = new AgentRepository();
     const sessionRepo = new SessionRepository();
+
+    // Resolve agent to get real executorType
+    let sessionExecutorType = ExecutorType.CLAUDE_CODE;
+    let sessionAgentId: number | null = adapter.agentId ?? null;
+
+    if (adapter.agentId) {
+      const agent = await agentRepo.findById(adapter.agentId);
+      if (agent) {
+        sessionExecutorType = agent.executorType;
+        sessionAgentId = agent.id;
+      } else {
+        logger.warn('TaskSourceService', `Agent ${adapter.agentId} not found for preview, falling back to CLAUDE_CODE`);
+      }
+    }
+
     const session = await sessionRepo.create({
       task_id: 0,
-      executor_type: ExecutorType.CLAUDE_CODE,
-      agent_id: adapter.agentId ?? null,
+      executor_type: sessionExecutorType,
+      agent_id: sessionAgentId,
       status: 'PENDING_REVIEW',
       worktree_path: adapter.directoryPath,
       started_at: new Date().toISOString(),
@@ -413,6 +429,17 @@ class TaskSourceService {
     });
 
     const tasks = await adapter.fetchWithAiDescriptions(session.id, newFiles);
+
+    // Detect if all results are fallbacks (AI analysis failed or no agent configured)
+    const allFallback = tasks.every(t => t.title === t.external_id);
+
+    if (allFallback) {
+      await sessionRepo.update(session.id, {
+        status: 'FAILED',
+        completed_at: new Date().toISOString(),
+      });
+      throw new BusinessError('AI 分析未生成有效结果，请检查 Agent 配置', 'AI analysis produced only fallback results. Check Agent configuration.');
+    }
 
     const results = tasks.map(t => ({
       externalId: t.external_id,
