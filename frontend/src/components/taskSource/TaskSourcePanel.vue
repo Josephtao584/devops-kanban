@@ -863,6 +863,7 @@ const confirmDelete = (source) => {
 
 // --- Sync ---
 const handleSync = async (source) => {
+  console.log('[handleSync] source.type:', source.type, '| config:', JSON.stringify(source.config), '| descriptionMode:', source.config?.descriptionMode)
   const isLocalAiMode = source.type === 'LOCAL_DIRECTORY' && source.config?.descriptionMode === 'ai'
   if (isLocalAiMode) {
     try {
