@@ -38,6 +38,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const selectedSyncTasks = ref(new Set())
   const syncError = ref(null)
   const scheduleStatuses = ref({})
+  const syncSessionId = ref(null)
+  const syncPanelVisible = ref(false)
 
   const enabledSources = computed(() =>
     crud.items.value.filter(s => s.enabled)
@@ -158,7 +160,11 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.syncTaskSource(id)
-      unwrap(response, 'Failed to sync task source')
+      const data = unwrap(response, 'Failed to sync task source')
+      if (data?.sessionId) {
+        syncSessionId.value = data.sessionId
+        syncPanelVisible.value = true
+      }
       return response
     } catch (e) {
       error.value = e.message
@@ -342,6 +348,11 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
   }
 
+  function closeSyncPanel() {
+    syncPanelVisible.value = false
+    syncSessionId.value = null
+  }
+
   async function fetchScheduleStatus(sourceId) {
     try {
       const response = await taskSourceApi.getTaskSourceScheduleStatus(sourceId)
@@ -399,6 +410,9 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     clearError,
     scheduleStatuses,
     fetchScheduleStatus,
-    fetchAllScheduleStatuses
+    fetchAllScheduleStatuses,
+    syncSessionId,
+    syncPanelVisible,
+    closeSyncPanel
   }
 })

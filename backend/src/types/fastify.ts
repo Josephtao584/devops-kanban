@@ -29,6 +29,7 @@ export interface TaskSourceServiceContract {
   update(sourceId: string, source: UpdateTaskSourceInput): Promise<SourceRecord | null>;
   delete(sourceId: string): Promise<SourceRecord | null>;
   sync(sourceId: string): Promise<TaskEntity[]>;
+  syncWithSession(sourceId: string): Promise<{ sessionId: number | null; tasks: TaskEntity[] }>;
   previewSync(sourceId: string): Promise<PreviewImportedTask[]>;
   importIssues(sourceId: string, items: ImportedTask[], projectId: number, iterationId?: number | null): Promise<TaskSourceImportResult>;
   testConnection(sourceId: string): Promise<boolean>;

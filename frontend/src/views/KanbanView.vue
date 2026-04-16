@@ -621,7 +621,13 @@
         <el-button type="primary" @click="showNodeDialog = false">关闭</el-button>
       </template>
     </BaseDialog>
-  </div>
+
+    <TaskSourceSyncPanel
+      :visible="taskSourceStore.syncPanelVisible"
+      :session-id="taskSourceStore.syncSessionId"
+      @close="taskSourceStore.closeSyncPanel()"
+    />
+    </div>
 
   <BaseDialog
     v-model="showDeleteConfirm"
@@ -672,6 +678,7 @@ import IterationSelect from '../components/iteration/IterationSelect.vue'
 import IterationList from '../components/iteration/IterationList.vue'
 import IterationForm from '../components/iteration/IterationForm.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
+import TaskSourceSyncPanel from '../components/taskSource/TaskSourceSyncPanel.vue'
 import KanbanColumn from '../components/kanban/TaskColumn.vue'
 import KanbanListView from '../components/kanban/KanbanListView.vue'
 import CodeEditor from '../components/editor/CodeEditor.vue'

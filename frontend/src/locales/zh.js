@@ -191,7 +191,8 @@ export default {
       REQUIREMENT: '需求',
       JIRA: 'Jira',
       LINEAR: 'Linear',
-      CUSTOM: '自定义'
+      CUSTOM: '自定义',
+      LOCAL_DIRECTORY: '本地目录文件'
     },
     github: {
       repo: '仓库',
@@ -266,7 +267,23 @@ export default {
     scheduleActive: '定时同步运行中',
     lastScheduledSync: '上次定时同步',
     nextScheduledSync: '下次定时同步',
-    scheduleLabel: '每 {freq}'
+    scheduleLabel: '每 {freq}',
+    // Local directory config
+    directoryPath: '目录路径',
+    directoryPathPlaceholder: '服务器本地目录的绝对路径',
+    fileExtensions: '文件扩展名',
+    fileExtensionsPlaceholder: '如 txt,md,pdf，留空表示所有文件',
+    descriptionMode: '描述模式',
+    descriptionModeFixed: '固定模板',
+    descriptionModeAi: 'AI 生成',
+    descriptionTemplate: '描述模板',
+    descriptionTemplatePlaceholder: '支持 {filename}、{filepath}、{size}、{modified}',
+    agentId: '分析 Agent',
+    agentIdPlaceholder: '选择用于生成描述的 Agent',
+    syncAnalysisTitle: 'Agent 分析',
+    syncAnalysisRunning: '正在分析...',
+    syncAnalysisComplete: '分析完成',
+    syncAnalysisError: '分析失败'
   },
   workflowTemplate: {
     title: '工作流模板',

@@ -1,7 +1,9 @@
 import { TaskSourceRepository } from '../repositories/taskSourceRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
+import { SessionRepository } from '../repositories/sessionRepository.js';
 import { loadAdapterTypes } from '../config/taskSources.js';
-import { getAdapter, getAdapterMetadata } from '../sources/index.js';
+import { getAdapter, getAdapterMetadata, getAvailableTypes } from '../sources/index.js';
+import { LocalDirectoryAdapter } from '../sources/localDirectoryAdapter.js';
 import { NotFoundError, BusinessError } from '../utils/errors.js';
 import type { TaskSourceLike, FetchOptions } from '../sources/base.js';
 import type {
@@ -14,6 +16,8 @@ import type {
   SourceTypeDefinition as SharedSourceTypeDefinition,
 } from '../types/sources.ts';
 import type {TaskEntity} from "../types/entities.js";
+import { ExecutorType } from '../types/executors.js';
+import { logger } from '../utils/logger.js';
 
 const READ_ONLY_ERROR_MESSAGE = 'Task sources are read-only and managed by configuration';
 
@@ -73,7 +77,9 @@ class TaskSourceService {
 
   async getAvailableSourceTypes(): Promise<Record<string, SourceTypeDefinition>> {
     const adapterTypes = await loadAdapterTypes();
-    return Object.fromEntries(adapterTypes.map((typeDefinition) => [String(typeDefinition.key), typeDefinition as SourceTypeDefinition]));
+    const yamlTypes = Object.fromEntries(adapterTypes.map((typeDefinition) => [String(typeDefinition.key), typeDefinition as SourceTypeDefinition]));
+    const classTypes = getAvailableTypes();
+    return { ...yamlTypes, ...classTypes } as Record<string, SourceTypeDefinition>;
   }
 
   _buildReadOnlyError() {
@@ -159,6 +165,67 @@ class TaskSourceService {
     }
 
     return createdTasks;
+  }
+
+  async syncWithSession(sourceId: string): Promise<{ sessionId: number | null; tasks: TaskEntity[] }> {
+    const source = await this.getById(sourceId);
+    if (!source) {
+      throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
+    }
+
+    const adapter = getAdapter(source.type, source as TaskSourceLike);
+
+    if (source.type === 'LOCAL_DIRECTORY' && adapter instanceof LocalDirectoryAdapter && adapter.descriptionMode === 'ai') {
+      const sessionRepo = new SessionRepository();
+      const session = await sessionRepo.create({
+        task_id: 0,
+        executor_type: ExecutorType.CLAUDE_CODE,
+        status: 'RUNNING',
+        worktree_path: adapter.directoryPath,
+      });
+
+      const sessionId = session.id;
+      const projectId = source.project_id;
+
+      adapter.fetchWithAiDescriptions(sessionId).then(async (fetchedTasks) => {
+        for (const taskData of fetchedTasks) {
+          const existing = await this.taskRepository.findByExternalIdAndProject(taskData.external_id, projectId);
+          if (existing) {
+            await this.taskRepository.update(existing.id, {
+              project_id: projectId,
+              title: taskData.title,
+              description: taskData.description ?? '',
+              source: source.type,
+            });
+          } else {
+            await this.taskRepository.create({
+              ...taskData,
+              description: taskData.description ?? undefined,
+              project_id: projectId,
+              status: 'TODO',
+              priority: 'MEDIUM',
+              source: source.type,
+            });
+          }
+        }
+
+        await sessionRepo.update(sessionId, {
+          status: 'COMPLETED',
+          completed_at: new Date().toISOString(),
+        });
+      }).catch(async (err) => {
+        logger.error('TaskSourceService', `AI sync failed: ${err}`);
+        await sessionRepo.update(sessionId, {
+          status: 'FAILED',
+          completed_at: new Date().toISOString(),
+        });
+      });
+
+      return { sessionId, tasks: [] };
+    }
+
+    const tasks = await this.sync(sourceId);
+    return { sessionId: null, tasks };
   }
 
   async testConnection(sourceId: string) {

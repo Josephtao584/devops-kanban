@@ -127,8 +127,11 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Params: IdParams }>('/:id/sync', async (request, reply) => {
     try {
-      const tasks = await getService().sync(request.params.id);
-      return successResponse(tasks, 'Task source synced successfully');
+      const result = await getService().syncWithSession(request.params.id);
+      if (result.sessionId) {
+        return successResponse({ sessionId: result.sessionId, status: 'processing' }, 'AI sync started');
+      }
+      return successResponse(result.tasks, 'Task source synced successfully');
     } catch (error) {
       logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to sync task source');

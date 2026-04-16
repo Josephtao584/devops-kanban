@@ -48,7 +48,7 @@
         </div>
 
         <div class="source-actions">
-          <el-button size="small" @click="previewAndSync(source)" :disabled="taskSourceStore.syncing">
+          <el-button size="small" @click="handleSync(source)" :disabled="taskSourceStore.syncing">
             {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
           </el-button>
           <el-button size="small" @click="testSource(source)" :disabled="taskSourceStore.testing">
@@ -106,7 +106,7 @@
                 :key="key"
               >
                 <el-form-item
-                  v-if="field && !field.hidden"
+                  v-if="field && !field.hidden && !isFieldHidden(key)"
                   :label="getFieldLabel(key, field)"
                   :prop="`config.${key}`"
                   :required="field.required"
@@ -153,6 +153,19 @@
                       :key="opt.value"
                       :label="opt.label"
                       :value="opt.value"
+                    />
+                  </el-select>
+                  <el-select
+                    v-else-if="key === 'agentId'"
+                    v-model="formData.config[key]"
+                    :placeholder="getFieldPlaceholder(key, field)"
+                    clearable
+                  >
+                    <el-option
+                      v-for="agent in agents"
+                      :key="agent.id"
+                      :label="agent.name"
+                      :value="agent.id"
                     />
                   </el-select>
                   <el-input
@@ -481,7 +494,12 @@ const getFieldLabel = (key, field) => {
     listPath: '列表路径',
     detailPath: '详情路径',
     detailIdField: '详情 ID 字段',
-    rejectUnauthorized: '接受自签名证书'
+    rejectUnauthorized: '接受自签名证书',
+    directoryPath: '目录路径',
+    fileExtensions: '文件扩展名',
+    descriptionMode: '描述模式',
+    descriptionTemplate: '描述模板',
+    agentId: '分析 Agent'
   }
 
   const internalApiLabels = {
@@ -511,7 +529,11 @@ const getFieldPlaceholder = (key, field) => {
     listPath: '/devops-workitem/api/v1/query/workitems',
     detailPath: '/devops-workitem/api/v1/query/{number}/document_detail',
     detailIdField: '例如: number',
-    rejectUnauthorized: '关闭后接受自签名证书'
+    rejectUnauthorized: '关闭后接受自签名证书',
+    directoryPath: '服务器本地目录的绝对路径',
+    fileExtensions: '如 txt,md,pdf',
+    descriptionTemplate: '支持 {filename} 等变量',
+    agentId: '选择 Agent'
   }
 
   const internalApiPlaceholders = {
@@ -531,6 +553,26 @@ const getFieldPlaceholder = (key, field) => {
   }
 
   return commonPlaceholders[key] || field.description || ''
+}
+
+const isFieldHidden = (key) => {
+  const mode = formData.value.config?.descriptionMode
+  if (key === 'descriptionTemplate' && mode === 'ai') return true
+  if (key === 'agentId' && mode !== 'ai') return true
+  return false
+}
+
+// --- Agents ---
+const agents = ref([])
+
+const loadAgents = async () => {
+  try {
+    const { default: api } = await import('../../api/index.js')
+    const response = await api.get('/agents')
+    agents.value = response.data?.data || response.data || []
+  } catch {
+    agents.value = []
+  }
 }
 
 // --- Form ---
@@ -566,6 +608,7 @@ const gitUrlToRepo = (gitUrl) => {
 
 const showAddDialog = () => {
   isEditMode.value = false
+  loadAgents()
 
   const currentProject = projectStore.projectList.find(p => String(p.id) === props.projectId)
   const gitUrl = currentProject?.git_url || ''
@@ -593,6 +636,7 @@ const showAddDialog = () => {
 
 const editSource = (source) => {
   isEditMode.value = true
+  loadAgents()
   const config = { ...source.config }
 
   if (typeof config.token === 'string' && config.token) {
@@ -705,6 +749,20 @@ const confirmDelete = (source) => {
 }
 
 // --- Sync ---
+const handleSync = async (source) => {
+  const isLocalAiMode = source.type === 'LOCAL_DIRECTORY' && source.config?.descriptionMode === 'ai'
+  if (isLocalAiMode) {
+    try {
+      await taskSourceStore.syncTaskSource(source.id)
+    } catch (err) {
+      console.error('Failed to sync task source:', err)
+      toast.error('同步失败: ' + (err.message || '未知错误'))
+    }
+  } else {
+    await previewAndSync(source)
+  }
+}
+
 const previewAndSync = async (source) => {
   try {
     const tasks = await taskSourceStore.openSyncPreviewForSource(source)
