@@ -66,6 +66,10 @@ class SessionService {
   }
 
   async continue(sessionId: number, input: string) {
+    if (input.length > 5000) {
+      throw new ValidationError('输入内容不能超过 5000 个字符', 'Input exceeds maximum length of 5000 characters');
+    }
+
     const session = await this.sessionRepo.findById(sessionId) as SessionLike | null;
     if (!session) {
       throw new NotFoundError('未找到会话', 'Session not found', { sessionId });

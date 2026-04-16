@@ -137,11 +137,11 @@
       <!-- Form Mode -->
       <el-form v-if="inputMode === 'form'" data-testid="mcp-server-form" label-position="top" @submit.prevent="saveServer">
         <el-form-item :label="$t('mcpServer.serverName')">
-          <el-input v-model="form.name" data-testid="mcp-server-name-input" :placeholder="$t('mcpServer.namePlaceholder')" />
+          <el-input v-model="form.name" data-testid="mcp-server-name-input" :placeholder="$t('mcpServer.namePlaceholder')" maxlength="200" show-word-limit />
         </el-form-item>
 
         <el-form-item :label="$t('mcpServer.description')">
-          <el-input v-model="form.description" :placeholder="$t('mcpServer.descriptionPlaceholder')" />
+          <el-input v-model="form.description" :placeholder="$t('mcpServer.descriptionPlaceholder')" maxlength="5000" show-word-limit />
         </el-form-item>
 
         <el-form-item :label="$t('mcpServer.serverType')">
@@ -154,7 +154,7 @@
         <!-- Stdio config -->
         <template v-if="form.server_type === 'stdio'">
           <el-form-item :label="$t('mcpServer.command')">
-            <el-input v-model="form.config.command" :placeholder="$t('mcpServer.commandPlaceholder')" />
+            <el-input v-model="form.config.command" :placeholder="$t('mcpServer.commandPlaceholder')" maxlength="500" />
           </el-form-item>
           <el-form-item :label="$t('mcpServer.args')">
             <div class="dynamic-list">
@@ -180,14 +180,14 @@
             <p class="form-hint">{{ $t('mcpServer.autoInstallHint') }}</p>
           </el-form-item>
           <el-form-item v-if="form.auto_install" :label="$t('mcpServer.installCommand')">
-            <el-input v-model="form.install_command" :placeholder="$t('mcpServer.installCommandPlaceholder')" />
+            <el-input v-model="form.install_command" :placeholder="$t('mcpServer.installCommandPlaceholder')" maxlength="500" />
           </el-form-item>
         </template>
 
         <!-- HTTP config -->
         <template v-if="form.server_type === 'http'">
           <el-form-item :label="$t('mcpServer.url')">
-            <el-input v-model="form.config.url" :placeholder="$t('mcpServer.urlPlaceholder')" />
+            <el-input v-model="form.config.url" :placeholder="$t('mcpServer.urlPlaceholder')" maxlength="2000" />
           </el-form-item>
           <el-form-item :label="$t('mcpServer.headers')">
             <div class="dynamic-list">

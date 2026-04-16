@@ -105,7 +105,7 @@
               <div class="meta-row meta-row--stacked">
                 <span class="meta-label">{{ $t('workflowTemplate.name') }}</span>
                 <div class="template-name-row">
-                  <el-input v-model="template.name" data-testid="template-name-input" />
+                  <el-input v-model="template.name" data-testid="template-name-input" maxlength="200" show-word-limit />
                   <div class="editor-actions editor-actions--template">
                     <el-button
                       data-testid="delete-template-button"
@@ -259,6 +259,8 @@
                   <el-input
                     v-model="selectedStep.name"
                     :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+                    maxlength="200"
+                    show-word-limit
                   />
                 </div>
 

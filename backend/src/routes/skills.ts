@@ -43,6 +43,10 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
         reply.code(400);
         return errorResponse('name is required');
       }
+      if (name.length > 200) {
+        reply.code(400);
+        return errorResponse('name exceeds maximum length of 200 characters');
+      }
 
       const skill = await skillService.createSkill(name.trim(), description);
       return successResponse(skill, 'Skill created');
@@ -75,8 +79,20 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
     try {
       const { name, description } = request.body;
       const updates: { name?: string; description?: string } = {};
-      if (name) updates.name = name;
-      if (description) updates.description = description;
+      if (name) {
+        if (name.length > 200) {
+          reply.code(400);
+          return errorResponse('name exceeds maximum length of 200 characters');
+        }
+        updates.name = name;
+      }
+      if (description) {
+        if (description.length > 5000) {
+          reply.code(400);
+          return errorResponse('description exceeds maximum length of 5000 characters');
+        }
+        updates.description = description;
+      }
       const updated = await skillService.updateSkill(parseNumber(request.params.id), updates);
       if (!updated) {
         reply.code(404);

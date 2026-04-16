@@ -31,6 +31,15 @@ class McpServerService {
     auto_install?: number;
     install_command?: string | undefined;
   }): Promise<McpServerEntity> {
+    if (data.name.length > 200) {
+      throw new ValidationError('MCP 服务器名称不能超过 200 个字符', 'MCP server name exceeds maximum length of 200 characters');
+    }
+    if (data.description && data.description.length > 5000) {
+      throw new ValidationError('MCP 服务器描述不能超过 5000 个字符', 'MCP server description exceeds maximum length of 5000 characters');
+    }
+    if (data.install_command && data.install_command.length > 500) {
+      throw new ValidationError('安装命令不能超过 500 个字符', 'Install command exceeds maximum length of 500 characters');
+    }
     const existing = await this.listMcpServers();
     if (existing.some(s => s.name === data.name)) {
       throw new ConflictError(`MCP 服务器 "${data.name}" 已存在`, `MCP server "${data.name}" already exists`, { name: data.name });
@@ -58,10 +67,23 @@ class McpServerService {
     if (!existing) return null;
 
     if (updates.name !== undefined && updates.name !== existing.name) {
+      if (updates.name.length > 200) {
+        throw new ValidationError('MCP 服务器名称不能超过 200 个字符', 'MCP server name exceeds maximum length of 200 characters');
+      }
       const allServers = await this.listMcpServers();
       if (allServers.some(s => s.id !== id && s.name === updates.name)) {
         throw new ConflictError(`MCP 服务器 "${updates.name}" 已存在`, `MCP server "${updates.name}" already exists`, { name: updates.name });
       }
+    }
+
+    if (updates.name !== undefined && updates.name.length > 200) {
+      throw new ValidationError('MCP 服务器名称不能超过 200 个字符', 'MCP server name exceeds maximum length of 200 characters');
+    }
+    if (updates.description !== undefined && updates.description.length > 5000) {
+      throw new ValidationError('MCP 服务器描述不能超过 5000 个字符', 'MCP server description exceeds maximum length of 5000 characters');
+    }
+    if (updates.install_command !== undefined && updates.install_command.length > 500) {
+      throw new ValidationError('安装命令不能超过 500 个字符', 'Install command exceeds maximum length of 500 characters');
     }
 
     const updateData: Record<string, unknown> = {};

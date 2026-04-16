@@ -78,7 +78,7 @@
           <div class="form-section">
             <div class="section-title">基本信息</div>
             <el-form-item :label="$t('taskSource.name', '名称')" prop="name">
-              <el-input v-model="formData.name" :placeholder="$t('taskSource.namePlaceholder', '输入任务源名称')" clearable />
+              <el-input v-model="formData.name" :placeholder="$t('taskSource.namePlaceholder', '输入任务源名称')" clearable maxlength="200" show-word-limit />
             </el-form-item>
 
             <el-form-item :label="$t('taskSource.type', '类型')" prop="type">
@@ -336,7 +336,7 @@
       <el-table v-else :data="taskSourceStore.syncHistory" size="small" stripe>
         <el-table-column :label="$t('taskSource.syncHistoryTime', '时间')" prop="startedAt" width="180">
           <template #default="{ row }">
-            {{ row.startedAt ? new Date(row.startedAt).toLocaleString() : '-' }}
+            {{ row.startedAt ? formatDate(row.startedAt) : '-' }}
           </template>
         </el-table-column>
         <el-table-column :label="$t('taskSource.syncHistoryMode', '模式')" width="80">
@@ -362,6 +362,18 @@
           </template>
         </el-table-column>
       </el-table>
+      <el-pagination
+        v-if="taskSourceStore.syncHistoryPagination.total > taskSourceStore.syncHistoryPagination.pageSize"
+        class="sync-history-pagination"
+        v-model:current-page="taskSourceStore.syncHistoryPagination.page"
+        v-model:page-size="taskSourceStore.syncHistoryPagination.pageSize"
+        :total="taskSourceStore.syncHistoryPagination.total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, prev, pager, next, sizes"
+        small
+        @current-change="handleSyncHistoryPageChange"
+        @size-change="handleSyncHistoryPageSizeChange"
+      />
       <template #footer>
         <el-button @click="syncHistoryDialogVisible = false">{{ $t('common.close', '关闭') }}</el-button>
       </template>
@@ -407,6 +419,7 @@ const submitting = ref(false)
 const formRef = ref(null)
 
 const syncHistoryDialogVisible = ref(false)
+const currentSourceId = ref(null)
 
 const expandedPreviewDescriptions = ref(new Set())
 const descriptionOverflowState = ref({})
@@ -842,7 +855,30 @@ const closeSyncPreview = () => {
 
 const openSyncHistory = async (source) => {
   syncHistoryDialogVisible.value = true
-  await taskSourceStore.fetchSyncHistory(source.id)
+  currentSourceId.value = source.id
+  taskSourceStore.syncHistoryPagination.page = 1
+  await taskSourceStore.fetchSyncHistory(source.id, 1)
+}
+
+const handleSyncHistoryPageChange = (page) => {
+  taskSourceStore.syncHistoryPagination.page = page
+  taskSourceStore.fetchSyncHistory(currentSourceId.value, page)
+}
+
+const handleSyncHistoryPageSizeChange = (pageSize) => {
+  taskSourceStore.syncHistoryPagination.pageSize = pageSize
+  taskSourceStore.syncHistoryPagination.page = 1
+  taskSourceStore.fetchSyncHistory(currentSourceId.value, 1)
+}
+
+const formatDate = (isoString) => {
+  const date = new Date(isoString)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  if (isToday) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 const testSource = async (source) => {
@@ -1302,6 +1338,24 @@ const toggleDescription = (externalId) => {
   font-size: 12px;
   font-weight: 600;
   color: #25c6c9;
+}
+
+.sync-history-loading {
+  text-align: center;
+  padding: 20px;
+  color: #909399;
+}
+
+.sync-history-empty {
+  text-align: center;
+  padding: 20px;
+  color: #909399;
+}
+
+.sync-history-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0 0;
 }
 
 @keyframes pulse {

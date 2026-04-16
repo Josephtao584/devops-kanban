@@ -89,6 +89,13 @@ class TaskSourceService {
   }
 
   async create(sourceData: CreateTaskSourceInput) {
+    if (!sourceData.name?.trim()) {
+      throw new ValidationError('任务源名称不能为空', 'Task source name is required');
+    }
+    if (sourceData.name.length > 200) {
+      throw new ValidationError('任务源名称不能超过 200 个字符', 'Task source name exceeds maximum length of 200 characters');
+    }
+
     // Ensure project_id is a number
     const normalizedData = {
       ...sourceData,
@@ -104,6 +111,15 @@ class TaskSourceService {
     const existing = await this.getById(sourceId);
     if (!existing) {
       return null;
+    }
+
+    if (sourceData.name !== undefined) {
+      if (!sourceData.name.trim()) {
+        throw new ValidationError('任务源名称不能为空', 'Task source name is required');
+      }
+      if (sourceData.name.length > 200) {
+        throw new ValidationError('任务源名称不能超过 200 个字符', 'Task source name exceeds maximum length of 200 characters');
+      }
     }
 
     const keys = Object.keys(sourceData);
@@ -216,6 +232,7 @@ class TaskSourceService {
         agent_id: sessionAgentId,
         status: 'RUNNING',
         worktree_path: adapter.directoryPath,
+        started_at: new Date().toISOString(),
       });
 
       const sessionId = session.id;
@@ -279,7 +296,7 @@ class TaskSourceService {
     return await adapter.testConnection();
   }
 
-  async getSyncHistory(sourceId: string) {
+  async getSyncHistory(sourceId: string, options?: { page: number; pageSize: number }) {
     const source = await this.getById(sourceId);
     if (!source) {
       throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
@@ -287,11 +304,15 @@ class TaskSourceService {
 
     const config = source.config as Record<string, unknown>;
     const directoryPath = typeof config.directoryPath === 'string' ? config.directoryPath : '';
-    if (!directoryPath) return [];
+    if (!directoryPath) return { history: [], total: 0 };
+
+    const page = options?.page ?? 1;
+    const pageSize = options?.pageSize ?? 20;
+    const offset = (page - 1) * pageSize;
 
     const sessionRepo = new SessionRepository();
     const segmentRepo = new SessionSegmentRepository();
-    const sessions = await sessionRepo.getByWorktreePath(directoryPath);
+    const { rows: sessions, total } = await sessionRepo.getByWorktreePathPaginated(directoryPath, { offset, limit: pageSize });
 
     // Count tasks for this source once (total across all syncs)
     const allSourceTasks = await this.taskRepository.findByProject(source.project_id);
@@ -315,7 +336,7 @@ class TaskSourceService {
       });
     }
 
-    return history;
+    return { history, total };
   }
 
   getAdapterConfigFields(type: string) {
