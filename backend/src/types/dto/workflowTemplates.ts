@@ -11,12 +11,14 @@ export interface CreateWorkflowTemplateInput {
   template_id: string;
   name: string;
   steps: WorkflowTemplateStepInput[];
+  tags?: string[];
 }
 
 export interface UpdateWorkflowTemplateInput {
   template_id: string;
   name: string;
   steps: WorkflowTemplateStepInput[];
+  tags?: string[];
 }
 
 export interface ReorderWorkflowTemplatesInput {
@@ -36,6 +38,7 @@ export interface ExportedWorkflowStep {
 export interface ExportedWorkflowTemplate {
   template_id: string;
   name: string;
+  tags?: string[];
   steps: ExportedWorkflowStep[];
 }
 

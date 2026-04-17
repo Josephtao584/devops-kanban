@@ -10,6 +10,7 @@ class WorkflowTemplateRepository extends BaseRepository<WorkflowTemplateEntity> 
     return {
       ...row,
       steps: row.steps ? JSON.parse(row.steps as string) : [],
+      tags: row.tags ? JSON.parse(row.tags as string) : [],
     } as WorkflowTemplateEntity;
   }
 
@@ -17,6 +18,9 @@ class WorkflowTemplateRepository extends BaseRepository<WorkflowTemplateEntity> 
     const result: Record<string, unknown> = { ...entity };
     if (entity.steps !== undefined) {
       result.steps = JSON.stringify(entity.steps);
+    }
+    if (entity.tags !== undefined) {
+      result.tags = JSON.stringify(entity.tags);
     }
     return result;
   }

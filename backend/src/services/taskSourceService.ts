@@ -393,17 +393,17 @@ class TaskSourceService {
       }
     }
 
-    // Get workflow templates and inject into prompt
+    // Aggregate tags from all templates and inject into prompt
     const { WorkflowTemplateService } = await import('./workflow/workflowTemplateService.js');
     const wfService = new WorkflowTemplateService();
     const templates = await wfService.getTemplates();
-    const wfList = templates.map(t => ({ templateId: t.template_id, name: t.name }));
+    const availableTags = [...new Set(templates.flatMap(t => t.tags || []))];
 
-    const wfSection = wfList.length > 0
-      ? `可推荐的工作流模板：\n${wfList.map(t => `- ${t.templateId}: ${t.name}`).join('\n')}\n\n`
-      : '无可用工作流模板\n\n';
+    const tagsSection = availableTags.length > 0
+      ? `可用场景标签（选一个最匹配的）：\n${availableTags.join(', ')}\n\n`
+      : '无可用场景标签\n\n';
     const prompt = adapter.buildAiPromptTemplate()
-      .replace('{workflowTemplates}', wfSection)
+      .replace('{scenarioTags}', tagsSection)
       .replace('{fileList}', '');
     return { prompt, files: newFiles, fileCount: newFiles.length };
   }
@@ -464,9 +464,9 @@ class TaskSourceService {
     const { WorkflowTemplateService } = await import('./workflow/workflowTemplateService.js');
     const wfService = new WorkflowTemplateService();
     const templates = await wfService.getTemplates();
-    const wfList = templates.map(t => ({ templateId: t.template_id, name: t.name }));
+    const availableTags = [...new Set(templates.flatMap(t => t.tags || []))];
 
-    adapter.fetchWithAiDescriptions(session.id, newFiles, customPrompt, wfList).then(async (tasks) => {
+    adapter.fetchWithAiDescriptions(session.id, newFiles, customPrompt, availableTags).then(async (tasks) => {
       const allFallback = tasks.every(t => t.title === t.external_id);
       if (allFallback) {
         await sessionRepo.update(session.id, {
@@ -481,7 +481,7 @@ class TaskSourceService {
         title: t.title,
         description: t.description ?? '',
         external_url: t.external_url,
-        recommendedWorkflowTemplateId: (t as any)._recommendedWorkflowTemplateId || null,
+        scenarioTag: (t as any)._scenarioTag || null,
       }));
 
       await sessionRepo.update(session.id, {
@@ -549,8 +549,16 @@ class TaskSourceService {
           external_url: item.external_url ?? '',
         });
         created++;
-        // Prefer AI-recommended template, fallback to source default
-        const templateId = (item as any).recommendedWorkflowTemplateId || defaultTemplateId;
+        // Match template by AI scenario tag, fallback to source default
+        const { WorkflowTemplateService } = await import('./workflow/workflowTemplateService.js');
+        const wfService = new WorkflowTemplateService();
+        const templates = await wfService.getTemplates();
+        const scenarioTag = (item as any).scenarioTag;
+        let templateId = defaultTemplateId;
+        if (scenarioTag) {
+          const matched = templates.find(t => (t.tags || []).includes(scenarioTag));
+          if (matched) templateId = matched.template_id;
+        }
         if (templateId) {
           await this.taskRepository.update(newTask.id, {
             auto_execute: 1,

@@ -110,9 +110,9 @@ export const buildWorkflowStepsPayload = (steps = []) => {
 }
 
 export const buildWorkflowTemplatePayload = (currentTemplate) => ({
-  ...currentTemplate,
   template_id: currentTemplate?.template_id ?? '',
   name: currentTemplate?.name?.trim?.() || '',
+  tags: Array.isArray(currentTemplate?.tags) ? currentTemplate.tags : [],
   steps: buildWorkflowStepsPayload(currentTemplate?.steps || [])
 })
 

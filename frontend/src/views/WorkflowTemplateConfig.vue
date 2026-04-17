@@ -125,6 +125,26 @@
                   </div>
                 </div>
               </div>
+              <div class="meta-row meta-row--stacked">
+                <span class="meta-label">标签</span>
+                <el-select
+                  v-model="template.tags"
+                  multiple
+                  filterable
+                  allow-create
+                  default-first-option
+                  size="small"
+                  placeholder="输入标签，回车添加"
+                  class="tags-input"
+                >
+                  <el-option
+                    v-for="tag in allTags"
+                    :key="tag"
+                    :label="tag"
+                    :value="tag"
+                  />
+                </el-select>
+              </div>
             </div>
           </div>
 
@@ -411,6 +431,8 @@ const canDeleteSelected = computed(() => {
 
 const isDraftTemplate = computed(() => Boolean(template.value?.isDraft))
 
+const allTags = computed(() => [...new Set(templates.value.flatMap(t => t.tags || []))])
+
 const canDeleteStep = computed(() => {
   return (template.value?.steps?.length || 0) > MIN_WORKFLOW_TEMPLATE_STEPS
 })
@@ -444,6 +466,7 @@ const normalizeTemplate = (rawTemplate) => {
   return {
     ...normalizeWorkflowTemplate(rawTemplate, null),
     isDraft: rawTemplate.isDraft === true,
+    tags: Array.isArray(rawTemplate.tags) ? rawTemplate.tags : [],
     steps: Array.isArray(rawTemplate.steps) ? rawTemplate.steps.map(normalizeWorkflowStep) : []
   }
 }
@@ -1208,6 +1231,11 @@ const handlePreviewPrompt = async () => {
   flex: 0 1 520px;
   width: min(100%, 520px);
   min-width: 320px;
+}
+
+.tags-input {
+  width: 100%;
+  max-width: 520px;
 }
 
 .meta-row {

@@ -146,6 +146,7 @@ export interface WorkflowTemplateEntity {
   template_id: string;
   name: string;
   steps: WorkflowTemplateStepEntity[];
+  tags?: string[];
   order?: number;
   created_at: string;
   updated_at: string;

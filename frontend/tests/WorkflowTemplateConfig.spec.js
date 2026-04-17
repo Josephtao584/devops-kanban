@@ -70,7 +70,8 @@ const defaultTemplate = {
       instructionPrompt: '执行测试验证。',
       agentId: null
     }
-  ]
+  ],
+  tags: []
 }
 
 const customTemplate = {
@@ -89,7 +90,8 @@ const customTemplate = {
       instructionPrompt: '验证发布候选版本。',
       agentId: 999
     }
-  ]
+  ],
+  tags: []
 }
 
 const ElCardStub = defineComponent({
@@ -369,7 +371,7 @@ const fillInlineEditor = async (wrapper, {
   }
 
   if (typeof agentId !== 'undefined') {
-    await wrapper.find('.el-select-stub').setValue(String(agentId))
+    await wrapper.find('.step-editor-card .el-select-stub, .step-editor-section .el-select-stub').setValue(String(agentId))
     await flushPromises()
   }
 
@@ -540,7 +542,7 @@ describe('WorkflowTemplateConfig', () => {
 
     await focusInlineEditor(wrapper, 0)
 
-    const select = wrapper.find('select.el-select-stub')
+    const select = wrapper.get('.step-editor-card select.el-select-stub')
     await select.setValue('3')
     await wrapper.get('[data-testid="template-name-input"]').setValue('发布工作流-已更新')
     await wrapper.get('[data-testid="save-template-button"]').trigger('click')
@@ -583,7 +585,7 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
 
     await focusInlineEditor(wrapper, 1)
-    await wrapper.find('select.el-select-stub').setValue('3')
+    await wrapper.find('.step-editor-card select.el-select-stub, .step-editor-section select.el-select-stub').setValue('3')
     await flushPromises()
 
     const bindingStateRow = wrapper.find('.binding-state-row')
