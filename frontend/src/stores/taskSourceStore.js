@@ -399,6 +399,78 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     syncPanelVisible.value = true
   }
 
+  async function reopenAiResults(sourceId, sessionId) {
+    stopAiPreviewPolling()
+    aiPreviewSourceId.value = sourceId
+    aiPreviewSessionId.value = sessionId
+    aiPreviewLoading.value = true
+    aiPreviewError.value = null
+    aiPreviewProcessing.value = false
+    aiPreviewResults.value = []
+    aiPreviewSelected.value = new Set()
+    aiPreviewAllFallback.value = false
+
+    try {
+      const apiModule = await import('../api/index.js')
+      const api = apiModule.default
+      const sessionResp = await api.get(`/sessions/${sessionId}`)
+      const session = sessionResp.data?.data || sessionResp.data
+
+      if (!session) {
+        aiPreviewError.value = '会话不存在'
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        return
+      }
+
+      if (session.status === 'RUNNING') {
+        aiPreviewProcessing.value = true
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+
+        aiPreviewTimeout = setTimeout(() => {
+          stopAiPreviewPolling()
+          aiPreviewProcessing.value = false
+          aiPreviewError.value = 'AI 分析超时（15分钟）'
+        }, 900000)
+        aiPreviewPoller = setInterval(() => pollAiPreviewSession(), 5000)
+        return
+      }
+
+      if (session.status === 'PENDING_REVIEW' || session.status === 'COMPLETED') {
+        const results = session.metadata?.aiResults || []
+        aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
+        aiPreviewSelected.value = new Set(results.map(r => r.externalId))
+        aiPreviewAllFallback.value = session.metadata?.allFallback || false
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        return
+      }
+
+      if (session.status === 'FAILED') {
+        const errorMsg = session.metadata?.error || 'AI 分析失败，请检查 Agent 配置'
+        aiPreviewError.value = errorMsg
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        return
+      }
+
+      aiPreviewError.value = `未知状态: ${session.status}`
+      aiPreviewStep.value = 'results'
+      aiPreviewDialog.value = true
+      aiPreviewLoading.value = false
+    } catch (e) {
+      aiPreviewError.value = e.message || '加载分析结果失败'
+      aiPreviewStep.value = 'results'
+      aiPreviewDialog.value = true
+      aiPreviewLoading.value = false
+    }
+  }
+
   async function openAiPreview(sourceId) {
     aiPreviewSourceId.value = sourceId
     aiPreviewStep.value = 'prompt'
@@ -473,7 +545,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         const results = session.metadata?.aiResults || []
         aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
         aiPreviewSelected.value = new Set(results.map(r => r.externalId))
-        aiPreviewAllFallback = session.metadata?.allFallback || false
+        aiPreviewAllFallback.value = session.metadata?.allFallback || false
         aiPreviewStep.value = 'results'
         aiPreviewDialog.value = true
       }
@@ -616,6 +688,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     syncHistoryPagination,
     fetchSyncHistory,
     viewSyncAnalysis,
+    reopenAiResults,
     aiPreviewDialog,
     aiPreviewStep,
     aiPreviewPrompt,

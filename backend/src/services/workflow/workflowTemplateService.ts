@@ -55,7 +55,7 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw new ValidationError('无效的工作流模板', 'Invalid workflow template');
   }
 
-  const { template_id, name, steps } = template;
+  const { template_id, name, steps, tags } = template;
 
   if (typeof template_id !== 'string' || !template_id.trim()) {
     throw new ValidationError('无效的工作流模板 ID', 'Invalid workflow template id');
@@ -78,6 +78,7 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     template_id: template_id.trim(),
     name: name.trim(),
     steps: normalizedSteps,
+    tags: Array.isArray(tags) ? tags : [],
   };
 }
 
@@ -153,6 +154,9 @@ class WorkflowTemplateService {
     }
     if (template.steps !== undefined) {
       updateData.steps = template.steps.map((step) => normalizeStep(step));
+    }
+    if (template.tags !== undefined) {
+      updateData.tags = Array.isArray(template.tags) ? template.tags : [];
     }
 
     return await this.workflowTemplateRepo.update(existing.id, updateData);

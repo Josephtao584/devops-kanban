@@ -1038,9 +1038,10 @@ const testSource = async (source) => {
   }
 }
 
-const viewAnalysis = (sessionId) => {
+const viewAnalysis = async (sessionId) => {
   syncHistoryDialogVisible.value = false
-  taskSourceStore.viewSyncAnalysis(sessionId)
+  await loadWorkflowTemplates()
+  await taskSourceStore.reopenAiResults(currentSourceId.value, sessionId)
 }
 
 // --- Description expand/collapse ---
