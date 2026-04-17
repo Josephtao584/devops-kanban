@@ -512,7 +512,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     try {
       const items = aiPreviewResults.value
         .filter(r => aiPreviewSelected.value.has(r.externalId))
-        .map(r => ({ externalId: r.externalId, title: r.title, description: r.description, external_url: r.external_url }))
+        .map(r => ({ externalId: r.externalId, title: r.title, description: r.description, external_url: r.external_url, recommendedWorkflowTemplateId: r.recommendedWorkflowTemplateId || null }))
       const response = await taskSourceApi.confirmSync(aiPreviewSourceId.value, {
         sessionId: aiPreviewSessionId.value,
         items,

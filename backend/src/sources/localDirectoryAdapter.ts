@@ -188,10 +188,12 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
 文件1
 标题: <生成的标题>
 描述: <生成的描述>
+推荐工作流: <模板ID 或 无>
 
 文件2
 标题: <生成的标题>
 描述: <生成的描述>
+推荐工作流: <模板ID 或 无>
 
 ---以下是文件路径列表---
 {fileList}`;
@@ -211,6 +213,7 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
     sessionId: number,
     files?: FileInfo[],
     customPrompt?: string,
+    workflowTemplates?: { templateId: string; name: string }[],
   ): Promise<ImportedTask[]> {
     const filelist = files ?? await this._scanFiles();
 
@@ -257,13 +260,18 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
       : new ClaudeStepRunner();
 
     const fileList = this.buildAiFileList(filelist);
+    const wfSection = workflowTemplates && workflowTemplates.length > 0
+      ? `可推荐的工作流模板：\n${workflowTemplates.map(t => `- ${t.templateId}: ${t.name}`).join('\n')}\n\n`
+      : '无可用工作流模板\n\n';
     let prompt: string;
     if (customPrompt) {
-      prompt = customPrompt.includes('{fileList}')
-        ? customPrompt.replace('{fileList}', fileList)
-        : customPrompt;
+      prompt = customPrompt
+        .replace('{fileList}', fileList)
+        .replace('{workflowTemplates}', wfSection);
     } else {
-      prompt = this.buildAiPromptTemplate().replace('{fileList}', fileList);
+      prompt = this.buildAiPromptTemplate()
+        .replace('{workflowTemplates}', wfSection)
+        .replace('{fileList}', fileList);
     }
 
     // Inject agent skills into execution path (non-blocking)
@@ -315,6 +323,8 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
   _parseAiOutput(output: string, fallbackFile: FileInfo): ImportedTask {
     const titleMatch = output.match(/标题[：:]\s*(.+)/);
     const descMatch = output.match(/描述[：:]\s*([\s\S]*?)(?:\n\n|$)/);
+    const wfMatch = output.match(/推荐工作流[：:]\s*(.+)/);
+    const wf = wfMatch?.[1]?.trim();
 
     return {
       external_id: fallbackFile.filename,
@@ -322,7 +332,8 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
       description: descMatch?.[1]?.trim() || this._substituteTemplate(this.descriptionTemplate, fallbackFile),
       external_url: `file://${fallbackFile.filepath}`,
       labels: [],
-    };
+      _recommendedWorkflowTemplateId: wf && wf !== '无' ? wf : null,
+    } as ImportedTask & { _recommendedWorkflowTemplateId: string | null };
   }
 
   _parseMultiFileAiOutput(output: string, fallbackFiles: FileInfo[]): ImportedTask[] {
@@ -359,13 +370,16 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
       const file = fallbackFiles[i]!;
       const titleMatch = block.match(/标题[：:]\s*(.+)/);
       const descMatch = block.match(/描述[：:]\s*([\s\S]*?)(?=\n\n|\n文件\d+|$)/);
+      const wfMatch = block.match(/推荐工作流[：:]\s*(.+)/);
+      const wf = wfMatch?.[1]?.trim();
 
-      results.push({
+      (results as (ImportedTask & { _recommendedWorkflowTemplateId: string | null })[]).push({
         external_id: file.filename,
         title: titleMatch?.[1]?.trim() || file.filename,
         description: descMatch?.[1]?.trim() || this._substituteTemplate(this.descriptionTemplate, file),
         external_url: `file://${file.filepath}`,
         labels: [],
+        _recommendedWorkflowTemplateId: wf && wf !== '无' ? wf : null,
       });
     }
 

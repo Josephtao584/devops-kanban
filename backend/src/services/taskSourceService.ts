@@ -393,7 +393,18 @@ class TaskSourceService {
       }
     }
 
-    const prompt = adapter.buildAiPromptTemplate();
+    // Get workflow templates and inject into prompt
+    const { WorkflowTemplateService } = await import('./workflow/workflowTemplateService.js');
+    const wfService = new WorkflowTemplateService();
+    const templates = await wfService.getTemplates();
+    const wfList = templates.map(t => ({ templateId: t.template_id, name: t.name }));
+
+    const wfSection = wfList.length > 0
+      ? `可推荐的工作流模板：\n${wfList.map(t => `- ${t.templateId}: ${t.name}`).join('\n')}\n\n`
+      : '无可用工作流模板\n\n';
+    const prompt = adapter.buildAiPromptTemplate()
+      .replace('{workflowTemplates}', wfSection)
+      .replace('{fileList}', '');
     return { prompt, files: newFiles, fileCount: newFiles.length };
   }
 
@@ -450,7 +461,12 @@ class TaskSourceService {
     });
 
     // Fire-and-forget: run AI in background, store results in session metadata when done
-    adapter.fetchWithAiDescriptions(session.id, newFiles, customPrompt).then(async (tasks) => {
+    const { WorkflowTemplateService } = await import('./workflow/workflowTemplateService.js');
+    const wfService = new WorkflowTemplateService();
+    const templates = await wfService.getTemplates();
+    const wfList = templates.map(t => ({ templateId: t.template_id, name: t.name }));
+
+    adapter.fetchWithAiDescriptions(session.id, newFiles, customPrompt, wfList).then(async (tasks) => {
       const allFallback = tasks.every(t => t.title === t.external_id);
       if (allFallback) {
         await sessionRepo.update(session.id, {
@@ -465,6 +481,7 @@ class TaskSourceService {
         title: t.title,
         description: t.description ?? '',
         external_url: t.external_url,
+        recommendedWorkflowTemplateId: (t as any)._recommendedWorkflowTemplateId || null,
       }));
 
       await sessionRepo.update(session.id, {
@@ -532,10 +549,12 @@ class TaskSourceService {
           external_url: item.external_url ?? '',
         });
         created++;
-        if (defaultTemplateId) {
+        // Prefer AI-recommended template, fallback to source default
+        const templateId = (item as any).recommendedWorkflowTemplateId || defaultTemplateId;
+        if (templateId) {
           await this.taskRepository.update(newTask.id, {
             auto_execute: 1,
-            auto_execute_template_id: defaultTemplateId,
+            auto_execute_template_id: templateId,
           } as any);
         }
       }

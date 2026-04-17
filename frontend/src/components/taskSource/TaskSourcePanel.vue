@@ -395,6 +395,20 @@
                   :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
                   class="result-desc-input"
                 />
+                <el-select
+                  v-model="item.recommendedWorkflowTemplateId"
+                  size="small"
+                  clearable
+                  :placeholder="$t('taskSource.aiWorkflowTemplate', '推荐工作流')"
+                  class="result-workflow-input"
+                >
+                  <el-option
+                    v-for="tpl in workflowTemplates"
+                    :key="tpl.template_id"
+                    :label="tpl.name"
+                    :value="tpl.template_id"
+                  />
+                </el-select>
               </div>
             </div>
           </div>
@@ -897,6 +911,7 @@ const confirmDelete = (source) => {
 const handleSync = async (source) => {
   const isLocalAiMode = source.type === 'LOCAL_DIRECTORY' && source.config?.descriptionMode === 'ai'
   if (isLocalAiMode) {
+    loadWorkflowTemplates()
     try {
       const opened = await taskSourceStore.openAiPreview(source.id)
       if (!opened) {
@@ -1672,6 +1687,13 @@ const deselectAllAiResults = () => {
 
 :deep(.result-title-input .el-input__inner) {
   font-weight: 500;
+}
+
+.result-workflow-input {
+  width: 100%;
+}
+.result-workflow-input :deep(.el-input__wrapper) {
+  background: var(--bg-secondary);
 }
 
 .ai-preview-dialog :deep(.el-dialog__body) {
