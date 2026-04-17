@@ -259,8 +259,13 @@
                 <div class="item-meta">
                   <span class="item-id">#{{ task.external_id }}</span>
                   <span class="item-source">{{ task.sourceName }}</span>
+                  <template v-if="task.external_url && task.external_url.startsWith('file://')">
+                    <span class="external-link local-path" :title="formatKanbanExternalUrl(task.external_url)">
+                      {{ formatKanbanExternalUrl(task.external_url) }}
+                    </span>
+                  </template>
                   <a
-                    v-if="task.external_url"
+                    v-else-if="task.external_url"
                     :href="task.external_url"
                     target="_blank"
                     class="external-link"
@@ -914,21 +919,20 @@ const handleSyncTaskSources = async () => {
   if (!selectedProjectId.value) return
 
   try {
-    // Show dialog immediately with loading state
-    taskSourceStore.showPreviewDialog = true
-    taskSourceStore.syncPreviewTasks = []
-    taskSourceStore.syncError = null
-
-    const tasks = await taskSourceStore.openSyncPreviewForProject(selectedProjectId.value)
-    if (tasks.length === 0) {
-      taskSourceStore.closePreviewDialog()
-      toast.warning(t('taskSource.noTasksToImport', '没有可同步的任务'))
+    const response = await taskSourceStore.previewSync(selectedProjectId.value)
+    if (!response || response.fileCount === 0) {
+      ElMessage.info(t('taskSource.noNewFiles', '没有新文件可导入'))
+      return
     }
-  } catch (err) {
-    console.error('Failed to sync task sources:', err)
-    taskSourceStore.closePreviewDialog()
-    toast.error(err.message || t('taskSource.syncFailed'))
+    taskSourceStore.openSyncPreviewDialog()
+  } catch (e) {
+    ElMessage.error(e.message)
   }
+}
+
+const formatKanbanExternalUrl = (url) => {
+  if (url.startsWith('file://')) return url.replace('file://', '')
+  return url
 }
 
 const handleTasksImported = async () => {
@@ -4135,5 +4139,16 @@ onUnmounted(() => {
   background: var(--bg-secondary);
   border-color: var(--border-color-hover);
   color: var(--text-primary);
+}
+
+.external-link.local-path {
+  color: #909399;
+  cursor: default;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.external-link.local-path:hover {
+  text-decoration: none;
 }
 </style>

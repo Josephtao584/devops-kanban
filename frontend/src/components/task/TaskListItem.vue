@@ -43,15 +43,22 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
             {{ getTemplateName(task.auto_execute_template_id) }}
           </span>
+          <template v-if="task.external_url && task.external_url.startsWith('file://')">
+            <span class="github-link local-file-link" :title="formatTaskExternalUrl(task.external_url)" @click.stop>
+              <el-tag type="info" size="small">
+                {{ formatTaskExternalUrl(task.external_url) }}
+              </el-tag>
+            </span>
+          </template>
           <a
-            v-if="task.external_url"
+            v-else-if="task.external_url"
             :href="task.external_url"
             target="_blank"
             class="github-link"
             @click.stop
           >
             <el-tag type="info" size="small">
-              外部链接
+              {{ $t('taskSource.viewExternalItem', '外部链接') }}
             </el-tag>
           </a>
         </div>
@@ -657,6 +664,11 @@ const workflowStatusText = computed(() => {
 })
 
 const formatDateTimeIso = (isoString) => formatDateTime(isoString, { fallback: '', style: 'iso' })
+
+const formatTaskExternalUrl = (url) => {
+  if (url.startsWith('file://')) return url.replace('file://', '')
+  return url
+}
 
 const workflowStartTime = computed(() => {
   const steps = realWorkflowRun.value?.steps
@@ -1598,5 +1610,19 @@ const openWorktreeDirectory = () => {
 .auto-refresh-checkbox :deep(.el-checkbox__label) {
   font-size: 11px;
   padding-left: 4px;
+}
+
+.github-link.local-file-link {
+  cursor: default;
+}
+
+.github-link.local-file-link .el-tag {
+  color: #909399;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.github-link.local-file-link:hover {
+  text-decoration: none;
 }
 </style>
