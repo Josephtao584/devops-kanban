@@ -32,19 +32,44 @@
 
 Kanban 的定位：**将 AI First 从口号落地为可操作的 Harness 系统**——持续识别瓶颈，用工程框架逐一突破。
 
-### 五大 Harness 原则
+### Harness 四大支柱
 
-AI First 不是放任 AI，而是让 AI 在工程框架内释放最大生产力。DevOps Kanban 把 Harness Engineering 落地为五个核心原则：
+AI First 不是放任 AI，而是让 AI 在工程框架内释放最大生产力。DevOps Kanban 把 Harness Engineering 落地为四大支柱：
 
-| 原则 | 为什么 | 怎么做 |
-| --- | --- | --- |
-| **隔离性 Isolation** | AI First 意味着多 Agent 同时工作，需要无冲突并行才能线性提升吞吐量 | Git Worktree——每任务独立分支和目录，多 Agent 吞吐量线性提升 |
-| **可观测性 Observability** | 人要把判断力用在最高价值的地方，但这需要充分的信息才能做出好判断 | Session/Event + WebSocket 实时推送——AI 过程全透明，人做高质量判断 |
-| **可恢复性 Recovery** | AI 执行速度快但不稳定，失败是常态，快速恢复才能持续迭代 | Segment 链式 Retry——断点续接，失败仅重跑失败步骤，Token 省 50%+ |
-| **可控性 Control** | AI First 不是 AI 替代人，而是人做决策 AI 执行，人机各展所长 | Suspend/Resume——关键节点人工确认后继续，人不卡流程，只在决策点升华 |
-| **可追溯性 Traceability** | AI 每次执行都是一次知识积累，可回溯才能让下一次比这一次更好 | Template Snapshot + Event Audit Trail——运行时快照模板，历史可精确复现 |
+#### ① 上下文架构（Context Architecture）
 
-> 这五个原则不是理论——每一个都通过 **Workflow 系统** 落地为代码。Workflow 是 Harness 的执行骨架：它把"启动一个 Agent"从一个单一动作变成一个**结构化的工程流程**。
+AI 的输出质量取决于输入的上下文质量。零散的提示词产出不可预测，结构化的上下文才能让 AI 稳定地产出工程级结果。
+
+- Workflow 模板定义每一步的指令和上下文传递规则
+- MCP/Skill 系统为 Agent 注入专业能力
+- 任务卡片承载结构化的需求上下文
+
+#### ② Agent 专业化（Agent Specialization）
+
+没有 Agent 能做好所有事。不同任务需要不同能力——设计、编码、测试、审查各有最佳 Agent。专业化才能让每个环节都达到最高质量。
+
+- 多执行器支持（Claude Code / Codex / OpenCode）
+- 每个 Workflow 步骤独立分配 Agent
+- 模板预置角色配置，开箱即用
+
+#### ③ 持久化记忆（Persistent Memory）
+
+AI 没有记忆就没有积累——每次从零开始是最昂贵的浪费。记忆让 AI 能从失败中学习，让历史经验成为下一次的起点。
+
+- Session / Segment / Event 三层模型保留完整执行链
+- Segment 链式 Retry——断点续接，失败仅重跑失败步骤
+- Template Snapshot 冻结运行时状态，历史可精确复现
+
+#### ④ 结构化执行（Structured Execution）
+
+AI 在野环境里横冲直撞是灾难。结构化执行给 AI 划定边界——隔离的执行环境、确定性的流程、人工介入的安全阀。
+
+- Git Worktree 隔离——每任务独立分支和目录，多 Agent 并行互不干扰
+- Workflow 步骤编排——把"跑一次 Agent"变成结构化的工程流程
+- Suspend/Resume——关键节点人工确认后继续，人不卡流程，只在决策点升华
+- 写队列串行化——防止并发竞态，保证确定性
+
+> 四大支柱不是理论——每一个都通过 **Workflow 系统** 落地为代码。Workflow 是 Harness 的执行骨架：它把"启动一个 Agent"从一个单一动作变成一个**结构化的工程流程**。
 
 ## Workflow：Harness 的执行骨架
 
@@ -102,15 +127,14 @@ Step 3: 恢复 ──→ 用反馈继续 ──→ 完成 ✓
 Step 4: 测试验证 ──→ 开始执行
 ```
 
-### Workflow 如何实现五个 Harness 原则
+### Workflow 如何实现四大支柱
 
-| 原则 | Workflow 实现 |
+| 支柱 | Workflow 实现 |
 | --- | --- |
-| **隔离性** | 每个 Workflow Run 在独立的 Git Worktree 中执行，多 Agent 并行互不干扰，吞吐量线性提升 |
-| **可观测性** | 每个 Step 创建独立的 Session，所有事件通过 WebSocket 实时推送，人做更高质量的判断 |
-| **可恢复性** | Step 级别的重试——失败是常态，快速恢复让 AI 持续迭代，不需要从头开始 |
-| **可控性** | Suspend/Resume 机制——人在决策点升华，恢复时跳过已完成步骤，人不卡流程 |
-| **可追溯性** | 模板快照（Template Snapshot）——每次执行都是知识积累，历史可精确复现 |
+| **上下文架构** | 模板定义每步指令和上下文传递规则，Skill/MCP 注入专业能力，上游摘要自动传递给下游 |
+| **Agent 专业化** | 每步独立分配 Agent（Claude Code / Codex / OpenCode），模板预置角色配置 |
+| **持久化记忆** | Session/Segment/Event 三层记录，Step 级重试从断点恢复，Template Snapshot 冻结运行时状态 |
+| **结构化执行** | Worktree 隔离 + 步骤编排 + Suspend/Resume + 写队列串行化——AI 在框架内确定性执行 |
 
 ## 它解决什么问题
 
