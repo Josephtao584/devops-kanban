@@ -30,7 +30,7 @@ async function resolveWorkflowSkills(workflow: WorkflowInstanceEntity): Promise<
 async function resolveAgentSkills(agentId: number): Promise<{ skillNames: string[]; executorType: ExecutorType }> {
   const agent = await agentRepo.findById(agentId);
   if(!agent){
-    throw Error("unable to find agent")
+    return { skillNames: [], executorType: 'CLAUDE_CODE' as ExecutorType };
   }
   if (!Array.isArray(agent.skills) || agent.skills.length === 0) {
     return { skillNames: [], executorType: agent.executorType };

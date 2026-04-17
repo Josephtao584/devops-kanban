@@ -11,7 +11,7 @@
       label-position="top"
     >
       <el-form-item :label="$t('project.projectName')" prop="name">
-        <el-input v-model="form.name" :placeholder="$t('project.enterName')" />
+        <el-input v-model="form.name" :placeholder="$t('project.enterName')" maxlength="200" show-word-limit />
       </el-form-item>
 
       <el-form-item :label="$t('project.description')">
@@ -20,6 +20,8 @@
           type="textarea"
           :rows="3"
           :placeholder="$t('project.enterDescription')"
+          maxlength="5000"
+          show-word-limit
         />
       </el-form-item>
 
@@ -33,6 +35,7 @@
           v-model="form.gitUrl"
           placeholder="https://github.com/user/repo.git"
           clearable
+          maxlength="2000"
         >
           <template #prefix>
             <el-icon><Link /></el-icon>
@@ -45,6 +48,7 @@
           v-model="form.localPath"
           placeholder="/path/to/local/repo"
           clearable
+          maxlength="2000"
         >
           <template #prefix>
             <el-icon><FolderOpened /></el-icon>

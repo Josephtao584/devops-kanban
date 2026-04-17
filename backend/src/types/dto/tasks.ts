@@ -1,5 +1,7 @@
 export interface CreateTaskInput {
+  /** @maxLength 200 */
   title?: string;
+  /** @maxLength 5000 */
   description?: string;
   project_id: number;
   iteration_id?: number | null;
@@ -24,7 +26,9 @@ export interface StartTaskInput {
 }
 
 export interface UpdateTaskInput {
+  /** @maxLength 200 */
   title?: string;
+  /** @maxLength 5000 */
   description?: string;
   project_id?: number;
   iteration_id?: number | null;

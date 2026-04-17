@@ -6,15 +6,20 @@ import * as path from 'node:path';
 
 import { SchedulerService } from '../src/services/schedulerService.js';
 import { TaskSourceRepository } from '../src/repositories/taskSourceRepository.js';
+import { closeDbClient } from '../src/db/client.js';
+import { initDatabase } from '../src/db/schema.js';
 
 async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'scheduler-test-'));
   const originalStoragePath = process.env.STORAGE_PATH;
   process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
 
   try {
     await run(tempRoot);
   } finally {
+    await closeDbClient();
     if (originalStoragePath === undefined) {
       delete process.env.STORAGE_PATH;
     } else {

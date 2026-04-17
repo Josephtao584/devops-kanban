@@ -199,6 +199,8 @@
             v-model="form.name"
             data-testid="skill-name-input"
             :placeholder="$t('skill.namePlaceholder')"
+            maxlength="200"
+            show-word-limit
           />
         </el-form-item>
         <el-form-item :label="$t('skill.description')">
@@ -209,6 +211,8 @@
             :rows="6"
             resize="vertical"
             :placeholder="$t('skill.descriptionPlaceholder')"
+            maxlength="5000"
+            show-word-limit
           />
         </el-form-item>
       </el-form>

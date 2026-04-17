@@ -32,3 +32,15 @@ export interface TaskSourcePreviewBody {
   limit?: number;
   offset?: number;
 }
+
+export interface ConfirmSyncItem {
+  externalId: string;
+  title: string;
+  description?: string;
+  external_url?: string;
+}
+
+export interface ConfirmSyncBody {
+  sessionId: number;
+  items: ConfirmSyncItem[];
+}

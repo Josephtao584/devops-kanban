@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   worktree_path TEXT,
   branch TEXT,
   initial_prompt TEXT,
+  metadata TEXT,
   agent_id INTEGER,
   executor_type TEXT,
   started_at TEXT,

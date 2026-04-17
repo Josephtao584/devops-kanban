@@ -84,6 +84,12 @@ class TaskService {
     if (!taskData.title || !taskData.title.trim()) {
       throw new ValidationError('任务标题不能为空', 'Task title is required');
     }
+    if (taskData.title.length > 200) {
+      throw new ValidationError('任务标题不能超过 200 个字符', 'Task title exceeds maximum length of 200 characters');
+    }
+    if (taskData.description && taskData.description.length > 5000) {
+      throw new ValidationError('任务描述不能超过 5000 个字符', 'Task description exceeds maximum length of 5000 characters');
+    }
 
     if (!taskData.project_id) {
       throw new ValidationError('项目 ID 不能为空', 'Project ID is required');
@@ -116,6 +122,17 @@ class TaskService {
   }
 
   async update(taskId: number, taskData: UpdateTaskInput) {
+    if (taskData.title !== undefined) {
+      if (!taskData.title.trim()) {
+        throw new ValidationError('任务标题不能为空', 'Task title is required');
+      }
+      if (taskData.title.length > 200) {
+        throw new ValidationError('任务标题不能超过 200 个字符', 'Task title exceeds maximum length of 200 characters');
+      }
+    }
+    if (taskData.description !== undefined && taskData.description.length > 5000) {
+      throw new ValidationError('任务描述不能超过 5000 个字符', 'Task description exceeds maximum length of 5000 characters');
+    }
     return await this.taskRepo.update(taskId, taskData);
   }
 

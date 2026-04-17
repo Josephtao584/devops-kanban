@@ -37,15 +37,24 @@ function validateCreateAgentBody(body: unknown): asserts body is CreateAgentBody
   if (typeof body.name !== 'string' || body.name.trim() === '') {
     throw new ValidationError('名称为必填项', 'name is required');
   }
+  if (body.name.length > 200) {
+    throw new ValidationError('名称不能超过 200 个字符', 'name exceeds maximum length of 200 characters');
+  }
 
   if (body.executorType === undefined) {
     throw new ValidationError('执行器类型为必填项', 'executorType is required');
   }
 
   validateDescription(body.description, 'description must be a string', '描述必须为字符串');
+  if (body.description && body.description.length > 5000) {
+    throw new ValidationError('描述不能超过 5000 个字符', 'description exceeds maximum length of 5000 characters');
+  }
 
   if (typeof body.role !== 'string' || body.role.trim() === '') {
     throw new ValidationError('角色为必填项', 'role is required');
+  }
+  if (body.role.length > 200) {
+    throw new ValidationError('角色不能超过 200 个字符', 'role exceeds maximum length of 200 characters');
   }
 
   if (typeof body.enabled !== 'boolean') {
@@ -74,13 +83,22 @@ function validateUpdateAgentBody(body: unknown): asserts body is UpdateAgentBody
   if ('name' in body && body.name !== undefined && (typeof body.name !== 'string' || body.name.trim() === '')) {
     throw new ValidationError('名称不能为空', 'name cannot be blank');
   }
+  if ('name' in body && body.name !== undefined && body.name.length > 200) {
+    throw new ValidationError('名称不能超过 200 个字符', 'name exceeds maximum length of 200 characters');
+  }
 
   if ('description' in body) {
     validateDescription(body.description, 'description must be a string', '描述必须为字符串');
+    if (body.description && body.description.length > 5000) {
+      throw new ValidationError('描述不能超过 5000 个字符', 'description exceeds maximum length of 5000 characters');
+    }
   }
 
   if ('role' in body && body.role !== undefined && (typeof body.role !== 'string' || body.role.trim() === '')) {
     throw new ValidationError('角色不能为空', 'role cannot be blank');
+  }
+  if ('role' in body && body.role !== undefined && body.role.length > 200) {
+    throw new ValidationError('角色不能超过 200 个字符', 'role exceeds maximum length of 200 characters');
   }
 
   if ('enabled' in body && body.enabled !== undefined && typeof body.enabled !== 'boolean') {

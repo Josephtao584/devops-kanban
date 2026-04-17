@@ -48,11 +48,11 @@
         </div>
 
         <div class="source-actions">
-          <el-button size="small" @click="previewAndSync(source)" :disabled="taskSourceStore.syncing">
+          <el-button size="small" @click="handleSync(source)" :disabled="taskSourceStore.syncing">
             {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
           </el-button>
-          <el-button size="small" @click="testSource(source)" :disabled="taskSourceStore.testing">
-            {{ taskSourceStore.testing ? '测试中...' : $t('taskSource.test', '测试') }}
+          <el-button size="small" @click="openSyncHistory(source)">
+            {{ $t('taskSource.syncHistory', '同步历史') }}
           </el-button>
           <el-button size="small" @click="editSource(source)">
             {{ $t('taskSource.edit', '编辑') }}
@@ -78,7 +78,7 @@
           <div class="form-section">
             <div class="section-title">基本信息</div>
             <el-form-item :label="$t('taskSource.name', '名称')" prop="name">
-              <el-input v-model="formData.name" :placeholder="$t('taskSource.namePlaceholder', '输入任务源名称')" clearable />
+              <el-input v-model="formData.name" :placeholder="$t('taskSource.namePlaceholder', '输入任务源名称')" clearable maxlength="200" show-word-limit />
             </el-form-item>
 
             <el-form-item :label="$t('taskSource.type', '类型')" prop="type">
@@ -106,7 +106,7 @@
                 :key="key"
               >
                 <el-form-item
-                  v-if="field && !field.hidden"
+                  v-if="field && !field.hidden && !isFieldHidden(key)"
                   :label="getFieldLabel(key, field)"
                   :prop="`config.${key}`"
                   :required="field.required"
@@ -155,6 +155,19 @@
                       :value="opt.value"
                     />
                   </el-select>
+                  <el-select
+                    v-else-if="key === 'agentId'"
+                    v-model="formData.config[key]"
+                    :placeholder="getFieldPlaceholder(key, field)"
+                    clearable
+                  >
+                    <el-option
+                      v-for="agent in agents"
+                      :key="agent.id"
+                      :label="agent.name"
+                      :value="agent.id"
+                    />
+                  </el-select>
                   <el-input
                     v-else
                     v-model="formData.config[key]"
@@ -175,7 +188,7 @@
           <div class="form-section">
             <el-form-item :label="$t('taskSource.syncFrequency', '同步频率')">
               <el-select v-model="formData.sync_schedule" clearable :placeholder="$t('taskSource.scheduleDisabled', '不启用')">
-                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" :value="null" />
+                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" value="" />
                 <el-option label="每 5 分钟" value="*/5 * * * *" />
                 <el-option label="每 15 分钟" value="*/15 * * * *" />
                 <el-option label="每 30 分钟" value="*/30 * * * *" />
@@ -307,20 +320,161 @@
       </template>
     </BaseDialog>
 
-    <!-- Test Result Dialog -->
+    <!-- AI Preview 2-Step Dialog -->
     <BaseDialog
-      v-model="testDialogVisible"
-      :title="$t('taskSource.testResult', '测试结果')"
-      width="400px"
+      v-model="taskSourceStore.aiPreviewDialog"
+      :title="taskSourceStore.aiPreviewStep === 'prompt' ? $t('taskSource.aiPreviewPromptTitle', '同步预览 - Prompt') : $t('taskSource.aiPreviewResultsTitle', '同步预览 - AI 结果')"
+      width="700px"
+      custom-class="ai-preview-dialog"
       append-to-body
     >
-      <div v-if="testResult !== null">
-        <div :class="['test-result', testResult ? 'test-success' : 'test-fail']">
-          {{ testResult ? $t('taskSource.connectionSuccess', '连接成功') : $t('taskSource.connectionFailed', '连接失败') }}
+      <!-- Step 1: Prompt Preview -->
+      <div v-if="taskSourceStore.aiPreviewStep === 'prompt'">
+        <div class="ai-prompt-header">
+          <span class="prompt-file-count">{{ taskSourceStore.aiPreviewFiles.length }} {{ $t('taskSource.aiFilesToAnalyze', '个文件将被分析') }}</span>
+        </div>
+        <div class="ai-prompt-content">
+          <pre class="ai-prompt-text">{{ taskSourceStore.aiPreviewPrompt }}</pre>
+        </div>
+        <div class="ai-prompt-files">
+          <div v-for="file in taskSourceStore.aiPreviewFiles" :key="file.filename" class="ai-prompt-file-item">
+            <span class="file-icon">&#x1F4C4;</span>
+            <span class="file-name">{{ file.filename }}</span>
+            <span class="file-size">{{ formatFileSize(file.size) }}</span>
+          </div>
         </div>
       </div>
+
+      <!-- Step 2: AI Results / Processing -->
+      <div v-else>
+        <!-- Processing -->
+        <div v-if="taskSourceStore.aiPreviewProcessing" class="ai-processing">
+          <div class="processing-spinner"></div>
+          <p>{{ $t('taskSource.aiProcessing', 'AI 正在分析文件，可关闭对话框稍后查看...') }}</p>
+        </div>
+
+        <!-- Error -->
+        <div v-else-if="taskSourceStore.aiPreviewError" class="ai-error">
+          <el-alert type="error" :title="taskSourceStore.aiPreviewError" :closable="false" />
+        </div>
+
+        <!-- Results -->
+        <template v-else>
+          <div class="ai-results-controls">
+            <el-button size="small" @click="selectAllAiResults">{{ $t('taskSource.selectAll', '全选') }}</el-button>
+            <el-button size="small" @click="deselectAllAiResults">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
+            <span class="selected-count">
+              {{ taskSourceStore.aiPreviewSelected.size }} / {{ taskSourceStore.aiPreviewResults.length }} {{ $t('taskSource.selected', '已选') }}
+            </span>
+          </div>
+          <div class="ai-results-list">
+            <div
+              v-for="item in taskSourceStore.aiPreviewResults"
+              :key="item.externalId"
+              class="ai-result-item"
+              :class="{ selected: taskSourceStore.aiPreviewSelected.has(item.externalId) }"
+            >
+              <input
+                type="checkbox"
+                :checked="taskSourceStore.aiPreviewSelected.has(item.externalId)"
+                @change="taskSourceStore.toggleAiPreviewItem(item.externalId)"
+              />
+              <div class="result-content">
+                <div class="result-filename">{{ item.externalId }}</div>
+                <el-input v-model="item.title" size="small" :placeholder="$t('taskSource.aiTaskTitle', '任务标题')" class="result-title-input" />
+                <el-input
+                  v-model="item.description"
+                  type="textarea"
+                  :rows="2"
+                  size="small"
+                  :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
+                  class="result-desc-input"
+                />
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <template #footer>
-        <el-button @click="testDialogVisible = false">{{ $t('common.close', '关闭') }}</el-button>
+        <el-button @click="taskSourceStore.closeAiPreviewDialog()">{{ taskSourceStore.aiPreviewProcessing ? '关闭' : $t('common.cancel', '取消') }}</el-button>
+        <el-button
+          v-if="taskSourceStore.aiPreviewStep === 'prompt'"
+          type="primary"
+          @click="executeAiPreviewAndSync"
+          :loading="taskSourceStore.aiPreviewLoading"
+          :disabled="taskSourceStore.aiPreviewFiles.length === 0"
+        >
+          {{ $t('taskSource.aiConfirmExecute', '确认执行') }}
+        </el-button>
+        <el-button
+          v-else-if="!taskSourceStore.aiPreviewProcessing && !taskSourceStore.aiPreviewError"
+          type="primary"
+          @click="confirmAiPreviewAndImport"
+          :loading="taskSourceStore.aiPreviewLoading"
+          :disabled="taskSourceStore.aiPreviewSelected.size === 0"
+        >
+          {{ $t('taskSource.aiConfirmImport', '确认导入') }} ({{ taskSourceStore.aiPreviewSelected.size }})
+        </el-button>
+      </template>
+    </BaseDialog>
+
+    <!-- Sync History Dialog -->
+    <BaseDialog
+      v-model="syncHistoryDialogVisible"
+      :title="$t('taskSource.syncHistoryTitle', '同步历史')"
+      width="600px"
+      append-to-body
+    >
+      <div v-if="taskSourceStore.syncHistoryLoading" class="sync-history-loading">
+        {{ $t('taskSource.syncHistoryLoading', '加载中...') }}
+      </div>
+      <div v-else-if="taskSourceStore.syncHistory.length === 0" class="sync-history-empty">
+        {{ $t('taskSource.syncHistoryEmpty', '暂无同步记录') }}
+      </div>
+      <el-table v-else :data="taskSourceStore.syncHistory" size="small" stripe>
+        <el-table-column :label="$t('taskSource.syncHistoryTime', '时间')" prop="startedAt" width="180">
+          <template #default="{ row }">
+            {{ row.startedAt ? formatDate(row.startedAt) : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('taskSource.syncHistoryMode', '模式')" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.mode === 'ai' ? 'success' : 'info'" size="small">
+              {{ row.mode === 'ai' ? $t('taskSource.syncHistoryModeAi', 'AI') : $t('taskSource.syncHistoryModeFixed', '固定') }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('taskSource.syncHistoryFiles', '文件数')" prop="fileCount" width="80" />
+        <el-table-column :label="$t('taskSource.syncHistoryStatus', '状态')" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'COMPLETED' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'" size="small">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('taskSource.syncHistoryViewAnalysis', '查看分析')" width="100">
+          <template #default="{ row }">
+            <el-button v-if="row.mode === 'ai'" link type="primary" size="small" @click="viewAnalysis(row.sessionId)">
+              {{ $t('taskSource.syncHistoryViewAnalysis', '查看分析') }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-if="taskSourceStore.syncHistoryPagination.total > taskSourceStore.syncHistoryPagination.pageSize"
+        class="sync-history-pagination"
+        v-model:current-page="taskSourceStore.syncHistoryPagination.page"
+        v-model:page-size="taskSourceStore.syncHistoryPagination.pageSize"
+        :total="taskSourceStore.syncHistoryPagination.total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, prev, pager, next, sizes"
+        size="small"
+        @current-change="handleSyncHistoryPageChange"
+        @size-change="handleSyncHistoryPageSizeChange"
+      />
+      <template #footer>
+        <el-button @click="syncHistoryDialogVisible = false">{{ $t('common.close', '关闭') }}</el-button>
       </template>
     </BaseDialog>
   </div>
@@ -363,8 +517,8 @@ const isEditMode = ref(false)
 const submitting = ref(false)
 const formRef = ref(null)
 
-const testDialogVisible = ref(false)
-const testResult = ref(null)
+const syncHistoryDialogVisible = ref(false)
+const currentSourceId = ref(null)
 
 const expandedPreviewDescriptions = ref(new Set())
 const descriptionOverflowState = ref({})
@@ -459,8 +613,7 @@ const loadWorkflowTemplates = async () => {
 
 const getTypeLabel = (type) => {
   const translated = t(`taskSource.types.${type}`)
-  const localizedLabel = translated === `taskSource.types.${type}` ? type : translated
-  return localizedLabel === type ? type : `${type} · ${localizedLabel}`
+  return translated === `taskSource.types.${type}` ? type : translated
 }
 
 const getTypeIcon = (_type) => {
@@ -481,7 +634,12 @@ const getFieldLabel = (key, field) => {
     listPath: '列表路径',
     detailPath: '详情路径',
     detailIdField: '详情 ID 字段',
-    rejectUnauthorized: '接受自签名证书'
+    rejectUnauthorized: '接受自签名证书',
+    directoryPath: '目录路径',
+    fileExtensions: '文件扩展名',
+    descriptionMode: '描述模式',
+    descriptionTemplate: '描述模板',
+    agentId: '分析 Agent'
   }
 
   const internalApiLabels = {
@@ -511,7 +669,11 @@ const getFieldPlaceholder = (key, field) => {
     listPath: '/devops-workitem/api/v1/query/workitems',
     detailPath: '/devops-workitem/api/v1/query/{number}/document_detail',
     detailIdField: '例如: number',
-    rejectUnauthorized: '关闭后接受自签名证书'
+    rejectUnauthorized: '关闭后接受自签名证书',
+    directoryPath: '服务器本地目录的绝对路径',
+    fileExtensions: '如 txt,md,pdf',
+    descriptionTemplate: '支持 {filename} 等变量',
+    agentId: '选择 Agent'
   }
 
   const internalApiPlaceholders = {
@@ -531,6 +693,26 @@ const getFieldPlaceholder = (key, field) => {
   }
 
   return commonPlaceholders[key] || field.description || ''
+}
+
+const isFieldHidden = (key) => {
+  const mode = formData.value.config?.descriptionMode
+  if (key === 'descriptionTemplate' && mode === 'ai') return true
+  if (key === 'agentId' && mode !== 'ai') return true
+  return false
+}
+
+// --- Agents ---
+const agents = ref([])
+
+const loadAgents = async () => {
+  try {
+    const { default: api } = await import('../../api/index.js')
+    const response = await api.get('/agents')
+    agents.value = response.data?.data || response.data || []
+  } catch {
+    agents.value = []
+  }
 }
 
 // --- Form ---
@@ -566,6 +748,7 @@ const gitUrlToRepo = (gitUrl) => {
 
 const showAddDialog = () => {
   isEditMode.value = false
+  loadAgents()
 
   const currentProject = projectStore.projectList.find(p => String(p.id) === props.projectId)
   const gitUrl = currentProject?.git_url || ''
@@ -593,6 +776,7 @@ const showAddDialog = () => {
 
 const editSource = (source) => {
   isEditMode.value = true
+  loadAgents()
   const config = { ...source.config }
 
   if (typeof config.token === 'string' && config.token) {
@@ -705,6 +889,23 @@ const confirmDelete = (source) => {
 }
 
 // --- Sync ---
+const handleSync = async (source) => {
+  const isLocalAiMode = source.type === 'LOCAL_DIRECTORY' && source.config?.descriptionMode === 'ai'
+  if (isLocalAiMode) {
+    try {
+      const opened = await taskSourceStore.openAiPreview(source.id)
+      if (!opened) {
+        toast.info(t('taskSource.noNewFiles', '没有新文件'))
+      }
+    } catch (err) {
+      console.error('Failed to open AI preview:', err)
+      toast.error('预览失败: ' + (err.message || '未知错误'))
+    }
+  } else {
+    await previewAndSync(source)
+  }
+}
+
 const previewAndSync = async (source) => {
   try {
     const tasks = await taskSourceStore.openSyncPreviewForSource(source)
@@ -751,21 +952,46 @@ const closeSyncPreview = () => {
   taskSourceStore.closePreviewDialog()
 }
 
-// --- Test ---
-const testSource = async (source) => {
-  testResult.value = null
-  testDialogVisible.value = true
+const openSyncHistory = async (source) => {
+  syncHistoryDialogVisible.value = true
+  currentSourceId.value = source.id
+  taskSourceStore.syncHistoryPagination.page = 1
+  await taskSourceStore.fetchSyncHistory(source.id, 1)
+}
 
-  try {
-    const response = await taskSourceStore.testTaskSource(source.id)
-    if (response && response.success) {
-      testResult.value = response.data?.connected || false
-    } else {
-      testResult.value = false
-    }
-  } catch (e) {
-    testResult.value = false
+const handleSyncHistoryPageChange = (page) => {
+  taskSourceStore.syncHistoryPagination.page = page
+  taskSourceStore.fetchSyncHistory(currentSourceId.value, page)
+}
+
+const handleSyncHistoryPageSizeChange = (pageSize) => {
+  taskSourceStore.syncHistoryPagination.pageSize = pageSize
+  taskSourceStore.syncHistoryPagination.page = 1
+  taskSourceStore.fetchSyncHistory(currentSourceId.value, 1)
+}
+
+const formatDate = (isoString) => {
+  const date = new Date(isoString)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  if (isToday) {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   }
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+const testSource = async (source) => {
+  try {
+    const result = await taskSourceStore.testTaskSource(source.id)
+    toast.success(result?.data?.message || '连接测试成功')
+  } catch (err) {
+    toast.error('连接测试失败: ' + (err.message || '未知错误'))
+  }
+}
+
+const viewAnalysis = (sessionId) => {
+  syncHistoryDialogVisible.value = false
+  taskSourceStore.viewSyncAnalysis(sessionId)
 }
 
 // --- Description expand/collapse ---
@@ -792,6 +1018,49 @@ const toggleDescription = (externalId) => {
     newSet.add(externalId)
   }
   expandedPreviewDescriptions.value = newSet
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+const executeAiPreviewAndSync = async () => {
+  try {
+    await taskSourceStore.startAiPreview()
+    toast.info(t('taskSource.aiProcessingInBackground', 'AI 正在后台分析，可关闭对话框稍后查看'))
+  } catch (err) {
+    console.error('Failed to start AI preview:', err)
+    toast.error('AI 分析启动失败: ' + (err.message || '未知错误'))
+  }
+}
+
+const confirmAiPreviewAndImport = async () => {
+  try {
+    const result = await taskSourceStore.confirmAiPreviewImport()
+    if (result?.created > 0) {
+      toast.success(`成功导入 ${result.created} 个任务`)
+      await taskStore.fetchTasks(props.projectId)
+      emit('tasks-imported')
+    } else {
+      toast.info('没有新任务被创建')
+    }
+  } catch (err) {
+    console.error('Confirm import failed:', err)
+    toast.error('导入失败: ' + (err.message || '未知错误'))
+  }
+}
+
+const selectAllAiResults = () => {
+  taskSourceStore.aiPreviewSelected = new Set(
+    taskSourceStore.aiPreviewResults.map(r => r.externalId)
+  )
+}
+
+const deselectAllAiResults = () => {
+  taskSourceStore.aiPreviewSelected = new Set()
 }
 </script>
 
@@ -1188,25 +1457,6 @@ const toggleDescription = (externalId) => {
   color: #c0c4cc;
 }
 
-/* Test result */
-.test-result {
-  text-align: center;
-  padding: 20px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 8px;
-}
-
-.test-success {
-  color: #67c23a;
-  background: #f0f9eb;
-}
-
-.test-fail {
-  color: #f56c6c;
-  background: #fef0f0;
-}
-
 .source-schedule-badge {
   display: flex;
   align-items: center;
@@ -1232,9 +1482,183 @@ const toggleDescription = (externalId) => {
   color: #25c6c9;
 }
 
+.sync-history-loading {
+  text-align: center;
+  padding: 20px;
+  color: #909399;
+}
+
+.sync-history-empty {
+  text-align: center;
+  padding: 20px;
+  color: #909399;
+}
+
+.sync-history-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0 0;
+}
+
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.4; }
   100% { opacity: 1; }
+}
+
+/* AI Preview dialog */
+.ai-prompt-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.prompt-file-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.ai-prompt-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.ai-prompt-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+}
+
+.ai-prompt-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.ai-prompt-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.file-icon {
+  font-size: 14px;
+}
+
+.file-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.file-size {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ai-results-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.selected-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.ai-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.processing-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ai-processing p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.ai-error {
+  padding: 24px 0;
+}
+
+.ai-results-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ai-result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ai-result-item.selected {
+  background: var(--bg-secondary);
+}
+
+.ai-result-item input[type="checkbox"] {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.result-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-filename {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+:deep(.result-title-input .el-input__inner) {
+  font-weight: 500;
+}
+
+.ai-preview-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px;
 }
 </style>

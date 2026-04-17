@@ -22,6 +22,9 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
   if (typeof name !== 'string' || !name.trim()) {
     throw new ValidationError('步骤名称必须为非空字符串', 'step name must be a non-empty string');
   }
+  if (name.trim().length > 200) {
+    throw new ValidationError('步骤名称不能超过 200 个字符', 'step name must not exceed 200 characters');
+  }
 
   if (typeof instructionPrompt !== 'string' || !instructionPrompt.trim()) {
     throw new ValidationError('instructionPrompt 必须为非空字符串', 'instructionPrompt must be a non-empty string');
@@ -125,6 +128,10 @@ class WorkflowTemplateService {
 
   async createTemplate(template: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>): Promise<WorkflowTemplateEntity> {
     const normalizedTemplate = normalizeTemplate(template);
+
+    if (template.name && template.name.length > 200) {
+      throw new ValidationError('工作流模板名称不能超过 200 个字符', 'Workflow template name exceeds maximum length of 200 characters');
+    }
 
     const existing = await this.workflowTemplateRepo.findByTemplateId(normalizedTemplate.template_id);
     if (existing) {

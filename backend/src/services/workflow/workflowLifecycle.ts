@@ -26,7 +26,7 @@ class WorkflowLifecycle {
   sessionEventRepo: SessionEventRepository;
   instanceRepo: WorkflowInstanceRepository;
   _stepAttemptSegmentIds: Map<string, number | null>;
-  private onWorkflowNotification?: ((event: WorkflowNotificationEvent) => void) | undefined;
+  private onWorkflowNotification?: (event: WorkflowNotificationEvent) => void;
 
   constructor({
     workflowRunRepo,
@@ -55,7 +55,9 @@ class WorkflowLifecycle {
     this.sessionEventRepo = sessionEventRepo || new SessionEventRepository();
     this.instanceRepo = instanceRepo || new WorkflowInstanceRepository();
     this._stepAttemptSegmentIds = new Map();
-    this.onWorkflowNotification = onWorkflowNotification ?? undefined;
+    if (onWorkflowNotification !== undefined) {
+      this.onWorkflowNotification = onWorkflowNotification;
+    }
   }
 
   private async _emitNotification(
@@ -82,22 +84,26 @@ class WorkflowLifecycle {
         status: s.status,
         summary: s.summary,
       }));
-      this.onWorkflowNotification({
+
+      const notification: WorkflowNotificationEvent = {
         type,
         runId,
         taskId,
         taskTitle: task?.title || `Task #${taskId}`,
         steps,
         currentStepId: extra?.currentStepId ?? run?.current_step ?? null,
-        suspendInfo: extra?.suspendInfo
-          ? {
-              reason: extra.suspendInfo.reason,
-              summary: extra.suspendInfo.summary,
-              askUserQuestion: extra.suspendInfo.askUserQuestion,
-            }
-          : undefined,
-        errorMessage: extra?.errorMessage,
-      });
+      };
+      if (extra?.suspendInfo) {
+        notification.suspendInfo = {
+          reason: extra.suspendInfo.reason,
+          ...(extra.suspendInfo.summary != null ? { summary: extra.suspendInfo.summary } : {}),
+          ...(extra.suspendInfo.askUserQuestion != null ? { askUserQuestion: extra.suspendInfo.askUserQuestion } : {}),
+        };
+      }
+      if (extra?.errorMessage != null) {
+        notification.errorMessage = extra.errorMessage;
+      }
+      this.onWorkflowNotification(notification);
     } catch (error) {
       logger.warn('WorkflowLifecycle', `Notification hook failed: ${(error as Error).message}`);
     }
@@ -554,8 +560,8 @@ class WorkflowLifecycle {
         currentStepId: stepId,
         suspendInfo: {
           reason: suspendInfo.reason,
-          summary: suspendInfo.summary,
-          askUserQuestion: suspendInfo.ask_user_question,
+          ...(suspendInfo.summary != null ? { summary: suspendInfo.summary } : {}),
+          ...(suspendInfo.ask_user_question != null ? { askUserQuestion: suspendInfo.ask_user_question } : {}),
         },
       });
     }

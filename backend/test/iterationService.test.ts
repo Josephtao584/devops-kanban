@@ -8,15 +8,20 @@ import { IterationService } from '../src/services/iterationService.js';
 import { TaskRepository } from '../src/repositories/taskRepository.js';
 import { ProjectRepository } from '../src/repositories/projectRepository.js';
 import { IterationRepository } from '../src/repositories/iterationRepository.js';
+import { closeDbClient } from '../src/db/client.js';
+import { initDatabase } from '../src/db/schema.js';
 
 const origStorage = process.env.STORAGE_PATH;
 
 async function withIsolatedStorage(run: (tempRoot: string) => Promise<void>) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'iteration-service-test-'));
   process.env.STORAGE_PATH = tempRoot;
+  await closeDbClient();
+  await initDatabase();
   try {
     await run(tempRoot);
   } finally {
+    await closeDbClient();
     if (origStorage === undefined) {
       delete process.env.STORAGE_PATH;
     } else {
@@ -182,5 +187,120 @@ test.test('delete returns false when iteration does not exist', async () => {
     const service = new IterationService();
     const deleted = await service.delete(9999);
     assert.equal(deleted, false);
+  });
+});
+
+// ─── Length validation ──────────────────────────────────
+
+test.test('create rejects name exceeding 200 characters', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const longName = 'a'.repeat(201);
+
+    await assert.rejects(
+      async () => service.create({ project_id: project.id, name: longName }),
+      /Iteration name exceeds maximum length of 200 characters/
+    );
+  });
+});
+
+test.test('create accepts name at exactly 200 characters', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const exactName = 'a'.repeat(200);
+
+    const iteration = await service.create({ project_id: project.id, name: exactName });
+    assert.equal(iteration.name, exactName);
+  });
+});
+
+test.test('create rejects description exceeding 5000 characters', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const longDesc = 'b'.repeat(5001);
+
+    await assert.rejects(
+      async () => service.create({ project_id: project.id, name: 'Sprint', description: longDesc }),
+      /Iteration description exceeds maximum length of 5000 characters/
+    );
+  });
+});
+
+test.test('create rejects goal exceeding 5000 characters', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const longGoal = 'g'.repeat(5001);
+
+    await assert.rejects(
+      async () => service.create({ project_id: project.id, name: 'Sprint', goal: longGoal }),
+      /Iteration goal exceeds maximum length of 5000 characters/
+    );
+  });
+});
+
+test.test('update rejects name exceeding 200 characters', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const created = await service.create({ project_id: project.id, name: 'Sprint 12' });
+    const longName = 'a'.repeat(201);
+
+    await assert.rejects(
+      async () => service.update(created.id, { name: longName }),
+      /Iteration name exceeds maximum length of 200 characters/
+    );
+  });
+});
+
+test.test('update rejects empty name', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const project = await projectRepo.create({
+      name: 'Alpha',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+    });
+    const service = new IterationService();
+    const created = await service.create({ project_id: project.id, name: 'Sprint 12' });
+
+    await assert.rejects(
+      async () => service.update(created.id, { name: '   ' }),
+      /Iteration name is required/
+    );
   });
 });

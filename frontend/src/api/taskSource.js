@@ -13,3 +13,7 @@ export const previewSync = (id, params) => api.post(`/task-sources/${id}/sync/pr
 export const importIssues = (id, data) => api.post(`/task-sources/${id}/sync/import`, data)
 export const testTaskSource = (id) => api.get(`/task-sources/${id}/test`)
 export const getTaskSourceScheduleStatus = (id) => api.get(`/task-sources/${id}/schedule-status`)
+export const getSyncHistory = (id, params = {}) => api.get(`/task-sources/${id}/sync-history`, { params })
+export const previewPrompt = (id) => api.post(`/task-sources/${id}/sync/preview-prompt`)
+export const previewResults = (id) => api.post(`/task-sources/${id}/sync/preview-results`)
+export const confirmSync = (id, data) => api.post(`/task-sources/${id}/sync/confirm`, data)

@@ -51,6 +51,12 @@ vi.mock('../src/stores/taskSourceStore', () => ({
     syncPreviewTasks: [],
     selectedSyncTasks: new Set(),
     syncError: null,
+    syncHistory: [],
+    syncHistoryLoading: false,
+    syncHistoryPagination: { page: 1, pageSize: 10, total: 0 },
+    fetchSyncHistory: vi.fn(() => Promise.resolve()),
+    viewSyncAnalysis: vi.fn(),
+    syncPanelVisible: false,
     fetchTaskSources: fetchTaskSourcesMock,
     loadAvailableTypes: loadAvailableTypesMock,
     createTaskSource: createTaskSourceMock,
@@ -63,7 +69,22 @@ vi.mock('../src/stores/taskSourceStore', () => ({
     selectAllSyncTasks: selectAllSyncTasksMock,
     deselectAllSyncTasks: deselectAllSyncTasksMock,
     importSelectedPreviewTasks: importSelectedPreviewTasksMock,
-    fetchAllScheduleStatuses: fetchAllScheduleStatusesMock
+    fetchAllScheduleStatuses: fetchAllScheduleStatusesMock,
+    // AI preview state
+    aiPreviewDialog: false,
+    aiPreviewStep: 'prompt',
+    aiPreviewPrompt: '',
+    aiPreviewFiles: [],
+    aiPreviewResults: [],
+    aiPreviewSessionId: null,
+    aiPreviewSelected: new Set(),
+    aiPreviewLoading: false,
+    aiPreviewProcessing: false,
+    aiPreviewError: null,
+    openAiPreview: vi.fn(() => Promise.resolve(false)),
+    startAiPreview: vi.fn(() => Promise.resolve()),
+    closeAiPreviewDialog: vi.fn(),
+    toggleAiPreviewItem: vi.fn()
   })
 }))
 

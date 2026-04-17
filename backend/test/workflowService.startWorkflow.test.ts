@@ -1,17 +1,25 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import { WorkflowService } from '../src/services/workflow/workflowService.js';
 import type { WorkflowInstanceEntity } from '../src/types/entities.js';
 
-function buildTask(overrides: Record<string, unknown> = {}) {
+async function createTempWorktree(): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'workflow-test-'));
+  return dir;
+}
+
+function buildTask(worktreePath: string, overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
     project_id: 3,
     title: 'Workflow task',
     description: 'Use edited workflow snapshot',
     worktree_branch: 'task/7',
-    worktree_path: '/tmp/task-7',
+    worktree_path: worktreePath,
     ...overrides,
   };
 }
@@ -35,7 +43,9 @@ function buildInstance(instanceId: string, stepIds: string[], agentIds: number[]
 }
 
 test.test('startWorkflow creates workflow instance from template', async () => {
-  const task = buildTask();
+  const worktreePath = await createTempWorktree();
+  try {
+  const task = buildTask(worktreePath);
   const createdRuns: Array<Record<string, unknown>> = [];
   const createdInstances: Array<Record<string, unknown>> = [];
   const taskUpdates: Array<Record<string, unknown>> = [];
@@ -96,13 +106,18 @@ test.test('startWorkflow creates workflow instance from template', async () => {
   assert.ok(createdRun);
   assert.ok(createdRun.workflow_instance_id);
   assert.deepEqual(taskUpdates, [{ workflow_run_id: 91 }]);
+  } finally {
+    await fs.rm(worktreePath, { recursive: true, force: true });
+  }
 });
 
 test.test('startWorkflow rejects requests without template id', async () => {
+  const worktreePath = await createTempWorktree();
+  try {
   const service = new WorkflowService({
     taskRepo: {
       async findById() {
-        return buildTask();
+        return buildTask(worktreePath);
       },
     } as never,
     workflowRunRepo: {
@@ -121,4 +136,7 @@ test.test('startWorkflow rejects requests without template id', async () => {
       return true;
     },
   );
+  } finally {
+    await fs.rm(worktreePath, { recursive: true, force: true });
+  }
 });

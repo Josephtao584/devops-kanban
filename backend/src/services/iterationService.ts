@@ -84,6 +84,15 @@ class IterationService {
     if (!iterationData.name?.trim()) {
       throw new ValidationError('迭代名称不能为空', 'Iteration name is required');
     }
+    if (iterationData.name.length > 200) {
+      throw new ValidationError('迭代名称不能超过 200 个字符', 'Iteration name exceeds maximum length of 200 characters');
+    }
+    if (iterationData.description && iterationData.description.length > 5000) {
+      throw new ValidationError('迭代描述不能超过 5000 个字符', 'Iteration description exceeds maximum length of 5000 characters');
+    }
+    if (iterationData.goal && iterationData.goal.length > 5000) {
+      throw new ValidationError('迭代目标不能超过 5000 个字符', 'Iteration goal exceeds maximum length of 5000 characters');
+    }
 
     if (!iterationData.project_id) {
       throw new ValidationError('项目 ID 不能为空', 'Project ID is required');
@@ -107,16 +116,25 @@ class IterationService {
 
   async update(iterationId: number, iterationData: UpdateIterationInput) {
     const updateData: Record<string, unknown> = {};
-    if (iterationData.project_id !== undefined) {
-      updateData.project_id = iterationData.project_id;
-    }
     if (iterationData.name !== undefined) {
+      if (!iterationData.name.trim()) {
+        throw new ValidationError('迭代名称不能为空', 'Iteration name is required');
+      }
+      if (iterationData.name.length > 200) {
+        throw new ValidationError('迭代名称不能超过 200 个字符', 'Iteration name exceeds maximum length of 200 characters');
+      }
       updateData.name = iterationData.name;
     }
     if (iterationData.description !== undefined) {
+      if (iterationData.description.length > 5000) {
+        throw new ValidationError('迭代描述不能超过 5000 个字符', 'Iteration description exceeds maximum length of 5000 characters');
+      }
       updateData.description = iterationData.description;
     }
     if (iterationData.goal !== undefined) {
+      if (iterationData.goal.length > 5000) {
+        throw new ValidationError('迭代目标不能超过 5000 个字符', 'Iteration goal exceeds maximum length of 5000 characters');
+      }
       updateData.goal = iterationData.goal;
     }
     if (iterationData.start_date !== undefined) {
@@ -127,6 +145,9 @@ class IterationService {
     }
     if (iterationData.status !== undefined) {
       updateData.status = iterationData.status;
+    }
+    if (iterationData.project_id !== undefined) {
+      updateData.project_id = iterationData.project_id;
     }
     return await this.iterationRepo.update(iterationId, updateData);
   }

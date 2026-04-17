@@ -6,6 +6,7 @@ import type {
   CreateTaskSourceInput,
   TaskSourceImportBody,
   TaskSourcePreviewBody,
+  ConfirmSyncBody,
   UpdateTaskSourceInput,
 } from '../types/dto/taskSources.js';
 import type { IdParams } from '../types/http/params.js';
@@ -127,8 +128,14 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Params: IdParams }>('/:id/sync', async (request, reply) => {
     try {
-      const tasks = await getService().sync(request.params.id);
-      return successResponse(tasks, 'Task source synced successfully');
+      const result = await getService().syncWithSession(request.params.id);
+      if (result.sessionId) {
+        return successResponse({ sessionId: result.sessionId, status: 'processing' }, 'AI sync started');
+      }
+      if (result.tasks.length === 0) {
+        return successResponse(result.tasks, 'No new files to sync');
+      }
+      return successResponse(result.tasks, 'Task source synced successfully');
     } catch (error) {
       logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to sync task source');
@@ -165,13 +172,15 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get<{ Params: IdParams }>('/:id/test', async (request, reply) => {
+  fastify.get<{ Params: IdParams; Querystring: { page?: string; pageSize?: string } }>('/:id/sync-history', async (request, reply) => {
     try {
-      const connected = await getService().testConnection(request.params.id);
-      return successResponse({ connected });
+      const page = request.query.page ? parseInt(request.query.page, 10) : 1;
+      const pageSize = request.query.pageSize ? parseInt(request.query.pageSize, 10) : 20;
+      const result = await getService().getSyncHistory(request.params.id, { page, pageSize });
+      return successResponse(result);
     } catch (error) {
       logError(error, request);
-      return handleTaskSourceError(reply, error, 'Failed to test task source connection');
+      return handleTaskSourceError(reply, error, 'Failed to get sync history');
     }
   });
 
@@ -195,6 +204,41 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (error) {
       logError(error, request);
       return handleTaskSourceError(reply, error, 'Failed to get schedule status');
+    }
+  });
+
+  fastify.post<{ Params: IdParams }>('/:id/sync/preview-prompt', async (request, reply) => {
+    try {
+      const data = await getService().previewSyncPrompt(request.params.id);
+      return successResponse(data);
+    } catch (error) {
+      logError(error, request);
+      return handleTaskSourceError(reply, error, 'Failed to preview prompt');
+    }
+  });
+
+  fastify.post<{ Params: IdParams }>('/:id/sync/preview-results', async (request, reply) => {
+    try {
+      const data = await getService().previewSyncResults(request.params.id);
+      return successResponse(data);
+    } catch (error) {
+      logError(error, request);
+      return handleTaskSourceError(reply, error, 'Failed to preview results');
+    }
+  });
+
+  fastify.post<{ Params: IdParams; Body: ConfirmSyncBody }>('/:id/sync/confirm', async (request, reply) => {
+    try {
+      const { sessionId, items } = request.body;
+      if (sessionId == null || !items || !Array.isArray(items)) {
+        reply.code(400);
+        return errorResponse('sessionId and items are required');
+      }
+      const data = await getService().confirmSync(request.params.id, sessionId, items);
+      return successResponse(data, 'Tasks created successfully');
+    } catch (error) {
+      logError(error, request);
+      return handleTaskSourceError(reply, error, 'Failed to confirm sync');
     }
   });
 };

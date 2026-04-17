@@ -42,6 +42,12 @@ class SkillService {
 
   async createSkill(name: string, description?: string): Promise<SkillEntity> {
     this.validateSkillName(name);
+    if (name.length > 200) {
+      throw new ValidationError('技能名称不能超过 200 个字符', 'Skill name exceeds maximum length of 200 characters');
+    }
+    if (description && description.length > 5000) {
+      throw new ValidationError('技能描述不能超过 5000 个字符', 'Skill description exceeds maximum length of 5000 characters');
+    }
     const existing = await this.listSkills();
     if (existing.some(s => s.name === name)) {
       throw new ConflictError(`技能 "${name}" 已存在`, `Skill "${name}" already exists`, { skillName: name });
@@ -67,10 +73,16 @@ class SkillService {
     const updateData: Partial<Omit<SkillEntity, 'id' | 'created_at' | 'updated_at'>> = {};
 
     if (updates.description !== undefined) {
+      if (updates.description.length > 5000) {
+        throw new ValidationError('技能描述不能超过 5000 个字符', 'Skill description exceeds maximum length of 5000 characters');
+      }
       updateData.description = updates.description;
     }
 
     if (updates.name !== undefined && updates.name !== existing.name) {
+      if (updates.name.length > 200) {
+        throw new ValidationError('技能名称不能超过 200 个字符', 'Skill name exceeds maximum length of 200 characters');
+      }
       this.validateSkillName(updates.name);
       // Rename skill directory on disk
       const oldDir = this.getSkillDir(existing.name);

@@ -15,7 +15,6 @@
     "allowJs": false,
     "resolveJsonModule": false,
     "skipLibCheck": true,
-    "esModuleInterop": false,
     "forceConsistentCasingInFileNames": true
   },
   "include": [

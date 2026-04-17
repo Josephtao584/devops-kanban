@@ -44,6 +44,7 @@ export interface SessionEntity {
   worktree_path?: string | null;
   branch?: string | null;
   initial_prompt?: string | null;
+  metadata?: Record<string, unknown>;
   agent_id?: number | null;
   executor_type: ExecutorType;
   started_at?: string | null;

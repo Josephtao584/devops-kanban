@@ -1,6 +1,5 @@
 function extractResultFromStreamJson(stdout: string): string {
-  let lastResult: string | null = null;
-  let lastAssistantText: string | null = null;
+  const assistantTextParts: string[] = [];
 
   const lines = stdout.split('\n');
   for (const line of lines) {
@@ -8,18 +7,17 @@ function extractResultFromStreamJson(stdout: string): string {
     try {
       const json = JSON.parse(line);
 
-      // result event has the final response
-      if (json.type === 'result' && typeof json.result === 'string') {
-        lastResult = json.result;
-      }
-
-      // assistant text block (fallback if no result event)
+      // assistant event: collect text blocks
       if (json.type === 'assistant') {
-        const content = json.message?.content;
+        const message = json.message as Record<string, unknown> | undefined;
+        const content = message?.content as unknown[] | undefined;
         if (Array.isArray(content)) {
           for (const block of content) {
-            if (block?.type === 'text' && typeof block.text === 'string') {
-              lastAssistantText = block.text;
+            if (block && typeof block === 'object' && (block as Record<string, unknown>).type === 'text') {
+              const text = (block as Record<string, unknown>).text;
+              if (typeof text === 'string') {
+                assistantTextParts.push(text);
+              }
             }
           }
         }
@@ -29,7 +27,7 @@ function extractResultFromStreamJson(stdout: string): string {
     }
   }
 
-  return lastResult || lastAssistantText || '';
+  return assistantTextParts.join('\n');
 }
 
 export async function parseStepResult({ stdout = '' }: { stdout?: string }) {
