@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  单个 Agent 跑一次 demo 很惊艳，但真实场景需要更多：<br>
-  多个 Agent 怎么协调？执行中断怎么恢复？产出质量怎么保证？<br>
+  单个 Agent 跑一次 demo 很惊艳，但到了生产——<br>
+  多 Agent 协调、中断恢复、结果验证，全靠自己拼。<br>
   DevOps Kanban 为 AI Agent 构建工程纪律——上下文架构、Agent 专业化、<br>
   持久化记忆、结构化执行——让每一次交付都稳定、可观测、可恢复。
 </p>
