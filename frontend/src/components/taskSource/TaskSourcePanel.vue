@@ -334,7 +334,12 @@
           <span class="prompt-file-count">{{ taskSourceStore.aiPreviewFiles.length }} {{ $t('taskSource.aiFilesToAnalyze', '个文件将被分析') }}</span>
         </div>
         <div class="ai-prompt-content">
-          <pre class="ai-prompt-text">{{ taskSourceStore.aiPreviewPrompt }}</pre>
+          <el-input
+            v-model="taskSourceStore.aiPreviewPrompt"
+            type="textarea"
+            :rows="10"
+            class="ai-prompt-editor"
+          />
         </div>
         <div class="ai-prompt-files">
           <div v-for="file in taskSourceStore.aiPreviewFiles" :key="file.filename" class="ai-prompt-file-item">
@@ -1536,6 +1541,17 @@ const deselectAllAiResults = () => {
   word-break: break-all;
   color: var(--text-primary);
   font-family: var(--font-mono, monospace);
+}
+
+.ai-prompt-editor {
+  font-family: var(--font-mono, monospace);
+}
+.ai-prompt-editor :deep(.el-textarea__inner) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .ai-prompt-files {

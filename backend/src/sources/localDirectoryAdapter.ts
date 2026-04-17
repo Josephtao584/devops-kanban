@@ -180,24 +180,9 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
     }
   }
 
-  async buildAiPrompt(files?: FileInfo[]): Promise<string> {
-    const filelist = files ?? await this._scanFiles();
-    let fileContents = '';
-    for (let i = 0; i < filelist.length; i++) {
-      const file = filelist[i]!;
-      const content = this.isTextFile(file.filename)
-        ? await this.readFileContent(file.filepath)
-        : null;
-
-      fileContents += `\n=== 文件${i + 1}: ${file.filename} ===\n`;
-      if (content !== null) {
-        fileContents += `${content}\n`;
-      } else {
-        fileContents += `(二进制文件，请使用工具读取: ${file.filepath})\n`;
-      }
-    }
-
-    return `分析以下文件内容，为每个文件生成任务标题和描述。
+  buildAiPromptTemplate(): string {
+    return `分析以下文件路径列表，为每个文件生成任务标题和描述。
+你可以使用文件系统工具或 skill 读取文件内容。
 
 请严格按以下格式回复，每个文件一段：
 文件1
@@ -208,13 +193,24 @@ class LocalDirectoryAdapter extends TaskSourceAdapter {
 标题: <生成的标题>
 描述: <生成的描述>
 
----以下是文件内容---
-${fileContents}`;
+---以下是文件路径列表---
+{fileList}`;
+  }
+
+  buildAiFileList(files: FileInfo[]): string {
+    return files.map((f, i) => `文件${i + 1}: ${f.filename} (${f.filepath})`).join('\n');
+  }
+
+  async buildAiPrompt(files?: FileInfo[]): Promise<string> {
+    const filelist = files ?? await this._scanFiles();
+    const fileList = this.buildAiFileList(filelist);
+    return this.buildAiPromptTemplate().replace('{fileList}', fileList);
   }
 
   async fetchWithAiDescriptions(
     sessionId: number,
     files?: FileInfo[],
+    customPrompt?: string,
   ): Promise<ImportedTask[]> {
     const filelist = files ?? await this._scanFiles();
 
@@ -260,7 +256,27 @@ ${fileContents}`;
       ? new OpenCodeStepRunner()
       : new ClaudeStepRunner();
 
-    const prompt = await this.buildAiPrompt(filelist);
+    const fileList = this.buildAiFileList(filelist);
+    let prompt: string;
+    if (customPrompt) {
+      prompt = customPrompt.includes('{fileList}')
+        ? customPrompt.replace('{fileList}', fileList)
+        : customPrompt;
+    } else {
+      prompt = this.buildAiPromptTemplate().replace('{fileList}', fileList);
+    }
+
+    // Inject agent skills into execution path (non-blocking)
+    try {
+      const { resolveAgentSkills } = await import('../services/workflow/workflowSkillSync.js');
+      const { prepareExecutionSkills } = await import('../services/workflow/executorSkillPreparation.js');
+      const { skillNames, executorType } = await resolveAgentSkills(this.agentId!);
+      if (skillNames.length > 0) {
+        await prepareExecutionSkills({ executorType, skillNames, executionPath: this.directoryPath });
+      }
+    } catch (err) {
+      logger.warn('LocalDirectoryAdapter', `Failed to prepare skills: ${err}`);
+    }
 
     try {
       const result = await runner.runStep({

@@ -217,9 +217,10 @@ export const taskSourceRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: IdParams }>('/:id/sync/preview-results', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body?: { prompt?: string } }>('/:id/sync/preview-results', async (request, reply) => {
     try {
-      const data = await getService().previewSyncResults(request.params.id);
+      const customPrompt = request.body?.prompt;
+      const data = await getService().previewSyncResults(request.params.id, customPrompt);
       return successResponse(data);
     } catch (error) {
       logError(error, request);

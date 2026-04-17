@@ -427,7 +427,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewError.value = null
     aiPreviewSelected.value = new Set()
     try {
-      const response = await taskSourceApi.previewResults(aiPreviewSourceId.value)
+      const response = await taskSourceApi.previewResults(aiPreviewSourceId.value, { prompt: aiPreviewPrompt.value })
       const data = unwrap(response, 'Failed to start AI preview')
       aiPreviewSessionId.value = data.sessionId
 

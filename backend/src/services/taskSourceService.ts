@@ -393,11 +393,11 @@ class TaskSourceService {
       }
     }
 
-    const prompt = await adapter.buildAiPrompt(newFiles);
+    const prompt = adapter.buildAiPromptTemplate();
     return { prompt, files: newFiles, fileCount: newFiles.length };
   }
 
-  async previewSyncResults(sourceId: string) {
+  async previewSyncResults(sourceId: string, customPrompt?: string) {
     const source = await this.getById(sourceId);
     if (!source) {
       throw new NotFoundError('未找到任务源', 'Task source not found', { sourceId });
@@ -450,7 +450,7 @@ class TaskSourceService {
     });
 
     // Fire-and-forget: run AI in background, store results in session metadata when done
-    adapter.fetchWithAiDescriptions(session.id, newFiles).then(async (tasks) => {
+    adapter.fetchWithAiDescriptions(session.id, newFiles, customPrompt).then(async (tasks) => {
       const allFallback = tasks.every(t => t.title === t.external_id);
       if (allFallback) {
         await sessionRepo.update(session.id, {
@@ -503,6 +503,9 @@ class TaskSourceService {
       throw new BusinessError('会话未处于待确认状态', 'Session is not in PENDING_REVIEW status', { sessionId });
     }
 
+    const sourceEntity = await this.repository.findById(parseInt(sourceId, 10));
+    const defaultTemplateId = (sourceEntity as any)?.default_workflow_template_id || null;
+
     const projectId = source.project_id;
     let created = 0;
     let skipped = 0;
@@ -518,7 +521,7 @@ class TaskSourceService {
         });
         skipped++;
       } else {
-        await this.taskRepository.create({
+        const newTask = await this.taskRepository.create({
           external_id: item.externalId,
           title: item.title,
           description: item.description ?? '',
@@ -529,6 +532,12 @@ class TaskSourceService {
           external_url: item.external_url ?? '',
         });
         created++;
+        if (defaultTemplateId) {
+          await this.taskRepository.update(newTask.id, {
+            auto_execute: 1,
+            auto_execute_template_id: defaultTemplateId,
+          } as any);
+        }
       }
     }
 
