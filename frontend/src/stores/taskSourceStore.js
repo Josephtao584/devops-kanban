@@ -56,6 +56,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const aiPreviewSourceId = ref(null)
   const aiPreviewProcessing = ref(false)
   const aiPreviewError = ref(null)
+  const aiPreviewAllFallback = ref(false)
   let aiPreviewPoller = null
   let aiPreviewTimeout = null
 
@@ -462,7 +463,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       const session = sessionResp.data?.data || sessionResp.data
       if (!session) return
 
-      if (session.status === 'PENDING_REVIEW') {
+      if (session.status === 'PENDING_REVIEW' || session.status === 'COMPLETED') {
         if (aiPreviewTimeout) {
           clearTimeout(aiPreviewTimeout)
           aiPreviewTimeout = null
@@ -472,6 +473,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         const results = session.metadata?.aiResults || []
         aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
         aiPreviewSelected.value = new Set(results.map(r => r.externalId))
+        aiPreviewAllFallback = session.metadata?.allFallback || false
         aiPreviewStep.value = 'results'
         aiPreviewDialog.value = true
       }
@@ -482,7 +484,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         }
         stopAiPreviewPolling()
         aiPreviewProcessing.value = false
-        aiPreviewError.value = 'AI 分析失败，请检查 Agent 配置'
+        const errorMsg = session.metadata?.error || 'AI 分析失败，请检查 Agent 配置'
+        aiPreviewError.value = errorMsg
         aiPreviewStep.value = 'results'
         aiPreviewDialog.value = true
       }
@@ -623,6 +626,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewLoading,
     aiPreviewProcessing,
     aiPreviewError,
+    aiPreviewAllFallback,
     openAiPreview,
     startAiPreview,
     confirmAiPreviewImport,

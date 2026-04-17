@@ -467,15 +467,6 @@ class TaskSourceService {
     const availableTags = [...new Set(templates.flatMap(t => t.tags || []))];
 
     adapter.fetchWithAiDescriptions(session.id, newFiles, customPrompt, availableTags).then(async (tasks) => {
-      const allFallback = tasks.every(t => t.title === t.external_id);
-      if (allFallback) {
-        await sessionRepo.update(session.id, {
-          status: 'FAILED',
-          completed_at: new Date().toISOString(),
-        });
-        return;
-      }
-
       const results = tasks.map(t => ({
         externalId: t.external_id,
         title: t.title,
@@ -484,10 +475,13 @@ class TaskSourceService {
         scenarioTag: (t as any)._scenarioTag || null,
       }));
 
+      // Even if all tasks are fallback, still show results to user (they can edit before importing)
+      const allFallback = tasks.every(t => t.title === t.external_id);
+
       await sessionRepo.update(session.id, {
-        status: 'PENDING_REVIEW',
+        status: allFallback ? 'COMPLETED' : 'PENDING_REVIEW',
         completed_at: new Date().toISOString(),
-        metadata: { aiResults: results },
+        metadata: { aiResults: results, allFallback },
       });
     }).catch(async (err) => {
       logger.error('TaskSourceService', `AI preview failed: ${err}`);
@@ -495,6 +489,7 @@ class TaskSourceService {
         await sessionRepo.update(session.id, {
           status: 'FAILED',
           completed_at: new Date().toISOString(),
+          metadata: { error: err instanceof Error ? err.message : String(err) },
         });
       } catch {
         // DB may be closed.

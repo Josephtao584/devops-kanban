@@ -359,12 +359,17 @@
         </div>
 
         <!-- Error -->
-        <div v-else-if="taskSourceStore.aiPreviewError" class="ai-error">
+        <div v-if="taskSourceStore.aiPreviewError" class="ai-error">
           <el-alert type="error" :title="taskSourceStore.aiPreviewError" :closable="false" />
         </div>
 
+        <!-- Fallback warning -->
+        <div v-if="taskSourceStore.aiPreviewAllFallback" class="ai-fallback-warning">
+          <el-alert type="warning" title="AI 未能生成描述，已使用文件名作为标题。您可以手动编辑后确认导入。" :closable="false" />
+        </div>
+
         <!-- Results -->
-        <template v-else>
+        <template v-if="!taskSourceStore.aiPreviewError && taskSourceStore.aiPreviewResults.length > 0">
           <div class="ai-results-controls">
             <el-button size="small" @click="selectAllAiResults">{{ $t('taskSource.selectAll', '全选') }}</el-button>
             <el-button size="small" @click="deselectAllAiResults">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
@@ -1663,6 +1668,10 @@ const deselectAllAiResults = () => {
 
 .ai-error {
   padding: 24px 0;
+}
+
+.ai-fallback-warning {
+  padding: 12px 0;
 }
 
 .ai-results-list {
