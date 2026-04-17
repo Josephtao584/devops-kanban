@@ -234,6 +234,7 @@ class TaskSourceService {
         status: 'RUNNING',
         worktree_path: adapter.directoryPath,
         started_at: new Date().toISOString(),
+        metadata: { fileCount: newFiles.length },
       });
 
       const sessionId = session.id;
@@ -315,17 +316,12 @@ class TaskSourceService {
     const segmentRepo = new SessionSegmentRepository();
     const { rows: sessions, total } = await sessionRepo.getByWorktreePathPaginated(directoryPath, { offset, limit: pageSize });
 
-    // Count tasks for this source once (total across all syncs)
-    const allSourceTasks = await this.taskRepository.findByProject(source.project_id);
-    const totalSourceTaskCount = allSourceTasks.filter(
-      (t) => t.source === source.type,
-    ).length;
-
     const history = [];
     for (const session of sessions) {
-      // Detect mode: if session has segments with agent → "ai", otherwise "fixed"
       const segments = await segmentRepo.findBySessionId(session.id);
       const mode = segments.length > 0 ? 'ai' : 'fixed';
+      const meta = (session as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
+      const fileCount = typeof meta?.fileCount === 'number' ? meta.fileCount : 0;
 
       history.push({
         sessionId: session.id,
@@ -333,7 +329,7 @@ class TaskSourceService {
         mode,
         startedAt: session.started_at,
         completedAt: session.completed_at,
-        fileCount: totalSourceTaskCount,
+        fileCount,
       });
     }
 
@@ -458,7 +454,7 @@ class TaskSourceService {
       status: 'RUNNING',
       worktree_path: adapter.directoryPath,
       started_at: new Date().toISOString(),
-      metadata: {},
+      metadata: { fileCount: newFiles.length },
     });
 
     // Fire-and-forget: run AI in background, store results in session metadata when done
