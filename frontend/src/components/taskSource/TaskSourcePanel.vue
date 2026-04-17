@@ -395,20 +395,23 @@
                   :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
                   class="result-desc-input"
                 />
-                <el-select
-                  v-model="item.recommendedWorkflowTemplateId"
-                  size="small"
-                  clearable
-                  :placeholder="$t('taskSource.aiWorkflowTemplate', '推荐工作流')"
-                  class="result-workflow-input"
-                >
-                  <el-option
-                    v-for="tpl in workflowTemplates"
-                    :key="tpl.template_id"
-                    :label="tpl.name"
-                    :value="tpl.template_id"
-                  />
-                </el-select>
+                <div class="result-tag-row">
+                  <span v-if="item.scenarioTag" class="result-scenario-tag">{{ item.scenarioTag }}</span>
+                  <el-select
+                    v-model="item.recommendedWorkflowTemplateId"
+                    size="small"
+                    clearable
+                    :placeholder="$t('taskSource.aiWorkflowTemplate', '推荐工作流')"
+                    class="result-workflow-input"
+                  >
+                    <el-option
+                      v-for="tpl in workflowTemplates"
+                      :key="tpl.template_id"
+                      :label="tpl.name"
+                      :value="tpl.template_id"
+                    />
+                  </el-select>
+                </div>
               </div>
             </div>
           </div>
@@ -596,6 +599,19 @@ watch(() => props.projectId, async (newVal) => {
     await loadData()
   }
 })
+
+// Auto-match scenario tags to template IDs when AI results load
+watch(() => taskSourceStore.aiPreviewResults, (results) => {
+  const allTags = [...new Set(workflowTemplates.value.flatMap(t => t.tags || []))]
+  for (const r of results) {
+    if (r.scenarioTag && !r.recommendedWorkflowTemplateId && allTags.includes(r.scenarioTag)) {
+      const matched = workflowTemplates.value.find(t => (t.tags || []).includes(r.scenarioTag))
+      if (matched) {
+        r.recommendedWorkflowTemplateId = matched.template_id
+      }
+    }
+  }
+}, { deep: false })
 
 // --- Collapse ---
 const handleCollapse = () => {
@@ -1694,6 +1710,22 @@ const deselectAllAiResults = () => {
 }
 .result-workflow-input :deep(.el-input__wrapper) {
   background: var(--bg-secondary);
+}
+
+.result-tag-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.result-scenario-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .ai-preview-dialog :deep(.el-dialog__body) {
