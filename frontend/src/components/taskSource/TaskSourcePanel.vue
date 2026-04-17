@@ -469,7 +469,7 @@
         :total="taskSourceStore.syncHistoryPagination.total"
         :page-sizes="[10, 20, 50]"
         layout="total, prev, pager, next, sizes"
-        small
+        size="small"
         @current-change="handleSyncHistoryPageChange"
         @size-change="handleSyncHistoryPageSizeChange"
       />
@@ -1039,7 +1039,7 @@ const executeAiPreviewAndSync = async () => {
 
 const confirmAiPreviewAndImport = async () => {
   try {
-    const result = await taskSourceStore.confirmAiPreviewImport(props.projectId)
+    const result = await taskSourceStore.confirmAiPreviewImport()
     if (result?.created > 0) {
       toast.success(`成功导入 ${result.created} 个任务`)
       await taskStore.fetchTasks(props.projectId)

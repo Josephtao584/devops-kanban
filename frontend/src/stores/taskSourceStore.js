@@ -439,6 +439,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         stopAiPreviewPolling()
         aiPreviewProcessing.value = false
         aiPreviewError.value = 'AI 分析超时（15分钟）'
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
       }, 900000) // 15 minutes
 
       // Start background polling (every 5 seconds, max 15 minutes)
@@ -447,6 +449,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     } catch (e) {
       aiPreviewProcessing.value = false
       aiPreviewError.value = e.message
+      aiPreviewStep.value = 'results'
+      aiPreviewDialog.value = true
       throw e
     }
   }
@@ -468,6 +472,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         const results = session.metadata?.aiResults || []
         aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
         aiPreviewSelected.value = new Set(results.map(r => r.externalId))
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
       }
       if (session.status === 'FAILED') {
         if (aiPreviewTimeout) {
@@ -477,6 +483,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         stopAiPreviewPolling()
         aiPreviewProcessing.value = false
         aiPreviewError.value = 'AI 分析失败，请检查 Agent 配置'
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
       }
     } catch {
       // Network error — keep polling, next attempt may succeed
@@ -499,7 +507,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     closeAiPreviewDialog()
   }
 
-  async function confirmAiPreviewImport(projectId) {
+  async function confirmAiPreviewImport() {
     aiPreviewLoading.value = true
     try {
       const items = aiPreviewResults.value
