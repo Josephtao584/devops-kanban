@@ -120,6 +120,17 @@
             </div>
           </div>
 
+          <!-- 环境变量 -->
+          <div class="skills-section">
+            <span class="section-label">{{ $t('agent.env') }}</span>
+            <div class="skills-tags">
+              <span v-for="(value, key) in getVisibleAgentEnv(selectedAgent)" :key="key" class="skill-tag env-tag">
+                {{ key }}={{ value }}
+              </span>
+              <span v-if="Object.keys(getVisibleAgentEnv(selectedAgent)).length === 0" class="no-items-hint">-</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -178,6 +189,18 @@
           <el-input v-model="form.description" :placeholder="$t('agent.descriptionPlaceholder')" maxlength="5000" show-word-limit />
         </el-form-item>
 
+        <el-form-item :label="$t('agent.env')">
+          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+            <div v-for="(item, index) in form.envPairs" :key="index" class="env-pair-row">
+              <el-input v-model="item.key" :placeholder="$t('agent.envKey')" class="env-input" />
+              <span class="env-eq">=</span>
+              <el-input v-model="item.value" :placeholder="$t('agent.envValue')" class="env-input" />
+              <button type="button" class="env-remove-btn" @click="removeEnvPair(index)">×</button>
+            </div>
+            <button type="button" class="add-skill-btn" @click="addEnvPair">+ {{ $t('agent.addEnvVar') }}</button>
+          </div>
+        </el-form-item>
+
         <el-form-item>
           <el-checkbox v-model="form.enabled">{{ $t('common.enabled') }}</el-checkbox>
         </el-form-item>
@@ -224,7 +247,8 @@ const form = ref({
   description: '',
   enabled: true,
   skills: [],
-  mcpServers: []
+  mcpServers: [],
+  envPairs: []
 })
 
 const selectedSkillToAdd = ref('')
@@ -250,7 +274,10 @@ const setFormState = (agent) => {
     description: agent?.description || '',
     enabled: agent?.enabled ?? true,
     skills: normalizedSkills,
-    mcpServers: Array.isArray(agent?.mcpServers) ? [...agent.mcpServers] : []
+    mcpServers: Array.isArray(agent?.mcpServers) ? [...agent.mcpServers] : [],
+    envPairs: agent?.env && typeof agent.env === 'object'
+      ? Object.entries(agent.env).map(([key, value]) => ({ key, value: String(value) }))
+      : []
   }
   selectedSkillToAdd.value = ''
   selectedMcpServerToAdd.value = ''
@@ -269,11 +296,21 @@ const getVisibleAgentSkills = (agent) => {
   }).filter(name => name !== null)
 }
 
-const buildAgentPayload = () => ({
-  ...form.value,
-  skills: [...form.value.skills],
-  mcpServers: [...form.value.mcpServers]
-})
+const buildAgentPayload = () => {
+  const env = {}
+  for (const pair of form.value.envPairs) {
+    if (pair.key.trim()) {
+      env[pair.key.trim()] = pair.value
+    }
+  }
+  const { envPairs, ...rest } = form.value
+  return {
+    ...rest,
+    skills: [...form.value.skills],
+    mcpServers: [...form.value.mcpServers],
+    env
+  }
+}
 
 const getResponseErrorMessage = (response, fallbackMessage) => {
   return response?.message || fallbackMessage
@@ -440,6 +477,18 @@ const getVisibleAgentMcpServers = (agent) => {
     const server = mcpServerStore.mcpServers.find(s => s.id === id)
     return server ? server.name : null
   }).filter(name => name !== null)
+}
+
+const getVisibleAgentEnv = (agent) => {
+  return agent?.env && typeof agent.env === 'object' ? agent.env : {}
+}
+
+const addEnvPair = () => {
+  form.value.envPairs = [...form.value.envPairs, { key: '', value: '' }]
+}
+
+const removeEnvPair = (index) => {
+  form.value.envPairs = form.value.envPairs.filter((_, i) => i !== index)
 }
 
 onMounted(loadAgents)
@@ -627,6 +676,47 @@ onMounted(loadAgents)
   background: rgba(37, 198, 201, 0.08);
   color: #1EA9AC;
   border-color: rgba(37, 198, 201, 0.14);
+}
+
+.skill-tag.env-tag {
+  background: rgba(139, 92, 246, 0.08);
+  color: #7c3aed;
+  border-color: rgba(139, 92, 246, 0.14);
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.env-pair-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.env-input {
+  flex: 1;
+}
+
+.env-eq {
+  color: var(--text-secondary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.env-remove-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.env-remove-btn:hover {
+  opacity: 1;
 }
 
 .skill-tag-input.mcp-tag-input {

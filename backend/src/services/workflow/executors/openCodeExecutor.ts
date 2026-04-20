@@ -12,6 +12,7 @@ class OpenCodeExecutor implements Executor {
   async execute({
     prompt,
     worktreePath,
+    executorConfig,
     onEvent,
     onProviderState,
     abortSignal,
@@ -19,6 +20,7 @@ class OpenCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
+      executorConfig: { env: executorConfig?.env },
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {
         if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
@@ -48,6 +50,7 @@ class OpenCodeExecutor implements Executor {
     prompt,
     worktreePath,
     providerSessionId,
+    executorConfig,
     onEvent,
     onProviderState,
     abortSignal,
@@ -60,6 +63,7 @@ class OpenCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
+      executorConfig: { env: executorConfig?.env },
       cliOptions,
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {

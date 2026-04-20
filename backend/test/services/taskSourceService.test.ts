@@ -196,6 +196,7 @@ test.test('syncWithSession creates session with agent executorType when agentId 
         enabled: true,
         skills: [],
         mcpServers: [],
+        env: {},
       });
 
       const source = await service.create({
@@ -244,6 +245,7 @@ test.test('syncWithSession creates session with CLAUDE_CODE when agentId configu
         enabled: true,
         skills: [],
         mcpServers: [],
+        env: {},
       });
       await agentRepo.delete(agent.id);
 

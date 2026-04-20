@@ -525,6 +525,7 @@ test.test('fetchWithAiDescriptions uses correct runner for CLAUDE_CODE agent', a
         enabled: true,
         skills: [],
         mcpServers: [],
+        env: {},
       });
 
       const adapter = new LocalDirectoryAdapter({
@@ -554,6 +555,7 @@ test.test('fetchWithAiDescriptions uses correct runner for OPEN_CODE agent', asy
         enabled: true,
         skills: [],
         mcpServers: [],
+        env: {},
       });
 
       const adapter = new LocalDirectoryAdapter({
@@ -583,6 +585,7 @@ test.test('fetchWithAiDescriptions falls back for unknown executorType', async (
         enabled: true,
         skills: [],
         mcpServers: [],
+        env: {},
       });
 
       const adapter = new LocalDirectoryAdapter({

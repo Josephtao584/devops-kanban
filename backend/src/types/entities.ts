@@ -177,6 +177,7 @@ export interface AgentEntity {
   enabled: boolean;
   skills: number[];
   mcpServers: number[];
+  env: Record<string, string>;
   created_at: string;
   updated_at: string;
 }

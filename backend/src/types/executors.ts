@@ -7,6 +7,7 @@ export interface ExecutorConfig {
   type: ExecutorType;
   skills?: number[];
   mcpServers?: number[];
+  env?: Record<string, string> | undefined;
 }
 
 export interface ExecutorProcessHandle {

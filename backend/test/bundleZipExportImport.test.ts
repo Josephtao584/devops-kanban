@@ -113,7 +113,7 @@ const skillGit: SkillEntity = {
 const agentAnalyst: AgentEntity = {
   id: 1, name: '分析师', executorType: ExecutorType.CLAUDE_CODE, role: 'analyzer',
   description: 'Analyzes code', enabled: true,
-  skills: [1], mcpServers: [],
+  skills: [1], mcpServers: [], env: {},
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 

@@ -10,7 +10,7 @@ import { logger } from '../../../utils/logger.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
-type ClaudeRuntimeExecutorConfig = { commandOverride?: string; args?: string[]; env?: Record<string, string> };
+type ClaudeRuntimeExecutorConfig = { commandOverride?: string; args?: string[]; env?: Record<string, string> | undefined };
 
 type ClaudeSpawnExecution = {
   exitCode: number | null;

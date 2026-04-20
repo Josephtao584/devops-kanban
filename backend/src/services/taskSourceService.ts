@@ -320,7 +320,7 @@ class TaskSourceService {
     for (const session of sessions) {
       const segments = await segmentRepo.findBySessionId(session.id);
       const mode = segments.length > 0 ? 'ai' : 'fixed';
-      const meta = (session as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
+      const meta = (session as unknown as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
       const fileCount = typeof meta?.fileCount === 'number' ? meta.fileCount : 0;
 
       history.push({

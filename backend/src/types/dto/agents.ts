@@ -11,6 +11,7 @@ export interface CreateAgentBody {
   enabled: boolean;
   skills: number[];
   mcpServers: number[];
+  env?: Record<string, string>;
 }
 
 export interface UpdateAgentBody {
@@ -24,4 +25,5 @@ export interface UpdateAgentBody {
   enabled?: boolean;
   skills?: number[];
   mcpServers?: number[];
+  env?: Record<string, string>;
 }

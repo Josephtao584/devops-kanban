@@ -12,6 +12,7 @@ class ClaudeCodeExecutor implements Executor {
   async execute({
     prompt,
     worktreePath,
+    executorConfig,
     onEvent,
     onProviderState,
     abortSignal,
@@ -20,6 +21,7 @@ class ClaudeCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
+      executorConfig: { env: executorConfig?.env },
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {
         if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
@@ -47,6 +49,7 @@ class ClaudeCodeExecutor implements Executor {
     prompt,
     worktreePath,
     providerSessionId,
+    executorConfig,
     onEvent,
     onProviderState,
     abortSignal,
@@ -60,7 +63,7 @@ class ClaudeCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
-      executorConfig: { args },
+      executorConfig: { args, env: executorConfig?.env },
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {
         if (onProviderState && event.kind === 'status' && event.payload?.session_id) {

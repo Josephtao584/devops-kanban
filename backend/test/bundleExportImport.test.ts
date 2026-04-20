@@ -132,21 +132,21 @@ const mcpPlaywright: McpServerEntity = {
 const agentAnalyst: AgentEntity = {
   id: 1, name: '分析师', executorType: ExecutorType.CLAUDE_CODE, role: 'analyzer',
   description: 'Analyzes code', enabled: true,
-  skills: [1], mcpServers: [10],
+  skills: [1], mcpServers: [10], env: {},
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 const agentDev: AgentEntity = {
   id: 2, name: '开发者', executorType: ExecutorType.CLAUDE_CODE, role: 'developer',
   description: 'Writes code', enabled: true,
-  skills: [1, 2], mcpServers: [10, 20],
+  skills: [1, 2], mcpServers: [10, 20], env: {},
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 const agentNoDeps: AgentEntity = {
   id: 3, name: '测试员', executorType: ExecutorType.CLAUDE_CODE, role: 'tester',
   description: 'Tests code', enabled: true,
-  skills: [], mcpServers: [],
+  skills: [], mcpServers: [], env: {},
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 

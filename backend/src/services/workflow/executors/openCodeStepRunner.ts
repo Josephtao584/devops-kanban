@@ -11,7 +11,7 @@ const OPENCODE_DEFAULT_COMMAND = OPENCODE_COMMAND.split(/\s+/).filter(Boolean);
 type OpenCodeRuntimeExecutorConfig = {
   commandOverride?: string;
   args?: string[];
-  env?: Record<string, string>;
+  env?: Record<string, string> | undefined;
 };
 
 type OpenCodeSpawnExecution = {

@@ -14,8 +14,8 @@ INSERT INTO iterations (id, project_id, name, goal, status, start_date, end_date
   (2, 1, '26.4.0', '完成高级功能开发', 'PLANNED', '2026-04-01', '2026-04-30', '2026-03-17T07:03:51.577Z', '2026-03-17T07:03:51.577Z');
 
 -- === agents (minimal: only architect) ===
-INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, created_at, updated_at) VALUES
-  (1, '架构师', 'OPEN_CODE', 'ARCHITECT', '负责系统架构设计与技术方案评审', 1, '[]', '[]', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
+INSERT INTO agents (id, name, executorType, role, description, enabled, skills, mcp_servers, env, created_at, updated_at) VALUES
+  (1, '架构师', 'OPEN_CODE', 'ARCHITECT', '负责系统架构设计与技术方案评审', 1, '[]', '[]', '{}', '2026-03-17T00:00:00.000Z', '2026-03-31T00:00:00.000Z');
 
 -- === workflow_templates (minimal: only repo-explorer) ===
 INSERT INTO workflow_templates (id, template_id, name, steps, "order", created_at, updated_at) VALUES

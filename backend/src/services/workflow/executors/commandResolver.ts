@@ -11,7 +11,7 @@ export function resolveCommand({
   executorConfig?: {
     commandOverride?: string | null;
     args?: string[];
-    env?: Record<string, string>;
+    env?: Record<string, string> | undefined;
   };
   processEnv?: NodeJS.ProcessEnv;
 }) {
