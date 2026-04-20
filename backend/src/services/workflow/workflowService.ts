@@ -432,8 +432,12 @@ class WorkflowService {
       throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId: run.workflow_instance_id });
     }
 
+    // Load project env for retry
+    const project = await this.projectRepo.findById(task.project_id);
+    const projectEnv = project?.env || {};
+
     // Execute retry in background (non-blocking)
-    this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath).catch((err) => {
+    this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath, projectEnv).catch((err) => {
       logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${err instanceof Error ? err.message : String(err)}`);
     });
 
@@ -445,7 +449,8 @@ class WorkflowService {
     mastraRun: any,
     stepId: string,
     task: WorkflowTaskRecord,
-    executionPath: string
+    executionPath: string,
+    projectEnv: Record<string, string>
   ) {
     try {
       logger.info('WorkflowService', `Calling timeTravelStream for step: ${stepId}`);
@@ -458,6 +463,7 @@ class WorkflowService {
           taskTitle: task.title || 'Untitled Task',
           taskDescription: task.description || '',
           worktreePath: executionPath,
+          projectEnv,
         },
       });
 

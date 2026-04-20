@@ -286,7 +286,6 @@ export function buildWorkflowFromInstance(
             workflowInstance,
             abortSignal,
             upstreamStepIds: previousStepId ? [previousStepId] : [],
-            ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
             onEvent: async (event) => {
               await options?.lifecycle.sessionEventRepo.append({
                 session_id: sessionId,
