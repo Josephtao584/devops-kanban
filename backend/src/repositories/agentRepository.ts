@@ -30,7 +30,7 @@ class AgentRepository extends BaseRepository<AgentEntity> {
       result.env = JSON.stringify(entity.env);
     }
     if ('settingsPath' in entity) {
-      result.settings_path = entity.settingsPath ?? null;
+      result.settings_path = entity.settingsPath || null;
       delete result.settingsPath;
     }
     return result;

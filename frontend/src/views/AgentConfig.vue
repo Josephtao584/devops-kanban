@@ -324,7 +324,7 @@ const buildAgentPayload = () => {
     skills: [...form.value.skills],
     mcpServers: [...form.value.mcpServers],
     env,
-    settingsPath: form.value.settingsPath?.trim() || undefined
+    settingsPath: form.value.settingsPath?.trim() || ''
   }
 }
 
