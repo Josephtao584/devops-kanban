@@ -32,4 +32,18 @@ process.on('SIGTERM', () => {
   });
 });
 
+// Global error handlers - catch unhandled exceptions that would crash the process
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', error);
+  console.error('Stack:', error.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION at:', promise);
+  console.error('Reason:', reason);
+  if (reason instanceof Error) {
+    console.error('Stack:', reason.stack);
+  }
+});
+
 await start();
