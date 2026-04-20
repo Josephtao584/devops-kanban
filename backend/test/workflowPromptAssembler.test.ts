@@ -1,7 +1,7 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 
-import { assembleWorkflowPrompt } from '../src/services/workflow/workflowPromptAssembler.js';
+import { assembleWorkflowPrompt, renderPromptPlaceholders } from '../src/services/workflow/workflowPromptAssembler.js';
 
 type WorkflowPromptParams = Parameters<typeof assembleWorkflowPrompt>[0];
 type WorkflowAgent = NonNullable<WorkflowPromptParams['agent']>;
@@ -208,4 +208,36 @@ test.test('assembleWorkflowPrompt omits agent description when description is bl
 
   assert.match(prompt, /当前执行代理：/);
   assert.doesNotMatch(prompt, /代理描述：/);
+});
+
+// --- renderPromptPlaceholders tests ---
+
+test.test('renderPromptPlaceholders replaces {{KEY}} with value from projectEnv', () => {
+  const result = renderPromptPlaceholders('请执行流水线 {{PIPELINE_ID}}', { PIPELINE_ID: '123' });
+  assert.equal(result, '请执行流水线 123');
+});
+
+test.test('renderPromptPlaceholders keeps {{KEY}} when key not found', () => {
+  const result = renderPromptPlaceholders('请执行流水线 {{PIPELINE_ID}}', {});
+  assert.equal(result, '请执行流水线 {{PIPELINE_ID}}');
+});
+
+test.test('renderPromptPlaceholders replaces multiple placeholders', () => {
+  const result = renderPromptPlaceholders('{{ENV}}-{{APP}}-{{PIPELINE_ID}}', { ENV: 'prod', APP: 'myapp', PIPELINE_ID: '456' });
+  assert.equal(result, 'prod-myapp-456');
+});
+
+test.test('renderPromptPlaceholders returns original when no placeholders', () => {
+  const result = renderPromptPlaceholders('no placeholders here', { PIPELINE_ID: '123' });
+  assert.equal(result, 'no placeholders here');
+});
+
+test.test('assembleWorkflowPrompt renders projectEnv placeholders in instructionPrompt', () => {
+  const prompt = buildPrompt({
+    step: { name: 'Deploy', instructionPrompt: '执行流水线 {{PIPELINE_ID}}' },
+    projectEnv: { PIPELINE_ID: '789' },
+  });
+  const decoded = prompt.replaceAll(literalLineBreak, '\n');
+  assert.ok(decoded.includes('执行流水线 789'), `Expected rendered prompt to include "执行流水线 789", got: ${decoded}`);
+  assert.ok(!decoded.includes('{{PIPELINE_ID}}'), `Expected no {{PIPELINE_ID}} in prompt, got: ${decoded}`);
 });

@@ -58,26 +58,41 @@ function formatRepoAnalysisContext() {
   return '提示：代码仓根目录可能存在 KANBAN_COMPASS.md 文件，包含项目结构和上下文信息，需要时可参考。';
 }
 
+function renderPromptPlaceholders(prompt: string, projectEnv: Record<string, string>): string {
+  if (!projectEnv || Object.keys(projectEnv).length === 0) {
+    return prompt;
+  }
+  return prompt.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
+    return key in projectEnv ? projectEnv[key] : match;
+  });
+}
+
 function assembleWorkflowPrompt({
   step,
   state,
   inputData,
   upstreamStepIds = [],
   agent,
+  projectEnv,
 }: {
   step: { name: string; instructionPrompt: string };
   state: { taskTitle: string; taskDescription: string };
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
   agent?: WorkflowAgent;
+  projectEnv?: Record<string, string>;
 }) {
   const upstreamSummaries = extractUpstreamSummaries(inputData, upstreamStepIds);
   const agentIdentitySection = formatAgentIdentitySection(agent);
   const repoAnalysisContext = formatRepoAnalysisContext();
 
+  const renderedInstruction = projectEnv
+    ? renderPromptPlaceholders(step.instructionPrompt, projectEnv)
+    : step.instructionPrompt;
+
   // When step's instructionPrompt already contains summary format instructions,
   // skip the generic summary instruction to avoid conflicts
-  const hasCustomSummaryInstruction = /summary\s*(必须|需要|要求|只|格式|包含)/.test(step.instructionPrompt);
+  const hasCustomSummaryInstruction = /summary\s*(必须|需要|要求|只|格式|包含)/.test(renderedInstruction);
   const defaultSummaryInstruction = agent
     ? '总结中说明本步骤做了什么、是否修改了文件、主要结果、代理角色是否匹配，以及在不匹配时说明偏差或风险。'
     : '总结中说明本步骤做了什么、是否修改了文件、以及主要结果。';
@@ -92,10 +107,10 @@ function assembleWorkflowPrompt({
       : '',
     agentIdentitySection,
     repoAnalysisContext,
-    `本步骤要求：\n${step.instructionPrompt}`,
+    `本步骤要求：\n${renderedInstruction}`,
     '执行完成后，只输出最后结果总结。',
     summaryInstruction,
   ].filter(Boolean).join('\n\n').replaceAll('\n', '\\n');
 }
 
-export { assembleWorkflowPrompt, extractUpstreamSummaries };
+export { assembleWorkflowPrompt, extractUpstreamSummaries, renderPromptPlaceholders };

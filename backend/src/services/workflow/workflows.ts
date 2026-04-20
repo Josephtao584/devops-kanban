@@ -13,6 +13,7 @@ const sharedStateSchema = z.object({
   taskTitle: z.string(),
   taskDescription: z.string(),
   worktreePath: z.string(),
+  projectEnv: z.record(z.string()).optional(),
 });
 
 const stepOutputSchema = z.object({ summary: z.string() });
@@ -22,6 +23,7 @@ const firstStepInputSchema = z.object({
   taskTitle: z.string(),
   taskDescription: z.string(),
   worktreePath: z.string(),
+  projectEnv: z.record(z.string()).optional(),
 });
 
 // Suspend/resume schemas for confirmation steps
@@ -279,6 +281,7 @@ export function buildWorkflowFromInstance(
             workflowInstance,
             abortSignal,
             upstreamStepIds: previousStepId ? [previousStepId] : [],
+            projectEnv: state.projectEnv,
             onEvent: async (event) => {
               await options?.lifecycle.sessionEventRepo.append({
                 session_id: sessionId,

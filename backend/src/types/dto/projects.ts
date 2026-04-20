@@ -7,6 +7,7 @@ export interface CreateProjectInput {
   git_url?: string;
   /** @maxLength 2000 */
   local_path?: string;
+  env?: Record<string, string>;
 }
 
 export interface UpdateProjectInput {
@@ -18,4 +19,5 @@ export interface UpdateProjectInput {
   git_url?: string | null;
   /** @maxLength 2000 */
   local_path?: string | null;
+  env?: Record<string, string>;
 }

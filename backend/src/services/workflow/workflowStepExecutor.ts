@@ -24,9 +24,11 @@ interface ExecuteWorkflowStepInput {
     taskTitle: string;
     taskDescription: string;
     worktreePath: string;
+    projectEnv?: Record<string, string>;
   };
   inputData: Record<string, unknown>;
   upstreamStepIds?: string[];
+  projectEnv?: Record<string, string>;
   abortSignal?: AbortSignal;
   onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
   onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
@@ -70,6 +72,7 @@ export async function executeWorkflowStep({
   state,
   inputData,
   upstreamStepIds = [],
+  projectEnv,
   abortSignal,
   onEvent,
   onProviderState,
@@ -86,7 +89,8 @@ export async function executeWorkflowStep({
   const executorConfig = buildExecutorConfig(agent);
 
   // 3. Build prompt
-  const prompt = assembleWorkflowPrompt({ step, state, inputData, upstreamStepIds, agent });
+  const effectiveProjectEnv = projectEnv ?? state.projectEnv;
+  const prompt = assembleWorkflowPrompt({ step, state, inputData, upstreamStepIds, agent, projectEnv: effectiveProjectEnv });
 
   // 4. Execute
   const executor = registry.getExecutor(executorConfig.type);

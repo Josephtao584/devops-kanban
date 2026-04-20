@@ -60,11 +60,22 @@ class ProjectService {
     if (projectData.local_path && projectData.local_path.length > 2000) {
       throw new ValidationError('本地路径不能超过 2000 个字符', 'Local path exceeds maximum length of 2000 characters');
     }
+    if (projectData.env !== undefined) {
+      if (typeof projectData.env !== 'object' || projectData.env === null) {
+        throw new ValidationError('环境变量格式无效', 'Invalid env format');
+      }
+      for (const [key, value] of Object.entries(projectData.env)) {
+        if (typeof key !== 'string' || typeof value !== 'string') {
+          throw new ValidationError('环境变量键值必须为字符串', 'Env keys and values must be strings');
+        }
+      }
+    }
     return await this.projectRepo.create({
       name: projectData.name,
       description: projectData.description,
       git_url: projectData.git_url,
       local_path: projectData.local_path,
+      env: projectData.env || {},
     });
   }
 
@@ -96,6 +107,17 @@ class ProjectService {
         throw new ValidationError('本地路径不能超过 2000 个字符', 'Local path exceeds maximum length of 2000 characters');
       }
       updateData.local_path = projectData.local_path;
+    }
+    if (projectData.env !== undefined) {
+      if (typeof projectData.env !== 'object' || projectData.env === null) {
+        throw new ValidationError('环境变量格式无效', 'Invalid env format');
+      }
+      for (const [key, value] of Object.entries(projectData.env)) {
+        if (typeof key !== 'string' || typeof value !== 'string') {
+          throw new ValidationError('环境变量键值必须为字符串', 'Env keys and values must be strings');
+        }
+      }
+      updateData.env = projectData.env;
     }
     return await this.projectRepo.update(projectId, updateData);
   }

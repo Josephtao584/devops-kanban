@@ -553,6 +553,7 @@
       :draft-template="workflowStartDraftTemplate"
       :task-title="selectedTask?.title || ''"
       :task-description="selectedTask?.description || ''"
+      :project-env="currentProjectEnv"
       @confirm="handleWorkflowStartEditorConfirm"
     />
 
@@ -1228,6 +1229,10 @@ const handleUpdateTask = async ({ id, ...data }) => {
 
 const tasks = computed(() => taskStore.tasks)
 const projects = computed(() => projectStore.projects)
+const currentProjectEnv = computed(() => {
+  const project = projects.value.find(p => String(p.id) === String(selectedProjectId.value))
+  return project?.env || {}
+})
 
 const filteredTasks = computed(() => {
   if (!selectedIterationId.value) return tasks.value

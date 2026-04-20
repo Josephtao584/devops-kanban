@@ -74,6 +74,7 @@ export default {
     explorationTaskDescription: '自动分析代码仓结构，生成项目介绍',
     explorationTaskCreated: '已创建代码仓探索任务，正在分析中...',
     explorationTaskCreateFailed: '创建代码仓探索任务失败',
+    env: '环境变量',
     metricGitConnected: 'Git 仓库',
     metricGitConnectedHint: '已配置仓库地址的项目',
     metricWorkspaceReady: '可进入看板',

@@ -257,7 +257,8 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   draftTemplate: { type: Object, default: null },
   taskTitle: { type: String, default: '' },
-  taskDescription: { type: String, default: '' }
+  taskDescription: { type: String, default: '' },
+  projectEnv: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
@@ -493,6 +494,7 @@ const handlePreviewPrompt = async () => {
       upstreamSteps,
       ...(props.taskTitle ? { taskTitle: props.taskTitle } : {}),
       ...(props.taskDescription ? { taskDescription: props.taskDescription } : {}),
+      ...(Object.keys(props.projectEnv).length > 0 ? { projectEnv: props.projectEnv } : {}),
     })
     if (response?.success) {
       previewContent.value = response.data?.prompt || ''

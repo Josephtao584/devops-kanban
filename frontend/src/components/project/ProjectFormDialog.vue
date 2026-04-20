@@ -58,6 +58,25 @@
 
       <el-divider v-if="!isEditing" />
 
+      <el-divider>
+        <el-icon><Setting /></el-icon>
+        {{ $t('project.env') }}
+      </el-divider>
+
+      <el-form-item :label="$t('project.env')">
+        <div class="env-editor">
+          <div v-for="(item, index) in form.envPairs" :key="index" class="env-pair-row">
+            <el-input v-model="item.key" :placeholder="$t('agent.envKey')" class="env-input" />
+            <span class="env-eq">=</span>
+            <el-input v-model="item.value" :placeholder="$t('agent.envValue')" class="env-input" />
+            <button type="button" class="env-remove-btn" @click="removeEnvPair(index)">×</button>
+          </div>
+          <el-button size="small" @click="addEnvPair">+ {{ $t('common.add') }}</el-button>
+        </div>
+      </el-form-item>
+
+      <el-divider v-if="!isEditing" />
+
       <el-checkbox v-if="!isEditing" v-model="form.createExplorationTask" size="large">
         {{ $t('project.createExplorationTask') }}
         <div style="font-size: 12px; color: var(--el-text-color-secondary); font-weight: normal; margin-top: 4px;">
@@ -78,7 +97,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Link, FolderOpened } from '@element-plus/icons-vue'
+import { Link, FolderOpened, Setting } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
 
 const props = defineProps({
@@ -107,7 +126,8 @@ const form = ref({
   description: '',
   gitUrl: '',
   localPath: '',
-  createExplorationTask: false
+  createExplorationTask: false,
+  envPairs: []
 })
 
 const rules = {
@@ -129,17 +149,22 @@ const resetForm = () => {
     description: '',
     gitUrl: '',
     localPath: '',
-    createExplorationTask: false
+    createExplorationTask: false,
+    envPairs: []
   }
 }
 
 watch(() => props.project, (newProject) => {
   if (newProject) {
+    const envPairs = newProject.env && typeof newProject.env === 'object'
+      ? Object.entries(newProject.env).map(([key, value]) => ({ key, value: String(value) }))
+      : []
     form.value = {
       name: newProject.name || '',
       description: newProject.description || '',
       gitUrl: newProject.gitUrl || newProject.git_url || newProject.repoUrl || '',
-      localPath: newProject.localPath || newProject.local_path || ''
+      localPath: newProject.localPath || newProject.local_path || '',
+      envPairs
     }
   } else {
     resetForm()
@@ -149,12 +174,17 @@ watch(() => props.project, (newProject) => {
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
-    // Convert camelCase to snake_case for backend API
-    // Only include git_url and local_path if they have values
+    const env = {}
+    for (const pair of form.value.envPairs) {
+      if (pair.key.trim()) {
+        env[pair.key.trim()] = pair.value
+      }
+    }
     const submitData = {
       name: form.value.name,
       description: form.value.description,
-      createExplorationTask: form.value.createExplorationTask
+      createExplorationTask: form.value.createExplorationTask,
+      env: Object.keys(env).length > 0 ? env : undefined
     }
     if (form.value.gitUrl) {
       submitData.git_url = form.value.gitUrl
@@ -172,4 +202,34 @@ const handleCancel = () => {
   emit('cancel')
   emit('update:modelValue', false)
 }
+
+const addEnvPair = () => { form.value.envPairs.push({ key: '', value: '' }) }
+const removeEnvPair = (index) => { form.value.envPairs.splice(index, 1) }
 </script>
+
+<style scoped>
+.env-pair-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.env-input {
+  flex: 1;
+}
+.env-eq {
+  color: var(--el-text-color-secondary);
+  font-weight: bold;
+}
+.env-remove-btn {
+  border: none;
+  background: none;
+  color: var(--el-color-danger);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 4px;
+}
+.env-remove-btn:hover {
+  color: var(--el-color-danger-dark-2);
+}
+</style>

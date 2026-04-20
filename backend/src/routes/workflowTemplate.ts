@@ -150,10 +150,11 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
       upstreamSteps?: Array<{ stepId: string; name: string }>;
       taskTitle?: string;
       taskDescription?: string;
+      projectEnv?: Record<string, string>;
     };
   }>('/preview-prompt', async (request, reply) => {
     try {
-      const { step, upstreamSteps = [], taskTitle, taskDescription } = request.body || {};
+      const { step, upstreamSteps = [], taskTitle, taskDescription, projectEnv } = request.body || {};
       if (!step || typeof step.name !== 'string' || typeof step.instructionPrompt !== 'string') {
         reply.code(400);
         return errorResponse('step.name and step.instructionPrompt are required');
@@ -185,6 +186,7 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
         inputData,
         upstreamStepIds: upstreamSteps.map((s) => s.stepId),
         ...(agent ? { agent } : {}),
+        projectEnv,
       });
 
       return successResponse({ prompt: prompt.replaceAll('\\n', '\n') });

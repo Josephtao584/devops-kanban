@@ -6,6 +6,7 @@ export interface ProjectEntity {
   description: string | undefined;
   git_url: string | undefined;
   local_path: string | undefined;
+  env: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
