@@ -276,12 +276,17 @@ export function buildWorkflowFromInstance(
           const result = await executeWorkflowStep({
             stepId: templateStep.id,
             worktreePath: state.worktreePath,
-            state,
+            state: {
+              taskTitle: state.taskTitle,
+              taskDescription: state.taskDescription,
+              worktreePath: state.worktreePath,
+              ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
+            },
             inputData,
             workflowInstance,
             abortSignal,
             upstreamStepIds: previousStepId ? [previousStepId] : [],
-            projectEnv: state.projectEnv,
+            ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
             onEvent: async (event) => {
               await options?.lifecycle.sessionEventRepo.append({
                 session_id: sessionId,

@@ -39,6 +39,7 @@ test.test('create persists all supported iteration fields', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
 
@@ -68,6 +69,7 @@ test.test('update persists all editable iteration fields', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const created = await service.create({
@@ -101,6 +103,7 @@ test.test('delete detaches tasks before removing iteration by default', async ()
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const taskRepo = new TaskRepository();
@@ -146,6 +149,7 @@ test.test('delete removes linked tasks when deleteTasks is true', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const taskRepo = new TaskRepository();
@@ -200,6 +204,7 @@ test.test('create rejects name exceeding 200 characters', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const longName = 'a'.repeat(201);
@@ -219,6 +224,7 @@ test.test('create accepts name at exactly 200 characters', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const exactName = 'a'.repeat(200);
@@ -236,6 +242,7 @@ test.test('create rejects description exceeding 5000 characters', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const longDesc = 'b'.repeat(5001);
@@ -255,6 +262,7 @@ test.test('create rejects goal exceeding 5000 characters', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const longGoal = 'g'.repeat(5001);
@@ -274,6 +282,7 @@ test.test('update rejects name exceeding 200 characters', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const created = await service.create({ project_id: project.id, name: 'Sprint 12' });
@@ -294,6 +303,7 @@ test.test('update rejects empty name', async () => {
       description: undefined,
       git_url: undefined,
       local_path: undefined,
+      env: {},
     });
     const service = new IterationService();
     const created = await service.create({ project_id: project.id, name: 'Sprint 12' });

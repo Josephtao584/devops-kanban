@@ -90,7 +90,14 @@ export async function executeWorkflowStep({
 
   // 3. Build prompt
   const effectiveProjectEnv = projectEnv ?? state.projectEnv;
-  const prompt = assembleWorkflowPrompt({ step, state, inputData, upstreamStepIds, agent, projectEnv: effectiveProjectEnv });
+  const prompt = assembleWorkflowPrompt({
+    step,
+    state,
+    inputData,
+    upstreamStepIds,
+    agent,
+    ...(effectiveProjectEnv ? { projectEnv: effectiveProjectEnv } : {}),
+  });
 
   // 4. Execute
   const executor = registry.getExecutor(executorConfig.type);

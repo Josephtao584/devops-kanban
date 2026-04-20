@@ -63,7 +63,7 @@ function renderPromptPlaceholders(prompt: string, projectEnv: Record<string, str
     return prompt;
   }
   return prompt.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
-    return key in projectEnv ? projectEnv[key] : match;
+    return key in projectEnv ? (projectEnv[key] as string) : match;
   });
 }
 
