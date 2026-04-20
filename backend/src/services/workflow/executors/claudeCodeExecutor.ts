@@ -21,7 +21,7 @@ class ClaudeCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
-      executorConfig: { env: executorConfig?.env },
+      executorConfig: { env: executorConfig?.env, settingsPath: executorConfig?.settingsPath },
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {
         if (onProviderState && event.kind === 'status' && event.payload?.session_id) {
@@ -63,7 +63,7 @@ class ClaudeCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
-      executorConfig: { args, env: executorConfig?.env },
+      executorConfig: { args, env: executorConfig?.env, settingsPath: executorConfig?.settingsPath },
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {
         if (onProviderState && event.kind === 'status' && event.payload?.session_id) {

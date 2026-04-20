@@ -49,6 +49,7 @@ function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
     skills: [...agent.skills],
     mcpServers: [...agent.mcpServers],
     env: agent.env ? { ...agent.env } : undefined,
+    settingsPath: agent.settingsPath || undefined,
   };
 }
 
