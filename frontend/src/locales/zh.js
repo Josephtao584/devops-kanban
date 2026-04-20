@@ -820,4 +820,18 @@ export default {
     label: '自动执行',
     templatePlaceholder: '选择工作流模板',
   },
+  preset: {
+    library: '模板库',
+    description: '选择预设模板包一键安装',
+    install: '安装',
+    installed: '已安装',
+    installing: '安装中...',
+    installSuccess: '安装成功',
+    installFailed: '安装失败',
+    strategySkip: '跳过已存在',
+    strategyOverwrite: '覆盖已存在',
+    strategyCopy: '创建副本',
+    loadFailed: '加载预设模板失败',
+    noPresets: '暂无预设模板',
+  },
 }

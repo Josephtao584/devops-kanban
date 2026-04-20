@@ -81,6 +81,9 @@
                 <el-button plain @click="showBundleImportDialog = true">
                   {{ $t('common.import') }}
                 </el-button>
+                <el-button plain @click="showPresetDialog = true">
+                  {{ $t('preset.library') }}
+                </el-button>
             </div>
           </div>
         </template>
@@ -359,6 +362,11 @@
       v-model="showBundleImportDialog"
       @imported="handleBundleImported"
     />
+
+    <PresetBundleDialog
+      v-model="showPresetDialog"
+      @imported="handlePresetImported"
+    />
   </div>
 </template>
 
@@ -371,6 +379,7 @@ import draggable from 'vuedraggable'
 import WorkflowTemplateImportDialog from '../components/workflow/WorkflowTemplateImportDialog.vue'
 import UnifiedExportDialog from '../components/bundle/UnifiedExportDialog.vue'
 import BundleImportDialog from '../components/bundle/BundleImportDialog.vue'
+import PresetBundleDialog from '../components/bundle/PresetBundleDialog.vue'
 import BaseDialog from '../components/BaseDialog.vue'
 import {
   createWorkflowTemplate,
@@ -424,6 +433,7 @@ let latestTemplateDetailRequestToken = 0
 const showImportDialog = ref(false)
 const showExportDialog = ref(false)
 const showBundleImportDialog = ref(false)
+const showPresetDialog = ref(false)
 
 const canDeleteSelected = computed(() => {
   return Boolean(template.value?.template_id) && template.value.template_id !== DEFAULT_TEMPLATE_ID
@@ -942,6 +952,10 @@ const handleBundleImported = async () => {
   showBundleImportDialog.value = false
   await loadTemplateList(selectedTemplateId.value || DEFAULT_TEMPLATE_ID)
   ElMessage.success(t('bundle.importSuccess'))
+}
+
+const handlePresetImported = async () => {
+  await loadTemplateList(selectedTemplateId.value || DEFAULT_TEMPLATE_ID)
 }
 
 onMounted(() => {

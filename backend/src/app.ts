@@ -24,6 +24,7 @@ import {
   bundleRoutes,
   notificationRoutes,
   settingsRoutes,
+  presetRoutes,
 } from './routes/index.js';
 import { SchedulerService } from './services/schedulerService.js';
 
@@ -110,6 +111,7 @@ export async function buildApp() {
   fastify.register(bundleRoutes, { prefix: '/api/bundle', storagePath: config.STORAGE_PATH });
   fastify.register(notificationRoutes, { prefix: '/api/notifications' });
   fastify.register(settingsRoutes, { prefix: '/api/settings' });
+  fastify.register(presetRoutes, { prefix: '/api/presets', storagePath: config.STORAGE_PATH });
 
   // Shutdown scheduler when app closes
   fastify.addHook('onClose', async () => {

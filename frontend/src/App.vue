@@ -32,17 +32,6 @@
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.kanban') }}</span>
         </router-link>
 
-        <router-link to="/agents" class="nav-item" :title="$t('nav.agents')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="10" rx="2"></rect>
-            <circle cx="12" cy="5" r="2"></circle>
-            <path d="M12 7v4"></path>
-            <line x1="8" y1="16" x2="8" y2="16"></line>
-            <line x1="16" y1="16" x2="16" y2="16"></line>
-          </svg>
-          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.agents') }}</span>
-        </router-link>
-
         <router-link to="/workflow-template" class="nav-item" :title="$t('nav.workflowTemplate')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(-90deg)">
             <circle cx="4" cy="4" r="2"></circle>
@@ -52,6 +41,17 @@
             <polyline points="4 6 4 4 20 4 20 20 4 20 4 18"></polyline>
           </svg>
           <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.workflowTemplate') }}</span>
+        </router-link>
+
+        <router-link to="/agents" class="nav-item" :title="$t('nav.agents')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+            <circle cx="12" cy="5" r="2"></circle>
+            <path d="M12 7v4"></path>
+            <line x1="8" y1="16" x2="8" y2="16"></line>
+            <line x1="16" y1="16" x2="16" y2="16"></line>
+          </svg>
+          <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.agents') }}</span>
         </router-link>
 
         <router-link to="/skills" class="nav-item" :class="{ 'router-link-active': $route.path.startsWith('/skills') }" :title="$t('nav.skills')">
