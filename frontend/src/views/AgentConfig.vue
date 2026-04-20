@@ -303,8 +303,9 @@ const buildAgentPayload = () => {
       env[pair.key.trim()] = pair.value
     }
   }
+  const { envPairs, ...rest } = form.value
   return {
-    ...form.value,
+    ...rest,
     skills: [...form.value.skills],
     mcpServers: [...form.value.mcpServers],
     env
