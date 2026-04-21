@@ -117,6 +117,7 @@ const inputRef = ref(null)
 const hideToolMessages = ref(true)
 let streamController = null
 let currentAgentId = null
+let msgIdCounter = 0
 
 const displayedMessages = computed(() => {
   if (!hideToolMessages.value) return messages.value
@@ -219,7 +220,7 @@ async function sendMessage() {
 
   // Append user message locally
   const userMsg = {
-    id: Date.now(),
+    id: ++msgIdCounter,
     kind: 'message',
     role: 'user',
     content: text,
@@ -238,7 +239,7 @@ async function sendMessage() {
     (event) => {
       // Append streamed event
       const enriched = {
-        id: Date.now() + Math.random(),
+        id: ++msgIdCounter,
         kind: event.kind,
         role: event.role,
         content: event.content,

@@ -67,39 +67,48 @@ class AgentChatRepository {
     return fullSession;
   }
 
+  private static _isValidChatId(id: string): boolean {
+    return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  }
+
   getSession(chatId: string): AgentChatSession | null {
-    if (!chatId || !Object.prototype.hasOwnProperty.call(this._read().sessions, chatId)) return null;
-    return this._read().sessions[chatId] ?? null;
+    if (!AgentChatRepository._isValidChatId(chatId)) return null;
+    const data = this._read();
+    if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
+    return data.sessions[chatId] ?? null;
   }
 
   updateSession(chatId: string, update: { status?: 'idle' | 'running' | 'ended'; providerSessionId?: string | null }): AgentChatSession | null {
-    if (!chatId) return null;
+    if (!AgentChatRepository._isValidChatId(chatId)) return null;
     const data = this._read();
     if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
-    const session = data.sessions[chatId];
-    if (update.status !== undefined) {
-      session.status = update.status;
-    }
-    if ('providerSessionId' in update) {
-      session.providerSessionId = update.providerSessionId ?? null;
-    }
-    session.updated_at = new Date().toISOString();
+    const existing = data.sessions[chatId];
+    const updated: AgentChatSession = {
+      ...existing,
+      ...(update.status !== undefined ? { status: update.status } : {}),
+      ...('providerSessionId' in update ? { providerSessionId: update.providerSessionId ?? null } : {}),
+      updated_at: new Date().toISOString(),
+    };
+    data.sessions[chatId] = updated;
     this._write(data);
-    return session;
+    return updated;
   }
 
   appendMessage(chatId: string, msg: Omit<AgentChatMessage, 'id' | 'created_at'>): AgentChatMessage | null {
-    if (!chatId) return null;
+    if (!AgentChatRepository._isValidChatId(chatId)) return null;
     const data = this._read();
     if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
-    const session = data.sessions[chatId];
+    const existing = data.sessions[chatId];
     const message: AgentChatMessage = {
       ...msg,
-      id: session.messages.length + 1,
+      id: existing.messages.length + 1,
       created_at: new Date().toISOString(),
     };
-    session.messages.push(message);
-    session.updated_at = message.created_at;
+    data.sessions[chatId] = {
+      ...existing,
+      messages: [...existing.messages, message],
+      updated_at: message.created_at,
+    };
     this._write(data);
     return message;
   }
@@ -110,7 +119,7 @@ class AgentChatRepository {
   }
 
   deleteSession(chatId: string): boolean {
-    if (!chatId) return false;
+    if (!AgentChatRepository._isValidChatId(chatId)) return false;
     const data = this._read();
     if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return false;
     delete data.sessions[chatId];

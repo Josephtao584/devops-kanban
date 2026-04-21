@@ -188,12 +188,13 @@ class AgentChatService {
   }
 
   private async _prepareWorktree(agent: { executorType: ExecutorType; skills: number[]; mcpServers: number[] }, tempDir: string) {
-    // Resolve skill names
+    // Resolve skill names using a Map for O(1) lookups
     const allSkills = await this.skillRepo.findAll();
+    const skillMap = new Map(allSkills.map(s => [s.id, s]));
     const skillNames = agent.skills
-      .map(id => allSkills.find(s => s.id === id))
-      .filter(Boolean)
-      .map(s => s!.identifier);
+      .map(id => skillMap.get(id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+      .map(s => s.identifier);
 
     await prepareExecutionSkills({
       executorType: agent.executorType,
@@ -201,15 +202,16 @@ class AgentChatService {
       executionPath: tempDir,
     });
 
-    // Resolve MCP server configs
+    // Resolve MCP server configs using a Map for O(1) lookups
     const allServers = await this.mcpServerRepo.findAll();
+    const serverMap = new Map(allServers.map(s => [s.id, s]));
     const mcpServerConfigs = agent.mcpServers
-      .map(id => allServers.find(s => s.id === id))
-      .filter(Boolean)
+      .map(id => serverMap.get(id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined)
       .map(s => ({
-        name: s!.name,
-        server_type: s!.server_type,
-        config: s!.config,
+        name: s.name,
+        server_type: s.server_type,
+        config: s.config,
       }));
 
     await prepareExecutionMcp({
