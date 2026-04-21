@@ -131,6 +131,14 @@
             </div>
           </div>
 
+          <!-- Settings 文件路径 -->
+          <div v-if="selectedAgent.executorType === 'CLAUDE_CODE' && selectedAgent.settingsPath" class="skills-section">
+            <span class="section-label">{{ $t('agent.settingsPath') }}</span>
+            <div class="skills-tags">
+              <span class="skill-tag env-tag">{{ selectedAgent.settingsPath }}</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -201,6 +209,11 @@
           </div>
         </el-form-item>
 
+        <el-form-item v-if="form.executorType === 'CLAUDE_CODE'" :label="$t('agent.settingsPath')">
+          <el-input v-model="form.settingsPath" :placeholder="$t('agent.settingsPathPlaceholder')" maxlength="500" />
+          <div class="form-hint">{{ $t('agent.settingsPathHint') }}</div>
+        </el-form-item>
+
         <el-form-item>
           <el-checkbox v-model="form.enabled">{{ $t('common.enabled') }}</el-checkbox>
         </el-form-item>
@@ -248,7 +261,8 @@ const form = ref({
   enabled: true,
   skills: [],
   mcpServers: [],
-  envPairs: []
+  envPairs: [],
+  settingsPath: ''
 })
 
 const selectedSkillToAdd = ref('')
@@ -277,7 +291,8 @@ const setFormState = (agent) => {
     mcpServers: Array.isArray(agent?.mcpServers) ? [...agent.mcpServers] : [],
     envPairs: agent?.env && typeof agent.env === 'object'
       ? Object.entries(agent.env).map(([key, value]) => ({ key, value: String(value) }))
-      : []
+      : [],
+    settingsPath: agent?.settingsPath || ''
   }
   selectedSkillToAdd.value = ''
   selectedMcpServerToAdd.value = ''
@@ -308,7 +323,8 @@ const buildAgentPayload = () => {
     ...rest,
     skills: [...form.value.skills],
     mcpServers: [...form.value.mcpServers],
-    env
+    env,
+    settingsPath: form.value.settingsPath?.trim() || ''
   }
 }
 
@@ -853,6 +869,13 @@ onMounted(loadAgents)
 .add-skill-btn:hover {
   background: var(--bg-tertiary);
   border-color: var(--border-color);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .preset-skills {

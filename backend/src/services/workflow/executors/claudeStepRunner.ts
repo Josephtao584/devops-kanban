@@ -10,7 +10,7 @@ import { logger } from '../../../utils/logger.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code@2.1.62'];
 
-type ClaudeRuntimeExecutorConfig = { commandOverride?: string; args?: string[]; env?: Record<string, string> | undefined };
+type ClaudeRuntimeExecutorConfig = { commandOverride?: string; args?: string[]; env?: Record<string, string> | undefined; settingsPath?: string | undefined };
 
 type ClaudeSpawnExecution = {
   exitCode: number | null;
@@ -214,6 +214,11 @@ async function defaultSpawnImpl({
   const mcpConfigPath = resolve(worktreePath, '.mcp.json');
   if (existsSync(mcpConfigPath)) {
     commandArgs.push('--mcp-config', mcpConfigPath);
+  }
+
+  // Pass --settings if configured on the agent
+  if (executorConfig.settingsPath) {
+    commandArgs.push('--settings', executorConfig.settingsPath);
   }
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
   const spawnImpl = await resolveCrossSpawn();

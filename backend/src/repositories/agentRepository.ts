@@ -13,6 +13,7 @@ class AgentRepository extends BaseRepository<AgentEntity> {
       mcpServers: row.mcp_servers ? JSON.parse(row.mcp_servers as string) : [],
       env: row.env ? JSON.parse(row.env as string) : {},
       enabled: Boolean(row.enabled),
+      settingsPath: (row.settings_path as string) || undefined,
     } as AgentEntity;
   }
 
@@ -27,6 +28,10 @@ class AgentRepository extends BaseRepository<AgentEntity> {
     }
     if (entity.env !== undefined) {
       result.env = JSON.stringify(entity.env);
+    }
+    if ('settingsPath' in entity) {
+      result.settings_path = entity.settingsPath || null;
+      delete result.settingsPath;
     }
     return result;
   }

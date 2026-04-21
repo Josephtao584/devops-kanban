@@ -179,6 +179,7 @@ export interface AgentEntity {
   skills: number[];
   mcpServers: number[];
   env: Record<string, string>;
+  settingsPath?: string;
   created_at: string;
   updated_at: string;
 }
