@@ -421,6 +421,14 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
+.chat-timer {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
 /* Chat body */
 .chat-body {
   flex: 1;
