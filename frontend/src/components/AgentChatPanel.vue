@@ -285,6 +285,8 @@ onBeforeUnmount(async () => {
 </script>
 
 <style scoped>
+@import '../styles/config-page.css';
+
 .agent-chat-panel {
   display: flex;
   flex-direction: column;
