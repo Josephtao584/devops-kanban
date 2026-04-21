@@ -23,33 +23,26 @@
         <div class="panel-header">
           <h3>{{ $t('skill.skillList') }}</h3>
           <div class="panel-header-right">
-            <span v-if="selectedTemplateId" class="skill-filter-badge">Filtered</span>
             <span class="skill-count">{{ filteredSkills.length }}</span>
-          </div>
-        </div>
-        <div class="skill-filter-bar">
-          <div class="skill-filter-wrapper">
-            <span class="skill-filter-icon">&#9660;</span>
-            <select
+            <el-select
               v-model="selectedTemplateId"
+              :placeholder="$t('skill.filterAllTemplates')"
+              clearable
               class="skill-filter-select"
+              size="small"
             >
-              <option value="">{{ $t('skill.filterAllTemplates') }}</option>
-              <option
+              <el-option
                 v-for="tpl in workflowTemplates"
                 :key="tpl.template_id"
+                :label="tpl.name"
                 :value="tpl.template_id"
-              >
-                {{ tpl.name }}
-              </option>
-            </select>
+              />
+            </el-select>
+            <span v-if="selectedTemplateId" class="skill-filter-badge">
+              <span class="badge-dot"></span>
+              {{ $t('skill.filteringByTemplate') }}
+            </span>
           </div>
-          <button
-            v-if="selectedTemplateId"
-            class="skill-filter-clear"
-            @click="selectedTemplateId = ''"
-            :title="$t('skill.filterAllTemplates')"
-          >&times;</button>
         </div>
         <div class="skill-list" v-if="!skillStore.loading">
           <div
@@ -671,83 +664,60 @@ onMounted(loadSkills)
   gap: 6px;
 }
 
-.skill-filter-badge {
-  background: var(--accent-color);
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.skill-filter-bar {
-  padding: 8px 12px 8px;
-  border-top: 1px solid var(--border-color);
+.panel-header-right {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.skill-filter-wrapper {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.skill-filter-icon {
-  position: absolute;
-  left: 8px;
-  font-size: 8px;
-  color: var(--text-secondary);
-  pointer-events: none;
-  z-index: 1;
+  gap: 8px;
+  min-width: 0;
 }
 
 .skill-filter-select {
-  width: 100%;
-  padding: 6px 24px 6px 24px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--input-bg, #fff);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 160px;
+  flex-shrink: 0;
 }
 
-.skill-filter-select:focus {
+.skill-filter-select :deep(.el-input__wrapper) {
+  background: var(--bg-secondary);
+  box-shadow: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.2s;
+}
+
+.skill-filter-select :deep(.el-input__wrapper:hover) {
+  border-color: var(--accent-color);
+}
+
+.skill-filter-select :deep(.el-input__wrapper.is-focus) {
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.15);
 }
 
-.skill-filter-clear {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
+.skill-filter-badge {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  line-height: 1;
-  padding: 0;
-  transition: all 0.2s;
+  gap: 4px;
+  background: rgba(37, 198, 201, 0.1);
+  color: var(--accent-color);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.skill-filter-clear:hover {
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .skill-list {
