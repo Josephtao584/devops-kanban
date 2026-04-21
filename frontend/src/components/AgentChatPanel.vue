@@ -73,7 +73,6 @@
           :disabled="sessionStatus === 'running'"
           rows="2"
           @keydown.enter.exact.prevent="sendMessage"
-          @keydown.enter.shift.exact="() => {}"
         />
         <button
           class="chat-send-btn"

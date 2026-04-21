@@ -91,7 +91,7 @@ class AgentChatService {
 
     try {
       // Prepare skills and MCP for temp dir
-      await this._prepareWorktree(agent, session.tempDir);
+      await this._prepareExecutionEnvironment(agent, session.tempDir);
 
       // Build executor config
       const executorConfig = {
@@ -187,7 +187,7 @@ class AgentChatService {
     logger.info('AgentChatService', `Deleted chat session ${chatId}`);
   }
 
-  private async _prepareWorktree(agent: { executorType: ExecutorType; skills: number[]; mcpServers: number[] }, tempDir: string) {
+  private async _prepareExecutionEnvironment(agent: { executorType: ExecutorType; skills: number[]; mcpServers: number[] }, tempDir: string) {
     // Resolve skill names using a Map for O(1) lookups
     const allSkills = await this.skillRepo.findAll();
     const skillMap = new Map(allSkills.map(s => [s.id, s]));

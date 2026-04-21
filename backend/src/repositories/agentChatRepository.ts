@@ -84,9 +84,13 @@ class AgentChatRepository {
     if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
     const existing = data.sessions[chatId];
     const updated: AgentChatSession = {
-      ...existing,
-      ...(update.status !== undefined ? { status: update.status } : {}),
-      ...('providerSessionId' in update ? { providerSessionId: update.providerSessionId ?? null } : {}),
+      id: existing.id,
+      agentId: existing.agentId,
+      status: update.status !== undefined ? update.status : existing.status,
+      tempDir: existing.tempDir,
+      providerSessionId: 'providerSessionId' in update ? (update.providerSessionId ?? null) : existing.providerSessionId,
+      messages: existing.messages,
+      created_at: existing.created_at,
       updated_at: new Date().toISOString(),
     };
     data.sessions[chatId] = updated;
