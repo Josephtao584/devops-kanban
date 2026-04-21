@@ -523,8 +523,8 @@ onMounted(loadAgents)
 
 /* Left panel - Agent list */
 .agent-list-panel {
-  width: 220px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -638,7 +638,7 @@ onMounted(loadAgents)
 
 /* When the chat panel is also visible, clamp detail panel to a fixed width */
 .agent-detail-panel.has-chat {
-  flex: 0 0 360px;
+  flex: 1;
 }
 
 .agent-title-row {

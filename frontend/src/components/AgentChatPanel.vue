@@ -292,7 +292,7 @@ onBeforeUnmount(async () => {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-width: 320px;
+  min-width: 0;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
