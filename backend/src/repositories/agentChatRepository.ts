@@ -83,6 +83,7 @@ class AgentChatRepository {
     const data = this._read();
     if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
     const existing = data.sessions[chatId];
+    if (!existing) return null;
     const updated: AgentChatSession = {
       id: existing.id,
       agentId: existing.agentId,
@@ -103,6 +104,7 @@ class AgentChatRepository {
     const data = this._read();
     if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
     const existing = data.sessions[chatId];
+    if (!existing) return null;
     const message: AgentChatMessage = {
       ...msg,
       id: existing.messages.length + 1,
