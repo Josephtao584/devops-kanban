@@ -132,7 +132,7 @@
 
     <template #footer>
       <el-button @click="handleCancel">{{ $t('common.cancel') }}</el-button>
-      <el-button data-testid="confirm-start-button" type="primary" :disabled="!canConfirm" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
+      <el-button data-testid="confirm-start-button" type="primary" :loading="confirming" :disabled="!canConfirm || confirming" @click="handleConfirm">{{ $t('workflowTemplate.confirmStart') }}</el-button>
     </template>
 
     <BaseDialog
@@ -271,6 +271,7 @@ const localTemplate = ref({ template_id: '', name: '', steps: [] })
 const selectedStepIndex = ref(0)
 const showStepDetailsDialog = ref(false)
 const autoCreateWorktree = ref(true)
+const confirming = ref(false)
 
 const normalizeTemplate = (rawTemplate) => {
   const normalized = normalizeWorkflowTemplate(rawTemplate, { template_id: '', name: '', steps: [] })
@@ -291,6 +292,7 @@ watch(() => props.modelValue, async (visible) => {
     await loadAgents()
   } else {
     showStepDetailsDialog.value = false
+    confirming.value = false
   }
 }, { immediate: true })
 
@@ -466,7 +468,10 @@ const handleCancel = () => {
   showStepDetailsDialog.value = false
   emit('update:modelValue', false)
 }
-const handleConfirm = () => emit('confirm', buildWorkflowTemplatePayload(localTemplate.value), autoCreateWorktree.value)
+const handleConfirm = () => {
+  confirming.value = true
+  emit('confirm', buildWorkflowTemplatePayload(localTemplate.value), autoCreateWorktree.value)
+}
 
 // --- Prompt Preview ---
 const showPreviewDialog = ref(false)
