@@ -120,6 +120,7 @@ Chat endpoints allow testing any agent member via a real-time conversation panel
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/agents/:id/chat/sessions` | Start a new chat session. Returns `{ id, agentId, status }` |
+| `GET /api/agents/:id/chat/sessions` | Get the latest active (non-ended) chat session for an agent, including messages. Returns `null` if none exists |
 | `GET /api/agents/:id/chat/sessions/:chatId/messages` | Get full message history for a session |
 | `POST /api/agents/:id/chat/sessions/:chatId/messages` | Send a message. Returns SSE stream (`Content-Type: text/event-stream`) with events: `message`, `done`, `error` |
 | `DELETE /api/agents/:id/chat/sessions/:chatId` | End session and clean up temp directory |
