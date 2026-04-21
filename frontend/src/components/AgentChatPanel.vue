@@ -126,7 +126,14 @@ const displayedMessages = computed(() => {
 // Normalize stored message into shape expected by SessionEventRenderer
 function normalizeMessage(msg) {
   const payload = msg.payload && typeof msg.payload === 'object' ? msg.payload : {}
-  const toolName = typeof payload.tool_name === 'string' ? payload.tool_name : (msg.kind === 'tool_call' ? msg.content : '')
+
+  let toolName = ''
+  if (typeof payload.tool_name === 'string') {
+    toolName = payload.tool_name
+  } else if (msg.kind === 'tool_call') {
+    toolName = msg.content
+  }
+
   const toolCallId = typeof payload.tool_id === 'string' ? payload.tool_id : ''
   const toolInput = Object.prototype.hasOwnProperty.call(payload, 'input') ? payload.input : null
   const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id : ''
@@ -134,8 +141,8 @@ function normalizeMessage(msg) {
 
   // Build tool input preview
   let toolInputPreview = ''
-  if (toolInput && typeof toolInput === 'object') {
-    const entries = Object.entries(toolInput).filter(([, v]) => v != null && v !== '').slice(0, 3)
+  if (toolInput !== null && toolInput !== undefined && typeof toolInput === 'object') {
+    const entries = Object.entries(toolInput).filter(([, v]) => v !== null && v !== undefined && v !== '').slice(0, 3)
     toolInputPreview = entries.map(([k, v]) => `${k}: ${typeof v === 'string' ? v.slice(0, 80) : JSON.stringify(v).slice(0, 80)}`).join('\n')
   }
 

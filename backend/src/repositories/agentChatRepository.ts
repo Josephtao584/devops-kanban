@@ -68,23 +68,31 @@ class AgentChatRepository {
   }
 
   getSession(chatId: string): AgentChatSession | null {
-    const data = this._read();
-    return data.sessions[chatId] ?? null;
+    if (!chatId || !Object.prototype.hasOwnProperty.call(this._read().sessions, chatId)) return null;
+    return this._read().sessions[chatId] ?? null;
   }
 
-  updateSession(chatId: string, update: Partial<Pick<AgentChatSession, 'status' | 'providerSessionId'>>): AgentChatSession | null {
+  updateSession(chatId: string, update: { status?: 'idle' | 'running' | 'ended'; providerSessionId?: string | null }): AgentChatSession | null {
+    if (!chatId) return null;
     const data = this._read();
+    if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
     const session = data.sessions[chatId];
-    if (!session) return null;
-    Object.assign(session, update, { updated_at: new Date().toISOString() });
+    if (update.status !== undefined) {
+      session.status = update.status;
+    }
+    if ('providerSessionId' in update) {
+      session.providerSessionId = update.providerSessionId ?? null;
+    }
+    session.updated_at = new Date().toISOString();
     this._write(data);
     return session;
   }
 
   appendMessage(chatId: string, msg: Omit<AgentChatMessage, 'id' | 'created_at'>): AgentChatMessage | null {
+    if (!chatId) return null;
     const data = this._read();
+    if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return null;
     const session = data.sessions[chatId];
-    if (!session) return null;
     const message: AgentChatMessage = {
       ...msg,
       id: session.messages.length + 1,
@@ -102,8 +110,9 @@ class AgentChatRepository {
   }
 
   deleteSession(chatId: string): boolean {
+    if (!chatId) return false;
     const data = this._read();
-    if (!data.sessions[chatId]) return false;
+    if (!Object.prototype.hasOwnProperty.call(data.sessions, chatId)) return false;
     delete data.sessions[chatId];
     this._write(data);
     return true;

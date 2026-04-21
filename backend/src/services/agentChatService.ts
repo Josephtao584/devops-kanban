@@ -101,7 +101,7 @@ class AgentChatService {
       };
 
       const registry = new AgentExecutorRegistry();
-      const executor = registry.getExecutor(agent.executorType as ExecutorType);
+      const executor = registry.getExecutor(agent.executorType);
 
       const handleEvent = async (event: WorkflowExecutionEvent) => {
         // Persist assistant message events
@@ -187,7 +187,7 @@ class AgentChatService {
     logger.info('AgentChatService', `Deleted chat session ${chatId}`);
   }
 
-  private async _prepareWorktree(agent: { executorType: string; skills: number[]; mcpServers: number[] }, tempDir: string) {
+  private async _prepareWorktree(agent: { executorType: ExecutorType; skills: number[]; mcpServers: number[] }, tempDir: string) {
     // Resolve skill names
     const allSkills = await this.skillRepo.findAll();
     const skillNames = agent.skills
@@ -196,7 +196,7 @@ class AgentChatService {
       .map(s => s!.identifier);
 
     await prepareExecutionSkills({
-      executorType: agent.executorType as ExecutorType,
+      executorType: agent.executorType,
       skillNames,
       executionPath: tempDir,
     });
@@ -213,7 +213,7 @@ class AgentChatService {
       }));
 
     await prepareExecutionMcp({
-      executorType: agent.executorType as ExecutorType,
+      executorType: agent.executorType,
       mcpServerConfigs,
       executionPath: tempDir,
     });
