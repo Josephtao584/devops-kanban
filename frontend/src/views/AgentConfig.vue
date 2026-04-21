@@ -47,7 +47,7 @@
       </div>
 
       <!-- 右侧：角色详情面板 -->
-      <div class="agent-detail-panel">
+      <div class="agent-detail-panel" :class="{ 'has-chat': !!selectedAgent }">
         <!-- 空状态：未选中角色 -->
         <div v-if="!selectedAgent" class="empty-detail">
           <p>{{ $t('agent.selectAgentHint') }}</p>
@@ -625,8 +625,8 @@ onMounted(loadAgents)
 
 /* Right panel - Agent detail */
 .agent-detail-panel {
-  width: 360px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
   background: var(--panel-bg);
   overflow: hidden;
   display: flex;
@@ -634,6 +634,11 @@ onMounted(loadAgents)
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+}
+
+/* When the chat panel is also visible, clamp detail panel to a fixed width */
+.agent-detail-panel.has-chat {
+  flex: 0 0 360px;
 }
 
 .agent-title-row {

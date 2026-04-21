@@ -288,8 +288,8 @@ onBeforeUnmount(async () => {
 .agent-chat-panel {
   display: flex;
   flex-direction: column;
-  width: 380px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 320px;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
