@@ -98,7 +98,7 @@ export interface WorkflowStepEntity {
   agent_id?: number | null;
   provider_session_id?: string | null;
   summary: string | null;
-  assembledPrompt?: string | null;
+  assembled_prompt?: string | null;
   // Suspend/resume fields
   suspend_reason?: string | null;
   confirmation_note?: string | null;

@@ -309,15 +309,11 @@ export function buildWorkflowFromInstance(
             },
             onAssembledPrompt: async (prompt) => {
               assembledPrompt = prompt;
+              await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                assembled_prompt: assembledPrompt,
+              });
             },
           });
-
-          // Store the assembled prompt
-          if (assembledPrompt) {
-            await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-              assembledPrompt,
-            });
-          }
 
           if (abortSignal?.aborted) {
             abort();
