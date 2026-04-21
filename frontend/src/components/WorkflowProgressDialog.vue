@@ -139,6 +139,7 @@
           :step-name="selectedStep.name"
           :initial-message="askUserAnswer"
           :workflow-run-id="workflowRunId"
+          :assembled-prompt="selectedStep?.assembledPrompt || ''"
         />
         <div v-else class="detail-empty">当前步骤暂无会话记录</div>
       </div>

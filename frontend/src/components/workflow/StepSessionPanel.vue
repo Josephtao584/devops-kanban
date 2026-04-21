@@ -59,7 +59,25 @@
           />
         </template>
       </div>
+      <div v-if="showPrompt && props.assembledPrompt" class="prompt-panel">
+        <div class="prompt-panel-header">
+          <span class="prompt-panel-title">Prompt 内容</span>
+          <el-button size="small" text @click="copyPrompt">复制</el-button>
+        </div>
+        <div class="prompt-panel-content">
+          <pre>{{ props.assembledPrompt }}</pre>
+        </div>
+      </div>
       <div class="panel-toolbar">
+        <el-button
+          size="small"
+          :type="showPrompt ? 'primary' : 'default'"
+          plain
+          @click="togglePrompt"
+          :disabled="!props.assembledPrompt"
+        >
+          {{ showPrompt ? '收起 Prompt' : '查看 Prompt' }}
+        </el-button>
         <label class="auto-scroll-check" @click.prevent="toggleAutoScroll">
           <span class="check-box" :class="{ checked: autoScrollEnabled }">
             <svg v-if="autoScrollEnabled" width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -136,6 +154,10 @@ const props = defineProps({
   workflowRunId: {
     type: [Number, String],
     default: null
+  },
+  assembledPrompt: {
+    type: String,
+    default: ''
   }
 })
 
@@ -148,6 +170,20 @@ const autoScrollEnabled = ref(true)
 const hideToolMessages = ref(true)
 const hideThinkingMessages = ref(true)
 const messageInput = ref(null)
+const showPrompt = ref(false)
+
+function togglePrompt() {
+  showPrompt.value = !showPrompt.value
+}
+
+async function copyPrompt() {
+  try {
+    await navigator.clipboard.writeText(props.assembledPrompt)
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
 
 const displayedEvents = computed(() => {
   let result = events.value
@@ -549,6 +585,46 @@ onBeforeUnmount(() => {
 
 .check-label {
   line-height: 1;
+}
+
+.prompt-panel {
+  flex-shrink: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.prompt-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.prompt-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.prompt-panel-content {
+  max-height: 400px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.prompt-panel-content pre {
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #1e293b;
 }
 
 .event-ask-user-panel {
