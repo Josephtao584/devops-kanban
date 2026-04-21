@@ -123,15 +123,20 @@
         <!-- 底部：提交区或提示 -->
         <div v-if="changedFiles.length > 0" class="commit-area">
           <div class="commit-header" @click="showCommitArea = !showCommitArea">
-            <span>{{ changedFiles.length }} 个未提交变更</span>
+            <span>{{ changedFiles.length }} 个未提交变更{{ commitSelectedCount > 0 && commitSelectedCount < changedFiles.length ? `（已选 ${commitSelectedCount} 个）` : '' }}</span>
             <span class="section-toggle">{{ showCommitArea ? '▾' : '▸' }}</span>
           </div>
           <div v-if="showCommitArea" class="commit-body">
             <div class="commit-files">
-              <span v-for="f in changedFiles" :key="f.path" class="commit-file">
+              <label class="commit-select-all">
+                <input ref="selectAllCheckboxRef" type="checkbox" :checked="commitAllSelected" @change="toggleSelectAllCommitFiles" />
+                全选
+              </label>
+              <label v-for="f in changedFiles" :key="f.path" class="commit-file" :class="{ 'commit-file-selected': f.selected }">
+                <input type="checkbox" v-model="f.selected" @click.stop />
                 <span class="change-status" :class="statusClass(f.status)">{{ statusLabel(f.status) }}</span>
                 {{ f.path }}
-              </span>
+              </label>
             </div>
             <div class="commit-input-row">
               <input
@@ -142,10 +147,10 @@
               />
               <button
                 class="commit-btn"
-                :disabled="!commitMessage.trim() || committing"
+                :disabled="commitSelectedCount === 0 || !commitMessage.trim() || committing"
                 @click="handleCommit"
               >
-                {{ committing ? '提交中...' : '提交' }}
+                {{ committing ? '提交中...' : `提交${commitSelectedCount > 0 ? ` ${commitSelectedCount} 个文件` : ''}` }}
               </button>
             </div>
           </div>
@@ -159,7 +164,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watchEffect } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getFileTree, readFileContent, writeFileContent, getUncommittedChanges, getDiff, commit } from '../../api/git'
 import FileTree from './FileTree.vue'
@@ -217,6 +222,18 @@ const committing = ref(false)
 const showCommitArea = ref(true)
 
 // Computed
+const commitSelectedCount = computed(() => changedFiles.value.filter(f => f.selected).length)
+const commitAllSelected = computed(() => changedFiles.value.length > 0 && changedFiles.value.every(f => f.selected))
+const commitNoneSelected = computed(() => changedFiles.value.every(f => !f.selected))
+
+const selectAllCheckboxRef = ref(null)
+watchEffect(() => {
+  const el = selectAllCheckboxRef.value
+  if (el) {
+    el.indeterminate = !commitAllSelected.value && !commitNoneSelected.value
+  }
+})
+
 const hasUnsavedChanges = computed(() => {
   if (!currentFile.value || !editorView.value) return false
   return unsavedFileSet.has(currentFile.value)
@@ -387,7 +404,7 @@ async function loadChanges() {
   try {
     const res = await getUncommittedChanges(props.projectId, props.taskId)
     if (res.success) {
-      changedFiles.value = res.data || []
+      changedFiles.value = (res.data || []).map(f => ({ ...f, selected: true }))
     }
   } catch {
     // silently fail
@@ -464,13 +481,21 @@ function openFileFromDiff() {
 }
 
 // Commit
+function toggleSelectAllCommitFiles() {
+  const newState = !commitAllSelected.value
+  changedFiles.value.forEach(f => { f.selected = newState })
+}
+
 async function handleCommit() {
   if (!commitMessage.value.trim() || committing.value) return
+  const selectedFiles = changedFiles.value.filter(f => f.selected).map(f => f.path)
+  if (selectedFiles.length === 0) return
   committing.value = true
   try {
     const res = await commit(props.projectId, props.taskId, {
       message: commitMessage.value.trim(),
-      addAll: true,
+      addAll: false,
+      files: selectedFiles,
     })
     if (res.success) {
       ElMessage.success('提交成功')
@@ -967,6 +992,29 @@ onUnmounted(() => {
   padding: 2px 6px;
   border-radius: 3px;
   border: 1px solid #e4e7ed;
+  cursor: pointer;
+}
+
+.commit-file-selected {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.commit-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #909399;
+  padding: 2px 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.commit-select-all input,
+.commit-file input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
 }
 
 .commit-input-row {

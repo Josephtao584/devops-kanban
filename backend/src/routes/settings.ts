@@ -30,10 +30,26 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     const items = Object.entries(data).map(([key, value]) => ({ key, value }));
     await settingsService.setMany(items);
 
-    // If cron changed, re-register dispatch job
-    if (data['scheduler.workflow_dispatch_cron']) {
-      const scheduler = fastify.schedulerService;
-      if (scheduler) {
+    const scheduler = fastify.schedulerService;
+
+    // Handle scheduler.enabled toggle
+    if (data['scheduler.enabled'] !== undefined && scheduler) {
+      if (data['scheduler.enabled'] === 'true') {
+        const dispatchCron = await settingsService.getWorkflowDispatchCron();
+        const ok = scheduler.enable(dispatchCron);
+        if (!ok) {
+          // Roll back: cron was invalid, keep scheduler disabled
+          await settingsService.set('scheduler.enabled', 'false');
+          reply.code(400);
+          return errorResponse('Invalid cron expression, scheduler not enabled');
+        }
+      } else {
+        scheduler.disable();
+      }
+    } else if (data['scheduler.workflow_dispatch_cron'] && scheduler) {
+      // If cron changed while enabled, re-register dispatch job
+      const enabled = await settingsService.getSchedulerEnabled();
+      if (enabled) {
         scheduler.registerDispatchJob(data['scheduler.workflow_dispatch_cron']);
       }
     }

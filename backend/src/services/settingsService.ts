@@ -42,6 +42,10 @@ class SettingsService {
     const val = await this.get('scheduler.max_tasks_per_execution');
     return val ? parseInt(val, 10) : 10;
   }
+
+  async getSchedulerEnabled(): Promise<boolean> {
+    return (await this.get('scheduler.enabled')) === 'true';
+  }
 }
 
 export { SettingsService };

@@ -13,6 +13,15 @@
         <div class="panel-header">{{ $t('notification.scheduler.title') }}</div>
 
         <div class="panel-section">
+          <div class="toggle-row toggle-enable-row">
+            <span>{{ $t('notification.scheduler.enableScheduler') }}</span>
+            <label class="switch">
+              <input type="checkbox" v-model="schedulerEnabled" @change="onSchedulerEnabledChange" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div :class="{ 'config-disabled': !schedulerEnabled }">
           <div class="toggle-row">
             <span>{{ $t('notification.scheduler.currentRunning') }}</span>
             <div style="display:flex;align-items:center;gap:6px;">
@@ -38,6 +47,7 @@
           <div class="input-row">
             <label>{{ $t('notification.scheduler.maxTasksPerExecution') }}</label>
             <input type="number" v-model.number="schedulerConfig['scheduler.max_tasks_per_execution']" class="text-input" min="1" @blur="saveSchedulerConfig" />
+          </div>
           </div>
           <button class="trigger-btn" :disabled="triggerLoading" @click="handleTriggerDispatch">
             {{ triggerLoading ? $t('notification.scheduler.triggering') : $t('notification.scheduler.triggerNow') }}
@@ -70,6 +80,7 @@ const panelStyle = ref({})
 
 const loaded = ref(false)
 const activeWorkflowCount = ref(0)
+const schedulerEnabled = ref(false)
 const schedulerConfig = ref({
   'scheduler.workflow_dispatch_cron': '*/5 * * * *',
   'scheduler.max_concurrent_workflows': 3,
@@ -98,6 +109,7 @@ async function loadConfig() {
     ])
     if (settingsRes.success && settingsRes.data) {
       const data = settingsRes.data
+      schedulerEnabled.value = data['scheduler.enabled'] === 'true'
       schedulerConfig.value = {
         'scheduler.workflow_dispatch_cron': data['scheduler.workflow_dispatch_cron'] || '*/5 * * * *',
         'scheduler.max_concurrent_workflows': parseInt(data['scheduler.max_concurrent_workflows'] || '3'),
@@ -191,6 +203,20 @@ async function handleTriggerDispatch() {
     })
   } finally {
     triggerLoading.value = false
+  }
+}
+
+async function onSchedulerEnabledChange() {
+  try {
+    const res = await updateSettings({
+      'scheduler.enabled': String(schedulerEnabled.value),
+    })
+    if (!res.success) {
+      schedulerEnabled.value = !schedulerEnabled.value
+      ElNotification({ type: 'error', title: t('notification.scheduler.title'), message: res.message || 'Failed', duration: 3000 })
+    }
+  } catch {
+    schedulerEnabled.value = !schedulerEnabled.value
   }
 }
 
@@ -401,6 +427,59 @@ onBeforeUnmount(() => {
 .scheduler-panel .refresh-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.scheduler-panel .toggle-enable-row {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.scheduler-panel .config-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.scheduler-panel .switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.scheduler-panel .switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.scheduler-panel .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--border-color);
+  transition: 0.3s;
+  border-radius: 20px;
+}
+
+.scheduler-panel .slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.scheduler-panel .switch input:checked + .slider {
+  background-color: var(--accent-color);
+}
+
+.scheduler-panel .switch input:checked + .slider::before {
+  transform: translateX(16px);
 }
 
 .scheduler-panel select.text-input {

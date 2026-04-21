@@ -69,9 +69,15 @@ class SchedulerService {
     }
     console.log(`[Scheduler] Initialized ${this.syncJobs.size} sync job(s)`);
 
-    // Register global workflow dispatch job
-    const dispatchCron = await this.settingsService.getWorkflowDispatchCron();
-    this.registerDispatchJob(dispatchCron);
+    // Register global workflow dispatch job only if enabled
+    const enabled = await this.settingsService.getSchedulerEnabled();
+    if (enabled) {
+      const dispatchCron = await this.settingsService.getWorkflowDispatchCron();
+      this.registerDispatchJob(dispatchCron);
+      console.log('[Scheduler] Auto-dispatch enabled');
+    } else {
+      console.log('[Scheduler] Auto-dispatch disabled');
+    }
   }
 
   // --- Sync Jobs (per-task-source) ---
@@ -169,6 +175,19 @@ class SchedulerService {
 
   async triggerDispatchNow(): Promise<DispatchResult> {
     return this.dispatchWorkflows();
+  }
+
+  enable(cronExpression: string): boolean {
+    console.log('[Scheduler] Enabling auto-dispatch');
+    return this.registerDispatchJob(cronExpression);
+  }
+
+  disable(): void {
+    if (this.dispatchJob) {
+      this.dispatchJob.stop();
+      this.dispatchJob = null;
+      console.log('[Scheduler] Disabled auto-dispatch');
+    }
   }
 
   // --- Sync Execution ---

@@ -803,6 +803,7 @@ export default {
     failedBody: '工作流执行失败，请查看详情',
     scheduler: {
       title: '调度配置',
+      enableScheduler: '启用调度',
       currentRunning: '当前运行工作流',
       refresh: '刷新',
       dispatchCron: '工作流调度频率',
