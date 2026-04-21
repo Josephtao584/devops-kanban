@@ -489,6 +489,7 @@ export default {
       working: '执行中'
     },
     chatTitle: '对话测试',
+    chatTitleHint: '本对话测试为临时空白工作空间！',
     chatNewSession: '新建对话',
     chatStart: '开始对话',
     chatNoSession: '尚未开始对话',

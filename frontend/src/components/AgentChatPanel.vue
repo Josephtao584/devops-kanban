@@ -4,6 +4,7 @@
     <div class="chat-panel-header">
       <div class="chat-panel-title-row">
         <span class="chat-panel-title">{{ $t('agent.chatTitle') }}</span>
+        <span class="chat-title-hint">{{ $t('agent.chatTitleHint') }}</span>
         <span v-if="sessionStatus === 'running'" class="chat-status-badge running">{{ $t('agent.chatThinking') }}</span>
         <span v-else-if="sessionStatus === 'idle'" class="chat-status-badge idle">{{ $t('agent.chatReady') }}</span>
       </div>
@@ -320,6 +321,12 @@ onBeforeUnmount(async () => {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.chat-title-hint {
+  font-size: 11px;
+  color: var(--text-muted, var(--text-secondary));
+  font-weight: 400;
 }
 
 .chat-status-badge {
