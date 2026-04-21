@@ -110,7 +110,21 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 | Task Sources | `GET/POST/PUT/DELETE /api/task-sources` |
 | Executions | `GET/POST/PUT/DELETE /api/executions` |
 | Agents | `GET/POST/PUT/DELETE /api/agents` |
+| Agent Chat | `POST /api/agents/{id}/chat/sessions`, `GET/POST/DELETE /api/agents/{id}/chat/sessions/{chatId}/messages` |
 | Health | `GET /health`, `GET /` |
+
+### Agent Chat API
+
+Chat endpoints allow testing any agent member via a real-time conversation panel:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/agents/:id/chat/sessions` | Start a new chat session. Returns `{ id, agentId, status }` |
+| `GET /api/agents/:id/chat/sessions/:chatId/messages` | Get full message history for a session |
+| `POST /api/agents/:id/chat/sessions/:chatId/messages` | Send a message. Returns SSE stream (`Content-Type: text/event-stream`) with events: `message`, `done`, `error` |
+| `DELETE /api/agents/:id/chat/sessions/:chatId` | End session and clean up temp directory |
+
+Chat sessions use a temporary directory (`os.tmpdir()/agent-chat-<uuid>`) as the executor working path. Agent skills and MCP servers are prepared in this directory for each session. Session history is persisted in `data/agent_chats.json`.
 
 ## Configuration
 

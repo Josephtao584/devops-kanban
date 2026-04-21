@@ -275,6 +275,7 @@ backend/src/
 │   ├── projectService.ts      # 项目管理
 │   ├── taskService.ts         # 任务管理
 │   ├── sessionService.ts      # 会话与事件管理
+│   ├── agentChatService.ts    # Agent 对话测试服务
 │   ├── workflow/
 │   │   ├── workflows.ts       # 动态 Workflow 工厂
 │   │   ├── workflowService.ts # Workflow 运行与取消管理
@@ -305,6 +306,7 @@ frontend/src/
 │   └── WorkflowTemplateConfig.vue  # Workflow 模板配置
 ├── components/
 │   ├── BaseDialog.vue         # 统一对话框基础组件
+│   ├── AgentChatPanel.vue     # Agent 对话测试面板
 │   ├── taskSource/
 │   │   └── TaskSourcePanel.vue # 任务源内嵌面板
 │   ├── workflow/
@@ -332,6 +334,7 @@ data/
 ├── sessions.json          # 会话
 ├── executions.json        # 执行记录
 ├── task_sources.json      # 外部任务源
+├── agent_chats.json       # Agent 对话测试会话历史
 └── mastra.db              # Workflow 状态（LibSQL）
 ```
 
