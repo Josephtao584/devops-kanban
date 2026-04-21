@@ -146,6 +146,31 @@ let currentAgentId = null
 // Temp ID counter for messages created during streaming (before backend assigns IDs)
 let tempIdCounter = -1
 
+// ─── Timer state ─────────────────────────────────────────────────────────────
+const elapsedSeconds = ref(0)
+let timerInterval = null
+
+function startTimer() {
+  stopTimer()
+  elapsedSeconds.value = 0
+  timerInterval = setInterval(() => {
+    elapsedSeconds.value++
+  }, 1000)
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
+const formattedElapsed = computed(() => {
+  const mins = Math.floor(elapsedSeconds.value / 60)
+  const secs = elapsedSeconds.value % 60
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+})
+
 const displayedMessages = computed(() => {
   let result = messages.value
   if (hideToolMessages.value) {
@@ -234,6 +259,8 @@ async function startNewSession() {
   }
   chatId.value = null
   sessionStatus.value = 'idle'
+  stopTimer()
+  elapsedSeconds.value = 0
   messages.value = []
   currentAgentId = null
 
@@ -259,6 +286,7 @@ async function sendMessage() {
   messages.value = [...messages.value, userMsg]
   inputText.value = ''
   sessionStatus.value = 'running'
+  startTimer()
   scrollToBottom()
 
   streamController = streamChatMessage(
@@ -281,6 +309,7 @@ async function sendMessage() {
     () => {
       // Stream done
       sessionStatus.value = 'idle'
+      stopTimer()
       streamController = null
       scrollToBottom()
       nextTick(() => inputRef.value?.focus())
@@ -288,6 +317,7 @@ async function sendMessage() {
     (err) => {
       console.error('Chat stream error:', err)
       sessionStatus.value = 'idle'
+      stopTimer()
       streamController = null
     }
   )
@@ -304,6 +334,8 @@ watch(
     }
     chatId.value = null
     sessionStatus.value = 'idle'
+    stopTimer()
+    elapsedSeconds.value = 0
     messages.value = []
     currentAgentId = null
 
@@ -319,6 +351,7 @@ onBeforeUnmount(() => {
     streamController.abort()
     streamController = null
   }
+  stopTimer()
 })
 </script>
 
