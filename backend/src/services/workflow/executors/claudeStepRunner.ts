@@ -218,6 +218,10 @@ async function defaultSpawnImpl({
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
   const spawnImpl = await resolveCrossSpawn();
 
+  logger.info('ClaudeStepRunner', `[spawn] command: ${commandSummary}`);
+  logger.info('ClaudeStepRunner', `[spawn] cwd: ${worktreePath}`);
+  logger.info('ClaudeStepRunner', `[spawn] platform: ${process.platform}, env ANTHROPIC_API_KEY exists: ${!!resolved.env?.ANTHROPIC_API_KEY}`);
+
   return await new Promise<ClaudeSpawnExecution>((resolve, reject) => {
     const spawnedProc = spawnImpl(spawnCommand, commandArgs, {
       cwd: worktreePath,
@@ -226,6 +230,8 @@ async function defaultSpawnImpl({
       shell: false,
     });
     const proc = toExecutorProcessHandle(spawnedProc);
+
+    logger.info('ClaudeStepRunner', `[spawn] process started, pid: ${proc.pid}`);
 
     let killedByAskUser = false;
     let capturedAskUserQuestion: AskUserQuestionData | null = null;
@@ -280,11 +286,17 @@ async function defaultSpawnImpl({
     });
 
     spawnedProc.stderr?.on('data', (data: Buffer | string) => {
-      stderr += data.toString();
+      const stderrText = data.toString();
+      logger.info('ClaudeStepRunner', `[spawn] stderr: ${stderrText}`);
+      stderr += stderrText;
     });
 
-    spawnedProc.on('error', reject);
+    spawnedProc.on('error', (err) => {
+      logger.error('ClaudeStepRunner', `[spawn] error: ${err.message}`);
+      reject(err);
+    });
     spawnedProc.on('close', async (exitCode: number | null) => {
+      logger.info('ClaudeStepRunner', `[spawn] process closed, exitCode: ${exitCode}, stdout length: ${stdout.length}, stderr length: ${stderr.length}`);
       resolve({
         exitCode: killedByAskUser ? 0 : exitCode,
         stdout,
