@@ -523,8 +523,8 @@ onMounted(loadAgents)
 
 /* Left panel - Agent list */
 .agent-list-panel {
-  flex: 1;
-  min-width: 0;
+  width: 220px;
+  flex-shrink: 0;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
