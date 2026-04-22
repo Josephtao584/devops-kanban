@@ -409,7 +409,7 @@ class WorkflowLifecycle {
       }
 
       const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
-      if (latestSegment?.status === 'RUNNING') {
+      if (latestSegment?.status === 'RUNNING' || latestSegment?.status === 'ASK_USER') {
         if (status !== 'CANCELLED' && await this._isWorkflowStepCancelled(runId, stepId)) {
           await this._syncCancelledStepArtifacts(runId, stepId, completedAt);
           return;
@@ -566,6 +566,76 @@ class WorkflowLifecycle {
         },
       });
     }
+  }
+
+  /**
+   * Called when an executor encounters AskUserQuestion during a step.
+   * Only changes session status to ASK_USER — does NOT suspend the workflow.
+   * The workflow step function polls for session status and handles execution internally.
+   */
+  async onSessionAskUser(
+    runId: number,
+    stepId: string,
+    data: { ask_user_question: Record<string, unknown> },
+  ) {
+    const { step } = await this._getRunStep(runId, stepId);
+
+    // Save ask_user event to session
+    if (step.session_id) {
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
+
+      if (latestSegment?.status === 'RUNNING') {
+        await this.sessionSegmentRepo.update(latestSegment.id, {
+          status: 'ASK_USER',
+          completed_at: new Date().toISOString(),
+        });
+      }
+
+      await this.sessionEventRepo.append({
+        session_id: step.session_id,
+        segment_id: latestSegment?.id ?? null,
+        kind: 'ask_user',
+        role: 'assistant',
+        content: '',
+        payload: {
+          ask_user_question: data.ask_user_question,
+        },
+      });
+
+      await this.sessionRepo.update(step.session_id, {
+        status: 'ASK_USER',
+      });
+    }
+
+    // Do NOT update workflow run status or step status — workflow stays RUNNING
+  }
+
+  /**
+   * Polls session status until it transitions away from ASK_USER.
+   * Returns the latest user message content.
+   * Used by the step function to wait for user answers without suspending the workflow.
+   */
+  async waitForSessionResponse(sessionId: number): Promise<string> {
+    const POLL_INTERVAL_MS = 1000;
+    const MAX_WAIT_MS = 600_000; // 10 minutes timeout
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_WAIT_MS) {
+      const session = await this.sessionRepo.findById(sessionId);
+      if (!session || session.status !== 'ASK_USER') {
+        // Session is no longer ASK_USER — user has responded
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    // Get the latest user message from session events
+    const events = await this.sessionEventRepo.listBySessionId(sessionId);
+    const userMessages = events.filter(
+      (e) => e.kind === 'message' && e.role === 'user',
+    );
+    const latestMessage = userMessages[userMessages.length - 1];
+    return latestMessage?.content || '';
   }
 
   async onStepResume(

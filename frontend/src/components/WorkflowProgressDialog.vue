@@ -123,11 +123,19 @@
               <div class="summary-content">{{ suspendedStep.summary }}</div>
             </div>
           </div>
+          <div class="confirm-comment">
+            <textarea
+              v-model="confirmComment"
+              placeholder="可输入备注（可选）..."
+              rows="3"
+              :disabled="isResuming"
+            />
+          </div>
           <div class="suspend-actions">
-            <el-button type="primary" @click="handleResume(true)">
+            <el-button type="primary" @click="handleResume(true)" :disabled="isResuming">
               确认继续
             </el-button>
-            <el-button type="danger" @click="handleResume(false)">
+            <el-button type="danger" @click="handleResume(false)" :disabled="isResuming">
               取消工作流
             </el-button>
           </div>
@@ -138,7 +146,6 @@
           :session-id="selectedStep.session_id"
           :step-name="selectedStep.name"
           :initial-message="askUserAnswer"
-          :workflow-run-id="workflowRunId"
           :assembled-prompt="selectedStep?.assembled_prompt || ''"
         />
         <div v-else class="detail-empty">当前步骤暂无会话记录</div>
@@ -168,7 +175,7 @@ import { Loading } from '@element-plus/icons-vue'
 import BaseDialog from './BaseDialog.vue'
 import { getWorkflowRun, cancelWorkflow, resumeWorkflow } from '../api/workflow.js'
 import StepSessionPanel from './workflow/StepSessionPanel.vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   modelValue: {
@@ -200,9 +207,11 @@ const run = ref(null)
 const loading = ref(false)
 const error = ref(null)
 const cancelling = ref(false)
+const isResuming = ref(false)
 const selectedStepId = ref(null)
 const selectionMode = ref('auto')
 const askUserAnswer = ref('')
+const confirmComment = ref('')
 let pollTimer = null
 
 const dialogTitle = computed(() => `工作流进度${props.taskTitle ? ' - ' + props.taskTitle : ''}`)
@@ -313,21 +322,11 @@ async function handleAnswerSubmit() {
 }
 
 async function handleResume(approved) {
-  if (!props.workflowRunId) return
+  if (!props.workflowRunId || isResuming.value) return
 
+  isResuming.value = true
   try {
-    const { value: comment } = await ElMessageBox.prompt(
-      approved ? '确认继续执行工作流？' : '确认取消工作流？',
-      approved ? '确认继续' : '确认取消',
-      {
-        confirmButtonText: approved ? '确认继续' : '确认取消',
-        cancelButtonText: '返回',
-        inputPlaceholder: '可输入备注（可选）',
-        type: 'info'
-      }
-    ).catch(() => ({ value: null }))
-
-    if (comment === null && !approved) return
+    const comment = confirmComment.value.trim()
 
     const latest = await getWorkflowRun(props.workflowRunId)
     if (!latest.success) {
@@ -348,6 +347,7 @@ async function handleResume(approved) {
 
     if (response.success) {
       ElMessage.success(approved ? '工作流已继续执行' : '工作流已取消')
+      confirmComment.value = ''
       await fetchRun()
     } else {
       ElMessage.error(response.message || '操作失败')
@@ -355,6 +355,8 @@ async function handleResume(approved) {
   } catch (err) {
     if (err === 'cancel' || err === 'close') return
     ElMessage.error(err.response?.data?.message || err.message || '操作失败')
+  } finally {
+    isResuming.value = false
   }
 }
 
@@ -429,12 +431,14 @@ watch(() => props.workflowRunId, () => {
   selectedStepId.value = null
   selectionMode.value = 'auto'
   askUserAnswer.value = ''
+  confirmComment.value = ''
 })
 
 watch(suspendedStep, (newStep) => {
   if (newStep?.ask_user_question) {
     askUserAnswer.value = ''
   }
+  confirmComment.value = ''
 })
 </script>
 
@@ -684,5 +688,25 @@ watch(suspendedStep, (newStep) => {
 .ask-user-input textarea:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.confirm-comment textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+}
+
+.confirm-comment textarea:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.15);
+}
+
+.confirm-comment textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

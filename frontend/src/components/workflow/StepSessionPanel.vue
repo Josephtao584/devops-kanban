@@ -132,7 +132,6 @@ import SessionEventRenderer from '../session/SessionEventRenderer.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
 import { getSession, continueSession } from '../../api/session.js'
-import { resumeWorkflow } from '../../api/workflow.js'
 import { ElMessage } from 'element-plus'
 
 const { t } = useI18n()
@@ -153,10 +152,6 @@ const props = defineProps({
   initialMessage: {
     type: String,
     default: ''
-  },
-  workflowRunId: {
-    type: [Number, String],
-    default: null
   },
   assembledPrompt: {
     type: String,
@@ -250,19 +245,9 @@ async function sendMessage() {
   const text = message.value.trim()
   isSending.value = true
   try {
-    if (props.workflowRunId && sessionStatus.value === 'SUSPENDED') {
-      // Resume suspended workflow step with the answer
-      await resumeWorkflow(props.workflowRunId, {
-        approved: true,
-        ask_user_answer: text,
-      })
-    } else {
-      // Normal session continue (STOPPED, COMPLETED, FAILED, CANCELLED)
-      await continueSession(props.sessionId, text)
-    }
+    await continueSession(props.sessionId, text)
     message.value = ''
     await fetchSessionStatus()
-    await loadInitial(props.sessionId)
     scrollToBottom()
     startPollingWithStatusCheck()
   } catch (err) {
@@ -306,7 +291,7 @@ let statusPollTimer = null
 function startStatusPolling() {
   stopStatusPolling()
   statusPollTimer = setInterval(async () => {
-    if (props.sessionId && sessionStatus.value === 'RUNNING') {
+    if (props.sessionId && (sessionStatus.value === 'RUNNING' || sessionStatus.value === 'ASK_USER')) {
       await fetchSessionStatus()
     }
   }, 2000)

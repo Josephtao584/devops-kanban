@@ -239,6 +239,7 @@ function createLifecycleHarness({
     segmentUpdates,
     stepUpdates,
     runUpdates,
+    eventAppends,
   };
 }
 
@@ -472,4 +473,90 @@ test.test('onStepComplete is a no-op when the run is already cancelled', async (
   await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: 'Done' });
 
   assert.equal(harness.stepUpdates.length, 0);
+});
+
+// === onSessionAskUser tests ===
+
+test.test('onSessionAskUser sets session to ASK_USER without changing workflow status', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  // Pre-populate the session
+  harness.sessions.set(50, { id: 50, status: 'RUNNING', task_id: 1 });
+  // Pre-populate a running segment
+  harness.segments.push({ id: 300, session_id: 50, status: 'RUNNING', trigger_type: 'START' } as any);
+
+  await harness.lifecycle.onSessionAskUser(7, 'solution-design', {
+    ask_user_question: {
+      tool_use_id: 'toolu_123',
+      questions: [{ question: 'Which approach?', options: [{ label: 'A', value: 'a' }] }],
+    },
+  });
+
+  // Session should be ASK_USER
+  assert.equal(harness.sessionUpdates.length, 1);
+  assert.equal(harness.sessionUpdates[0]!.sessionId, 50);
+  assert.equal(harness.sessionUpdates[0]!.updateData.status, 'ASK_USER');
+
+  // Workflow run should NOT be updated (stays RUNNING)
+  assert.equal(harness.runUpdates.length, 0);
+
+  // Step should NOT be updated (stays RUNNING)
+  assert.equal(harness.stepUpdates.length, 0);
+
+  // Segment should be set to ASK_USER
+  assert.ok(harness.segmentUpdates.some((u) => u.updateData.status === 'ASK_USER'));
+
+  // Session event should contain the ask_user question
+  const askUserEvent = harness.eventAppends.find((e) => e.kind === 'ask_user');
+  assert.ok(askUserEvent, 'ask_user event should be saved');
+  assert.equal(askUserEvent!.role, 'assistant');
+  assert.ok(askUserEvent!.payload?.ask_user_question);
+});
+
+test.test('onSessionAskUser does not set completed_at on session', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  harness.sessions.set(50, { id: 50, status: 'RUNNING', task_id: 1 });
+  harness.segments.push({ id: 300, session_id: 50, status: 'RUNNING', trigger_type: 'START' } as any);
+
+  await harness.lifecycle.onSessionAskUser(7, 'solution-design', {
+    ask_user_question: { tool_use_id: 'toolu_abc', questions: [] },
+  });
+
+  const sessionUpdate = harness.sessionUpdates.find((u) => u.sessionId === 50);
+  assert.ok(sessionUpdate, 'session should be updated');
+  assert.equal(sessionUpdate!.updateData.status, 'ASK_USER');
+  assert.equal(sessionUpdate!.updateData.completed_at, undefined, 'completed_at must not be set while session is still active');
+});
+
+test.test('onStepComplete finalizes ASK_USER segment to COMPLETED', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    currentStep: 'solution-design',
+  });
+
+  harness.run.steps[0]!.session_id = 101;
+  const session = { id: 101, status: 'RUNNING', executor_type: 'CLAUDE_CODE', agent_id: 11 };
+  harness.sessions.set(101, session);
+
+  // Segment is in ASK_USER status (set by onSessionAskUser during the step)
+  const segment = { id: 201, session_id: 101, status: 'ASK_USER' } as Record<string, unknown> & { id: number; session_id: number };
+  harness.segments.push(segment);
+
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: 'Done after answering question' });
+
+  const segmentUpdate = harness.segmentUpdates.find((u) => u.segmentId === 201);
+  assert.ok(segmentUpdate, 'ASK_USER segment should be finalized');
+  assert.equal(segmentUpdate!.updateData.status, 'COMPLETED', 'ASK_USER segment should become COMPLETED');
 });
