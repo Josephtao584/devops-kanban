@@ -528,13 +528,24 @@ test.test('fetchWithAiDescriptions uses correct runner for CLAUDE_CODE agent', a
         env: {},
       });
 
-      const adapter = new LocalDirectoryAdapter({
-        type: 'LOCAL_DIRECTORY',
-        config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+      // Mock ClaudeStepRunner.runStep to avoid spawning real Claude Code process
+      const { ClaudeStepRunner } = await import('../../src/services/workflow/executors/claudeStepRunner.js');
+      const originalRunStep = ClaudeStepRunner.prototype.runStep;
+      ClaudeStepRunner.prototype.runStep = async () => ({
+        parsedResult: { summary: JSON.stringify([{ title: 'AI Task', description: 'AI generated description', filePath: 'test-sync.txt' }]) },
       });
 
-      const tasks = await adapter.fetchWithAiDescriptions(0);
-      assert.ok(tasks.length >= 1, 'Should return at least one task');
+      try {
+        const adapter = new LocalDirectoryAdapter({
+          type: 'LOCAL_DIRECTORY',
+          config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+        });
+
+        const tasks = await adapter.fetchWithAiDescriptions(0);
+        assert.ok(tasks.length >= 1, 'Should return at least one task');
+      } finally {
+        ClaudeStepRunner.prototype.runStep = originalRunStep;
+      }
     } finally {
       await fs.rm(dir, { recursive: true });
     }
@@ -558,13 +569,24 @@ test.test('fetchWithAiDescriptions uses correct runner for OPEN_CODE agent', asy
         env: {},
       });
 
-      const adapter = new LocalDirectoryAdapter({
-        type: 'LOCAL_DIRECTORY',
-        config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+      // Mock OpenCodeStepRunner.runStep to avoid spawning real OpenCode process
+      const { OpenCodeStepRunner } = await import('../../src/services/workflow/executors/openCodeStepRunner.js');
+      const originalRunStep = OpenCodeStepRunner.prototype.runStep;
+      OpenCodeStepRunner.prototype.runStep = async () => ({
+        parsedResult: { summary: JSON.stringify([{ title: 'AI Task', description: 'AI generated description', filePath: 'test-sync.txt' }]) },
       });
 
-      const tasks = await adapter.fetchWithAiDescriptions(0);
-      assert.ok(tasks.length >= 1, 'Should return at least one task');
+      try {
+        const adapter = new LocalDirectoryAdapter({
+          type: 'LOCAL_DIRECTORY',
+          config: { directoryPath: dir, descriptionMode: 'ai', agentId: agent.id },
+        });
+
+        const tasks = await adapter.fetchWithAiDescriptions(0);
+        assert.ok(tasks.length >= 1, 'Should return at least one task');
+      } finally {
+        OpenCodeStepRunner.prototype.runStep = originalRunStep;
+      }
     } finally {
       await fs.rm(dir, { recursive: true });
     }

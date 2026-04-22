@@ -75,8 +75,30 @@ class SessionService {
       throw new NotFoundError('未找到会话', 'Session not found', { sessionId });
     }
 
-    if (session.status !== 'STOPPED' && session.status !== 'SUSPENDED' && session.status !== 'COMPLETED' && session.status !== 'FAILED' && session.status !== 'CANCELLED') {
+    if (session.status !== 'STOPPED' && session.status !== 'SUSPENDED' && session.status !== 'ASK_USER' && session.status !== 'COMPLETED' && session.status !== 'FAILED' && session.status !== 'CANCELLED') {
       throw new ValidationError('会话未处于可恢复状态', 'Session is not in a resumable state', { sessionId, status: session.status });
+    }
+
+    // ASK_USER: save message and set status to RUNNING, but do NOT start executor.
+    // The workflow step function polls for this status change and handles execution itself.
+    if (session.status === 'ASK_USER') {
+      let segmentId = (await this.sessionSegmentRepo.findLatestBySessionId(sessionId))?.id ?? null;
+      if (!segmentId) {
+        const segment = await this._createSegment(session, 'USER_RESPONSE', null);
+        segmentId = segment.id;
+      }
+
+      await this.sessionEventRepo.append({
+        session_id: sessionId,
+        segment_id: segmentId,
+        kind: 'message',
+        role: 'user',
+        content: input,
+        payload: {},
+      });
+
+      await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
+      return await this.sessionRepo.findById(sessionId);
     }
 
     if (!session.executor_type) {

@@ -1,8 +1,16 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
+import { createI18n } from 'vue-i18n'
 
 import StepSessionPanel from '../src/components/workflow/StepSessionPanel.vue'
+import zh from '../src/locales/zh.js'
+
+const i18n = createI18n({
+  legacy: false,
+  locale: 'zh',
+  messages: { zh }
+})
 
 const loadInitial = vi.fn()
 const startPolling = vi.fn()
@@ -53,6 +61,19 @@ const flushPromises = async () => {
   await nextTick()
 }
 
+const mountPanel = (props, options = {}) => {
+  return mount(StepSessionPanel, {
+    props,
+    global: {
+      plugins: [i18n],
+      stubs: {
+        SessionEventRenderer: SessionEventRendererStub,
+        ...(options.stubs || {})
+      }
+    }
+  })
+}
+
 describe('StepSessionPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -75,16 +96,9 @@ describe('StepSessionPanel', () => {
   it('loads session history and starts polling while the session is running', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发'
     })
 
     await flushPromises()
@@ -99,16 +113,9 @@ describe('StepSessionPanel', () => {
   it('shows the default header with the step title and no raw session numbering', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发'
     })
 
     await flushPromises()
@@ -122,16 +129,9 @@ describe('StepSessionPanel', () => {
     getSessionMock.mockResolvedValue({ data: { status: 'SUSPENDED' } })
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发'
     })
 
     await flushPromises()
@@ -144,16 +144,9 @@ describe('StepSessionPanel', () => {
     getSessionMock.mockResolvedValue({ data: { status: 'PENDING' } })
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发'
     })
 
     await flushPromises()
@@ -165,16 +158,9 @@ describe('StepSessionPanel', () => {
   it('renders the session history inside a chat-thread container', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码审查'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码审查'
     })
 
     await flushPromises()
@@ -189,17 +175,10 @@ describe('StepSessionPanel', () => {
       { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} }
     ]
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码审查',
-        showHeader: false
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码审查',
+      showHeader: false
     })
 
     await flushPromises()
@@ -210,16 +189,9 @@ describe('StepSessionPanel', () => {
   })
 
   it('stops polling and shows empty state when no session id is provided', async () => {
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: null,
-        stepName: '测试'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: null,
+      stepName: '测试'
     })
 
     await flushPromises()
@@ -234,17 +206,10 @@ describe('StepSessionPanel', () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 0, hasMore: false })
     eventsRef.value = []
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发',
-        showHeader: false
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发',
+      showHeader: false
     })
 
     await flushPromises()
@@ -290,16 +255,9 @@ describe('StepSessionPanel', () => {
   it('keeps visual focus on the conversation stream', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发'
     })
 
     await flushPromises()
@@ -317,10 +275,7 @@ describe('StepSessionPanel', () => {
       { id: 4, seq: 4, kind: 'message', role: 'assistant', content: 'done', payload: {} }
     ]
 
-    const wrapper = mount(StepSessionPanel, {
-      props: { sessionId: 102, stepName: '代码开发' },
-      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
-    })
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
 
     await flushPromises()
 
@@ -350,10 +305,7 @@ describe('StepSessionPanel', () => {
       { id: 3, seq: 3, kind: 'tool_result', role: 'tool', content: 'result', payload: {} }
     ]
 
-    const wrapper = mount(StepSessionPanel, {
-      props: { sessionId: 102, stepName: '代码开发' },
-      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
-    })
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
 
     await flushPromises()
 
@@ -379,10 +331,7 @@ describe('StepSessionPanel', () => {
       { id: 3, seq: 3, kind: 'message', role: 'assistant', content: 'done', payload: {} }
     ]
 
-    const wrapper = mount(StepSessionPanel, {
-      props: { sessionId: 102, stepName: '代码开发' },
-      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
-    })
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
 
     await flushPromises()
 
@@ -405,10 +354,7 @@ describe('StepSessionPanel', () => {
       { id: 2, seq: 2, kind: 'message', role: 'assistant', content: 'thinking...', payload: { block_type: 'thinking' }, isThinking: true }
     ]
 
-    const wrapper = mount(StepSessionPanel, {
-      props: { sessionId: 102, stepName: '代码开发' },
-      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
-    })
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
 
     await flushPromises()
 
@@ -436,10 +382,7 @@ describe('StepSessionPanel', () => {
       { id: 4, seq: 4, kind: 'message', role: 'assistant', content: 'done', payload: {} }
     ]
 
-    const wrapper = mount(StepSessionPanel, {
-      props: { sessionId: 102, stepName: '代码开发' },
-      global: { stubs: { SessionEventRenderer: SessionEventRendererStub } }
-    })
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
 
     await flushPromises()
 
@@ -458,16 +401,9 @@ describe('StepSessionPanel', () => {
   it('keeps metadata subordinate to the conversation title', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
 
-    const wrapper = mount(StepSessionPanel, {
-      props: {
-        sessionId: 102,
-        stepName: '代码开发'
-      },
-      global: {
-        stubs: {
-          SessionEventRenderer: SessionEventRendererStub
-        }
-      }
+    const wrapper = mountPanel({
+      sessionId: 102,
+      stepName: '代码开发'
     })
 
     await flushPromises()

@@ -533,7 +533,13 @@ export default {
     noMessagesHint: '当前节点还没有保存的会话内容',
     readyTitle: '准备就绪',
     readyHint: '点击"启动"开始对话',
-    taskSummary: '简介'
+    taskSummary: '简介',
+    viewPrompt: '查看 Prompt',
+    collapsePrompt: '收起 Prompt',
+    promptContent: 'Prompt 内容',
+    copy: '复制',
+    copySuccess: '已复制到剪贴板',
+    copyFailed: '复制失败'
   },
   validation: {
     required: '此字段必填',

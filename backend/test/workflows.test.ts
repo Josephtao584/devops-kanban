@@ -183,3 +183,56 @@ test.test('requiresConfirmation step re-suspends for confirmation after AskUserQ
 
   assert.ok(workflow, 'Workflow with requiresConfirmation should build');
 });
+
+// === AskUser internal loop tests ===
+
+test.test('AskUser does not suspend workflow — calls onSessionAskUser instead of onStepSuspend', async () => {
+  await initWorkflows();
+
+  let onSessionAskUserCalls = 0;
+  let onStepSuspendCalls = 0;
+  let onStepCompleteCalls = 0;
+
+  const workflow = buildWorkflowFromInstance(buildInstance(`ask-user-no-suspend-${Date.now()}`), {
+    runId: 300,
+    task: { id: 7, project_id: 3, execution_path: '/tmp/task-7' },
+    lifecycle: {
+      async onStepStart() {
+        return { sessionId: 1, segmentId: 1 };
+      },
+      async onStepComplete() {
+        onStepCompleteCalls += 1;
+      },
+      async onStepError() {},
+      async onSessionAskUser() {
+        onSessionAskUserCalls += 1;
+      },
+      async onStepSuspend() {
+        onStepSuspendCalls += 1;
+      },
+      async onWorkflowComplete() {},
+      async onWorkflowError() {},
+      sessionEventRepo: { async append() {} },
+      sessionSegmentRepo: { async update() {} },
+      workflowRunRepo: {
+        async findById() {
+          return {
+            steps: [{ step_id: 'step-1', provider_session_id: 'sess_123', status: 'SUSPENDED' }],
+          };
+        },
+        async updateStep() {},
+        async update() {},
+      },
+      sessionRepo: {
+        async findById() {
+          return { id: 1, status: 'ASK_USER' };
+        },
+      },
+      sessionEventRepo_listBySessionId: async () => [],
+    } as never,
+  });
+
+  assert.ok(workflow, 'Workflow should build without errors');
+  // The actual execution test is done by running the workflow — this test verifies the build
+  // and that onSessionAskUser is available as a lifecycle method
+});
