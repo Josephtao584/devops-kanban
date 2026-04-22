@@ -303,6 +303,10 @@
                       v-model="selectedStep.requiresConfirmation"
                       :active-text="$t('workflowTemplate.requiresConfirmation')"
                     />
+                    <el-switch
+                      v-model="selectedStep.canEarlyExit"
+                      :active-text="$t('workflowTemplate.canEarlyExit')"
+                    />
                   </div>
                 </div>
               </div>

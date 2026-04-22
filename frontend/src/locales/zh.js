@@ -373,6 +373,7 @@ export default {
     endNode: '结束',
     selectStepHint: '请先从上方工作流中选择一个阶段',
     requiresConfirmation: '需要确认',
+    canEarlyExit: '可提前终止',
     exportTemplate: '导出模板',
     exportButton: '导出',
     exportConfirm: '确认导出 ({count})',
