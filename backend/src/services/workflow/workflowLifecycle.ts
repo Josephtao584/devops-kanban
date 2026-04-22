@@ -72,6 +72,11 @@ class WorkflowLifecycle {
         askUserQuestion?: Record<string, unknown> | null;
       };
       errorMessage?: string;
+      earlyExitInfo?: {
+        decision: 'SUCCESS_EXIT' | 'FAIL_EXIT';
+        reason: string;
+        stepId: string;
+      };
     },
   ) {
     if (!this.onWorkflowNotification) return;
@@ -102,6 +107,9 @@ class WorkflowLifecycle {
       }
       if (extra?.errorMessage != null) {
         notification.errorMessage = extra.errorMessage;
+      }
+      if (extra?.earlyExitInfo != null) {
+        notification.earlyExitInfo = extra.earlyExitInfo;
       }
       this.onWorkflowNotification(notification);
     } catch (error) {
@@ -559,7 +567,7 @@ class WorkflowLifecycle {
       }
       await this._emitNotification('COMPLETED', runId, run.task_id, {
         currentStepId: stepId,
-        errorMessage: `AI 提前终止: ${reason}`,
+        earlyExitInfo: { decision: 'SUCCESS_EXIT', reason, stepId },
       });
     } else {
       await this.workflowRunRepo.update(runId, {
@@ -571,7 +579,7 @@ class WorkflowLifecycle {
       }
       await this._emitNotification('FAILED', runId, run.task_id, {
         currentStepId: stepId,
-        errorMessage: `AI 提前终止: ${reason}`,
+        earlyExitInfo: { decision: 'FAIL_EXIT', reason, stepId },
       });
     }
   }
