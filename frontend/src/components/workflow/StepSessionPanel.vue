@@ -248,7 +248,6 @@ async function sendMessage() {
     await continueSession(props.sessionId, text)
     message.value = ''
     await fetchSessionStatus()
-    await loadInitial(props.sessionId)
     scrollToBottom()
     startPollingWithStatusCheck()
   } catch (err) {
@@ -292,7 +291,7 @@ let statusPollTimer = null
 function startStatusPolling() {
   stopStatusPolling()
   statusPollTimer = setInterval(async () => {
-    if (props.sessionId && sessionStatus.value === 'RUNNING') {
+    if (props.sessionId && (sessionStatus.value === 'RUNNING' || sessionStatus.value === 'ASK_USER')) {
       await fetchSessionStatus()
     }
   }, 2000)
