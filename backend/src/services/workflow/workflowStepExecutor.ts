@@ -33,6 +33,7 @@ interface ExecuteWorkflowStepInput {
   onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
   onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
   onAskUser?: (data: AskUserQuestionData) => void | Promise<void>;
+  onAssembledPrompt?: (prompt: string) => void | Promise<void>;
 }
 
 function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
@@ -78,6 +79,7 @@ export async function executeWorkflowStep({
   onEvent,
   onProviderState,
   onAskUser,
+  onAssembledPrompt,
 }: ExecuteWorkflowStepInput) {
   // 1. Find step
   const step = workflowInstance.steps.find((item) => item.id === stepId);
@@ -99,6 +101,10 @@ export async function executeWorkflowStep({
     agent,
     ...(effectiveProjectEnv ? { projectEnv: effectiveProjectEnv } : {}),
   });
+
+  if (onAssembledPrompt) {
+    await onAssembledPrompt(prompt);
+  }
 
   // 4. Execute
   const executor = registry.getExecutor(executorConfig.type);

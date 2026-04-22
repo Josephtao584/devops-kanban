@@ -196,7 +196,8 @@ describe('CodeEditor', () => {
 
     expect(commit).toHaveBeenCalledWith(1, 1, {
       message: 'fix: update app',
-      addAll: true,
+      addAll: false,
+      files: ['src/app.ts'],
     })
   })
 

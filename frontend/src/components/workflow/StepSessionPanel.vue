@@ -28,6 +28,15 @@
       <div class="panel-state-text">这里会显示该步骤的执行输出和对话记录。</div>
     </div>
     <div v-else class="panel-events-wrapper">
+      <div v-if="showPrompt && props.assembledPrompt" class="prompt-panel">
+        <div class="prompt-panel-header">
+          <span class="prompt-panel-title">{{ $t('chat.promptContent') }}</span>
+          <el-button size="small" text @click="copyPrompt">{{ $t('chat.copy') }}</el-button>
+        </div>
+        <div class="prompt-panel-content">
+          <pre>{{ props.assembledPrompt }}</pre>
+        </div>
+      </div>
       <div ref="eventsContainer" class="panel-events panel-events--chat">
         <template v-for="event in displayedEvents" :key="event.id ?? event.seq">
           <!-- Interactive AskUserQuestion rendering -->
@@ -60,6 +69,15 @@
         </template>
       </div>
       <div class="panel-toolbar">
+        <el-button
+          size="small"
+          :type="showPrompt ? 'primary' : 'default'"
+          plain
+          @click="togglePrompt"
+          :disabled="!props.assembledPrompt"
+        >
+          {{ showPrompt ? $t('chat.collapsePrompt') : $t('chat.viewPrompt') }}
+        </el-button>
         <label class="auto-scroll-check" @click.prevent="toggleAutoScroll">
           <span class="check-box" :class="{ checked: autoScrollEnabled }">
             <svg v-if="autoScrollEnabled" width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -109,12 +127,15 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import SessionEventRenderer from '../session/SessionEventRenderer.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
 import { getSession, continueSession } from '../../api/session.js'
 import { resumeWorkflow } from '../../api/workflow.js'
 import { ElMessage } from 'element-plus'
+
+const { t } = useI18n()
 
 const props = defineProps({
   sessionId: {
@@ -136,6 +157,10 @@ const props = defineProps({
   workflowRunId: {
     type: [Number, String],
     default: null
+  },
+  assembledPrompt: {
+    type: String,
+    default: ''
   }
 })
 
@@ -148,6 +173,20 @@ const autoScrollEnabled = ref(true)
 const hideToolMessages = ref(true)
 const hideThinkingMessages = ref(true)
 const messageInput = ref(null)
+const showPrompt = ref(false)
+
+function togglePrompt() {
+  showPrompt.value = !showPrompt.value
+}
+
+async function copyPrompt() {
+  try {
+    await navigator.clipboard.writeText(props.assembledPrompt)
+    ElMessage.success(t('chat.copySuccess'))
+  } catch {
+    ElMessage.error(t('chat.copyFailed'))
+  }
+}
 
 const displayedEvents = computed(() => {
   let result = events.value
@@ -549,6 +588,46 @@ onBeforeUnmount(() => {
 
 .check-label {
   line-height: 1;
+}
+
+.prompt-panel {
+  flex-shrink: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.prompt-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.prompt-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.prompt-panel-content {
+  max-height: 400px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.prompt-panel-content pre {
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #1e293b;
 }
 
 .event-ask-user-panel {

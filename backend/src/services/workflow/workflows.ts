@@ -306,6 +306,11 @@ export function buildWorkflowFromInstance(
                 });
               }
             },
+            onAssembledPrompt: async (prompt) => {
+              await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                assembled_prompt: prompt,
+              });
+            },
           });
 
           if (abortSignal?.aborted) {

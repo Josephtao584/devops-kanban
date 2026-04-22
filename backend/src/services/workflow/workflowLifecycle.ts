@@ -480,6 +480,7 @@ class WorkflowLifecycle {
       session_id: session.id,
       summary: null,
       error: null,
+      assembled_prompt: null,
     });
 
     if (await this._isWorkflowStepCancelled(runId, stepId)) {

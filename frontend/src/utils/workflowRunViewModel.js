@@ -70,6 +70,7 @@ export const toTimelineWorkflow = (run) => {
             sessionId: step.session_id ?? null,
             providerSessionId: step.provider_session_id ?? null,
             agentId: step.agent_id ?? snapshot?.agentId ?? null,
+            assembled_prompt: step.assembled_prompt ?? null,
           }
         ]
       }
