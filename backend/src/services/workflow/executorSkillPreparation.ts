@@ -1,6 +1,8 @@
 import { ensureSkillsInWorktree, ensureOpenCodeSkillsInWorktree } from '../../utils/skillSync.js';
 import {ExecutorType} from '../../types/executors.js';
 
+const BUILTIN_OPENCODE_SKILLS = ['ask-user-question'];
+
 type PrepareExecutionSkillsInput = {
   executorType: ExecutorType;
   skillNames: string[];
@@ -12,17 +14,14 @@ async function prepareClaudeCodeSkills(skillNames: string[], executionPath: stri
 }
 
 async function prepareOpenCodeSkills(skillNames: string[], executionPath: string) {
-  await ensureOpenCodeSkillsInWorktree(skillNames, executionPath);
+  const allSkills = [...BUILTIN_OPENCODE_SKILLS, ...skillNames.filter(s => !BUILTIN_OPENCODE_SKILLS.includes(s))];
+  await ensureOpenCodeSkillsInWorktree(allSkills, executionPath);
 }
 
 async function prepareExecutionSkills({ executorType, skillNames, executionPath }: PrepareExecutionSkillsInput): Promise<void> {
-  if (!skillNames || skillNames.length === 0) {
-    return;
-  }
-
   if (executorType === ExecutorType.OPEN_CODE) {
     await prepareOpenCodeSkills(skillNames, executionPath);
-  } else if (executorType === ExecutorType.CLAUDE_CODE) {
+  } else if (executorType === ExecutorType.CLAUDE_CODE && skillNames && skillNames.length > 0) {
     await prepareClaudeCodeSkills(skillNames, executionPath);
   }
 }
