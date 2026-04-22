@@ -10,7 +10,7 @@ export function extractEarlyExitSignal(summary: string): { signal: { decision: E
 
   const signal = {
     decision: match[1] as EarlyExitDecision,
-    reason: match[2] || undefined,
+    reason: match[2] || '',
   };
 
   const cleanSummary = summary.replace(EARLY_EXIT_REGEX, '').trim();
