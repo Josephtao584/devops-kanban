@@ -11,7 +11,7 @@ describe('session constants', () => {
   describe('SESSION_INPUT_STATUSES', () => {
     it('contains interactive and resumable statuses', () => {
       expect(SESSION_INPUT_STATUSES).toEqual([
-        'RUNNING', 'STOPPED', 'SUSPENDED', 'COMPLETED', 'FAILED', 'CANCELLED'
+        'RUNNING', 'STOPPED', 'SUSPENDED', 'ASK_USER', 'COMPLETED', 'FAILED', 'CANCELLED'
       ])
     })
   })

@@ -147,7 +147,6 @@
           :step-name="selectedStep.name"
           :initial-message="askUserAnswer"
           :assembled-prompt="selectedStep?.assembled_prompt || ''"
-          :disable-input="run?.status === 'RUNNING'"
         />
         <div v-else class="detail-empty">当前步骤暂无会话记录</div>
       </div>

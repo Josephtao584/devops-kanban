@@ -272,108 +272,115 @@ export function buildWorkflowFromInstance(
         sessionId = sessionInfo.sessionId;
         segmentId = sessionInfo.segmentId;
 
-        try {
-          const result = await executeWorkflowStep({
-            stepId: templateStep.id,
-            worktreePath: state.worktreePath,
-            state: {
-              taskTitle: state.taskTitle,
-              taskDescription: state.taskDescription,
+        // Loop for AskUserQuestion rounds: instead of suspending the workflow,
+        // wait internally for user to respond, then re-execute with the answer.
+        while (true) {
+          try {
+            const result = await executeWorkflowStep({
+              stepId: templateStep.id,
               worktreePath: state.worktreePath,
-              ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
-            },
-            inputData,
-            workflowInstance,
-            abortSignal,
-            upstreamStepIds: previousStepId ? [previousStepId] : [],
-            onEvent: async (event) => {
-              await options?.lifecycle.sessionEventRepo.append({
+              state: {
+                taskTitle: state.taskTitle,
+                taskDescription: state.taskDescription,
+                worktreePath: state.worktreePath,
+                ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
+              },
+              inputData,
+              workflowInstance,
+              abortSignal,
+              upstreamStepIds: previousStepId ? [previousStepId] : [],
+              onEvent: async (event) => {
+                await options?.lifecycle.sessionEventRepo.append({
+                  session_id: sessionId,
+                  segment_id: segmentId,
+                  kind: event.kind,
+                  role: event.role,
+                  content: event.content,
+                  payload: event.payload || {},
+                });
+              },
+              onProviderState: async (providerState) => {
+                if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
+                  await options.lifecycle.sessionSegmentRepo.update(segmentId, {
+                    provider_session_id: providerState.providerSessionId,
+                  });
+                  await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                    provider_session_id: providerState.providerSessionId,
+                  });
+                }
+              },
+              onAssembledPrompt: async (prompt) => {
+                await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                  assembled_prompt: prompt,
+                });
+              },
+            });
+
+            if (abortSignal?.aborted) {
+              abort();
+              return { summary: '' };
+            }
+
+            // Check if confirmation is required
+            if (requiresConfirmation && !typedResumeData?.approved) {
+              const suspendReason = `请确认步骤 "${templateStep.name}" 是否完成`;
+
+              await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
+                reason: suspendReason,
+                summary: result.summary,
+              });
+
+              // Call Mastra suspend with result stored in suspendData
+              return await suspend({
+                reason: suspendReason,
+                stepName: templateStep.name,
+                summary: result.summary,
+              });
+            }
+
+            // Step completed successfully (no confirmation required)
+            await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
+
+            return result;
+          } catch (err) {
+            // Handle AskUserQuestion: set session to ASK_USER and wait for response internally.
+            // Do NOT suspend the workflow — the step polls for the user's answer.
+            const anyErr = err as any;
+            if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
+              logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, waiting for user response`);
+
+              await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
+                ask_user_question: anyErr.askUserQuestion,
+              });
+
+              // Wait for user to respond via chat (continueSession changes session from ASK_USER to RUNNING)
+              const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!);
+
+              logger.info('Workflows', `Step ${templateStep.id} received user response, re-executing with answer`);
+
+              // Use the user's answer as the new prompt for the next execution round
+              inputData = { ...inputData, userAnswer };
+
+              // Loop back to re-execute with the answer
+              continue;
+            }
+
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            // Write error event to session so frontend can display it in the session panel
+            // This is critical for spawn-level errors (e.g. ENOENT) that never produce stdout/stderr
+            if (sessionId && segmentId) {
+              await options.lifecycle.sessionEventRepo.append({
                 session_id: sessionId,
                 segment_id: segmentId,
-                kind: event.kind,
-                role: event.role,
-                content: event.content,
-                payload: event.payload || {},
-              });
-            },
-            onProviderState: async (providerState) => {
-              if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
-                await options.lifecycle.sessionSegmentRepo.update(segmentId, {
-                  provider_session_id: providerState.providerSessionId,
-                });
-                await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                  provider_session_id: providerState.providerSessionId,
-                });
-              }
-            },
-            onAssembledPrompt: async (prompt) => {
-              await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                assembled_prompt: prompt,
-              });
-            },
-          });
-
-          if (abortSignal?.aborted) {
-            abort();
-            return { summary: '' };
+                kind: 'error',
+                role: 'system',
+                content: errorMessage,
+                payload: {},
+              }).catch(() => {});
+            }
+            await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
+            throw err;
           }
-
-          // Check if confirmation is required
-          if (requiresConfirmation && !typedResumeData?.approved) {
-            const suspendReason = `请确认步骤 "${templateStep.name}" 是否完成`;
-
-            await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
-              reason: suspendReason,
-              summary: result.summary,
-            });
-
-            // Call Mastra suspend with result stored in suspendData
-            return await suspend({
-              reason: suspendReason,
-              stepName: templateStep.name,
-              summary: result.summary,
-            });
-          }
-
-          // Step completed successfully (no confirmation required)
-          await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
-
-          return result;
-        } catch (err) {
-          // Handle AskUserQuestion: suspend workflow and wait for user answer
-          const anyErr = err as any;
-          if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
-            logger.info('Workflows', `Step ${templateStep.id} suspended for AskUserQuestion`);
-
-            await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
-              reason: 'AI 需要用户提供更多信息',
-              summary: '',
-              ask_user_question: anyErr.askUserQuestion,
-            });
-
-            return await suspend({
-              reason: 'AI 需要用户提供更多信息',
-              stepName: templateStep.name,
-              summary: '',
-              ask_user_question: anyErr.askUserQuestion,
-            });
-          }
-
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          // Write error event to session so frontend can display it in the session panel
-          // This is critical for spawn-level errors (e.g. ENOENT) that never produce stdout/stderr
-          if (sessionId && segmentId) {
-            await options.lifecycle.sessionEventRepo.append({
-              session_id: sessionId,
-              segment_id: segmentId,
-              kind: 'error',
-              role: 'system',
-              content: errorMessage,
-              payload: {},
-            }).catch(() => {});
-          }
-          await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
-          throw err;
         }
       },
     });
