@@ -148,6 +148,7 @@ let streamController = null
 let currentAgentId = null
 // Temp ID counter for messages created during streaming (before backend assigns IDs)
 let tempIdCounter = -1
+let pollInterval = null
 
 // ─── Timer state ─────────────────────────────────────────────────────────────
 const elapsedSeconds = ref(0)
@@ -155,9 +156,9 @@ let timerInterval = null
 let receivedCompletedStatus = false
 const COMPLETED_PATTERNS = ['完成', '结束', 'success', 'completed', 'done']
 
-function startTimer() {
+function startTimer(initialSeconds = 0) {
   stopTimer()
-  elapsedSeconds.value = 0
+  elapsedSeconds.value = initialSeconds
   timerInterval = setInterval(() => {
     elapsedSeconds.value++
   }, 1000)
@@ -167,6 +168,42 @@ function stopTimer() {
   if (timerInterval) {
     clearInterval(timerInterval)
     timerInterval = null
+  }
+}
+
+// ─── Polling for running sessions ────────────────────────────────────────────
+function startPolling() {
+  stopPolling()
+  pollInterval = setInterval(async () => {
+    if (!chatId.value || !currentAgentId) {
+      stopPolling()
+      return
+    }
+    try {
+      const res = await getLatestChatSession(currentAgentId)
+      if (res?.success && res.data && res.data.id === chatId.value) {
+        const session = res.data
+        const normalized = normalizeEvents(session.messages || [])
+        messages.value = normalized.map(m => ({ ...m, _key: `b_${m.id}` }))
+        scrollToBottom()
+
+        if (session.status !== 'running') {
+          sessionStatus.value = 'idle'
+          stopTimer()
+          stopPolling()
+          nextTick(() => inputRef.value?.focus())
+        }
+      }
+    } catch (err) {
+      console.error('Chat poll error:', err)
+    }
+  }, 2000)
+}
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval)
+    pollInterval = null
   }
 }
 
@@ -233,8 +270,20 @@ async function loadOrCreateSession(agentId) {
       messages.value = normalized.map(m => ({ ...m, _key: `b_${m.id}` }))
       chatId.value = session.id
       currentAgentId = agentId
-      sessionStatus.value = 'idle'
       tempIdCounter = -1
+
+      if (session.status === 'running') {
+        sessionStatus.value = 'running'
+        const lastUserMsg = [...(session.messages || [])].reverse().find(m => m.role === 'user')
+        const elapsed = lastUserMsg
+          ? Math.floor((Date.now() - new Date(lastUserMsg.created_at).getTime()) / 1000)
+          : 0
+        startTimer(Math.max(0, elapsed))
+        startPolling()
+      } else {
+        sessionStatus.value = 'idle'
+      }
+
       nextTick(() => scrollToBottom())
       return
     }
@@ -265,6 +314,7 @@ async function startNewSession() {
   chatId.value = null
   sessionStatus.value = 'idle'
   stopTimer()
+  stopPolling()
   elapsedSeconds.value = 0
   messages.value = []
   currentAgentId = null
@@ -344,6 +394,7 @@ watch(
     chatId.value = null
     sessionStatus.value = 'idle'
     stopTimer()
+    stopPolling()
     elapsedSeconds.value = 0
     messages.value = []
     currentAgentId = null
@@ -361,6 +412,7 @@ onBeforeUnmount(() => {
     streamController = null
   }
   stopTimer()
+  stopPolling()
 })
 </script>
 
