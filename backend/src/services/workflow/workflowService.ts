@@ -371,15 +371,17 @@ class WorkflowService {
 
     await this.lifecycle.onStepResume(runId, suspendedStep.step_id, resumeData);
 
-    mastraRun.resume({
-      step: suspendedStep.step_id,
-      resumeData,
-    }).then((result: any) => {
-      logger.info('WorkflowService', `Resume result status: ${result?.status}`);
-    }).catch((err: Error) => {
+    try {
+      const result = await mastraRun.resume({
+        step: suspendedStep.step_id,
+        resumeData,
+      });
+      logger.info('WorkflowService', `Resume result status: ${(result as any)?.status}`);
+    } catch (err: any) {
       logger.error('WorkflowService', `Resume error: ${err.message}`);
-      this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});
-    });
+      await this.lifecycle.onWorkflowError(runId, err.message);
+      throw err;
+    }
 
     return await this.workflowRunRepo.findById(runId);
   }

@@ -283,7 +283,7 @@ export function buildWorkflowFromInstance(
               }
 
               // Wait for user to respond via chat (continueSession changes session from ASK_USER to RUNNING)
-              const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!);
+              const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!, abortSignal);
 
               logger.info('Workflows', `Step ${templateStep.id} received user response, continuing conversation`);
 
@@ -295,6 +295,15 @@ export function buildWorkflowFromInstance(
 
               // Loop back to continue the AI conversation with the answer
               continue;
+            }
+
+            // Handle cancellation or timeout while waiting for user input
+            if ((err as any)?.message === 'WORKFLOW_CANCELLED' || (err as any)?.message === 'ASK_USER_TIMEOUT') {
+              const reason = (err as any).message === 'ASK_USER_TIMEOUT' ? 'Timed out waiting for user response' : 'Workflow cancelled';
+              logger.info('Workflows', `Step ${templateStep.id} exiting: ${reason}`);
+              await options.lifecycle.onStepCancel(options.runId, templateStep.id).catch(() => {});
+              abort();
+              return { summary: '' };
             }
 
             const errorMessage = err instanceof Error ? err.message : String(err);

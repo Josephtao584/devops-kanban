@@ -692,18 +692,26 @@ class WorkflowLifecycle {
    * Returns the latest user message content.
    * Used by the step function to wait for user answers without suspending the workflow.
    */
-  async waitForSessionResponse(sessionId: number): Promise<string> {
+  async waitForSessionResponse(sessionId: number, abortSignal?: AbortSignal): Promise<string> {
     const POLL_INTERVAL_MS = 1000;
     const MAX_WAIT_MS = 600_000; // 10 minutes timeout
     const startTime = Date.now();
 
     while (Date.now() - startTime < MAX_WAIT_MS) {
+      if (abortSignal?.aborted) {
+        throw new Error('WORKFLOW_CANCELLED');
+      }
+
       const session = await this.sessionRepo.findById(sessionId);
       if (!session || session.status !== 'ASK_USER') {
         // Session is no longer ASK_USER — user has responded
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    if (Date.now() - startTime >= MAX_WAIT_MS) {
+      throw new Error('ASK_USER_TIMEOUT');
     }
 
     // Get the latest user message from session events
