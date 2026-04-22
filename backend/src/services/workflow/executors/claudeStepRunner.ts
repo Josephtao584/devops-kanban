@@ -257,7 +257,9 @@ async function defaultSpawnImpl({
           const json = JSON.parse(line);
           const event = parseStreamEvent(json);
           if (event && onEvent) {
-            Promise.resolve(onEvent(event)).catch(() => {});
+            Promise.resolve(onEvent(event)).catch((err) => {
+              logger.warn('ClaudeStepRunner', `onEvent failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
           }
 
           // Detect AskUserQuestion and kill process (guard against re-entry after kill)
@@ -267,7 +269,9 @@ async function defaultSpawnImpl({
               capturedAskUserQuestion = questionData;
               killedByAskUser = true;
               if (onAskUser) {
-                Promise.resolve(onAskUser(questionData)).catch(() => {});
+                Promise.resolve(onAskUser(questionData)).catch((err) => {
+                  logger.warn('ClaudeStepRunner', `onAskUser failed: ${err instanceof Error ? err.message : String(err)}`);
+                });
               }
               logger.info('ClaudeStepRunner', `AskUserQuestion detected, killing process. pid: ${proc.pid}`);
               killProcessTree(proc);

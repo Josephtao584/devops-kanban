@@ -5,6 +5,7 @@ import { resolveCommand } from './commandResolver.js';
 import type { ExecutorProcessHandle, WorkflowExecutionEvent, AskUserQuestionData } from '../../../types/executors.js';
 import { buildEvent } from '../../../types/executors.js';
 import { OPENCODE_COMMAND } from '../../../config/index.js';
+import { logger } from '../../../utils/logger.js';
 
 const OPENCODE_DEFAULT_COMMAND = OPENCODE_COMMAND.split(/\s+/).filter(Boolean);
 
@@ -333,7 +334,9 @@ async function defaultSpawnImpl({
           const json = JSON.parse(line);
           const event = parseStreamEvent(json);
           if (event && onEvent) {
-            Promise.resolve(onEvent(event)).catch(() => {});
+            Promise.resolve(onEvent(event)).catch((err) => {
+              logger.warn('OpenCodeStepRunner', `onEvent failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
           }
 
           // Detect [ASK_USER] marker and kill process
@@ -343,9 +346,11 @@ async function defaultSpawnImpl({
               capturedAskUserQuestion = questionData;
               killedByAskUser = true;
               if (onAskUser) {
-                Promise.resolve(onAskUser(questionData)).catch(() => {});
+                Promise.resolve(onAskUser(questionData)).catch((err) => {
+                  logger.warn('OpenCodeStepRunner', `onAskUser failed: ${err instanceof Error ? err.message : String(err)}`);
+                });
               }
-              console.log(`[OpenCodeStepRunner] AskUserQuestion detected, killing process. pid: ${proc.pid}`);
+              logger.info('OpenCodeStepRunner', `AskUserQuestion detected, killing process. pid: ${proc.pid}`);
               killProcessTree(proc);
             }
           }
