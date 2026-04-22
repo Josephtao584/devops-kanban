@@ -1,3 +1,5 @@
+import { writeSummaryToFile } from './workflowSummaryWriter.js';
+
 type WorkflowAgent = {
   name: string;
   role: string;
@@ -5,36 +7,45 @@ type WorkflowAgent = {
   skills: number[];
 };
 
-const MAX_UPSTREAM_SUMMARY_LENGTH = 1200;
-
 function normalizeSummaryText(summary: string) {
-  const collapsed = summary.replace(/```[\s\S]*?```/g, '[code block omitted]').replace(/\n{3,}/g, '\n\n').trim();
-  if (collapsed.length <= MAX_UPSTREAM_SUMMARY_LENGTH) {
-    return collapsed;
-  }
-  return `${collapsed.slice(0, MAX_UPSTREAM_SUMMARY_LENGTH).trim()}\n...[truncated]`;
+  return summary.replace(/```[\s\S]*?```/g, '[code block omitted]').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function extractUpstreamSummaries(inputData: Record<string, unknown> = {}, upstreamStepIds: string[] = []) {
+async function extractUpstreamSummaries(
+  inputData: Record<string, unknown> = {},
+  upstreamStepIds: string[] = [],
+  worktreePath?: string,
+): Promise<Array<{ stepId: string; summary: string }>> {
   if (!Array.isArray(upstreamStepIds) || upstreamStepIds.length === 0) {
-    return [] as Array<{ stepId: string; summary: string }>;
+    return [];
   }
 
   const directSummary = inputData.summary;
   if (upstreamStepIds.length === 1 && typeof directSummary === 'string' && directSummary.trim()) {
-    return [{ stepId: upstreamStepIds[0]!, summary: normalizeSummaryText(directSummary.trim()) }];
+    const text = normalizeSummaryText(directSummary.trim());
+    const relativePath = worktreePath ? await writeSummaryToFile(worktreePath, upstreamStepIds[0]!, text) : null;
+    if (relativePath) {
+      return [{ stepId: upstreamStepIds[0]!, summary: `上游步骤摘要较长，已保存至 ${relativePath}，请读取该文件。` }];
+    }
+    return [{ stepId: upstreamStepIds[0]!, summary: text }];
   }
 
-  return upstreamStepIds
-    .map((stepId) => {
-      const candidate = inputData[stepId] as { summary?: string } | undefined;
-      const summary = candidate?.summary;
-      if (typeof summary !== 'string' || !summary.trim()) {
-        return null;
-      }
-      return { stepId, summary: normalizeSummaryText(summary.trim()) };
-    })
-    .filter((item): item is { stepId: string; summary: string } => item !== null);
+  const results: Array<{ stepId: string; summary: string }> = [];
+  for (const stepId of upstreamStepIds) {
+    const candidate = inputData[stepId] as { summary?: string } | undefined;
+    const summary = candidate?.summary;
+    if (typeof summary !== 'string' || !summary.trim()) {
+      continue;
+    }
+    const text = normalizeSummaryText(summary.trim());
+    const relativePath = worktreePath ? await writeSummaryToFile(worktreePath, stepId, text) : null;
+    if (relativePath) {
+      results.push({ stepId, summary: `上游步骤摘要较长，已保存至 ${relativePath}，请读取该文件。` });
+    } else {
+      results.push({ stepId, summary: text });
+    }
+  }
+  return results;
 }
 
 function formatAgentIdentitySection(agent?: WorkflowAgent) {
@@ -54,7 +65,10 @@ function formatAgentIdentitySection(agent?: WorkflowAgent) {
   ].join('\n');
 }
 
-function formatRepoAnalysisContext() {
+function formatRepoAnalysisContext(isFirstStep: boolean) {
+  if (!isFirstStep) {
+    return '';
+  }
   return '提示：代码仓根目录可能存在 KANBAN_COMPASS.md 文件，包含项目结构和上下文信息，需要时可参考。';
 }
 
@@ -67,13 +81,16 @@ function renderPromptPlaceholders(prompt: string, projectEnv: Record<string, str
   });
 }
 
-function assembleWorkflowPrompt({
+async function assembleWorkflowPrompt({
   step,
   state,
   inputData,
   upstreamStepIds = [],
   agent,
   projectEnv,
+  isFirstStep = true,
+  worktreePath,
+  canEarlyExit = false,
 }: {
   step: { name: string; instructionPrompt: string };
   state: { taskTitle: string; taskDescription: string };
@@ -81,10 +98,13 @@ function assembleWorkflowPrompt({
   upstreamStepIds?: string[];
   agent?: WorkflowAgent;
   projectEnv?: Record<string, string>;
+  isFirstStep?: boolean;
+  worktreePath?: string;
+  canEarlyExit?: boolean;
 }) {
-  const upstreamSummaries = extractUpstreamSummaries(inputData, upstreamStepIds);
+  const upstreamSummaries = await extractUpstreamSummaries(inputData, upstreamStepIds, worktreePath);
   const agentIdentitySection = formatAgentIdentitySection(agent);
-  const repoAnalysisContext = formatRepoAnalysisContext();
+  const repoAnalysisContext = formatRepoAnalysisContext(isFirstStep);
 
   const renderedInstruction = projectEnv
     ? renderPromptPlaceholders(step.instructionPrompt, projectEnv)
@@ -110,6 +130,9 @@ function assembleWorkflowPrompt({
     `本步骤要求：\n${renderedInstruction}`,
     '执行完成后，只输出最后结果总结。',
     summaryInstruction,
+    canEarlyExit
+      ? '如果认为目标已达成或无法继续，请在总结末尾以 JSON 格式输出：\n{"decision": "SUCCESS_EXIT", "reason": "..."}  或\n{"decision": "FAIL_EXIT", "reason": "..."}  或\n{"decision": "CONTINUE"}'
+      : '',
   ].filter(Boolean).join('\n\n').replaceAll('\n', '\\n');
 }
 

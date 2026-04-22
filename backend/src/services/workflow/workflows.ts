@@ -197,6 +197,7 @@ export function buildWorkflowFromInstance(
                 workflowInstance,
                 abortSignal,
                 upstreamStepIds: previousStepId ? [previousStepId] : [],
+                isFirstStep: isFirst,
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;

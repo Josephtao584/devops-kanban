@@ -1,4 +1,4 @@
-import { ensureSkillsInWorktree } from '../../utils/skillSync.js';
+import { ensureSkillsInWorktree, ensureOpenCodeSkillsInWorktree } from '../../utils/skillSync.js';
 import {ExecutorType} from '../../types/executors.js';
 
 type PrepareExecutionSkillsInput = {
@@ -11,12 +11,18 @@ async function prepareClaudeCodeSkills(skillNames: string[], executionPath: stri
   await ensureSkillsInWorktree(skillNames, executionPath);
 }
 
+async function prepareOpenCodeSkills(skillNames: string[], executionPath: string) {
+  await ensureOpenCodeSkillsInWorktree(skillNames, executionPath);
+}
+
 async function prepareExecutionSkills({ executorType, skillNames, executionPath }: PrepareExecutionSkillsInput): Promise<void> {
   if (!skillNames || skillNames.length === 0) {
     return;
   }
 
-  if (executorType === ExecutorType.CLAUDE_CODE || executorType === ExecutorType.OPEN_CODE) {
+  if (executorType === ExecutorType.OPEN_CODE) {
+    await prepareOpenCodeSkills(skillNames, executionPath);
+  } else if (executorType === ExecutorType.CLAUDE_CODE) {
     await prepareClaudeCodeSkills(skillNames, executionPath);
   }
 }

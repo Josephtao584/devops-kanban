@@ -12,7 +12,7 @@ import { prepareExecutionSkills } from './executorSkillPreparation.js';
 import { cleanupSkillsByManifest, writeSkillManifest } from '../../utils/skillSync.js';
 import { resolveAgentMcpServersWithMeta, preCheckMcpServers } from './workflowMcpSync.js';
 import { prepareExecutionMcp } from './executorMcpPreparation.js';
-import { cleanupMcpJson } from '../../utils/mcpSync.js';
+import { cleanupMcpJson, cleanupOpenCodeMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
@@ -232,10 +232,17 @@ class WorkflowLifecycle {
     return run.status === 'CANCELLED' || step.status === 'CANCELLED';
   }
 
-  private async _cleanupPreviousStepSkills(executionPath: string, runId: number): Promise<void> {
+  private async _cleanupPreviousStepSkills(executionPath: string, runId: number, executorType?: string): Promise<void> {
     try {
-      const skillsDir = resolve(executionPath, '.claude', 'skills');
-      await cleanupSkillsByManifest(skillsDir, runId);
+      // Cleanup Claude Code skills
+      const claudeSkillsDir = resolve(executionPath, '.claude', 'skills');
+      await cleanupSkillsByManifest(claudeSkillsDir, runId);
+
+      // Cleanup OpenCode skills
+      if (executorType === 'OPEN_CODE' || !executorType) {
+        const openCodeSkillsDir = resolve(executionPath, '.opencode', 'skills');
+        await cleanupSkillsByManifest(openCodeSkillsDir, runId);
+      }
     } catch (err) {
       logger.warn('WorkflowLifecycle', `Failed to cleanup previous step skills: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -259,7 +266,10 @@ class WorkflowLifecycle {
         executionPath,
       });
 
-      const skillsDir = resolve(executionPath, '.claude', 'skills');
+      // Write manifest to the correct directory based on executor type
+      const skillsDir = executorType === 'OPEN_CODE'
+        ? resolve(executionPath, '.opencode', 'skills')
+        : resolve(executionPath, '.claude', 'skills');
       await writeSkillManifest(skillsDir, {
         runId,
         stepId,
@@ -286,6 +296,7 @@ class WorkflowLifecycle {
       const serversWithMeta = await resolveAgentMcpServersWithMeta(stepBinding.agentId);
       if (serversWithMeta.length === 0) {
         await cleanupMcpJson(executionPath);
+        await cleanupOpenCodeMcpJson(executionPath);
         return;
       }
 
@@ -294,6 +305,7 @@ class WorkflowLifecycle {
       if (mcpServerConfigs.length === 0) {
         logger.warn('WorkflowLifecycle', `All MCP servers failed pre-check for step ${stepId}`);
         await cleanupMcpJson(executionPath);
+        await cleanupOpenCodeMcpJson(executionPath);
         return;
       }
 
@@ -665,6 +677,7 @@ class WorkflowLifecycle {
     const { run } = await this._getRunStep(runId, stepId);
     if (run.worktree_path) {
       await cleanupMcpJson(run.worktree_path);
+      await cleanupOpenCodeMcpJson(run.worktree_path);
     }
     await this._finalizeStepArtifacts(runId, stepId, 'CANCELLED', {
       error: 'Workflow cancelled',

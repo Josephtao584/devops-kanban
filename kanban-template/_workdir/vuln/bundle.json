@@ -1,0 +1,199 @@
+{
+    "version": "2.1",
+    "exportedAt": "2026-04-20T06:41:56.360Z",
+    "templates": [
+        {
+            "template_id": "vuln-fix-sdd-tdd-v1",
+            "name": "安全漏洞修复",
+            "steps": [
+                {
+                    "id": "vuln-cve-analysis",
+                    "name": "CVE 漏洞分析",
+                    "instructionPrompt": "你当前负责安全漏洞修复的 CVE 漏洞分析阶段。目标：明确漏洞详情并评估项目影响。1）使用所有已配置的安全评估 Skill 和 WebSearch 查询 CVE 详情（编号、描述、CVSS 评分、漏洞类型、受影响版本范围、攻击向量）；2）维度一-漏洞对项目的影响：检查依赖文件和代码调用路径，给出项目级风险评级（高/中/低/无影响）。将本步 summary 写入 `docs/workflow/vuln-cve-analysis-summary.md`。",
+                    "agentName": "安全工程师",
+                    "requiresConfirmation": false
+                },
+                {
+                    "id": "vuln-version-check",
+                    "name": "可用版本查询",
+                    "instructionPrompt": "你当前负责安全漏洞修复的可用版本查询阶段。目标：查找受影响依赖当前可用的安全版本。必须使用 `vulnerability-package-finder` Skill 查找该依赖当前可用的最新版本、最低安全版本及版本差异。将本步 summary 写入 `docs/workflow/vuln-version-check-summary.md`。",
+                    "agentName": "安全工程师",
+                    "requiresConfirmation": false
+                },
+                {
+                    "id": "vuln-patch-design",
+                    "name": "升级影响评估与方案",
+                    "instructionPrompt": "你当前负责安全漏洞修复的升级影响评估与方案阶段。目标：结合 `docs/workflow/vuln-cve-analysis-summary.md` 中的漏洞分析和 `docs/workflow/vuln-version-check-summary.md` 中的版本信息，评估升级对功能的影响，决定是否升级，并制定方案。1）分析 Breaking Changes 对项目的影响；2）给出升级建议；3）使用 AskUserQuestion 让用户选择「同意升级，继续制定方案」或「暂不升级，跳过修复流程」；4）用户确认后，制定升级方案（目标版本、修改文件、风险等级、回滚方案）。将本步 summary 写入 `docs/workflow/vuln-patch-design-summary.md`。",
+                    "agentName": "架构师",
+                    "requiresConfirmation": true
+                },
+                {
+                    "id": "vuln-test-design",
+                    "name": "安全测试先行",
+                    "instructionPrompt": "你当前负责安全漏洞修复的安全测试先行阶段。目标：基于 `docs/workflow/vuln-cve-analysis-summary.md` 中的漏洞信息编写能暴露漏洞的测试，确保补丁修复有效。1）优先复用已有测试，不足时编写最小必要的安全测试（如恶意 payload 触发 XSS、SQL注入等）；2）运行现有测试套件，确保全部通过后再开始新测试；3）设计安全回归用例，覆盖边界场景。将本步 summary 写入 `docs/workflow/vuln-test-design-summary.md`，包含测试用例运行结果。",
+                    "agentName": "测试工程师"
+                },
+                {
+                    "id": "vuln-implementation",
+                    "name": "开发实现",
+                    "instructionPrompt": "你当前负责安全漏洞修复的开发实现阶段。目标：根据 `docs/workflow/vuln-patch-design-summary.md` 中的方案执行代码修改和依赖升级，确保 `docs/workflow/vuln-test-design-summary.md` 中的测试全部通过。1）更新依赖版本并执行安装；2）根据 Breaking Changes 修改受影响代码；3）优先使用框架的安全能力；4）运行测试，修复失败用例。将本步 summary 写入 `docs/workflow/vuln-implementation-summary.md`，包含测试用例运行结果。",
+                    "agentName": "后端开发"
+                },
+                {
+                    "id": "vuln-regression-validation",
+                    "name": "代码审查与回归验证",
+                    "instructionPrompt": "你当前负责安全漏洞修复的代码审查与回归验证阶段。目标：结合 `docs/workflow/vuln-patch-design-summary.md` 中的方案，审查 `docs/workflow/vuln-implementation-summary.md` 中的代码变更质量，确保测试全部通过。1）审查代码 diff，检查质量和规范；2）运行全部测试套件；3）确认变更范围与方案一致，无无关改动。将本步 summary 写入 `docs/workflow/vuln-regression-validation-summary.md`，包含测试用例运行结果。",
+                    "agentName": "测试工程师"
+                },
+                {
+                    "id": "vuln-delivery-deploy",
+                    "name": "代码提交与 CI/CD 部署",
+                    "instructionPrompt": "你当前负责安全漏洞修复的代码提交与 CI/CD 部署阶段。目标：确认所有步骤已完成（`docs/workflow/` 下的 summary 文件均已生成），提交代码到远端并通过 CI/CD 流水线部署。1）Git 提交所有变更，commit message 包含 CVE 编号和变更摘要；2）push 到远端分支；3）使用已配置的 CI/CD Skill 触发部署；4）确认部署成功。将本步 summary 写入 `docs/workflow/vuln-delivery-deploy-summary.md`，包含部署结果状态。",
+                    "agentName": "CI/CD 部署工程师"
+                }
+            ]
+        }
+    ],
+    "agents": [
+        {
+            "name": "安全工程师",
+            "executorType": "OPEN_CODE",
+            "role": "SECURITY_ENGINEER",
+            "description": "负责安全漏洞分析、CVE评估、安全补丁设计与安全验证",
+            "enabled": true,
+            "skillNames": [
+                "superpowers",
+                "git"
+            ],
+            "mcpServerNames": [
+                "context7",
+                "github"
+            ]
+        },
+        {
+            "name": "架构师",
+            "executorType": "OPEN_CODE",
+            "role": "ARCHITECT",
+            "description": "负责系统架构设计与技术方案评审",
+            "enabled": true,
+            "skillNames": [
+                "superpowers",
+                "git"
+            ],
+            "mcpServerNames": [
+                "context7",
+                "github"
+            ]
+        },
+        {
+            "name": "后端开发",
+            "executorType": "OPEN_CODE",
+            "role": "BACKEND_DEV",
+            "description": "负责后端服务开发与接口实现",
+            "enabled": true,
+            "skillNames": [
+                "git",
+                "tdd"
+            ],
+            "mcpServerNames": [
+                "context7",
+                "github"
+            ]
+        },
+        {
+            "name": "测试工程师",
+            "executorType": "OPEN_CODE",
+            "role": "QA_ENGINEER",
+            "description": "负责测试验证与质量保障",
+            "enabled": true,
+            "skillNames": [
+                "playwright",
+                "tdd",
+                "git"
+            ],
+            "mcpServerNames": [
+                "playwright",
+                "context7"
+            ]
+        },
+        {
+            "name": "CI/CD 部署工程师",
+            "executorType": "OPEN_CODE",
+            "role": "DEVOPS",
+            "description": "负责 CI/CD 流水线管理、部署发布与回滚操作",
+            "enabled": true,
+            "skillNames": [
+                "git"
+            ],
+            "mcpServerNames": [
+                "github"
+            ]
+        }
+    ],
+    "skills": [
+        {
+            "identifier": "git",
+            "name": "Git",
+            "description": "Git 版本控制最佳实践"
+        },
+        {
+            "identifier": "superpowers",
+            "name": "Superpowers",
+            "description": "结构化设计方法论：头脑风暴、方案规划、架构评审、代码审查"
+        },
+        {
+            "identifier": "tdd",
+            "name": "TDD",
+            "description": "TDD 方法论：红绿重构、测试先行设计、最小实现"
+        },
+        {
+            "identifier": "playwright",
+            "name": "Playwright",
+            "description": "E2E 浏览器测试"
+        }
+    ],
+    "mcpServers": [
+        {
+            "name": "context7",
+            "description": "查询库/框架的最新文档和代码示例",
+            "server_type": "stdio",
+            "config": {
+                "command": "npx",
+                "args": [
+                    "-y",
+                    "@anthropic-ai/context7-mcp"
+                ]
+            },
+            "auto_install": 1,
+            "install_command": "npm install -g @anthropic-ai/context7-mcp"
+        },
+        {
+            "name": "github",
+            "description": "GitHub 操作：PR、Issue、代码审查",
+            "server_type": "stdio",
+            "config": {
+                "command": "npx",
+                "args": [
+                    "-y",
+                    "@anthropic-ai/mcp-server-github"
+                ]
+            },
+            "auto_install": 1,
+            "install_command": "npm install -g @anthropic-ai/mcp-server-github"
+        },
+        {
+            "name": "playwright",
+            "description": "浏览器自动化测试，支持页面交互、截图、E2E 测试",
+            "server_type": "stdio",
+            "config": {
+                "command": "npx",
+                "args": [
+                    "-y",
+                    "@playwright/mcp@latest"
+                ]
+            },
+            "auto_install": 1,
+            "install_command": "npm install -g @playwright/mcp"
+        }
+    ]
+}

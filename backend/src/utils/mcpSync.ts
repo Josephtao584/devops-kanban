@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, writeFileSync, unlinkSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { logger } from './logger.js';
@@ -9,6 +9,10 @@ interface McpServerConfig {
   config: Record<string, unknown>;
 }
 
+/**
+ * Write Claude Code MCP config: .mcp.json at worktree root
+ * Format: { "mcpServers": { "name": { command, args, env } | { type: "http", url, headers } } }
+ */
 async function ensureMcpJsonInWorktree(
   mcpServerConfigs: McpServerConfig[],
   worktreePath: string
@@ -45,6 +49,64 @@ async function ensureMcpJsonInWorktree(
   writeFileSync(mcpJsonPath, JSON.stringify(mcpJson, null, 2), 'utf-8');
 }
 
+/**
+ * Write OpenCode MCP config: .opencode/opencode.json
+ * Format: { "name": { "type": "local", "command": [...], "environment": {...}, "enabled": true } | { "type": "remote", "url": "...", "headers": {...}, "enabled": true } }
+ */
+async function ensureOpenCodeMcpJson(
+  mcpServerConfigs: McpServerConfig[],
+  worktreePath: string
+): Promise<void> {
+  const opencodeDir = resolve(worktreePath, '.opencode');
+  const mcpJsonPath = resolve(opencodeDir, 'opencode.json');
+
+  if (mcpServerConfigs.length === 0) {
+    if (existsSync(mcpJsonPath)) {
+      unlinkSync(mcpJsonPath);
+    }
+    return;
+  }
+
+  const mcpConfig: Record<string, unknown> = {};
+
+  for (const server of mcpServerConfigs) {
+    if (server.server_type === 'http') {
+      const config = server.config;
+      const serverEntry: Record<string, unknown> = {
+        type: 'remote',
+        enabled: true,
+      };
+      if (config.url) serverEntry.url = config.url;
+      if (config.headers) serverEntry.headers = config.headers;
+      mcpConfig[server.name] = serverEntry;
+    } else {
+      const config = server.config;
+      const serverEntry: Record<string, unknown> = {
+        type: 'local',
+        enabled: true,
+      };
+      // command as array
+      if (config.command) {
+        serverEntry.command = Array.isArray(config.command)
+          ? config.command
+          : [config.command as string];
+      }
+      if (config.args && Array.isArray(config.args)) {
+        // Merge args into command array
+        const cmd = Array.isArray(serverEntry.command)
+          ? serverEntry.command as unknown[]
+          : [];
+        serverEntry.command = [...cmd, ...(config.args as unknown[])];
+      }
+      if (config.env) serverEntry.environment = config.env;
+      mcpConfig[server.name] = serverEntry;
+    }
+  }
+
+  mkdirSync(opencodeDir, { recursive: true });
+  writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2), 'utf-8');
+}
+
 async function cleanupMcpJson(worktreePath: string): Promise<void> {
   const mcpJsonPath = resolve(worktreePath, '.mcp.json');
   if (existsSync(mcpJsonPath)) {
@@ -56,5 +118,16 @@ async function cleanupMcpJson(worktreePath: string): Promise<void> {
   }
 }
 
-export { ensureMcpJsonInWorktree, cleanupMcpJson };
+async function cleanupOpenCodeMcpJson(worktreePath: string): Promise<void> {
+  const mcpJsonPath = resolve(worktreePath, '.opencode', 'opencode.json');
+  if (existsSync(mcpJsonPath)) {
+    try {
+      unlinkSync(mcpJsonPath);
+    } catch (err) {
+      logger.warn('McpSync', `Failed to delete .opencode/opencode.json: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
+export { ensureMcpJsonInWorktree, ensureOpenCodeMcpJson, cleanupMcpJson, cleanupOpenCodeMcpJson };
 export type { McpServerConfig };

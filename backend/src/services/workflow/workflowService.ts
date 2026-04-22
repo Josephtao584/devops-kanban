@@ -26,6 +26,8 @@ function toStepState(instance: WorkflowInstanceEntity) {
     session_id: null,
     summary: null,
     error: null,
+    early_exit: null,
+    early_exit_reason: null,
   }));
 }
 

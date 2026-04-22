@@ -18,6 +18,9 @@ function copyDirRecursive(src: string, dest: string): void {
   }
 }
 
+/**
+ * Copy skills to Claude Code path: .claude/skills/
+ */
 export async function ensureSkillsInWorktree(skillNames: string[], projectPath: string): Promise<void> {
   if (!skillNames || skillNames.length === 0) {
     return;
@@ -42,6 +45,39 @@ export async function ensureSkillsInWorktree(skillNames: string[], projectPath: 
     }
 
     // 复制 skill 目录
+    if (existsSync(sourceDir)) {
+      copyDirRecursive(sourceDir, targetDir);
+      logger.info('SkillSync', `Copied skill "${skillName}" to project: ${targetDir}`);
+    } else {
+      logger.warn('SkillSync', `Skill "${skillName}" not found in data/skills, skipping`);
+    }
+  }
+}
+
+/**
+ * Copy skills to OpenCode path: .opencode/skills/
+ */
+export async function ensureOpenCodeSkillsInWorktree(skillNames: string[], projectPath: string): Promise<void> {
+  if (!skillNames || skillNames.length === 0) {
+    return;
+  }
+
+  const targetSkillsDir = resolve(projectPath, '.opencode', 'skills');
+
+  if (!existsSync(targetSkillsDir)) {
+    mkdirSync(targetSkillsDir, { recursive: true });
+    logger.info('SkillSync', `Created directory: ${targetSkillsDir}`);
+  }
+
+  for (const skillName of skillNames) {
+    const sourceDir = resolve(STORAGE_PATH, 'skills', skillName);
+    const targetDir = resolve(targetSkillsDir, skillName);
+
+    if (existsSync(targetDir)) {
+      logger.info('SkillSync', `Skill "${skillName}" already exists in project, skipping`);
+      continue;
+    }
+
     if (existsSync(sourceDir)) {
       copyDirRecursive(sourceDir, targetDir);
       logger.info('SkillSync', `Copied skill "${skillName}" to project: ${targetDir}`);
