@@ -156,12 +156,15 @@ export function buildWorkflowFromInstance(
             let result;
             if (pendingAnswer !== undefined && providerSessionId) {
               // Continuation round: send user's answer into the existing AI conversation
+              // Clear pendingAnswer BEFORE the call so a throw doesn't cause infinite retry
+              const answerToSend = pendingAnswer;
+              pendingAnswer = undefined;
               result = await continueWorkflowStepWithAnswer({
                 workflowInstance,
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
                 providerSessionId,
-                answerPrompt: pendingAnswer,
+                answerPrompt: answerToSend,
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;
@@ -185,7 +188,6 @@ export function buildWorkflowFromInstance(
                   }
                 },
               });
-              pendingAnswer = undefined;
             } else {
               // First execution: fresh prompt
               result = await executeWorkflowStep({

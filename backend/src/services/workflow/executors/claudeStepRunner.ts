@@ -235,10 +235,12 @@ async function defaultSpawnImpl({
         logger.info('ClaudeStepRunner', 'Already aborted, killing process immediately');
         killProcessTree(proc);
       } else {
-        abortSignal.addEventListener('abort', () => {
+        const abortHandler = () => {
           logger.info('ClaudeStepRunner', `Abort event received, killing process. pid: ${proc.pid}`);
           killProcessTree(proc);
-        }, { once: true });
+        };
+        abortSignal.addEventListener('abort', abortHandler, { once: true });
+        spawnedProc.on('close', () => abortSignal.removeEventListener('abort', abortHandler));
       }
     }
 
