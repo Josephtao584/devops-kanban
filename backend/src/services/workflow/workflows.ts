@@ -113,7 +113,7 @@ export function buildWorkflowFromInstance(
         const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string } | undefined;
 
         // === Resume execution (user confirmed for requiresConfirmation) ===
-        if (requiresConfirmation && typedResumeData?.approved && !typedSuspendData?.ask_user_question) {
+        if (requiresConfirmation && typedResumeData?.approved) {
           // Get previous result from suspendData, don't re-execute
           const previousSummary = typedSuspendData?.summary || '';
           logger.info('Workflows', `Step ${templateStep.id} resuming with approved=true, using suspendData.summary`);
@@ -159,6 +159,8 @@ export function buildWorkflowFromInstance(
                 providerSessionId,
                 answerPrompt: pendingAnswer,
                 onEvent: async (event) => {
+                  // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
+                  if (event.kind === 'ask_user') return;
                   await options?.lifecycle.sessionEventRepo.append({
                     session_id: sessionId,
                     segment_id: segmentId,
@@ -196,6 +198,8 @@ export function buildWorkflowFromInstance(
                 abortSignal,
                 upstreamStepIds: previousStepId ? [previousStepId] : [],
                 onEvent: async (event) => {
+                  // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
+                  if (event.kind === 'ask_user') return;
                   await options?.lifecycle.sessionEventRepo.append({
                     session_id: sessionId,
                     segment_id: segmentId,
