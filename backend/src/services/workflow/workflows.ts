@@ -274,6 +274,7 @@ export function buildWorkflowFromInstance(
 
         // Loop for AskUserQuestion rounds: instead of suspending the workflow,
         // wait internally for user to respond, then re-execute with the answer.
+        let askUserHandled = false;
         while (true) {
           try {
             const result = await executeWorkflowStep({
@@ -349,9 +350,13 @@ export function buildWorkflowFromInstance(
             if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
               logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, waiting for user response`);
 
-              await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
-                ask_user_question: anyErr.askUserQuestion,
-              });
+              // Only save the ask_user event the first time, not on re-execution loops
+              if (!askUserHandled) {
+                await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
+                  ask_user_question: anyErr.askUserQuestion,
+                });
+                askUserHandled = true;
+              }
 
               // Wait for user to respond via chat (continueSession changes session from ASK_USER to RUNNING)
               const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!);
