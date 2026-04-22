@@ -30,26 +30,12 @@ const firstStepInputSchema = z.object({
 const resumeSchema = z.object({
   approved: z.boolean(),
   comment: z.string().optional(),
-  ask_user_answer: z.string().optional(),
 });
 
 const suspendSchema = z.object({
   reason: z.string(),
   stepName: z.string(),
   summary: z.string().optional(),
-  ask_user_question: z.object({
-    tool_use_id: z.string(),
-    questions: z.array(z.object({
-      question: z.string(),
-      header: z.string().optional(),
-      options: z.array(z.object({
-        label: z.string(),
-        value: z.string().optional(),
-        description: z.string().optional(),
-      })).optional(),
-      multiSelect: z.boolean().optional(),
-    })).optional(),
-  }).optional(),
 });
 
 let _mastra: Mastra | null = null;
@@ -123,125 +109,8 @@ export function buildWorkflowFromInstance(
         }
 
         // Type the resume data and suspend data
-        const typedResumeData = resumeData as { approved?: boolean; comment?: string; ask_user_answer?: string } | undefined;
-        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string; ask_user_question?: Record<string, unknown> } | undefined;
-
-        // === Resume after AskUserQuestion (user answered) ===
-        if (typedResumeData?.ask_user_answer !== undefined && typedSuspendData?.ask_user_question) {
-          logger.info('Workflows', `Step ${templateStep.id} resuming with AskUserQuestion answer`);
-
-          const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
-          if (!sessionInfo) {
-            abort();
-            return { summary: '' };
-          }
-
-          await options.lifecycle.onStepResume(options.runId, templateStep.id, {
-            approved: true,
-            ask_user_answer: typedResumeData.ask_user_answer,
-          });
-
-          // Get provider_session_id from the suspended step
-          const run = await options.lifecycle.workflowRunRepo.findById(options.runId);
-          const suspendedStep = run?.steps.find(s => s.step_id === templateStep.id);
-          const providerSessionId = suspendedStep?.provider_session_id;
-
-          if (!providerSessionId) {
-            logger.warn('Workflows', `Step ${templateStep.id} has no provider_session_id for AskUserQuestion resume`);
-            await options.lifecycle.onStepError(options.runId, templateStep.id, 'No provider session ID found for AskUserQuestion resume');
-            throw new Error('No provider session ID found for AskUserQuestion resume');
-          }
-
-          const answerPrompt = `${typedResumeData.ask_user_answer}`;
-
-          try {
-            // Save user's answer as a user message event
-            await options?.lifecycle.sessionEventRepo.append({
-              session_id: sessionInfo.sessionId,
-              segment_id: sessionInfo.segmentId,
-              kind: 'message',
-              role: 'user',
-              content: answerPrompt,
-              payload: {},
-            });
-
-            const result = await continueWorkflowStepWithAnswer({
-              workflowInstance,
-              stepId: templateStep.id,
-              worktreePath: state.worktreePath,
-              providerSessionId,
-              answerPrompt,
-              onEvent: async (event) => {
-                await options?.lifecycle.sessionEventRepo.append({
-                  session_id: sessionInfo.sessionId,
-                  segment_id: sessionInfo.segmentId,
-                  kind: event.kind,
-                  role: event.role,
-                  content: event.content,
-                  payload: event.payload || {},
-                });
-              },
-              onProviderState: async (providerState) => {
-                if (sessionInfo.segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
-                  await options.lifecycle.sessionSegmentRepo.update(sessionInfo.segmentId, {
-                    provider_session_id: providerState.providerSessionId,
-                  });
-                  await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                    provider_session_id: providerState.providerSessionId,
-                  });
-                }
-              },
-            });
-
-            // If step requires confirmation, re-suspend for confirmation instead of auto-completing
-            if (requiresConfirmation) {
-              logger.info('Workflows', `Step ${templateStep.id} requires confirmation after AskUserQuestion, re-suspending for confirmation`);
-              const now = new Date().toISOString();
-              await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                status: 'SUSPENDED',
-                completed_at: now,
-                suspend_reason: '等待确认',
-                summary: result.summary || null,
-              });
-              await options.lifecycle.workflowRunRepo.update(options.runId, {
-                status: 'SUSPENDED',
-                current_step: templateStep.id,
-              });
-
-              return await suspend({
-                reason: '等待确认',
-                stepName: templateStep.name,
-                summary: result.summary || '',
-              });
-            }
-
-            await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
-            return result;
-          } catch (err) {
-            // Handle another AskUserQuestion during resumed execution
-            const anyErr = err as any;
-            if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
-              logger.info('Workflows', `Step ${templateStep.id} suspended again for AskUserQuestion during resume`);
-
-              await options.lifecycle.onStepSuspend(options.runId, templateStep.id, {
-                reason: 'AI 需要用户提供更多信息',
-                summary: '',
-                ask_user_question: anyErr.askUserQuestion,
-              });
-
-              return await suspend({
-                reason: 'AI 需要用户提供更多信息',
-                stepName: templateStep.name,
-                summary: '',
-                ask_user_question: anyErr.askUserQuestion,
-              });
-            }
-
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            await options.lifecycle.onStepError(options.runId, templateStep.id, errorMessage);
-            throw err;
-          }
-        }
+        const typedResumeData = resumeData as { approved?: boolean; comment?: string } | undefined;
+        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string } | undefined;
 
         // === Resume execution (user confirmed for requiresConfirmation) ===
         if (requiresConfirmation && typedResumeData?.approved && !typedSuspendData?.ask_user_question) {
@@ -273,49 +142,86 @@ export function buildWorkflowFromInstance(
         segmentId = sessionInfo.segmentId;
 
         // Loop for AskUserQuestion rounds: instead of suspending the workflow,
-        // wait internally for user to respond, then re-execute with the answer.
+        // wait internally for user to respond, then continue the AI conversation with the answer.
         let askUserHandled = false;
+        let providerSessionId: string | undefined;
+        let pendingAnswer: string | undefined;
+
         while (true) {
           try {
-            const result = await executeWorkflowStep({
-              stepId: templateStep.id,
-              worktreePath: state.worktreePath,
-              state: {
-                taskTitle: state.taskTitle,
-                taskDescription: state.taskDescription,
+            let result;
+            if (pendingAnswer !== undefined && providerSessionId) {
+              // Continuation round: send user's answer into the existing AI conversation
+              result = await continueWorkflowStepWithAnswer({
+                workflowInstance,
+                stepId: templateStep.id,
                 worktreePath: state.worktreePath,
-                ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
-              },
-              inputData,
-              workflowInstance,
-              abortSignal,
-              upstreamStepIds: previousStepId ? [previousStepId] : [],
-              onEvent: async (event) => {
-                await options?.lifecycle.sessionEventRepo.append({
-                  session_id: sessionId,
-                  segment_id: segmentId,
-                  kind: event.kind,
-                  role: event.role,
-                  content: event.content,
-                  payload: event.payload || {},
-                });
-              },
-              onProviderState: async (providerState) => {
-                if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
-                  await options.lifecycle.sessionSegmentRepo.update(segmentId, {
-                    provider_session_id: providerState.providerSessionId,
+                providerSessionId,
+                answerPrompt: pendingAnswer,
+                onEvent: async (event) => {
+                  await options?.lifecycle.sessionEventRepo.append({
+                    session_id: sessionId,
+                    segment_id: segmentId,
+                    kind: event.kind,
+                    role: event.role,
+                    content: event.content,
+                    payload: event.payload || {},
                   });
+                },
+                onProviderState: async (providerState) => {
+                  if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
+                    await options.lifecycle.sessionSegmentRepo.update(segmentId, {
+                      provider_session_id: providerState.providerSessionId,
+                    });
+                    await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                      provider_session_id: providerState.providerSessionId,
+                    });
+                  }
+                },
+              });
+              pendingAnswer = undefined;
+            } else {
+              // First execution: fresh prompt
+              result = await executeWorkflowStep({
+                stepId: templateStep.id,
+                worktreePath: state.worktreePath,
+                state: {
+                  taskTitle: state.taskTitle,
+                  taskDescription: state.taskDescription,
+                  worktreePath: state.worktreePath,
+                  ...(state.projectEnv ? { projectEnv: state.projectEnv } : {}),
+                },
+                inputData,
+                workflowInstance,
+                abortSignal,
+                upstreamStepIds: previousStepId ? [previousStepId] : [],
+                onEvent: async (event) => {
+                  await options?.lifecycle.sessionEventRepo.append({
+                    session_id: sessionId,
+                    segment_id: segmentId,
+                    kind: event.kind,
+                    role: event.role,
+                    content: event.content,
+                    payload: event.payload || {},
+                  });
+                },
+                onProviderState: async (providerState) => {
+                  if (segmentId && options?.lifecycle.sessionSegmentRepo && providerState.providerSessionId) {
+                    await options.lifecycle.sessionSegmentRepo.update(segmentId, {
+                      provider_session_id: providerState.providerSessionId,
+                    });
+                    await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                      provider_session_id: providerState.providerSessionId,
+                    });
+                  }
+                },
+                onAssembledPrompt: async (prompt) => {
                   await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                    provider_session_id: providerState.providerSessionId,
+                    assembled_prompt: prompt,
                   });
-                }
-              },
-              onAssembledPrompt: async (prompt) => {
-                await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                  assembled_prompt: prompt,
-                });
-              },
-            });
+                },
+              });
+            }
 
             if (abortSignal?.aborted) {
               abort();
@@ -350,7 +256,7 @@ export function buildWorkflowFromInstance(
             if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
               logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, waiting for user response`);
 
-              // Only save the ask_user event the first time, not on re-execution loops
+              // Save the ask_user event (once per question — reset after each answer)
               if (!askUserHandled) {
                 await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
                   ask_user_question: anyErr.askUserQuestion,
@@ -361,12 +267,15 @@ export function buildWorkflowFromInstance(
               // Wait for user to respond via chat (continueSession changes session from ASK_USER to RUNNING)
               const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!);
 
-              logger.info('Workflows', `Step ${templateStep.id} received user response, re-executing with answer`);
+              logger.info('Workflows', `Step ${templateStep.id} received user response, continuing conversation`);
 
-              // Use the user's answer as the new prompt for the next execution round
-              inputData = { ...inputData, userAnswer };
+              // Look up provider_session_id stored by onProviderState during execution
+              const run = await options.lifecycle.workflowRunRepo.findById(options.runId);
+              providerSessionId = run?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id ?? undefined;
+              pendingAnswer = userAnswer;
+              askUserHandled = false; // reset so next question in this step is also saved
 
-              // Loop back to re-execute with the answer
+              // Loop back to continue the AI conversation with the answer
               continue;
             }
 

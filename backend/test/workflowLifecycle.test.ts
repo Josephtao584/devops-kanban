@@ -517,3 +517,46 @@ test.test('onSessionAskUser sets session to ASK_USER without changing workflow s
   assert.equal(askUserEvent!.role, 'assistant');
   assert.ok(askUserEvent!.payload?.ask_user_question);
 });
+
+test.test('onSessionAskUser does not set completed_at on session', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  harness.sessions.set(50, { id: 50, status: 'RUNNING', task_id: 1 });
+  harness.segments.push({ id: 300, session_id: 50, status: 'RUNNING', trigger_type: 'START' } as any);
+
+  await harness.lifecycle.onSessionAskUser(7, 'solution-design', {
+    ask_user_question: { tool_use_id: 'toolu_abc', questions: [] },
+  });
+
+  const sessionUpdate = harness.sessionUpdates.find((u) => u.sessionId === 50);
+  assert.ok(sessionUpdate, 'session should be updated');
+  assert.equal(sessionUpdate!.updateData.status, 'ASK_USER');
+  assert.equal(sessionUpdate!.updateData.completed_at, undefined, 'completed_at must not be set while session is still active');
+});
+
+test.test('onStepComplete finalizes ASK_USER segment to COMPLETED', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    currentStep: 'solution-design',
+  });
+
+  harness.run.steps[0]!.session_id = 101;
+  const session = { id: 101, status: 'RUNNING', executor_type: 'CLAUDE_CODE', agent_id: 11 };
+  harness.sessions.set(101, session);
+
+  // Segment is in ASK_USER status (set by onSessionAskUser during the step)
+  const segment = { id: 201, session_id: 101, status: 'ASK_USER' } as Record<string, unknown> & { id: number; session_id: number };
+  harness.segments.push(segment);
+
+  await harness.lifecycle.onStepComplete(7, 'solution-design', { summary: 'Done after answering question' });
+
+  const segmentUpdate = harness.segmentUpdates.find((u) => u.segmentId === 201);
+  assert.ok(segmentUpdate, 'ASK_USER segment should be finalized');
+  assert.equal(segmentUpdate!.updateData.status, 'COMPLETED', 'ASK_USER segment should become COMPLETED');
+});

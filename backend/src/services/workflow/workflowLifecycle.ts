@@ -409,7 +409,7 @@ class WorkflowLifecycle {
       }
 
       const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
-      if (latestSegment?.status === 'RUNNING') {
+      if (latestSegment?.status === 'RUNNING' || latestSegment?.status === 'ASK_USER') {
         if (status !== 'CANCELLED' && await this._isWorkflowStepCancelled(runId, stepId)) {
           await this._syncCancelledStepArtifacts(runId, stepId, completedAt);
           return;
@@ -604,7 +604,6 @@ class WorkflowLifecycle {
 
       await this.sessionRepo.update(step.session_id, {
         status: 'ASK_USER',
-        completed_at: new Date().toISOString(),
       });
     }
 
