@@ -413,8 +413,6 @@ class WorkflowService {
 
     logger.info('WorkflowService', `Retrying from step: ${retryStep.step_id}`);
 
-    const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId);
-
     await this.workflowRunRepo.update(runId, {
       status: 'RUNNING'
     });
@@ -426,15 +424,34 @@ class WorkflowService {
       error: null,
     });
 
-    if (!mastraRun) {
-      throw new ValidationError('未找到 Mastra 运行实例', 'Mastra run instance not found', { runId });
+    // Load task and resolve execution path
+    const task = await this.taskRepo.findById(run.task_id ?? 0);
+    if (!task) {
+      throw new NotFoundError('未找到任务', 'Task not found', { taskId: run.task_id });
     }
+
+    const executionPath = run.worktree_path || await this.resolveExecutionPath(task);
 
     // Load instance for retry
     const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
     if (!instance) {
       throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId: run.workflow_instance_id });
     }
+
+    // Build a fresh workflow to get a new Run with a clean (non-aborted) AbortController.
+    // Reusing the cached Run from a cancelled workflow keeps the old AbortController in
+    // "aborted" state, which causes timeTravelStream to immediately kill the spawned process.
+    const freshWorkflow = buildWorkflowFromInstance(instance, {
+      runId,
+      task: { id: task.id, project_id: task.project_id, execution_path: executionPath },
+      lifecycle: this.lifecycle,
+    });
+
+    const mastraRunId = run.mastra_run_id;
+    if (!mastraRunId) {
+      throw new ValidationError('未找到 Mastra 运行 ID', 'Mastra run ID not found', { runId });
+    }
+    const mastraRun = await freshWorkflow.createRun({ runId: mastraRunId });
 
     // Load project env for retry
     const project = await this.projectRepo.findById(task.project_id);
