@@ -141,7 +141,7 @@ export function buildWorkflowFromInstance(
             throw new Error(`Cannot resume AskUserQuestion in step ${templateStep.id}: provider_session_id not found`);
           }
 
-          const askUserSessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
+          const askUserSessionInfo = await options.lifecycle.onStepAskUserResume(options.runId, templateStep.id);
           if (!askUserSessionInfo) {
             logger.info('Workflows', `Step ${templateStep.id} AskUser resume cancelled for workflowRun: ${options.runId}`);
             abort();
@@ -310,19 +310,19 @@ export function buildWorkflowFromInstance(
             if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
               logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, suspending workflow`);
 
+              // Check providerSessionId BEFORE committing SUSPENDED state to avoid inconsistent state
+              const currentRun = await options.lifecycle.workflowRunRepo.findById(options.runId);
+              providerSessionId = currentRun?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id ?? providerSessionId;
+              if (!providerSessionId) {
+                throw new Error(`Cannot suspend step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
+              }
+
               // Save ask_user event to session and update workflow run/step to SUSPENDED
               if (!askUserHandled) {
                 await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
                   ask_user_question: anyErr.askUserQuestion,
                 });
                 askUserHandled = true;
-              }
-
-              // Read updated provider_session_id from DB (set by onProviderState callback)
-              const currentRun = await options.lifecycle.workflowRunRepo.findById(options.runId);
-              providerSessionId = currentRun?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id ?? providerSessionId;
-              if (!providerSessionId) {
-                throw new Error(`Cannot suspend step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
               }
 
               // Suspend the Mastra workflow — state is persisted to DB, survives server restart.

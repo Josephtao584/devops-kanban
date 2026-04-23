@@ -151,6 +151,7 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
       taskTitle?: string;
       taskDescription?: string;
       projectEnv?: Record<string, string>;
+      canEarlyExit?: boolean;
     };
   }>('/preview-prompt', async (request, reply) => {
     try {
