@@ -7,7 +7,7 @@ import { ProjectRepository } from '../repositories/projectRepository.js';
 import { AgentRepository } from '../repositories/agentRepository.js';
 import { McpServerRepository } from '../repositories/mcpServerRepository.js';
 import { WorkflowService } from './workflow/workflowService.js';
-import { createWorktree, cleanupWorktree, isGitRepository, sanitizeName } from '../utils/git.js';
+import { createWorktree, cleanupWorktree, isGitRepository, buildBranchName } from '../utils/git.js';
 import { ensureMcpJsonInWorktree } from '../utils/mcpSync.js';
 import { ValidationError, NotFoundError, BusinessError, InternalError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -231,8 +231,7 @@ class TaskService {
     try {
       const repoPath = await this.getOrCloneRepo(project);
       const worktreePath = createWorktree(taskId, task.title, repoPath);
-      const safeTitle = sanitizeName(task.title).substring(0, 50);
-      const branchName = `task/${taskId}-${safeTitle}`;
+      const branchName = buildBranchName(taskId, task.title);
       await this.taskRepo.update(taskId, {
         worktree_path: worktreePath,
         worktree_branch: branchName,
@@ -305,8 +304,7 @@ class TaskService {
 
       let branchName = task.worktree_branch;
       if (!branchName && task.title) {
-        const safeTitle = sanitizeName(task.title).substring(0, 50);
-        branchName = `task/${taskId}-${safeTitle}`;
+        branchName = buildBranchName(taskId, task.title);
       }
 
       cleanupWorktree(task.worktree_path, repoPath, branchName || null);
