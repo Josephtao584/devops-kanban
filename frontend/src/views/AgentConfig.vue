@@ -47,7 +47,7 @@
       </div>
 
       <!-- 右侧：角色详情面板 -->
-      <div class="agent-detail-panel">
+      <div class="agent-detail-panel" :class="{ 'has-chat': !!selectedAgent }">
         <!-- 空状态：未选中角色 -->
         <div v-if="!selectedAgent" class="empty-detail">
           <p>{{ $t('agent.selectAgentHint') }}</p>
@@ -131,8 +131,19 @@
             </div>
           </div>
 
+          <!-- Settings 文件路径 -->
+          <div v-if="selectedAgent.executorType === 'CLAUDE_CODE' && selectedAgent.settingsPath" class="skills-section">
+            <span class="section-label">{{ $t('agent.settingsPath') }}</span>
+            <div class="skills-tags">
+              <span class="skill-tag env-tag">{{ selectedAgent.settingsPath }}</span>
+            </div>
+          </div>
+
         </div>
       </div>
+
+      <!-- 第三栏：对话测试面板 -->
+      <AgentChatPanel v-if="selectedAgent" :agent="selectedAgent" />
     </div>
 
     <!-- Add/Edit Form Modal -->
@@ -201,6 +212,11 @@
           </div>
         </el-form-item>
 
+        <el-form-item v-if="form.executorType === 'CLAUDE_CODE'" :label="$t('agent.settingsPath')">
+          <el-input v-model="form.settingsPath" :placeholder="$t('agent.settingsPathPlaceholder')" maxlength="500" />
+          <div class="form-hint">{{ $t('agent.settingsPathHint') }}</div>
+        </el-form-item>
+
         <el-form-item>
           <el-checkbox v-model="form.enabled">{{ $t('common.enabled') }}</el-checkbox>
         </el-form-item>
@@ -227,6 +243,9 @@ import { useSkillStore } from '../stores/skillStore'
 import { useMcpServerStore } from '../stores/mcpServerStore'
 import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
 import BaseDialog from '../components/BaseDialog.vue'
+import AgentChatPanel from '../components/AgentChatPanel.vue'
+
+defineOptions({ name: 'AgentConfig' })
 
 const { t, locale } = useI18n()
 const agentStore = useAgentStore()
@@ -248,7 +267,8 @@ const form = ref({
   enabled: true,
   skills: [],
   mcpServers: [],
-  envPairs: []
+  envPairs: [],
+  settingsPath: ''
 })
 
 const selectedSkillToAdd = ref('')
@@ -277,7 +297,8 @@ const setFormState = (agent) => {
     mcpServers: Array.isArray(agent?.mcpServers) ? [...agent.mcpServers] : [],
     envPairs: agent?.env && typeof agent.env === 'object'
       ? Object.entries(agent.env).map(([key, value]) => ({ key, value: String(value) }))
-      : []
+      : [],
+    settingsPath: agent?.settingsPath || ''
   }
   selectedSkillToAdd.value = ''
   selectedMcpServerToAdd.value = ''
@@ -308,7 +329,8 @@ const buildAgentPayload = () => {
     ...rest,
     skills: [...form.value.skills],
     mcpServers: [...form.value.mcpServers],
-    env
+    env,
+    settingsPath: form.value.settingsPath?.trim() || ''
   }
 }
 
@@ -503,7 +525,7 @@ onMounted(loadAgents)
 
 /* Left panel - Agent list */
 .agent-list-panel {
-  width: 300px;
+  width: 220px;
   flex-shrink: 0;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -606,6 +628,7 @@ onMounted(loadAgents)
 /* Right panel - Agent detail */
 .agent-detail-panel {
   flex: 1;
+  min-width: 0;
   background: var(--panel-bg);
   overflow: hidden;
   display: flex;
@@ -613,6 +636,11 @@ onMounted(loadAgents)
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+}
+
+/* When the chat panel is also visible, clamp detail panel to a fixed width */
+.agent-detail-panel.has-chat {
+  flex: 1;
 }
 
 .agent-title-row {
@@ -853,6 +881,13 @@ onMounted(loadAgents)
 .add-skill-btn:hover {
   background: var(--bg-tertiary);
   border-color: var(--border-color);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .preset-skills {

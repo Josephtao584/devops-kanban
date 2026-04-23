@@ -12,6 +12,8 @@ export interface CreateAgentBody {
   skills: number[];
   mcpServers: number[];
   env?: Record<string, string>;
+  /** @maxLength 500 */
+  settingsPath?: string;
 }
 
 export interface UpdateAgentBody {
@@ -26,4 +28,6 @@ export interface UpdateAgentBody {
   skills?: number[];
   mcpServers?: number[];
   env?: Record<string, string>;
+  /** @maxLength 500 */
+  settingsPath?: string;
 }

@@ -70,6 +70,12 @@ DevOps Kanban board for managing projects/tasks with AI agent execution in isola
 - WorkflowRunRepository serializes all mutations to prevent race conditions when steps execute rapidly
 - Mastra stores workflow state in `data/mastra.db` (LibSQL)
 
+**Agent Configuration:**
+- Each Agent can configure `settingsPath` (optional) — maps to Claude Code CLI `--settings <path>` flag
+- When `settingsPath` is set on an agent, the executor appends `--settings <path>` to the `claude` CLI invocation
+- If not configured, no `--settings` flag is passed (default Claude Code behavior)
+- This field only applies to `CLAUDE_CODE` executor type
+
 ### Frontend (`frontend/src/`) - Vue 3 + Vite 5 + Element Plus + Pinia
 
 **Routes:**
@@ -104,7 +110,22 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 | Task Sources | `GET/POST/PUT/DELETE /api/task-sources` |
 | Executions | `GET/POST/PUT/DELETE /api/executions` |
 | Agents | `GET/POST/PUT/DELETE /api/agents` |
+| Agent Chat | `POST /api/agents/{id}/chat/sessions`, `GET/POST/DELETE /api/agents/{id}/chat/sessions/{chatId}/messages` |
 | Health | `GET /health`, `GET /` |
+
+### Agent Chat API
+
+Chat endpoints allow testing any agent member via a real-time conversation panel:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/agents/:id/chat/sessions` | Start a new chat session. Returns `{ id, agentId, status }` |
+| `GET /api/agents/:id/chat/sessions` | Get the latest active (non-ended) chat session for an agent, including messages. Returns `null` if none exists |
+| `GET /api/agents/:id/chat/sessions/:chatId/messages` | Get full message history for a session |
+| `POST /api/agents/:id/chat/sessions/:chatId/messages` | Send a message. Returns SSE stream (`Content-Type: text/event-stream`) with events: `message`, `done`, `error` |
+| `DELETE /api/agents/:id/chat/sessions/:chatId` | End session and clean up temp directory |
+
+Chat sessions use a temporary directory (`os.tmpdir()/agent-chat-<uuid>`) as the executor working path. Agent skills and MCP servers are prepared in this directory for each session. Session history is persisted in `data/agent_chats.json`.
 
 ## Configuration
 

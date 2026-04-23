@@ -16,6 +16,7 @@ export interface ExecutorConfig {
   skills?: number[];
   mcpServers?: number[];
   env?: Record<string, string> | undefined;
+  settingsPath?: string | undefined;
 }
 
 export interface ExecutorProcessHandle {

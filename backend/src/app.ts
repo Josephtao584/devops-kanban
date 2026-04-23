@@ -10,6 +10,7 @@ import { initDatabase, seedSampleData } from './db/index.js';
 import { bootstrapBuiltinTemplates } from './services/workflow/workflowTemplateService.js';
 import {
   agentRoutes,
+  agentChatRoutes,
   executionRoutes,
   iterationRoutes,
   projectRoutes,
@@ -102,6 +103,7 @@ export async function buildApp() {
   fastify.register(taskSourceRoutes, { prefix: '/api/task-sources' });
   fastify.register(executionRoutes, { prefix: '/api/executions' });
   fastify.register(agentRoutes, { prefix: '/api/agents' });
+  fastify.register(agentChatRoutes, { prefix: '/api/agents' });
   fastify.register(workflowRoutes, { prefix: '/api/workflows' });
   fastify.register(workflowTemplateRoutes, { prefix: '/api/workflow-template' });
   fastify.register(iterationRoutes, { prefix: '/api/iterations' });

@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS agents (
   skills TEXT NOT NULL DEFAULT '[]',
   mcp_servers TEXT NOT NULL DEFAULT '[]',
   env TEXT NOT NULL DEFAULT '{}',
+  settings_path TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

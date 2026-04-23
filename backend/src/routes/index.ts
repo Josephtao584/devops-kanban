@@ -1,6 +1,7 @@
 export { projectRoutes } from './projects.js';
 export { executionRoutes } from './executions.js';
 export { agentRoutes } from './agents.js';
+export { agentChatRoutes } from './agentChat.js';
 export { taskRoutes } from './tasks.js';
 export { iterationRoutes } from './iterations.js';
 export { taskSourceRoutes } from './taskSources.js';

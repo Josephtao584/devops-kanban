@@ -325,3 +325,5 @@ export function useSessionEvents({ pollIntervalMs = 5000 } = {}) {
 }
 
 export default useSessionEvents
+
+export { normalizeEvent, normalizeEvents }

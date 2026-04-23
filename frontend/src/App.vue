@@ -82,7 +82,9 @@
 
     <!-- 主内容区域 -->
     <main class="main-content">
-      <router-view />
+      <keep-alive include="AgentConfig">
+        <router-view />
+      </keep-alive>
     </main>
   </div>
 </template>
