@@ -16,7 +16,11 @@ const sharedStateSchema = z.object({
   projectEnv: z.record(z.string()).optional(),
 });
 
-const stepOutputSchema = z.object({ summary: z.string() });
+const stepOutputSchema = z.object({
+  summary: z.string(),
+  earlyExitDecision: z.enum(['CONTINUE', 'SUCCESS_EXIT', 'FAIL_EXIT']).optional(),
+  earlyExitReason: z.string().nullable().optional(),
+});
 
 const firstStepInputSchema = z.object({
   taskId: z.number(),
@@ -152,12 +156,15 @@ export function buildWorkflowFromInstance(
             let result;
             if (pendingAnswer !== undefined && providerSessionId) {
               // Continuation round: send user's answer into the existing AI conversation
+              // Clear pendingAnswer BEFORE the call so a throw doesn't cause infinite retry
+              const answerToSend = pendingAnswer;
+              pendingAnswer = undefined;
               result = await continueWorkflowStepWithAnswer({
                 workflowInstance,
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
                 providerSessionId,
-                answerPrompt: pendingAnswer,
+                answerPrompt: answerToSend,
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;
@@ -181,7 +188,6 @@ export function buildWorkflowFromInstance(
                   }
                 },
               });
-              pendingAnswer = undefined;
             } else {
               // First execution: fresh prompt
               result = await executeWorkflowStep({
@@ -197,6 +203,7 @@ export function buildWorkflowFromInstance(
                 workflowInstance,
                 abortSignal,
                 upstreamStepIds: previousStepId ? [previousStepId] : [],
+                isFirstStep: isFirst,
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;
@@ -250,7 +257,16 @@ export function buildWorkflowFromInstance(
             }
 
             // Step completed successfully (no confirmation required)
-            await options.lifecycle.onStepComplete(options.runId, templateStep.id, result);
+            const earlyExitDecision = result.earlyExitDecision as 'CONTINUE' | 'SUCCESS_EXIT' | 'FAIL_EXIT' | undefined;
+            const earlyExitReason = result.earlyExitReason as string | null | undefined;
+
+            if (earlyExitDecision && (earlyExitDecision === 'SUCCESS_EXIT' || earlyExitDecision === 'FAIL_EXIT') && earlyExitReason) {
+              await options.lifecycle.onStepComplete(options.runId, templateStep.id, { summary: result.summary });
+              await options.lifecycle.onEarlyExit(options.runId, templateStep.id, earlyExitDecision, earlyExitReason);
+              return { summary: result.summary, earlyExitDecision, earlyExitReason };
+            }
+
+            await options.lifecycle.onStepComplete(options.runId, templateStep.id, result as unknown as Record<string, unknown>);
 
             return result;
           } catch (err) {
@@ -269,18 +285,30 @@ export function buildWorkflowFromInstance(
               }
 
               // Wait for user to respond via chat (continueSession changes session from ASK_USER to RUNNING)
-              const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!);
+              const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!, abortSignal);
 
               logger.info('Workflows', `Step ${templateStep.id} received user response, continuing conversation`);
 
               // Look up provider_session_id stored by onProviderState during execution
               const run = await options.lifecycle.workflowRunRepo.findById(options.runId);
               providerSessionId = run?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id ?? undefined;
+              if (!providerSessionId) {
+                throw new Error(`Cannot continue step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
+              }
               pendingAnswer = userAnswer;
               askUserHandled = false; // reset so next question in this step is also saved
 
               // Loop back to continue the AI conversation with the answer
               continue;
+            }
+
+            // Handle cancellation or timeout while waiting for user input
+            if ((err as any)?.message === 'WORKFLOW_CANCELLED' || (err as any)?.message === 'ASK_USER_TIMEOUT') {
+              const reason = (err as any).message === 'ASK_USER_TIMEOUT' ? 'Timed out waiting for user response' : 'Workflow cancelled';
+              logger.info('Workflows', `Step ${templateStep.id} exiting: ${reason}`);
+              await options.lifecycle.onStepCancel(options.runId, templateStep.id).catch(() => {});
+              abort();
+              return { summary: '' };
             }
 
             const errorMessage = err instanceof Error ? err.message : String(err);

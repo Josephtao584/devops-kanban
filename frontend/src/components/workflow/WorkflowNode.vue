@@ -56,6 +56,11 @@
       <el-icon><Back /></el-icon> 打回
     </div>
 
+    <!-- 提前终止标记 -->
+    <div v-if="isEarlyExit" class="early-exit-badge" :title="node.earlyExitReason">
+      <el-icon><WarningFilled /></el-icon> AI 终止
+    </div>
+
     <!-- 操作按钮 -->
     <div class="action-buttons">
       <!-- 查看详情按钮 -->
@@ -74,7 +79,7 @@
 import { computed } from 'vue'
 import { nodeStatusConfig } from '@/constants/workflowPresentation'
 import {
-  Back, Warning, Document, Timer
+  Back, WarningFilled, Document, Timer
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -101,6 +106,11 @@ const emit = defineEmits(['select', 'view-details'])
 // Compute if node is rejected
 const isRejected = computed(() => {
   return props.node.status === 'REJECTED' || props.node.status === 'FAILED'
+})
+
+// Compute if node was cancelled due to early exit
+const isEarlyExit = computed(() => {
+  return props.node.status === 'CANCELLED' && props.node.early_exit === true
 })
 
 // Handle click event
@@ -232,6 +242,12 @@ const statusColor = computed(() => {
 .workflow-node.status-rejected {
   border-color: #f59e0b;
   background: #fffbeb;
+}
+
+.workflow-node.status-cancelled {
+  opacity: 0.6;
+  border-color: #d1d5db;
+  background: #f9fafb;
 }
 
 /* 状态图标 */
@@ -375,6 +391,26 @@ const statusColor = computed(() => {
   font-size: 9px;
   font-weight: 500;
   border-radius: 7px;
+}
+
+/* 提前终止标记 */
+.early-exit-badge {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 7px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pulse-dot {

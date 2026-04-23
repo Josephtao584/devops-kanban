@@ -1,3 +1,11 @@
+export type EarlyExitDecision = 'CONTINUE' | 'SUCCESS_EXIT' | 'FAIL_EXIT';
+
+export interface AdaptedStepResult {
+  summary: string;
+  earlyExitDecision: EarlyExitDecision;
+  earlyExitReason: string | null;
+}
+
 export enum ExecutorType {
     CLAUDE_CODE = 'CLAUDE_CODE',
     OPEN_CODE = 'OPEN_CODE',

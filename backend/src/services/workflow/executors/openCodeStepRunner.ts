@@ -2,11 +2,36 @@ import crossSpawn, { SpawnedProcess } from 'cross-spawn';
 import { spawn } from 'node:child_process';
 import { parseStepResult, validateStepResult } from './openCodeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
-import type { ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
+import type { ExecutorProcessHandle, WorkflowExecutionEvent, AskUserQuestionData } from '../../../types/executors.js';
 import { buildEvent } from '../../../types/executors.js';
 import { OPENCODE_COMMAND } from '../../../config/index.js';
+import { logger } from '../../../utils/logger.js';
 
 const OPENCODE_DEFAULT_COMMAND = OPENCODE_COMMAND.split(/\s+/).filter(Boolean);
+
+const ASK_USER_REGEX = /\[ASK_USER\]\s*([\s\S]*?)\s*\[\/ASK_USER\]/;
+
+function parseAskUserMarker(text: string): WorkflowExecutionEvent | null {
+  const match = text.match(ASK_USER_REGEX);
+  if (!match || !match[1]) return null;
+
+  try {
+    const raw: Record<string, unknown> = JSON.parse(match[1]);
+    const toolUseId = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : '';
+    const questions = Array.isArray(raw.questions) ? raw.questions : [];
+    return buildEvent('ask_user', 'assistant', 'AskUserQuestion', {
+      tool_name: 'AskUserQuestion',
+      tool_id: toolUseId,
+      input: raw,
+      ask_user_question: {
+        tool_use_id: toolUseId,
+        questions,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
 
 type OpenCodeRuntimeExecutorConfig = {
   commandOverride?: string;
@@ -22,6 +47,7 @@ type OpenCodeSpawnExecution = {
   cwd: string;
   prompt: string;
   proc: ExecutorProcessHandle | null;
+  askUserQuestion?: AskUserQuestionData | undefined;
 };
 
 type OpenCodeCliOptions = {
@@ -114,6 +140,10 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
   if (type === 'text') {
     const part = json.part as Record<string, unknown> | undefined;
     if (typeof part?.text === 'string' && part.text.trim()) {
+      const askUserEvent = parseAskUserMarker(part.text);
+      if (askUserEvent) return askUserEvent;
+      // Suppress text that contains unparseable [ASK_USER] markers
+      if (ASK_USER_REGEX.test(part.text)) return null;
       return buildEvent('message', 'assistant', part.text);
     }
     return null;
@@ -180,6 +210,10 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
       // Text block (skip empty or whitespace-only)
       if (b.type === 'text' && typeof b.text === 'string') {
         if (b.text.trim()) {
+          const askUserEvent = parseAskUserMarker(b.text);
+          if (askUserEvent) return askUserEvent;
+          // Suppress text that contains unparseable [ASK_USER] markers
+          if (ASK_USER_REGEX.test(b.text)) return null;
           return buildEvent('message', 'assistant', b.text);
         }
         continue;
@@ -247,6 +281,7 @@ async function defaultSpawnImpl({
   cliOptions = {},
   abortSignal,
   onEvent,
+  onAskUser,
 }: {
   worktreePath: string;
   prompt: string;
@@ -254,6 +289,7 @@ async function defaultSpawnImpl({
   cliOptions?: OpenCodeCliOptions;
   abortSignal?: AbortSignal;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);
+  onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>);
 }) {
   const cliArgs = buildOpenCodeCliArgs(prompt, cliOptions);
   const resolved = buildOpenCodeSpawnCommand(executorConfig);
@@ -272,18 +308,22 @@ async function defaultSpawnImpl({
 
     if (abortSignal) {
       if (abortSignal.aborted) {
-        console.log(`[OpenCodeStepRunner] Already aborted, killing process immediately`);
+        logger.info('OpenCodeStepRunner', 'Already aborted, killing process immediately');
         killProcessTree(proc);
       } else {
-        abortSignal.addEventListener('abort', () => {
-          console.log(`[OpenCodeStepRunner] Abort event received, killing process. pid: ${proc.pid}`);
+        const abortHandler = () => {
+          logger.info('OpenCodeStepRunner', `Abort event received, killing process. pid: ${proc.pid}`);
           killProcessTree(proc);
-        }, { once: true });
+        };
+        abortSignal.addEventListener('abort', abortHandler, { once: true });
+        spawnedProc.on('close', () => abortSignal.removeEventListener('abort', abortHandler));
       }
     }
 
     let stdout = '';
     let stderr = '';
+    let killedByAskUser = false;
+    let capturedAskUserQuestion: AskUserQuestionData | undefined;
 
     spawnedProc.stdout?.on('data', (data: Buffer | string) => {
       const chunk = data.toString();
@@ -296,7 +336,25 @@ async function defaultSpawnImpl({
           const json = JSON.parse(line);
           const event = parseStreamEvent(json);
           if (event && onEvent) {
-            Promise.resolve(onEvent(event)).catch(() => {});
+            Promise.resolve(onEvent(event)).catch((err) => {
+              logger.warn('OpenCodeStepRunner', `onEvent failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
+          }
+
+          // Detect [ASK_USER] marker and kill process
+          if (!killedByAskUser && event?.kind === 'ask_user') {
+            const questionData = event.payload?.ask_user_question as AskUserQuestionData | undefined;
+            if (questionData) {
+              capturedAskUserQuestion = questionData;
+              killedByAskUser = true;
+              if (onAskUser) {
+                Promise.resolve(onAskUser(questionData)).catch((err) => {
+                  logger.warn('OpenCodeStepRunner', `onAskUser failed: ${err instanceof Error ? err.message : String(err)}`);
+                });
+              }
+              logger.info('OpenCodeStepRunner', `AskUserQuestion detected, killing process. pid: ${proc.pid}`);
+              killProcessTree(proc);
+            }
           }
         } catch {
           // Not valid JSON, ignore
@@ -311,13 +369,14 @@ async function defaultSpawnImpl({
     spawnedProc.on('error', reject);
     spawnedProc.on('close', async (exitCode: number | null) => {
       resolve({
-        exitCode,
+        exitCode: killedByAskUser ? 0 : exitCode,
         stdout,
         stderr,
         commandSummary,
         cwd: worktreePath,
         prompt,
         proc,
+        askUserQuestion: killedByAskUser ? capturedAskUserQuestion : undefined,
       });
     });
   });
@@ -349,6 +408,7 @@ class OpenCodeStepRunner {
     cliOptions,
     abortSignal,
     onEvent,
+    onAskUser,
   }: {
     prompt: string;
     worktreePath: string;
@@ -356,6 +416,7 @@ class OpenCodeStepRunner {
     cliOptions?: OpenCodeCliOptions;
     abortSignal?: AbortSignal;
     onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);
+    onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>);
   }) {
     const spawnInput: Parameters<typeof defaultSpawnImpl>[0] = {
       worktreePath,
@@ -365,8 +426,16 @@ class OpenCodeStepRunner {
     if (cliOptions) spawnInput.cliOptions = cliOptions;
     if (abortSignal) spawnInput.abortSignal = abortSignal;
     if (onEvent) spawnInput.onEvent = onEvent;
+    if (onAskUser) spawnInput.onAskUser = onAskUser;
 
     const execution = await this.spawnImpl(spawnInput);
+
+    // If AskUserQuestion was triggered, throw for workflow to catch
+    if (execution.askUserQuestion) {
+      const error: any = new Error('STEP_AWAITING_USER_INPUT');
+      error.askUserQuestion = execution.askUserQuestion;
+      throw error;
+    }
 
     if (execution.exitCode !== 0) {
       throw new Error(`OpenCode step failed with exit code ${execution.exitCode}: ${execution.stderr || execution.stdout}`);

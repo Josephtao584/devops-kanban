@@ -1,7 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { STORAGE_PATH } from '../config/index.js';
 import { logger } from './logger.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const BUILTIN_SKILLS_DIR = resolve(__dirname, '..', 'resources', 'skills');
 
 function copyDirRecursive(src: string, dest: string): void {
   mkdirSync(dest, { recursive: true });
@@ -18,6 +22,9 @@ function copyDirRecursive(src: string, dest: string): void {
   }
 }
 
+/**
+ * Copy skills to Claude Code path: .claude/skills/
+ */
 export async function ensureSkillsInWorktree(skillNames: string[], projectPath: string): Promise<void> {
   if (!skillNames || skillNames.length === 0) {
     return;
@@ -47,6 +54,44 @@ export async function ensureSkillsInWorktree(skillNames: string[], projectPath: 
       logger.info('SkillSync', `Copied skill "${skillName}" to project: ${targetDir}`);
     } else {
       logger.warn('SkillSync', `Skill "${skillName}" not found in data/skills, skipping`);
+    }
+  }
+}
+
+/**
+ * Copy skills to OpenCode path: .opencode/skills/
+ * Checks builtin skills (src/resources/skills/) first, then data/skills/.
+ */
+export async function ensureOpenCodeSkillsInWorktree(skillNames: string[], projectPath: string): Promise<void> {
+  if (!skillNames || skillNames.length === 0) {
+    return;
+  }
+
+  const targetSkillsDir = resolve(projectPath, '.opencode', 'skills');
+
+  if (!existsSync(targetSkillsDir)) {
+    mkdirSync(targetSkillsDir, { recursive: true });
+    logger.info('SkillSync', `Created directory: ${targetSkillsDir}`);
+  }
+
+  for (const skillName of skillNames) {
+    const targetDir = resolve(targetSkillsDir, skillName);
+
+    if (existsSync(targetDir)) {
+      logger.info('SkillSync', `Skill "${skillName}" already exists in project, skipping`);
+      continue;
+    }
+
+    // Check builtin skills first, then data/skills
+    const builtinDir = resolve(BUILTIN_SKILLS_DIR, skillName);
+    const dataDir = resolve(STORAGE_PATH, 'skills', skillName);
+    const sourceDir = existsSync(builtinDir) ? builtinDir : dataDir;
+
+    if (existsSync(sourceDir)) {
+      copyDirRecursive(sourceDir, targetDir);
+      logger.info('SkillSync', `Copied skill "${skillName}" to project: ${targetDir}`);
+    } else {
+      logger.warn('SkillSync', `Skill "${skillName}" not found in builtin or data/skills, skipping`);
     }
   }
 }

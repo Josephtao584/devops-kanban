@@ -26,6 +26,8 @@ function toStepState(instance: WorkflowInstanceEntity) {
     session_id: null,
     summary: null,
     error: null,
+    early_exit: null,
+    early_exit_reason: null,
   }));
 }
 
@@ -369,14 +371,16 @@ class WorkflowService {
 
     await this.lifecycle.onStepResume(runId, suspendedStep.step_id, resumeData);
 
+    // Fire-and-forget: resume() blocks until the entire remaining workflow finishes.
+    // Run it in the background so the HTTP handler returns immediately.
     mastraRun.resume({
       step: suspendedStep.step_id,
       resumeData,
-    }).then((result: any) => {
-      logger.info('WorkflowService', `Resume result status: ${result?.status}`);
-    }).catch((err: Error) => {
+    }).then((result) => {
+      logger.info('WorkflowService', `Resume result status: ${(result as any)?.status}`);
+    }).catch(async (err: any) => {
       logger.error('WorkflowService', `Resume error: ${err.message}`);
-      this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});
+      await this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});
     });
 
     return await this.workflowRunRepo.findById(runId);

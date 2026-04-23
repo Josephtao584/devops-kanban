@@ -7,6 +7,7 @@ import {
   buildOpenCodeSpawnCommand,
   parseStreamEvent,
 } from '../src/services/workflow/executors/openCodeStepRunner.js';
+import type { AskUserQuestionData } from '../src/types/executors.js';
 
 test.test('buildOpenCodeCliArgs uses run subcommand with json format and thinking', () => {
   assert.deepEqual(buildOpenCodeCliArgs('implement the feature'), [
@@ -418,4 +419,139 @@ test.test('OpenCodeStepRunner includes diagnostics when stdout summary is missin
     assert.match(typedError.message, /some stderr warning/);
     return true;
   });
+});
+
+// [ASK_USER] marker detection tests
+test.test('parseStreamEvent detects [ASK_USER] marker in text event', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    part: { text: '[ASK_USER]\n{"tool_use_id":"ask-1","questions":[{"question":"Which approach?","header":"Strategy","options":[{"label":"A","value":"a"},{"label":"B","value":"b"}]}]}\n[/ASK_USER]' },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'ask_user');
+  assert.equal(event!.role, 'assistant');
+  assert.equal(event!.content, 'AskUserQuestion');
+  const askData = event!.payload!.ask_user_question as AskUserQuestionData;
+  assert.equal(askData.tool_use_id, 'ask-1');
+  assert.equal(askData.questions.length, 1);
+  assert.equal(askData.questions[0]!.question, 'Which approach?');
+});
+
+test.test('parseStreamEvent detects [ASK_USER] marker in assistant text block', () => {
+  const event = parseStreamEvent({
+    type: 'assistant',
+    message: {
+      content: [{
+        type: 'text',
+        text: 'Let me ask...\n[ASK_USER]\n{"tool_use_id":"ask-2","questions":[{"question":"Continue?"}]}\n[/ASK_USER]',
+      }],
+    },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'ask_user');
+  const askData = event!.payload!.ask_user_question as AskUserQuestionData;
+  assert.equal(askData.tool_use_id, 'ask-2');
+  assert.equal(askData.questions.length, 1);
+  assert.equal(askData.questions[0]!.question, 'Continue?');
+});
+
+test.test('parseStreamEvent returns null for invalid JSON inside [ASK_USER] marker', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    part: { text: '[ASK_USER]\nnot valid json\n[/ASK_USER]' },
+  });
+  assert.equal(event, null);
+});
+
+test.test('parseStreamEvent passes through regular text without markers', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    part: { text: 'This is just a regular message' },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'message');
+  assert.equal(event!.content, 'This is just a regular message');
+});
+
+test.test('parseStreamEvent detects [ASK_USER] marker with multiSelect option', () => {
+  const event = parseStreamEvent({
+    type: 'text',
+    part: { text: '[ASK_USER]\n{"tool_use_id":"ask-multi","questions":[{"question":"Select features","header":"Features","options":[{"label":"Auth","value":"auth"},{"label":"Logging","value":"logging"}],"multiSelect":true}]}\n[/ASK_USER]' },
+  });
+  assert.ok(event);
+  assert.equal(event!.kind, 'ask_user');
+  const askData = event!.payload!.ask_user_question as AskUserQuestionData;
+  assert.equal(askData.questions[0]!.multiSelect, true);
+});
+
+test.test('OpenCodeStepRunner throws STEP_AWAITING_USER_INPUT when askUserQuestion is captured', async () => {
+  const questionData = {
+    tool_use_id: 'ask-1',
+    questions: [{ question: 'Continue?', header: 'Confirm', options: [{ label: 'Yes', value: 'yes' }] }],
+  };
+
+  const runner = new OpenCodeStepRunner({
+    spawnImpl: async () => ({
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      commandSummary: 'mock',
+      cwd: '/tmp',
+      prompt: 'test',
+      proc: null,
+      askUserQuestion: questionData,
+    }),
+  });
+
+  try {
+    await runner.runStep({
+      prompt: 'test',
+      worktreePath: '/tmp',
+    });
+    assert.fail('Should have thrown');
+  } catch (error: unknown) {
+    const err = error as Error & { askUserQuestion?: unknown };
+    assert.equal(err.message, 'STEP_AWAITING_USER_INPUT');
+    assert.deepEqual(err.askUserQuestion, questionData);
+  }
+});
+
+test.test('OpenCodeStepRunner passes onAskUser to spawn implementation', async () => {
+  let receivedAskUser: unknown = null;
+  let spawnOnAskUser: ((data: unknown) => void) | undefined;
+
+  const runner = new OpenCodeStepRunner({
+    spawnImpl: async ({ onAskUser }) => {
+      spawnOnAskUser = onAskUser as ((data: unknown) => void) | undefined;
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ type: 'result', result: 'done' }),
+        stderr: '',
+        commandSummary: 'mock',
+        cwd: '/tmp',
+        prompt: 'test',
+        proc: null,
+      };
+    },
+  });
+
+  const questionData = {
+    tool_use_id: 'ask-1',
+    questions: [{ question: 'Continue?' }],
+  };
+
+  await runner.runStep({
+    prompt: 'test',
+    worktreePath: '/tmp',
+    onAskUser: async (data) => {
+      receivedAskUser = data;
+    },
+  });
+
+  // Simulate the spawn impl calling onAskUser
+  assert.equal(typeof spawnOnAskUser, 'function');
+  if (spawnOnAskUser) {
+    spawnOnAskUser(questionData);
+  }
+  assert.deepEqual(receivedAskUser, questionData);
 });

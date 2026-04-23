@@ -1,3 +1,32 @@
+import type { EarlyExitDecision } from '../../../types/executors.js';
+
+const EARLY_EXIT_JSON_REGEX = /\{[^{}]*"decision"\s*:\s*"(?:SUCCESS_EXIT|FAIL_EXIT|CONTINUE)"[^{}]*\}/g;
+
+export function extractEarlyExitSignal(summary: string): { signal: { decision: EarlyExitDecision; reason?: string } | null; cleanSummary: string } {
+  const matches = summary.match(EARLY_EXIT_JSON_REGEX);
+  if (!matches) {
+    return { signal: null, cleanSummary: summary };
+  }
+
+  for (const candidate of matches) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (['SUCCESS_EXIT', 'FAIL_EXIT', 'CONTINUE'].includes(parsed.decision)) {
+        const signal = {
+          decision: parsed.decision as EarlyExitDecision,
+          reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
+        };
+        const cleanSummary = summary.replace(candidate, '').trim();
+        return { signal, cleanSummary };
+      }
+    } catch {
+      // Not valid JSON, try next match
+    }
+  }
+
+  return { signal: null, cleanSummary: summary };
+}
+
 function extractResultFromStreamJson(stdout: string): string {
   const assistantTextParts: string[] = [];
 

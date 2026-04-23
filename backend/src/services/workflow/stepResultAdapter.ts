@@ -1,5 +1,6 @@
 import { validateStepResult } from './executors/claudeStepResult.js';
-import type { ExecutorRawResult, WorkflowExecutionEvent, WorkflowExecutionEventRole } from '../../types/executors.js';
+import { extractEarlyExitSignal } from './executors/claudeStepResult.js';
+import type { ExecutorRawResult, WorkflowExecutionEvent, WorkflowExecutionEventRole, AdaptedStepResult } from '../../types/executors.js';
 import { buildEvent } from '../../types/executors.js';
 
 type ExecutorRawEvent = {
@@ -77,7 +78,15 @@ export function normalizeExecutorRawResult(rawResult: ExecutorRawResult | undefi
   };
 }
 
-export function adaptStepResult(_executorType: string, executionResult: { rawResult?: ExecutorRawResult }) {
+export function adaptStepResult(_executorType: string, executionResult: { rawResult?: ExecutorRawResult }): AdaptedStepResult {
   const normalizedRawResult = normalizeExecutorRawResult(executionResult?.rawResult);
-  return validateStepResult(normalizedRawResult);
+  const result = validateStepResult(normalizedRawResult);
+
+  const { signal, cleanSummary } = extractEarlyExitSignal(result.summary);
+
+  return {
+    summary: cleanSummary,
+    earlyExitDecision: signal?.decision ?? 'CONTINUE',
+    earlyExitReason: signal?.reason ?? null,
+  };
 }

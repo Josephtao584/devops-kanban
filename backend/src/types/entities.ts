@@ -106,6 +106,9 @@ export interface WorkflowStepEntity {
   // AskUserQuestion fields
   ask_user_question?: Record<string, unknown> | null;
   ask_user_answer?: string | null;
+  // Early exit fields
+  early_exit?: boolean | null;
+  early_exit_reason?: string | null;
 }
 
 export interface WorkflowTemplateStepEntity {
@@ -115,6 +118,8 @@ export interface WorkflowTemplateStepEntity {
   agentId: number;
   // Suspend/resume configuration
   requiresConfirmation?: boolean;
+  // Early exit configuration
+  canEarlyExit?: boolean;
 }
 
 export interface WorkflowRunEntity {

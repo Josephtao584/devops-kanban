@@ -12,7 +12,7 @@ import { prepareExecutionSkills } from './executorSkillPreparation.js';
 import { cleanupSkillsByManifest, writeSkillManifest } from '../../utils/skillSync.js';
 import { resolveAgentMcpServersWithMeta, preCheckMcpServers } from './workflowMcpSync.js';
 import { prepareExecutionMcp } from './executorMcpPreparation.js';
-import { cleanupMcpJson } from '../../utils/mcpSync.js';
+import { cleanupMcpJson, cleanupOpenCodeMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
@@ -72,6 +72,11 @@ class WorkflowLifecycle {
         askUserQuestion?: Record<string, unknown> | null;
       };
       errorMessage?: string;
+      earlyExitInfo?: {
+        decision: 'SUCCESS_EXIT' | 'FAIL_EXIT';
+        reason: string;
+        stepId: string;
+      };
     },
   ) {
     if (!this.onWorkflowNotification) return;
@@ -102,6 +107,9 @@ class WorkflowLifecycle {
       }
       if (extra?.errorMessage != null) {
         notification.errorMessage = extra.errorMessage;
+      }
+      if (extra?.earlyExitInfo != null) {
+        notification.earlyExitInfo = extra.earlyExitInfo;
       }
       this.onWorkflowNotification(notification);
     } catch (error) {
@@ -232,10 +240,17 @@ class WorkflowLifecycle {
     return run.status === 'CANCELLED' || step.status === 'CANCELLED';
   }
 
-  private async _cleanupPreviousStepSkills(executionPath: string, runId: number): Promise<void> {
+  private async _cleanupPreviousStepSkills(executionPath: string, runId: number, executorType?: string): Promise<void> {
     try {
-      const skillsDir = resolve(executionPath, '.claude', 'skills');
-      await cleanupSkillsByManifest(skillsDir, runId);
+      // Cleanup Claude Code skills
+      const claudeSkillsDir = resolve(executionPath, '.claude', 'skills');
+      await cleanupSkillsByManifest(claudeSkillsDir, runId);
+
+      // Cleanup OpenCode skills
+      if (executorType === 'OPEN_CODE' || !executorType) {
+        const openCodeSkillsDir = resolve(executionPath, '.opencode', 'skills');
+        await cleanupSkillsByManifest(openCodeSkillsDir, runId);
+      }
     } catch (err) {
       logger.warn('WorkflowLifecycle', `Failed to cleanup previous step skills: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -259,7 +274,10 @@ class WorkflowLifecycle {
         executionPath,
       });
 
-      const skillsDir = resolve(executionPath, '.claude', 'skills');
+      // Write manifest to the correct directory based on executor type
+      const skillsDir = executorType === 'OPEN_CODE'
+        ? resolve(executionPath, '.opencode', 'skills')
+        : resolve(executionPath, '.claude', 'skills');
       await writeSkillManifest(skillsDir, {
         runId,
         stepId,
@@ -286,6 +304,7 @@ class WorkflowLifecycle {
       const serversWithMeta = await resolveAgentMcpServersWithMeta(stepBinding.agentId);
       if (serversWithMeta.length === 0) {
         await cleanupMcpJson(executionPath);
+        await cleanupOpenCodeMcpJson(executionPath);
         return;
       }
 
@@ -294,6 +313,7 @@ class WorkflowLifecycle {
       if (mcpServerConfigs.length === 0) {
         logger.warn('WorkflowLifecycle', `All MCP servers failed pre-check for step ${stepId}`);
         await cleanupMcpJson(executionPath);
+        await cleanupOpenCodeMcpJson(executionPath);
         return;
       }
 
@@ -507,6 +527,63 @@ class WorkflowLifecycle {
     });
   }
 
+  async onEarlyExit(
+    runId: number,
+    stepId: string,
+    decision: 'SUCCESS_EXIT' | 'FAIL_EXIT',
+    reason: string,
+  ) {
+    // Update current step with early exit info
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      early_exit: true,
+      early_exit_reason: reason,
+    });
+
+    // Cancel all PENDING steps
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) return;
+
+    const completedAt = new Date().toISOString();
+    for (const step of run.steps) {
+      if (step.status === 'PENDING') {
+        await this.workflowRunRepo.updateStep(runId, step.step_id, {
+          status: 'CANCELLED',
+          started_at: completedAt,
+          completed_at: completedAt,
+          summary: null,
+          error: 'Skipped — previous step triggered early exit',
+        });
+      }
+    }
+
+    // Update workflow run status
+    if (decision === 'SUCCESS_EXIT') {
+      await this.workflowRunRepo.update(runId, {
+        status: 'COMPLETED',
+        current_step: null,
+      });
+      if (run.task_id) {
+        await this.taskRepo.update(run.task_id, { status: 'DONE' });
+      }
+      await this._emitNotification('COMPLETED', runId, run.task_id, {
+        currentStepId: stepId,
+        earlyExitInfo: { decision: 'SUCCESS_EXIT', reason, stepId },
+      });
+    } else {
+      await this.workflowRunRepo.update(runId, {
+        status: 'FAILED',
+        current_step: null,
+      });
+      if (run.task_id) {
+        await this.taskRepo.update(run.task_id, { status: 'TODO' });
+      }
+      await this._emitNotification('FAILED', runId, run.task_id, {
+        currentStepId: stepId,
+        earlyExitInfo: { decision: 'FAIL_EXIT', reason, stepId },
+      });
+    }
+  }
+
   async onStepError(runId: number, stepId: string, errorMessage: string) {
     await this._finalizeStepArtifacts(runId, stepId, 'FAILED', {
       error: errorMessage || 'Step failed',
@@ -615,18 +692,26 @@ class WorkflowLifecycle {
    * Returns the latest user message content.
    * Used by the step function to wait for user answers without suspending the workflow.
    */
-  async waitForSessionResponse(sessionId: number): Promise<string> {
+  async waitForSessionResponse(sessionId: number, abortSignal?: AbortSignal): Promise<string> {
     const POLL_INTERVAL_MS = 1000;
     const MAX_WAIT_MS = 600_000; // 10 minutes timeout
     const startTime = Date.now();
 
     while (Date.now() - startTime < MAX_WAIT_MS) {
+      if (abortSignal?.aborted) {
+        throw new Error('WORKFLOW_CANCELLED');
+      }
+
       const session = await this.sessionRepo.findById(sessionId);
       if (!session || session.status !== 'ASK_USER') {
         // Session is no longer ASK_USER — user has responded
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    if (Date.now() - startTime >= MAX_WAIT_MS) {
+      throw new Error('ASK_USER_TIMEOUT');
     }
 
     // Get the latest user message from session events
@@ -665,6 +750,7 @@ class WorkflowLifecycle {
     const { run } = await this._getRunStep(runId, stepId);
     if (run.worktree_path) {
       await cleanupMcpJson(run.worktree_path);
+      await cleanupOpenCodeMcpJson(run.worktree_path);
     }
     await this._finalizeStepArtifacts(runId, stepId, 'CANCELLED', {
       error: 'Workflow cancelled',

@@ -28,7 +28,7 @@ const defaultPromptParams: DefaultWorkflowPromptParams = {
   upstreamStepIds: [],
 };
 
-function buildPrompt(overrides: WorkflowPromptOverrides = {}) {
+async function buildPrompt(overrides: WorkflowPromptOverrides = {}) {
   return assembleWorkflowPrompt({
     ...defaultPromptParams,
     ...overrides,
@@ -77,8 +77,8 @@ function assertInOrder(prompt: string, sections: string[]) {
   }
 }
 
-test.test('assembleWorkflowPrompt builds first-step prompt with agent identity and required guidance', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt builds first-step prompt with agent identity and required guidance', async () => {
+  const prompt = await buildPrompt({
     step: {
       name: '需求设计',
       instructionPrompt: '先完成需求分析和设计拆解。',
@@ -106,8 +106,8 @@ test.test('assembleWorkflowPrompt builds first-step prompt with agent identity a
   assertPromptIncludesLiteralLine(prompt, '本步骤要求：', '先完成需求分析和设计拆解。');
 });
 
-test.test('assembleWorkflowPrompt omits the entire current-agent section when no agent is supplied', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt omits the entire current-agent section when no agent is supplied', async () => {
+  const prompt = await buildPrompt({
     step: {
       name: '需求设计',
       instructionPrompt: '先完成需求分析和设计拆解。',
@@ -128,8 +128,8 @@ test.test('assembleWorkflowPrompt omits the entire current-agent section when no
   assertPromptIncludesLiteralLine(prompt, '本步骤要求：', '先完成需求分析和设计拆解。');
 });
 
-test.test('assembleWorkflowPrompt places agent identity after upstream summaries and before step requirements', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt places agent identity after upstream summaries and before step requirements', async () => {
+  const prompt = await buildPrompt({
     step: {
       name: '代码开发',
       instructionPrompt: '根据设计摘要完成代码实现。',
@@ -155,8 +155,8 @@ test.test('assembleWorkflowPrompt places agent identity after upstream summaries
   assertPromptIncludesLiteralLine(prompt, '本步骤要求：', '根据设计摘要完成代码实现。');
 });
 
-test.test('assembleWorkflowPrompt includes all upstream summaries for merged inputs', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt includes all upstream summaries for merged inputs', async () => {
+  const prompt = await buildPrompt({
     step: {
       name: '代码审查',
       instructionPrompt: '根据上游结果完成代码审查。',
@@ -172,8 +172,8 @@ test.test('assembleWorkflowPrompt includes all upstream summaries for merged inp
   assert.ok(prompt.includes(`- testing:${literalLineBreak}测试通过`));
 });
 
-test.test('assembleWorkflowPrompt omits upstream summary section when summaries are missing', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt omits upstream summary section when summaries are missing', async () => {
+  const prompt = await buildPrompt({
     inputData: {},
     upstreamStepIds: ['code-development'],
   });
@@ -181,8 +181,8 @@ test.test('assembleWorkflowPrompt omits upstream summary section when summaries 
   assert.doesNotMatch(prompt, /上游步骤摘要：/);
 });
 
-test.test('assembleWorkflowPrompt omits agent description when description is missing', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt omits agent description when description is missing', async () => {
+  const prompt = await buildPrompt({
     agent: {
       name: '测试代理',
       role: '测试工程师',
@@ -196,8 +196,8 @@ test.test('assembleWorkflowPrompt omits agent description when description is mi
   assert.doesNotMatch(prompt, /代理描述：/);
 });
 
-test.test('assembleWorkflowPrompt omits agent description when description is blank', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt omits agent description when description is blank', async () => {
+  const prompt = await buildPrompt({
     agent: buildAgent({
       name: '测试代理',
       role: '测试工程师',
@@ -232,12 +232,11 @@ test.test('renderPromptPlaceholders returns original when no placeholders', () =
   assert.equal(result, 'no placeholders here');
 });
 
-test.test('assembleWorkflowPrompt renders projectEnv placeholders in instructionPrompt', () => {
-  const prompt = buildPrompt({
+test.test('assembleWorkflowPrompt renders projectEnv placeholders in instructionPrompt', async () => {
+  const decoded = (await buildPrompt({
     step: { name: 'Deploy', instructionPrompt: '执行流水线 {{PIPELINE_ID}}' },
     projectEnv: { PIPELINE_ID: '789' },
-  });
-  const decoded = prompt.replaceAll(literalLineBreak, '\n');
+  })).replaceAll(literalLineBreak, '\n');
   assert.ok(decoded.includes('执行流水线 789'), `Expected rendered prompt to include "执行流水线 789", got: ${decoded}`);
   assert.ok(!decoded.includes('{{PIPELINE_ID}}'), `Expected no {{PIPELINE_ID}} in prompt, got: ${decoded}`);
 });

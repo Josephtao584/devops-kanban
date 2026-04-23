@@ -34,6 +34,7 @@ interface ExecuteWorkflowStepInput {
   onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
   onAskUser?: (data: AskUserQuestionData) => void | Promise<void>;
   onAssembledPrompt?: (prompt: string) => void | Promise<void>;
+  isFirstStep?: boolean;
 }
 
 function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
@@ -80,6 +81,7 @@ export async function executeWorkflowStep({
   onProviderState,
   onAskUser,
   onAssembledPrompt,
+  isFirstStep = false,
 }: ExecuteWorkflowStepInput) {
   // 1. Find step
   const step = workflowInstance.steps.find((item) => item.id === stepId);
@@ -93,13 +95,16 @@ export async function executeWorkflowStep({
 
   // 3. Build prompt
   const effectiveProjectEnv = projectEnv ?? state.projectEnv;
-  const prompt = assembleWorkflowPrompt({
+  const prompt = await assembleWorkflowPrompt({
     step,
     state,
     inputData,
     upstreamStepIds,
     agent,
     ...(effectiveProjectEnv ? { projectEnv: effectiveProjectEnv } : {}),
+    worktreePath,
+    isFirstStep,
+    canEarlyExit: step.canEarlyExit ?? false,
   });
 
   if (onAssembledPrompt) {

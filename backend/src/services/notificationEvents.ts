@@ -18,6 +18,10 @@ interface WorkflowNotificationEvent {
     askUserQuestion?: Record<string, unknown> | null;
   };
   errorMessage?: string;
+  earlyExitInfo?: {
+    decision: 'SUCCESS_EXIT' | 'FAIL_EXIT';
+    reason: string;
+    stepId: string;
+  };
 }
-
 export { StepSnapshot, WorkflowNotificationEvent };

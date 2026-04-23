@@ -13,7 +13,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     throw new ValidationError('无效的工作流模板步骤', 'Invalid workflow template steps');
   }
 
-  const { id, name, instructionPrompt, agentId, requiresConfirmation } = step;
+  const { id, name, instructionPrompt, agentId, requiresConfirmation, canEarlyExit } = step;
 
   if (typeof id !== 'string' || !id.trim()) {
     throw new ValidationError('步骤 ID 必须为非空字符串', 'step id must be a non-empty string');
@@ -40,6 +40,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
 
   // Handle requiresConfirmation - optional boolean
   const normalizedRequiresConfirmation = requiresConfirmation === true;
+  const normalizedCanEarlyExit = canEarlyExit === true;
 
   return {
     id: id.trim(),
@@ -47,6 +48,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     instructionPrompt: instructionPrompt.trim(),
     agentId,
     requiresConfirmation: normalizedRequiresConfirmation,
+    canEarlyExit: normalizedCanEarlyExit,
   };
 }
 

@@ -39,6 +39,7 @@ export const getWorkflowDisplayStatus = (run) => {
   if (run.status === 'COMPLETED') return 'done'
   if (run.status === 'FAILED') return 'failed'
   if (run.status === 'CANCELLED') return 'cancelled'
+  if (run.status === 'EARLY_EXIT') return 'early_exit'
   return 'pending'
 }
 
@@ -71,6 +72,8 @@ export const toTimelineWorkflow = (run) => {
             providerSessionId: step.provider_session_id ?? null,
             agentId: step.agent_id ?? snapshot?.agentId ?? null,
             assembled_prompt: step.assembled_prompt ?? null,
+            early_exit: step.early_exit ?? null,
+            earlyExitReason: step.early_exit_reason ?? null,
           }
         ]
       }
