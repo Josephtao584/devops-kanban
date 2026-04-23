@@ -694,13 +694,11 @@ class WorkflowLifecycle {
    */
   async waitForSessionResponse(sessionId: number, abortSignal?: AbortSignal, runId?: number): Promise<string> {
     const POLL_INTERVAL_MS = 1000;
-    const MAX_WAIT_MS = 600_000; // 10 minutes timeout
-    const startTime = Date.now();
     // Stale signal: already aborted before this wait started (from a previously-cancelled run).
     // Don't treat it as a live cancellation — the retry should be allowed to proceed.
     const signalAlreadyAborted = abortSignal?.aborted ?? false;
 
-    while (Date.now() - startTime < MAX_WAIT_MS) {
+    while (true) {
       // Only honour a fresh abort (signal flipped during this wait, not before)
       if (abortSignal?.aborted && !signalAlreadyAborted) {
         throw new Error('WORKFLOW_CANCELLED');
@@ -721,10 +719,6 @@ class WorkflowLifecycle {
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    }
-
-    if (Date.now() - startTime >= MAX_WAIT_MS) {
-      throw new Error('ASK_USER_TIMEOUT');
     }
 
     // Get the latest user message from session events
