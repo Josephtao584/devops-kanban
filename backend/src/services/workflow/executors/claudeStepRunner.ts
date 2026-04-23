@@ -353,7 +353,8 @@ class ClaudeStepRunner {
     }
 
     if (execution.exitCode !== 0) {
-      throw new Error(`Claude step failed with exit code ${execution.exitCode}: ${execution.stderr || execution.stdout}`);
+      const parts = [execution.stderr, execution.stdout].filter(Boolean);
+      throw new Error(`Claude step failed with exit code ${execution.exitCode}: ${parts.join('\n')}`);
     }
 
     let parsedResult;
