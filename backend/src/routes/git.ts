@@ -6,6 +6,7 @@ import iconv from 'iconv-lite';
 
 import { ProjectRepository } from '../repositories/projectRepository.js';
 import { TaskRepository } from '../repositories/taskRepository.js';
+import { WorkflowRunRepository } from '../repositories/workflowRunRepository.js';
 import { createWorktree, cleanupWorktree, getWorktreeStatus, isGitRepository, mergeBranch, buildBranchName } from '../utils/git.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { getStatusCode, getErrorMessage, logError } from '../utils/http.js';
@@ -16,6 +17,7 @@ import { readFileContent, readHeadFileContent, writeFileContent } from '../utils
 
 const projectRepo = new ProjectRepository();
 const taskRepo = new TaskRepository();
+const workflowRunRepo = new WorkflowRunRepository();
 
 function parseNumber(value: string | undefined) {
   return value ? Number.parseInt(value, 10) : 0;
@@ -794,6 +796,27 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const { repoPath } = await getProjectRepoPath(projectId);
+
+        // 检查是否有运行中的工作流
+        try {
+          const project = await projectRepo.findById(projectId);
+          if (project) {
+            const tasks = await taskRepo.findByProject(projectId);
+            const taskIds = tasks.map(t => t.id);
+
+            if (taskIds.length > 0) {
+              // 检查这些任务是否有运行中的工作流
+              const runningCount = await workflowRunRepo.countRunningByTaskIds(taskIds);
+              if (runningCount > 0) {
+                reply.code(409);
+                return errorResponse(`无法合入：该项目有 ${runningCount} 个工作流正在运行中，请先等待工作流完成或取消工作流`);
+              }
+            }
+          }
+        } catch (checkError) {
+          // 工作流检查失败时记录警告，但不阻止合入操作
+          logger.warn('GitRoutes', `Failed to check running workflows: ${checkError instanceof Error ? checkError.message : String(checkError)}`);
+        }
 
         // 验证源分支存在
         try {

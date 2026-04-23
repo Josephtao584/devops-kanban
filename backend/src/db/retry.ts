@@ -1,9 +1,11 @@
+import { logger } from '../utils/logger.js';
+
 /**
  * Retry a database operation on SQLITE_BUSY errors.
- * Uses exponential backoff: 100ms, 200ms, 400ms...
+ * Uses exponential backoff: 200ms, 400ms, 800ms, 1.6s, 3.2s
  */
-const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 100;
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 200;
 
 function isBusyError(error: unknown): boolean {
   if (error instanceof Error) {
@@ -27,6 +29,7 @@ export async function withRetry<T>(operation: () => Promise<T>, retries = MAX_RE
       if (isBusyError(error) && attempt < retries) {
         const waitMs = BASE_DELAY_MS * Math.pow(2, attempt);
         console.warn(`[DB] SQLITE_BUSY on attempt ${attempt + 1}/${retries + 1}, retrying in ${waitMs}ms...`);
+        logger.warn('DB', `SQLITE_BUSY on attempt ${attempt + 1}/${retries + 1}, retrying in ${waitMs}ms`);
         await delay(waitMs);
         continue;
       }

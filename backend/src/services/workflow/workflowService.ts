@@ -369,15 +369,18 @@ class WorkflowService {
 
     const { mastraRun } = await this.getMastraRunContext(runId);
 
-    await this.lifecycle.onStepResume(runId, suspendedStep.step_id, resumeData);
+    // Skip onStepResume for ASK_USER resumes — it writes confirmation fields that don't apply here
+    if (!resumeData.ask_user_answer) {
+      await this.lifecycle.onStepResume(runId, suspendedStep.step_id, resumeData);
+    }
 
     // Fire-and-forget: resume() blocks until the entire remaining workflow finishes.
     // Run it in the background so the HTTP handler returns immediately.
     mastraRun.resume({
       step: suspendedStep.step_id,
       resumeData,
-    }).then((result) => {
-      logger.info('WorkflowService', `Resume result status: ${(result as any)?.status}`);
+    }).then((result: any) => {
+      logger.info('WorkflowService', `Resume result status: ${result?.status}`);
     }).catch(async (err: any) => {
       logger.error('WorkflowService', `Resume error: ${err.message}`);
       await this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});

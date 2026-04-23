@@ -21,6 +21,7 @@ interface SessionLike {
   executor_type: ExecutorType;
   started_at?: string | null;
   completed_at?: string | null;
+  workflow_run_id?: number | null;
 }
 class SessionService {
   sessionRepo: SessionRepository;
@@ -79,12 +80,13 @@ class SessionService {
       throw new ValidationError('会话未处于可恢复状态', 'Session is not in a resumable state', { sessionId, status: session.status });
     }
 
-    // ASK_USER: save message and set status to RUNNING, but do NOT start executor.
-    // The workflow step function polls for this status change and handles execution itself.
+    // ASK_USER: save message, set status to RUNNING, and resume the associated workflow.
+    // The workflow step was suspended via Mastra suspend(), so resuming it will
+    // continue the AI conversation with the user's answer.
     if (session.status === 'ASK_USER') {
       let segmentId = (await this.sessionSegmentRepo.findLatestBySessionId(sessionId))?.id ?? null;
       if (!segmentId) {
-        const segment = await this._createSegment(session, 'USER_RESPONSE', null);
+        const segment = await this._createSegment(session, 'RESUME', null);
         segmentId = segment.id;
       }
 
@@ -98,6 +100,23 @@ class SessionService {
       });
 
       await this.sessionRepo.update(sessionId, { status: 'RUNNING', completed_at: null });
+
+      // Resume the associated workflow run if this session belongs to one
+      if (session.workflow_run_id) {
+        try {
+          const { WorkflowService } = await import('./workflow/workflowService.js');
+          const workflowService = new WorkflowService();
+          await workflowService.resumeWorkflow(session.workflow_run_id, {
+            approved: true,
+            ask_user_answer: input,
+          });
+        } catch (err) {
+          // Revert session to ASK_USER so the user can retry
+          await this.sessionRepo.update(sessionId, { status: 'ASK_USER' });
+          throw err;
+        }
+      }
+
       return await this.sessionRepo.findById(sessionId);
     }
 

@@ -647,15 +647,17 @@ class WorkflowLifecycle {
 
   /**
    * Called when an executor encounters AskUserQuestion during a step.
-   * Only changes session status to ASK_USER — does NOT suspend the workflow.
-   * The workflow step function polls for session status and handles execution internally.
+   * Saves the ask_user event to session, sets session to ASK_USER,
+   * and updates the workflow run and step to SUSPENDED so the Mastra workflow
+   * can be resumed after server restart.
    */
   async onSessionAskUser(
     runId: number,
     stepId: string,
     data: { ask_user_question: Record<string, unknown> },
   ) {
-    const { step } = await this._getRunStep(runId, stepId);
+    const { run, step } = await this._getRunStep(runId, stepId);
+    const completedAt = new Date().toISOString();
 
     // Save ask_user event to session
     if (step.session_id) {
@@ -664,27 +666,54 @@ class WorkflowLifecycle {
       if (latestSegment?.status === 'RUNNING') {
         await this.sessionSegmentRepo.update(latestSegment.id, {
           status: 'ASK_USER',
-          completed_at: new Date().toISOString(),
+          completed_at: completedAt,
         });
       }
 
-      await this.sessionEventRepo.append({
-        session_id: step.session_id,
-        segment_id: latestSegment?.id ?? null,
-        kind: 'ask_user',
-        role: 'assistant',
-        content: '',
-        payload: {
-          ask_user_question: data.ask_user_question,
-        },
-      });
+      if (latestSegment?.id) {
+        await this.sessionEventRepo.append({
+          session_id: step.session_id,
+          segment_id: latestSegment.id,
+          kind: 'ask_user',
+          role: 'assistant',
+          content: '',
+          payload: {
+            ask_user_question: data.ask_user_question,
+          },
+        });
+      }
 
       await this.sessionRepo.update(step.session_id, {
         status: 'ASK_USER',
       });
     }
 
-    // Do NOT update workflow run status or step status — workflow stays RUNNING
+    // Update step to SUSPENDED with ask_user_question data
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'SUSPENDED',
+      completed_at: completedAt,
+      suspend_reason: 'AI 提出了问题',
+      ask_user_question: data.ask_user_question,
+    });
+
+    // Update workflow run to SUSPENDED
+    await this.workflowRunRepo.update(runId, {
+      status: 'SUSPENDED',
+      current_step: stepId,
+    });
+
+    this._clearStepAttemptSegmentId(runId, stepId);
+
+    // Emit notification so frontend updates immediately
+    if (run?.task_id) {
+      await this._emitNotification('SUSPENDED', runId, run.task_id, {
+        currentStepId: stepId,
+        suspendInfo: {
+          reason: 'AI 提出了问题',
+          askUserQuestion: data.ask_user_question,
+        },
+      });
+    }
   }
 
   /**
@@ -728,6 +757,34 @@ class WorkflowLifecycle {
     );
     const latestMessage = userMessages[userMessages.length - 1];
     return latestMessage?.content || '';
+  }
+
+  /**
+   * Called when resuming from AskUserQuestion. Restores run/step/session/segment
+   * back to RUNNING without creating a new segment or incrementing retry_count.
+   */
+  async onStepAskUserResume(runId: number, stepId: string) {
+    const run = await this.workflowRunRepo.findById(runId);
+    await this.workflowRunRepo.update(runId, {
+      status: 'RUNNING',
+      context: { ...(run?.context || {}), error: null },
+    });
+
+    await this.workflowRunRepo.updateStep(runId, stepId, {
+      status: 'RUNNING',
+      completed_at: null,
+    });
+
+    const { step } = await this._getRunStep(runId, stepId);
+    if (step.session_id) {
+      await this.sessionRepo.update(step.session_id, { status: 'RUNNING', completed_at: null });
+      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
+      if (latestSegment?.status === 'ASK_USER') {
+        await this.sessionSegmentRepo.update(latestSegment.id, { status: 'RUNNING', completed_at: null });
+        this._rememberStepAttemptSegmentId(runId, stepId, latestSegment.id);
+      }
+      return { sessionId: step.session_id, segmentId: latestSegment?.id };
+    }
   }
 
   async onStepResume(

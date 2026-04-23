@@ -532,7 +532,11 @@ test.test('fetchWithAiDescriptions uses correct runner for CLAUDE_CODE agent', a
       const { ClaudeStepRunner } = await import('../../src/services/workflow/executors/claudeStepRunner.js');
       const originalRunStep = ClaudeStepRunner.prototype.runStep;
       ClaudeStepRunner.prototype.runStep = async () => ({
+        exitCode: 0,
+        stdout: '',
+        stderr: '',
         parsedResult: { summary: JSON.stringify([{ title: 'AI Task', description: 'AI generated description', filePath: 'test-sync.txt' }]) },
+        proc: null,
       });
 
       try {
@@ -573,7 +577,11 @@ test.test('fetchWithAiDescriptions uses correct runner for OPEN_CODE agent', asy
       const { OpenCodeStepRunner } = await import('../../src/services/workflow/executors/openCodeStepRunner.js');
       const originalRunStep = OpenCodeStepRunner.prototype.runStep;
       OpenCodeStepRunner.prototype.runStep = async () => ({
+        exitCode: 0,
+        stdout: '',
+        stderr: '',
         parsedResult: { summary: JSON.stringify([{ title: 'AI Task', description: 'AI generated description', filePath: 'test-sync.txt' }]) },
+        proc: null,
       });
 
       try {

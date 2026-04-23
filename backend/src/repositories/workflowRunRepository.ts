@@ -1,6 +1,7 @@
 import { BaseRepository } from './base.js';
 import { withRetry } from '../db/retry.js';
 import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts';
+import { logger } from '../utils/logger.js';
 
 type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>>;
 
@@ -12,9 +13,16 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   }
 
   private async serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
-    const next = this.mutationQueue.then(operation, operation);
-    this.mutationQueue = next.then(() => undefined, () => undefined);
-    return next;
+    try {
+      const next = this.mutationQueue.then(operation, operation);
+      this.mutationQueue = next.then(() => undefined, () => undefined);
+      return await next;
+    } catch (error) {
+      // 重置队列以防止卡死
+      this.mutationQueue = Promise.resolve();
+      logger.error('WorkflowRunRepository', `Mutation queue error, resetting: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   protected override parseRow(row: Record<string, unknown>): WorkflowRunEntity {
@@ -85,6 +93,16 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
       sql: 'DELETE FROM workflow_runs WHERE task_id = ?',
       args: [taskId],
     }));
+  }
+
+  async countRunningByTaskIds(taskIds: number[]): Promise<number> {
+    if (taskIds.length === 0) return 0;
+    const placeholders = taskIds.map(() => '?').join(',');
+    const result = await this.client.execute({
+      sql: `SELECT COUNT(*) as count FROM workflow_runs WHERE task_id IN (${placeholders}) AND status IN ('RUNNING', 'PENDING', 'SUSPENDED')`,
+      args: taskIds,
+    });
+    return Number(result.rows[0]?.count || 0);
   }
 
   async findAllByTaskId(taskId: number): Promise<WorkflowRunEntity[]> {

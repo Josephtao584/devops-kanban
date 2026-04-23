@@ -30,16 +30,19 @@ const firstStepInputSchema = z.object({
   projectEnv: z.record(z.string()).optional(),
 });
 
-// Suspend/resume schemas for confirmation steps
+// Suspend/resume schemas for confirmation steps and AskUserQuestion
 const resumeSchema = z.object({
   approved: z.boolean(),
   comment: z.string().optional(),
+  ask_user_answer: z.string().optional(),
 });
 
 const suspendSchema = z.object({
   reason: z.string(),
   stepName: z.string(),
   summary: z.string().optional(),
+  providerSessionId: z.string().optional(),
+  askUserQuestion: z.record(z.unknown()).optional(),
 });
 
 let _mastra: Mastra | null = null;
@@ -122,11 +125,39 @@ export function buildWorkflowFromInstance(
         }
 
         // Type the resume data and suspend data
-        const typedResumeData = resumeData as { approved?: boolean; comment?: string } | undefined;
-        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string } | undefined;
+        const typedResumeData = resumeData as { approved?: boolean; comment?: string; ask_user_answer?: string } | undefined;
+        const typedSuspendData = suspendData as { reason?: string; stepName?: string; summary?: string; providerSessionId?: string } | undefined;
+
+        let sessionId: number | undefined;
+        let segmentId: number | undefined;
+        let askUserHandled = false;
+        let providerSessionId: string | undefined;
+        let pendingAnswer: string | undefined;
+
+        // === Resume from AskUserQuestion (takes priority over confirmation) ===
+        if (typedResumeData?.ask_user_answer) {
+          const savedProviderSessionId = typedSuspendData?.providerSessionId;
+          if (!savedProviderSessionId) {
+            throw new Error(`Cannot resume AskUserQuestion in step ${templateStep.id}: provider_session_id not found`);
+          }
+
+          const askUserSessionInfo = await options.lifecycle.onStepAskUserResume(options.runId, templateStep.id);
+          if (!askUserSessionInfo) {
+            logger.info('Workflows', `Step ${templateStep.id} AskUser resume cancelled for workflowRun: ${options.runId}`);
+            abort();
+            return { summary: '' };
+          }
+
+          sessionId = askUserSessionInfo.sessionId;
+          segmentId = askUserSessionInfo.segmentId;
+          providerSessionId = savedProviderSessionId;
+          pendingAnswer = typedResumeData.ask_user_answer;
+
+          logger.info('Workflows', `Step ${templateStep.id} resuming from AskUserQuestion with answer, workflowRun: ${options.runId}`);
+        }
 
         // === Resume execution (user confirmed for requiresConfirmation) ===
-        if (requiresConfirmation && typedResumeData?.approved) {
+        if (requiresConfirmation && typedResumeData?.approved && !typedResumeData?.ask_user_answer) {
           // Get previous result from suspendData, don't re-execute
           const previousSummary = typedSuspendData?.summary || '';
           logger.info('Workflows', `Step ${templateStep.id} resuming with approved=true, using suspendData.summary`);
@@ -141,24 +172,18 @@ export function buildWorkflowFromInstance(
           return { summary: previousSummary };
         }
 
-        // === First execution ===
-        let sessionId: number | undefined;
-        let segmentId: number | undefined;
-        const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
-        if (!sessionInfo) {
-          logger.info('Workflows', `Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
-          abort();
-          return { summary: '' };
+        // === First execution (if not resuming from AskUser) ===
+        if (pendingAnswer === undefined) {
+          const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
+          if (!sessionInfo) {
+            logger.info('Workflows', `Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
+            abort();
+            return { summary: '' };
+          }
+
+          sessionId = sessionInfo.sessionId;
+          segmentId = sessionInfo.segmentId;
         }
-
-        sessionId = sessionInfo.sessionId;
-        segmentId = sessionInfo.segmentId;
-
-        // Loop for AskUserQuestion rounds: instead of suspending the workflow,
-        // wait internally for user to respond, then continue the AI conversation with the answer.
-        let askUserHandled = false;
-        let providerSessionId: string | undefined;
-        let pendingAnswer: string | undefined;
 
         while (true) {
           try {
@@ -178,8 +203,8 @@ export function buildWorkflowFromInstance(
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;
                   await options?.lifecycle.sessionEventRepo.append({
-                    session_id: sessionId,
-                    segment_id: segmentId,
+                    session_id: sessionId!,
+                    segment_id: segmentId!,
                     kind: event.kind,
                     role: event.role,
                     content: event.content,
@@ -217,8 +242,8 @@ export function buildWorkflowFromInstance(
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;
                   await options?.lifecycle.sessionEventRepo.append({
-                    session_id: sessionId,
-                    segment_id: segmentId,
+                    session_id: sessionId!,
+                    segment_id: segmentId!,
                     kind: event.kind,
                     role: event.role,
                     content: event.content,
@@ -280,13 +305,19 @@ export function buildWorkflowFromInstance(
 
             return result;
           } catch (err) {
-            // Handle AskUserQuestion: set session to ASK_USER and wait for response internally.
-            // Do NOT suspend the workflow — the step polls for the user's answer.
+            // Handle AskUserQuestion: suspend the Mastra workflow so state persists across restarts.
             const anyErr = err as any;
             if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
-              logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, waiting for user response`);
+              logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, suspending workflow`);
 
-              // Save the ask_user event (once per question — reset after each answer)
+              // Check providerSessionId BEFORE committing SUSPENDED state to avoid inconsistent state
+              const currentRun = await options.lifecycle.workflowRunRepo.findById(options.runId);
+              providerSessionId = currentRun?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id ?? providerSessionId;
+              if (!providerSessionId) {
+                throw new Error(`Cannot suspend step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
+              }
+
+              // Save ask_user event to session and update workflow run/step to SUSPENDED
               if (!askUserHandled) {
                 await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
                   ask_user_question: anyErr.askUserQuestion,
@@ -294,22 +325,16 @@ export function buildWorkflowFromInstance(
                 askUserHandled = true;
               }
 
-              // Wait for user to respond via chat (continueSession changes session from ASK_USER to RUNNING)
-              const userAnswer = await options.lifecycle.waitForSessionResponse(sessionId!, abortSignal, options.runId);
-
-              logger.info('Workflows', `Step ${templateStep.id} received user response, continuing conversation`);
-
-              // Look up provider_session_id stored by onProviderState during execution
-              const run = await options.lifecycle.workflowRunRepo.findById(options.runId);
-              providerSessionId = run?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id ?? undefined;
-              if (!providerSessionId) {
-                throw new Error(`Cannot continue step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
-              }
-              pendingAnswer = userAnswer;
-              askUserHandled = false; // reset so next question in this step is also saved
-
-              // Loop back to continue the AI conversation with the answer
-              continue;
+              // Suspend the Mastra workflow — state is persisted to DB, survives server restart.
+              // When resumed, execute() is called again with resumeData.ask_user_answer populated.
+              await suspend({
+                reason: 'AI 提出了问题',
+                stepName: templateStep.name,
+                providerSessionId,
+                askUserQuestion: anyErr.askUserQuestion,
+              });
+              // suspend() does not return — execution ends here.
+              // The workflow is resumed by resumeWorkflow() or SessionService.continue().
             }
 
             // Handle cancellation or timeout while waiting for user input

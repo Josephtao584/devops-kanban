@@ -477,7 +477,7 @@ test.test('onStepComplete is a no-op when the run is already cancelled', async (
 
 // === onSessionAskUser tests ===
 
-test.test('onSessionAskUser sets session to ASK_USER without changing workflow status', async () => {
+test.test('onSessionAskUser sets session to ASK_USER and suspends workflow run/step', async () => {
   const harness = createLifecycleHarness({
     runStatus: 'RUNNING',
     stepStatus: 'RUNNING',
@@ -502,11 +502,14 @@ test.test('onSessionAskUser sets session to ASK_USER without changing workflow s
   assert.equal(harness.sessionUpdates[0]!.sessionId, 50);
   assert.equal(harness.sessionUpdates[0]!.updateData.status, 'ASK_USER');
 
-  // Workflow run should NOT be updated (stays RUNNING)
-  assert.equal(harness.runUpdates.length, 0);
+  // Workflow run should be SUSPENDED
+  assert.equal(harness.runUpdates.length, 1);
+  assert.equal(harness.runUpdates[0]!.status, 'SUSPENDED');
+  assert.equal(harness.runUpdates[0]!.current_step, 'solution-design');
 
-  // Step should NOT be updated (stays RUNNING)
-  assert.equal(harness.stepUpdates.length, 0);
+  // Step should be SUSPENDED
+  assert.equal(harness.stepUpdates.length, 1);
+  assert.equal(harness.stepUpdates[0]!.updateData.status, 'SUSPENDED');
 
   // Segment should be set to ASK_USER
   assert.ok(harness.segmentUpdates.some((u) => u.updateData.status === 'ASK_USER'));
@@ -515,7 +518,7 @@ test.test('onSessionAskUser sets session to ASK_USER without changing workflow s
   const askUserEvent = harness.eventAppends.find((e) => e.kind === 'ask_user');
   assert.ok(askUserEvent, 'ask_user event should be saved');
   assert.equal(askUserEvent!.role, 'assistant');
-  assert.ok(askUserEvent!.payload?.ask_user_question);
+  assert.ok((askUserEvent!.payload as Record<string, unknown>)?.ask_user_question);
 });
 
 test.test('onSessionAskUser does not set completed_at on session', async () => {
