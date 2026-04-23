@@ -500,6 +500,7 @@ const handlePreviewPrompt = async () => {
       ...(props.taskTitle ? { taskTitle: props.taskTitle } : {}),
       ...(props.taskDescription ? { taskDescription: props.taskDescription } : {}),
       ...(Object.keys(props.projectEnv).length > 0 ? { projectEnv: props.projectEnv } : {}),
+      ...(step.canEarlyExit ? { canEarlyExit: true } : {}),
     })
     if (response?.success) {
       previewContent.value = response.data?.prompt || ''

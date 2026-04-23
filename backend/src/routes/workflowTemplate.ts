@@ -154,7 +154,7 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
     };
   }>('/preview-prompt', async (request, reply) => {
     try {
-      const { step, upstreamSteps = [], taskTitle, taskDescription, projectEnv } = request.body || {};
+      const { step, upstreamSteps = [], taskTitle, taskDescription, projectEnv, canEarlyExit } = request.body || {};
       if (!step || typeof step.name !== 'string' || typeof step.instructionPrompt !== 'string') {
         reply.code(400);
         return errorResponse('step.name and step.instructionPrompt are required');
@@ -194,8 +194,9 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
         upstreamStepIds: upstreamSteps.map((s) => s.stepId),
         ...(agent ? { agent } : {}),
         ...(projectEnv ? { projectEnv } : {}),
+        ...(canEarlyExit ? { canEarlyExit: true } : {}),
       };
-      const prompt = assembleWorkflowPrompt(promptArgs);
+      const prompt = await assembleWorkflowPrompt(promptArgs);
 
       return successResponse({ prompt: prompt.replaceAll('\\n', '\n') });
     } catch (error) {

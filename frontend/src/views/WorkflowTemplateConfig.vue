@@ -990,7 +990,8 @@ const handlePreviewPrompt = async () => {
   try {
     const response = await previewPrompt({
       step: { name: step.name, instructionPrompt: step.instructionPrompt || '', agentId: step.agentId },
-      upstreamSteps
+      upstreamSteps,
+      ...(step.canEarlyExit ? { canEarlyExit: true } : {}),
     })
     if (response?.success) {
       previewContent.value = response.data?.prompt || ''
