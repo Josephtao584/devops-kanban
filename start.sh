@@ -111,7 +111,15 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S-%3N)
 
 echo -e "${YELLOW}[1/2] 启动后端服务 (Node.js)...${NC}"
 cd "$BACKEND_DIR"
-npm install --no-audit 2>/dev/null
+
+echo -e "${YELLOW}安装后端依赖...${NC}"
+if ! npm install --no-audit --loglevel=progress; then
+    echo -e "${RED}✗ 后端依赖安装失败${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ 后端依赖安装完成${NC}"
+echo ""
+
 pkill -f "tsx watch src/main.ts" 2>/dev/null || true
 pkill -f "node dist/src/main.js" 2>/dev/null || true
 BACKEND_LOG="$PROJECT_ROOT/log/backend/kanban-backend-${TIMESTAMP}.log"
@@ -119,15 +127,15 @@ npm run dev > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 echo -e "${YELLOW}等待后端服务启动...${NC}"
-for i in {1..30}; do
+for i in {1..60}; do
     if curl -s "http://localhost:$BACKEND_PORT/api/projects" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ 后端服务已启动 (PID: $BACKEND_PID)${NC}"
         echo -e "   API 地址：${BLUE}http://localhost:$BACKEND_PORT${NC}"
         echo -e "   API Docs: ${BLUE}http://localhost:$BACKEND_PORT/docs${NC}"
         break
     fi
-    if [ "$i" -eq 30 ]; then
-        echo -e "${YELLOW}⚠ 后端启动超时，请查看日志：$BACKEND_LOG${NC}"
+    if [ "$i" -eq 60 ]; then
+        echo -e "${YELLOW}⚠ 后端启动超时 (60s)，请查看日志：$BACKEND_LOG${NC}"
         tail -20 "$BACKEND_LOG" 2>/dev/null
     fi
     sleep 1
@@ -136,21 +144,30 @@ done
 echo ""
 echo -e "${YELLOW}[2/2] 启动前端服务...${NC}"
 cd "$FRONTEND_DIR"
-npm install --no-audit 2>/dev/null
+
+echo -e "${YELLOW}安装前端依赖...${NC}"
+if ! npm install --no-audit --loglevel=progress; then
+    echo -e "${RED}✗ 前端依赖安装失败${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ 前端依赖安装完成${NC}"
+echo ""
+
 pkill -f "vite" 2>/dev/null || true
 FRONTEND_LOG="$PROJECT_ROOT/log/frontend/kanban-frontend-${TIMESTAMP}.log"
 LANG=en_US.UTF-8 NO_COLOR=1 npm run dev > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 echo -e "${YELLOW}等待前端服务启动...${NC}"
-for i in {1..15}; do
+for i in {1..30}; do
     if curl -s "http://localhost:$FRONTEND_PORT" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ 前端服务已启动 (PID: $FRONTEND_PID)${NC}"
         echo -e "   访问地址：${BLUE}http://localhost:$FRONTEND_PORT${NC}"
         break
     fi
-    if [ "$i" -eq 15 ]; then
-        echo -e "${YELLOW}⚠ 前端启动超时，查看日志：$FRONTEND_LOG${NC}"
+    if [ "$i" -eq 30 ]; then
+        echo -e "${YELLOW}⚠ 前端启动超时 (30s)，查看日志：$FRONTEND_LOG${NC}"
+        tail -20 "$FRONTEND_LOG" 2>/dev/null
     fi
     sleep 1
 done

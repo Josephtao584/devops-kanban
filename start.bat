@@ -98,13 +98,21 @@ for /f "usebackq" %%i in (`powershell -NoProfile -Command "Get-Date -Format 'yyy
 echo [1/2] Starting backend...
 cd /d "!BACKEND_DIR!"
 
-call npm install --no-audit >nul 2>&1
+echo [INFO] Installing backend dependencies...
+call npm install --no-audit --loglevel=progress
+if !errorlevel! neq 0 (
+    echo [ERROR] Backend dependency install failed
+    pause
+    exit /b 1
+)
+echo [OK] Backend dependencies installed
+echo.
 
 start /b npm run dev > "!PROJECT_ROOT!\log\backend\kanban-backend-!TS!.log" 2>&1
 echo [INFO] Waiting for backend...
 
 set "BACKEND_READY=0"
-for /l %%i in (1,1,30) do (
+for /l %%i in (1,1,60) do (
     if "!BACKEND_READY!"=="0" (
         ping -n 2 127.0.0.1 >nul
         curl -s http://localhost:!BACKEND_PORT!/api/projects >nul 2>&1
@@ -116,7 +124,8 @@ for /l %%i in (1,1,30) do (
     )
 )
 if "!BACKEND_READY!"=="0" (
-    echo [WARN] Backend startup timeout
+    echo [WARN] Backend startup timeout ^(60s^)
+    echo        Check log: !PROJECT_ROOT!\log\backend\kanban-backend-!TS!.log
 )
 
 echo.
@@ -127,13 +136,21 @@ echo.
 echo [2/2] Starting frontend...
 cd /d "!FRONTEND_DIR!"
 
-call npm install --no-audit >nul 2>&1
+echo [INFO] Installing frontend dependencies...
+call npm install --no-audit --loglevel=progress
+if !errorlevel! neq 0 (
+    echo [ERROR] Frontend dependency install failed
+    pause
+    exit /b 1
+)
+echo [OK] Frontend dependencies installed
+echo.
 
 start /b cmd /c "chcp 65001 >nul 2>&1 && set NO_COLOR=1 && npm run dev" > "!PROJECT_ROOT!\log\frontend\kanban-frontend-!TS!.log" 2>&1
 echo [INFO] Waiting for frontend...
 
 set "FRONTEND_READY=0"
-for /l %%i in (1,1,15) do (
+for /l %%i in (1,1,30) do (
     if "!FRONTEND_READY!"=="0" (
         ping -n 2 127.0.0.1 >nul
         curl -s http://localhost:!FRONTEND_PORT! >nul 2>&1
@@ -145,7 +162,8 @@ for /l %%i in (1,1,15) do (
     )
 )
 if "!FRONTEND_READY!"=="0" (
-    echo [WARN] Frontend startup timeout
+    echo [WARN] Frontend startup timeout ^(30s^)
+    echo        Check log: !PROJECT_ROOT!\log\frontend\kanban-frontend-!TS!.log
 )
 
 echo.
