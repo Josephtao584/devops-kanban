@@ -99,7 +99,7 @@ echo [1/2] Starting backend...
 cd /d "!BACKEND_DIR!"
 
 echo [INFO] Installing backend dependencies...
-call npm install --no-audit --loglevel=progress
+call npm install --no-audit
 if !errorlevel! neq 0 (
     echo [ERROR] Backend dependency install failed
     pause
@@ -137,7 +137,7 @@ echo [2/2] Starting frontend...
 cd /d "!FRONTEND_DIR!"
 
 echo [INFO] Installing frontend dependencies...
-call npm install --no-audit --loglevel=progress
+call npm install --no-audit
 if !errorlevel! neq 0 (
     echo [ERROR] Frontend dependency install failed
     pause

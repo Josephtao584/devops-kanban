@@ -113,7 +113,7 @@ echo -e "${YELLOW}[1/2] 启动后端服务 (Node.js)...${NC}"
 cd "$BACKEND_DIR"
 
 echo -e "${YELLOW}安装后端依赖...${NC}"
-if ! npm install --no-audit --loglevel=progress; then
+if ! npm install --no-audit; then
     echo -e "${RED}✗ 后端依赖安装失败${NC}"
     exit 1
 fi
@@ -146,7 +146,7 @@ echo -e "${YELLOW}[2/2] 启动前端服务...${NC}"
 cd "$FRONTEND_DIR"
 
 echo -e "${YELLOW}安装前端依赖...${NC}"
-if ! npm install --no-audit --loglevel=progress; then
+if ! npm install --no-audit; then
     echo -e "${RED}✗ 前端依赖安装失败${NC}"
     exit 1
 fi
