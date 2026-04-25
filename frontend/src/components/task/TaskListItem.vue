@@ -104,7 +104,7 @@
           </button>
         </div>
       </div>
-      <div class="task-description-row with-separator" v-if="task.description && !compact">
+      <div class="task-description-row with-separator" v-if="task.description">
         <div
           class="task-description"
           v-html="formattedDescription"
@@ -926,6 +926,32 @@ const openWorktreeDirectory = () => {
 .task-content {
   flex: 1;
   min-width: 0;
+}
+
+/* Kanban card view: title can wrap naturally */
+.task-item:not(.task-compact) .task-title-row {
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.task-item:not(.task-compact) .task-title-left {
+  flex: 1 1 100%;
+  overflow: hidden;
+}
+
+.task-item:not(.task-compact) .task-title {
+  word-break: break-word;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.task-item:not(.task-compact) .auto-execute-row {
+  flex-shrink: 0;
+}
+
+.task-item:not(.task-compact) .task-actions {
+  flex-shrink: 0;
 }
 
 .task-title-row {

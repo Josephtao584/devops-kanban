@@ -90,7 +90,7 @@
         />
 
         <!-- Kanban Board -->
-        <div v-if="viewMode === 'kanban'" class="kanban-board" ref="kanbanBoardRef">
+        <div v-if="viewMode === 'kanban'" class="kanban-board" ref="kanbanBoardRef" @mousedown="onBoardMouseDown" :class="{ 'board-dragging': isDraggingBoard, 'column-resizing': isResizingColumn }">
           <KanbanColumn
             status="TODO"
             :title="$t('status.TODO')"
@@ -102,6 +102,8 @@
             :show-sync-button="true"
             :expanded-task-id="expandedTaskId"
             :current-node-id="currentViewingNodeId"
+            :collapsed="!!collapsedColumns['TODO']"
+            :custom-width="getColumnWidth('TODO')"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
@@ -112,7 +114,10 @@
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
             @quick-edit="handleQuickEdit"
+            @toggle-collapse="collapsedColumns['TODO'] = !collapsedColumns['TODO']"
           />
+
+          <div class="column-resize-handle" @mousedown="startColumnResize($event, 'TODO')"></div>
 
           <KanbanColumn
             status="IN_PROGRESS"
@@ -123,6 +128,8 @@
             :empty-text="$t('task.noTasks')"
             :expanded-task-id="expandedTaskId"
             :current-node-id="currentViewingNodeId"
+            :collapsed="!!collapsedColumns['IN_PROGRESS']"
+            :custom-width="getColumnWidth('IN_PROGRESS')"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
@@ -131,7 +138,10 @@
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
             @quick-edit="handleQuickEdit"
+            @toggle-collapse="collapsedColumns['IN_PROGRESS'] = !collapsedColumns['IN_PROGRESS']"
           />
+
+          <div class="column-resize-handle" @mousedown="startColumnResize($event, 'IN_PROGRESS')"></div>
 
           <KanbanColumn
             status="DONE"
@@ -142,6 +152,8 @@
             :empty-text="$t('task.noDoneTasks')"
             :expanded-task-id="expandedTaskId"
             :current-node-id="currentViewingNodeId"
+            :collapsed="!!collapsedColumns['DONE']"
+            :custom-width="getColumnWidth('DONE')"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
@@ -150,7 +162,10 @@
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
             @quick-edit="handleQuickEdit"
+            @toggle-collapse="collapsedColumns['DONE'] = !collapsedColumns['DONE']"
           />
+
+          <div class="column-resize-handle" @mousedown="startColumnResize($event, 'DONE')"></div>
 
           <KanbanColumn
             status="BLOCKED"
@@ -161,6 +176,8 @@
             :empty-text="$t('task.noBlockedTasks')"
             :expanded-task-id="expandedTaskId"
             :current-node-id="currentViewingNodeId"
+            :collapsed="!!collapsedColumns['BLOCKED']"
+            :custom-width="getColumnWidth('BLOCKED')"
             @drag-end="onDragEnd"
             @select-task="selectTask"
             @edit-task="openTaskModal"
@@ -169,6 +186,7 @@
             @toggle-workflow="handleToggleWorkflow"
             @workflow-action="handleWorkflowAction"
             @quick-edit="handleQuickEdit"
+            @toggle-collapse="collapsedColumns['BLOCKED'] = !collapsedColumns['BLOCKED']"
           />
         </div>
 
@@ -802,6 +820,69 @@ function startResize(e) {
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
+
+// Column resize state
+const COLUMN_WIDTH_KEY = 'kanban-column-widths'
+const MIN_COLUMN_WIDTH = 340
+
+const columnWidths = ref({})
+const savedWidths = localStorage.getItem(COLUMN_WIDTH_KEY)
+if (savedWidths) {
+  try { columnWidths.value = JSON.parse(savedWidths) } catch {}
+}
+watch(columnWidths, (val) => {
+  localStorage.setItem(COLUMN_WIDTH_KEY, JSON.stringify(val))
+}, { deep: true })
+
+const isResizingColumn = ref(false)
+const resizeTargetStatus = ref(null)
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(0)
+
+function getColumnWidth(status) {
+  if (collapsedColumns.value[status]) return null
+  return columnWidths.value[status] || null
+}
+
+function getCurrentColumnWidth(status) {
+  const columns = kanbanBoardRef.value?.querySelectorAll('.kanban-column')
+  if (!columns) return MIN_COLUMN_WIDTH
+  const statusIndex = ['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'].indexOf(status)
+  if (statusIndex < 0 || !columns[statusIndex]) return MIN_COLUMN_WIDTH
+  return columns[statusIndex].getBoundingClientRect().width
+}
+
+function startColumnResize(e, status) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  isResizingColumn.value = true
+  resizeTargetStatus.value = status
+  resizeStartX.value = e.clientX
+  resizeStartWidth.value = columnWidths.value[status] || getCurrentColumnWidth(status)
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+
+  document.addEventListener('mousemove', onColumnResizeMove)
+  document.addEventListener('mouseup', onColumnResizeUp)
+}
+
+function onColumnResizeMove(e) {
+  if (!isResizingColumn.value) return
+  const delta = e.clientX - resizeStartX.value
+  const newWidth = Math.max(MIN_COLUMN_WIDTH, resizeStartWidth.value + delta)
+  columnWidths.value[resizeTargetStatus.value] = newWidth
+}
+
+function onColumnResizeUp() {
+  isResizingColumn.value = false
+  resizeTargetStatus.value = null
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  document.removeEventListener('mousemove', onColumnResizeMove)
+  document.removeEventListener('mouseup', onColumnResizeUp)
+}
 const expandedTaskId = ref(null)
 const expandedPreviewDescriptions = ref(new Set())
 const overflowPreviewDescriptions = ref(new Set())
@@ -834,6 +915,44 @@ const togglePreviewDescription = (externalId) => {
 }
 const currentViewingNodeId = ref(null)
 const kanbanBoardRef = ref(null)
+const isDraggingBoard = ref(false)
+const dragStartX = ref(0)
+const dragScrollLeft = ref(0)
+
+function onBoardMouseDown(e) {
+  const target = e.target
+  const isInteractive = target.closest('.task-item, .column-header, button, a, input, textarea, select, .sync-btn, .add-task-btn, .collapse-btn, .column-resize-handle')
+  if (isInteractive) return
+
+  const board = kanbanBoardRef.value
+  if (!board) return
+
+  if (board.scrollWidth <= board.clientWidth) return
+
+  isDraggingBoard.value = true
+  dragStartX.value = e.pageX
+  dragScrollLeft.value = board.scrollLeft
+
+  document.addEventListener('mousemove', onBoardMouseMove)
+  document.addEventListener('mouseup', onBoardMouseUp)
+}
+
+function onBoardMouseMove(e) {
+  if (!isDraggingBoard.value) return
+  e.preventDefault()
+  const dx = e.pageX - dragStartX.value
+  const board = kanbanBoardRef.value
+  if (board) {
+    board.scrollLeft = dragScrollLeft.value - dx
+  }
+}
+
+function onBoardMouseUp() {
+  isDraggingBoard.value = false
+  document.removeEventListener('mousemove', onBoardMouseMove)
+  document.removeEventListener('mouseup', onBoardMouseUp)
+}
+
 const showWorkflowTemplateDialog = ref(false)
 const templateDialogMode = ref('start') // 'start' or 'save'
 const showDeleteConfirm = ref(false)
@@ -860,6 +979,15 @@ watch(() => taskSourceStore.syncPanelVisible, (visible) => {
 
 const listStatusFilter = ref(['TODO', 'IN_PROGRESS', 'DONE', 'BLOCKED'])
 const isComponentMounted = ref(false)
+
+const collapsedColumns = ref({})
+const savedCollapsed = localStorage.getItem('kanban-collapsed-columns')
+if (savedCollapsed) {
+  try { collapsedColumns.value = JSON.parse(savedCollapsed) } catch {}
+}
+watch(collapsedColumns, (val) => {
+  localStorage.setItem('kanban-collapsed-columns', JSON.stringify(val))
+}, { deep: true })
 
 const {
   runningTasks,
@@ -1616,6 +1744,8 @@ onMounted(async () => {
 onUnmounted(() => {
   isComponentMounted.value = false
   cleanupTimer()
+  document.removeEventListener('mousemove', onBoardMouseMove)
+  document.removeEventListener('mouseup', onBoardMouseUp)
 })
 </script>
 
@@ -1725,7 +1855,6 @@ onUnmounted(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow-x: auto;
   padding-top: 18px;
   background: var(--bg-secondary);
 }
@@ -1745,6 +1874,12 @@ onUnmounted(() => {
   align-content: stretch;
   overflow-x: auto;
   flex-wrap: nowrap;
+  cursor: grab;
+}
+
+.kanban-board.board-dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .view-toolbar {
@@ -2787,6 +2922,28 @@ onUnmounted(() => {
   background: var(--el-color-primary, #409eff);
 }
 
+.column-resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  align-self: stretch;
+  position: relative;
+  z-index: 10;
+  transition: background 0.2s;
+  margin: 0 -3px;
+}
+
+.column-resize-handle:hover {
+  background: var(--el-color-primary, #409eff);
+  opacity: 0.3;
+}
+
+/* Disable transition during resize for responsive feel */
+.kanban-board.column-resizing .kanban-column {
+  transition: none;
+}
+
 .chat-toggle-btn {
   position: fixed;
   top: 50%;
@@ -3582,11 +3739,12 @@ onUnmounted(() => {
 .kanban-column {
   display: flex;
   flex-direction: column;
-  min-width: 320px;
   background: var(--bg-secondary);
   border-radius: 12px;
   border: 1px solid var(--border-color);
   max-height: 100%;
+  min-width: 340px;
+  flex: 1 1 0;
 }
 
 .kanban-column.requirement-column {
