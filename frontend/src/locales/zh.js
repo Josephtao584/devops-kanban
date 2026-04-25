@@ -24,6 +24,8 @@ export default {
     import: '导入',
   },
   nav: {
+    groupWorkspace: '工作面板',
+    groupPlatformConfig: '平台配置',
     projects: '项目列表',
     kanban: '看板',
     taskSources: '任务源',
