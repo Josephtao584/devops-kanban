@@ -39,6 +39,7 @@
           <template #item="{ element: task }">
             <TaskListItem
               :task="task"
+              :compact="true"
               :selected="selectedTask?.id === task.id"
               :running="isTaskRunning(task.id)"
               :elapsed-time="formatElapsedTime(task.id)"
@@ -100,6 +101,7 @@
           <template #item="{ element: task }">
             <TaskListItem
               :task="task"
+              :compact="true"
               :selected="selectedTask?.id === task.id"
               :running="isTaskRunning(task.id)"
               :elapsed-time="formatElapsedTime(task.id)"

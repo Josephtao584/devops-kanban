@@ -1,5 +1,5 @@
 <template>
-  <div class="kanban-column" :data-status="status">
+  <div class="kanban-column" :data-status="status" :data-collapsed="collapsed" :style="columnStyle">
     <div class="column-header">
       <span :class="['column-status', `status-${statusClass}-dot`]"></span>
       <span class="column-title">{{ title }}</span>
@@ -7,6 +7,12 @@
       <button v-if="showSyncButton" class="sync-btn" @click.stop="emit('sync')" :title="$t('taskSource.sync')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+      </button>
+      <button class="collapse-btn" @click.stop="emit('toggle-collapse')" :title="collapsed ? '展开' : '折叠'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline v-if="collapsed" points="9 18 15 12 9 6"></polyline>
+          <polyline v-else points="15 18 9 12 15 6"></polyline>
         </svg>
       </button>
     </div>
@@ -24,6 +30,7 @@
         <template #item="{ element }">
           <TaskListItem
             :task="element"
+            :compact="false"
             :selected="selectedTask?.id === element.id"
             :running="isTaskRunning(element.id)"
             :elapsed-time="formatTaskElapsedTime(element.id)"
@@ -108,10 +115,18 @@ const props = defineProps({
   currentNodeId: {
     type: String,
     default: null
+  },
+  collapsed: {
+    type: Boolean,
+    default: false
+  },
+  customWidth: {
+    type: Number,
+    default: null
   }
 })
 
-const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'toggle-description', 'workflow-action', 'quick-edit'])
+const emit = defineEmits(['drag-end', 'select-task', 'edit-task', 'delete-task', 'add-task', 'worktree-update', 'sync', 'toggle-workflow', 'toggle-description', 'workflow-action', 'quick-edit', 'toggle-collapse'])
 
 const statusClass = computed(() => props.statusClass || props.status.toLowerCase())
 
@@ -146,6 +161,14 @@ const handleWorktreeUpdate = (updatedTask) => {
 }
 
 const taskCount = computed(() => props.tasks.length)
+
+const columnStyle = computed(() => {
+  if (props.collapsed) return {}
+  if (props.customWidth) {
+    return { flexBasis: props.customWidth + 'px', flexGrow: 0, flexShrink: 0 }
+  }
+  return {}
+})
 </script>
 
 <style scoped>
@@ -156,12 +179,11 @@ const taskCount = computed(() => props.tasks.length)
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  width: 500px;
-  min-width: 500px;
-  max-width: 500px;
-  flex: 0 0 500px;
+  flex: 1 1 0;
+  min-width: 340px;
   max-height: 100%;
   overflow: hidden;
+  transition: flex-basis 0.3s ease, min-width 0.3s ease;
 }
 
 .column-header {
@@ -279,5 +301,49 @@ const taskCount = computed(() => props.tasks.length)
 .drag-card {
   transform: rotate(2deg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.kanban-column[data-collapsed="true"] {
+  flex: 0 0 130px;
+  min-width: 130px;
+}
+
+.kanban-column[data-collapsed="true"] .column-content {
+  display: none;
+}
+
+.kanban-column[data-collapsed="true"] .column-header {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 12px 8px;
+}
+
+.kanban-column[data-collapsed="true"] .column-title {
+  white-space: normal;
+  word-break: break-word;
+  font-size: 12px;
+  text-align: center;
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  background: var(--bg-tertiary, rgba(0,0,0,0.05));
+  color: var(--text-primary);
 }
 </style>
