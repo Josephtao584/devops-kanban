@@ -1,0 +1,177 @@
+<h2>AI 视图：任务 + 活动流混合设计</h2>
+<p class="subtitle">第三种视图模式：看板 → 列表 → AI 视图</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">AI 视图 · 项目 Alpha</div>
+    <div class="mockup-body" style="background: #0f0f1a; min-height: 520px; display: flex; flex-direction: column;">
+
+      <!-- Top bar with view switcher -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 13px; color: #e2e8f0; font-weight: 600;">项目 Alpha</span>
+          <div style="display: flex; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 2px;">
+            <div style="padding: 4px 12px; border-radius: 6px; font-size: 11px; color: #64748b;">看板</div>
+            <div style="padding: 4px 12px; border-radius: 6px; font-size: 11px; color: #64748b;">列表</div>
+            <div style="padding: 4px 12px; border-radius: 6px; font-size: 11px; color: white; background: #818cf8;">AI 视图</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></div>
+            <span style="font-size: 10px; color: #10b981;">2 个 Agent 在线</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Stream -->
+      <div style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+
+        <!-- AI Activity: Plan Generated -->
+        <div style="display: flex; gap: 10px;">
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">🤖</div>
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-size: 11px; color: #818cf8; font-weight: 600;">AI 规划</span>
+              <span style="font-size: 9px; color: #4b5563;">10:32</span>
+            </div>
+            <div style="background: rgba(129,140,248,0.08); border: 1px solid rgba(129,140,248,0.15); border-radius: 8px; padding: 10px;">
+              <div style="font-size: 10px; color: #c4b5fd; margin-bottom: 8px;">分析需求变更后，建议创建以下任务：</div>
+
+              <!-- Nested task cards in the plan -->
+              <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px;">
+                <div style="background: rgba(255,255,255,0.04); border-radius: 4px; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 9px; color: #e2e8f0;">实现支付宝支付接口</span>
+                  <span style="font-size: 8px; color: #818cf8;">→ Agent A</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 4px; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 9px; color: #e2e8f0;">微信支付接口对接</span>
+                  <span style="font-size: 8px; color: #818cf8;">→ Agent B</span>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border-radius: 4px; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 9px; color: #e2e8f0;">支付回调处理</span>
+                  <span style="font-size: 8px; color: #818cf8;">→ Agent A</span>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 6px;">
+                <button style="background: #818cf8; color: white; border: none; padding: 4px 14px; border-radius: 4px; font-size: 9px; cursor: pointer;">✓ 确认创建并执行</button>
+                <button style="background: rgba(255,255,255,0.06); color: #94a3b8; border: none; padding: 4px 14px; border-radius: 4px; font-size: 9px; cursor: pointer;">调整</button>
+                <button style="background: transparent; color: #4b5563; border: none; padding: 4px 8px; border-radius: 4px; font-size: 9px; cursor: pointer;">忽略</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent Activity: Task Started -->
+        <div style="display: flex; gap: 10px;">
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: #1e3a5f; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #60a5fa; flex-shrink: 0;">A</div>
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-size: 11px; color: #60a5fa; font-weight: 600;">Agent A</span>
+              <span style="font-size: 9px; color: #4b5563;">10:35</span>
+            </div>
+            <div style="background: rgba(96,165,250,0.06); border-left: 2px solid #60a5fa; border-radius: 0 6px 6px 0; padding: 8px 10px;">
+              <div style="font-size: 9px; color: #93c5fd;">开始执行: <span style="color: #e2e8f0;">实现支付宝支付接口</span></div>
+              <div style="font-size: 8px; color: #4b5563; margin-top: 3px;">使用 Claude Code · 工作目录: /worktree/task-47</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Card: Completed -->
+        <div style="display: flex; gap: 10px;">
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(16,185,129,0.15); display: flex; align-items: center; justify-content: center; font-size: 10px; color: #10b981; flex-shrink: 0;">✓</div>
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span style="font-size: 11px; color: #10b981; font-weight: 600;">任务完成</span>
+              <span style="font-size: 9px; color: #4b5563;">10:48</span>
+            </div>
+            <div style="background: rgba(16,185,129,0.06); border-left: 2px solid #10b981; border-radius: 0 6px 6px 0; padding: 8px 10px;">
+              <div style="font-size: 10px; color: #e2e8f0; margin-bottom: 3px;">用户认证模块</div>
+              <div style="display: flex; gap: 8px; font-size: 8px; color: #6b7280;">
+                <span>Agent A 执行</span>
+                <span>耗时 23 分钟</span>
+                <span style="color: #10b981;">已提交 3 个文件</span>
+              </div>
+              <div style="margin-top: 6px; display: flex; gap: 6px;">
+                <button style="background: rgba(16,185,129,0.15); color: #10b981; border: none; padding: 3px 10px; border-radius: 3px; font-size: 8px;">查看变更</button>
+                <button style="background: rgba(255,255,255,0.04); color: #6b7280; border: none; padding: 3px 10px; border-radius: 3px; font-size: 8px;">查看日志</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- User message in stream -->
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <div style="max-width: 70%;">
+            <div style="background: rgba(129,140,248,0.15); border-radius: 10px 10px 2px 10px; padding: 8px 12px;">
+              <div style="font-size: 10px; color: #c4b5fd;">把支付模块的需求实现一下，优先支付宝</div>
+            </div>
+            <div style="text-align: right; font-size: 8px; color: #4b5563; margin-top: 2px;">我 · 10:30</div>
+          </div>
+        </div>
+
+        <!-- AI typing indicator -->
+        <div style="display: flex; gap: 10px;">
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">🤖</div>
+          <div style="display: flex; align-items: center; gap: 4px; padding: 8px 0;">
+            <div style="width: 5px; height: 5px; border-radius: 50%; background: #818cf8; animation: pulse 1.4s infinite;"></div>
+            <div style="width: 5px; height: 5px; border-radius: 50%; background: #818cf8; animation: pulse 1.4s infinite 0.2s;"></div>
+            <div style="width: 5px; height: 5px; border-radius: 50%; background: #818cf8; animation: pulse 1.4s infinite 0.4s;"></div>
+            <span style="font-size: 9px; color: #6b7280; margin-left: 4px;">Agent B 正在执行...</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Input Bar -->
+      <div style="padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.3);">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <div style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center;">
+            <span style="font-size: 11px; color: #4b5563;">描述需求、下达指令、或提问...</span>
+          </div>
+          <button style="background: #818cf8; color: white; border: none; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px;">↑</button>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 6px; font-size: 9px; color: #4b5563;">
+          <span>💡 试试: "分析项目进度"</span>
+          <span>·</span>
+          <span>"把需求#3实现一下"</span>
+          <span>·</span>
+          <span>"卡住的任务有哪些"</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 16px;">
+  <h3>设计要点</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>核心交互</h4>
+      <ul>
+        <li><strong>混合信息流</strong> — 用户消息、AI 规划、Agent 执行动态、任务完成通知按时间线交织</li>
+        <li><strong>底部对话框</strong> — 用户输入指令，AI 的回复和操作都体现在流中</li>
+        <li><strong>嵌入式任务卡片</strong> — 任务不再是独立的面板，而是信息流中的卡片元素</li>
+        <li><strong>实时 Agent 状态</strong> — 看到 Agent 正在做什么，带打字动画指示</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>与现有视图的关系</h4>
+      <ul>
+        <li><strong>看板视图</strong> — 保留，适合宏观总览和手动拖拽管理</li>
+        <li><strong>列表视图</strong> — 保留，适合批量编辑和筛选</li>
+        <li><strong>AI 视图（新）</strong> — 适合 AI 驱动的工作模式，用户通过对话推进项目</li>
+        <li>三种视图共享同一套任务数据，切换视图不丢失状态</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+</style>

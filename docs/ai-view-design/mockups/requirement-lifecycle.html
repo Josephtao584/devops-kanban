@@ -1,0 +1,480 @@
+<h2>需求流转全流程页面</h2>
+<p class="subtitle">从需求创建到最终交付的各个阶段状态</p>
+
+<div class="section" style="margin-bottom: 24px;">
+  <h3>阶段 1: 需求输入 — 用户提出需求</h3>
+  <div class="mockup">
+    <div class="mockup-header">AI 视图 · 需求输入阶段</div>
+    <div class="mockup-body" style="background: #0f0f1a; min-height: 360px; display: flex; flex-direction: column;">
+      <!-- Left: empty task list -->
+      <div style="flex: 1; display: flex;">
+        <div style="width: 200px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+          <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <span style="font-size: 10px; color: #94a3b8;">任务</span>
+          </div>
+          <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px;">
+            <div style="text-align: center;">
+              <div style="font-size: 20px; color: #4b5563; margin-bottom: 6px;">📋</div>
+              <div style="font-size: 9px; color: #4b5563;">输入需求后</div>
+              <div style="font-size: 9px; color: #4b5563;">AI 将自动生成任务</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Middle: empty activity -->
+        <div style="width: 220px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; padding: 20px;">
+          <div style="text-align: center;">
+            <div style="font-size: 9px; color: #4b5563;">活动流为空</div>
+          </div>
+        </div>
+
+        <!-- Right: Chat - user typing requirement -->
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <div style="padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px;">🤖</div>
+            <div>
+              <div style="font-size: 11px; color: #e2e8f0; font-weight: 600;">AI 对话</div>
+              <div style="font-size: 8px; color: #6b7280;">等待需求输入...</div>
+            </div>
+          </div>
+
+          <!-- AI greeting -->
+          <div style="flex: 1; padding: 14px; display: flex; flex-direction: column; justify-content: center;">
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0;">🤖</div>
+              <div style="background: rgba(129,140,248,0.06); border-radius: 8px; padding: 12px; max-width: 85%;">
+                <div style="font-size: 10px; color: #c4b5fd; line-height: 1.6;">你好！描述你的需求，我会帮你：</div>
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
+                  <div style="font-size: 9px; color: #94a3b8;">📋 拆解为具体任务</div>
+                  <div style="font-size: 9px; color: #94a3b8;">🤖 分配给合适的 Agent</div>
+                  <div style="font-size: 9px; color: #94a3b8;">⚡ 自动启动执行</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User typing -->
+          <div style="padding: 10px 14px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2);">
+            <div style="display: flex; gap: 8px; align-items: flex-end;">
+              <div style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(129,140,248,0.3); border-radius: 10px; padding: 10px 14px;">
+                <div style="font-size: 11px; color: #e2e8f0; line-height: 1.4;">项目需要增加支付模块，支持支付宝和微信支付，需要有回调处理和退款功能</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                  <div style="display: flex; gap: 4px;">
+                    <span style="font-size: 8px; color: #4b5563; background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 3px;">📎</span>
+                    <span style="font-size: 8px; color: #4b5563; background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 3px;">📎 需求文档.pdf</span>
+                  </div>
+                </div>
+              </div>
+              <button style="background: #818cf8; color: white; border: none; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px;">↑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-bottom: 24px;">
+  <h3>阶段 2: AI 规划 — 分析需求并生成执行计划</h3>
+  <div class="mockup">
+    <div class="mockup-header">AI 视图 · 规划阶段</div>
+    <div class="mockup-body" style="background: #0f0f1a; min-height: 400px; display: flex;">
+      <!-- Left: AI generated task cards (draft) -->
+      <div style="width: 200px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 10px; color: #f59e0b;">📋 规划中 (5个任务)</span>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px;">
+          <!-- Draft tasks with dashed border -->
+          <div style="background: rgba(245,158,11,0.04); border: 1px dashed rgba(245,158,11,0.3); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #fbbf24;">支付宝支付接口</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">HIGH · Agent A</div>
+          </div>
+          <div style="background: rgba(245,158,11,0.04); border: 1px dashed rgba(245,158,11,0.3); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #fbbf24;">微信支付接口对接</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">HIGH · Agent B</div>
+          </div>
+          <div style="background: rgba(245,158,11,0.04); border: 1px dashed rgba(245,158,11,0.3); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #fbbf24;">支付回调处理</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">HIGH · Agent A</div>
+          </div>
+          <div style="background: rgba(245,158,11,0.04); border: 1px dashed rgba(245,158,11,0.3); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #fbbf24;">退款流程实现</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">MEDIUM · Agent B</div>
+          </div>
+          <div style="background: rgba(245,158,11,0.04); border: 1px dashed rgba(245,158,11,0.3); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #fbbf24;">支付集成测试</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">MEDIUM · Agent A</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Middle: activity showing plan -->
+      <div style="width: 220px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <span style="font-size: 10px; color: #94a3b8;">活动流</span>
+        </div>
+        <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 5px;">
+          <div style="padding: 5px; border-radius: 4px; background: rgba(129,140,248,0.04);">
+            <div style="font-size: 8px; color: #c4b5fd;">👤 提交需求: 支付模块</div>
+            <div style="font-size: 7px; color: #4b5563;">10:30</div>
+          </div>
+          <div style="padding: 5px; border-radius: 4px; background: rgba(245,158,11,0.06); border-left: 2px solid #f59e0b;">
+            <div style="font-size: 8px; color: #fbbf24;">🤖 分析需求中...</div>
+            <div style="font-size: 7px; color: #4b5563;">10:30</div>
+          </div>
+          <div style="padding: 5px; border-radius: 4px; background: rgba(245,158,11,0.06); border-left: 2px solid #f59e0b;">
+            <div style="font-size: 8px; color: #fbbf24;">🤖 生成执行计划...</div>
+            <div style="font-size: 7px; color: #4b5563;">10:31</div>
+          </div>
+          <div style="padding: 5px; border-radius: 4px; background: rgba(129,140,248,0.06); border-left: 2px solid #818cf8;">
+            <div style="font-size: 8px; color: #818cf8;">⏳ 等待用户确认</div>
+            <div style="display: flex; align-items: center; gap: 2px; margin-top: 2px;">
+              <div style="width: 4px; height: 4px; border-radius: 50%; background: #f59e0b; animation: pulse 1.4s infinite;"></div>
+              <span style="font-size: 7px; color: #6b7280;">等待中</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: AI plan detail with confirm -->
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <div style="padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px;">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px;">🤖</div>
+          <div style="font-size: 11px; color: #e2e8f0; font-weight: 600;">AI 对话 · 规划阶段</div>
+        </div>
+
+        <div style="flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <!-- User requirement -->
+          <div style="display: flex; justify-content: flex-end;">
+            <div style="max-width: 80%; background: rgba(129,140,248,0.15); border-radius: 10px 10px 2px 10px; padding: 8px 12px;">
+              <div style="font-size: 10px; color: #c4b5fd;">项目需要增加支付模块，支持支付宝和微信支付，需要有回调处理和退款功能</div>
+              <div style="font-size: 8px; color: rgba(129,140,248,0.6); margin-top: 3px;">📎 需求文档.pdf</div>
+            </div>
+          </div>
+
+          <!-- AI analysis -->
+          <div style="display: flex; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0;">🤖</div>
+            <div style="flex: 1;">
+              <div style="font-size: 10px; color: #c4b5fd; line-height: 1.5; margin-bottom: 8px;">分析了需求文档，建议拆分为 <strong>5 个任务</strong>，分两批执行：</div>
+
+              <!-- Batch 1 -->
+              <div style="background: rgba(129,140,248,0.06); border: 1px solid rgba(129,140,248,0.12); border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+                <div style="font-size: 9px; color: #818cf8; font-weight: 600; margin-bottom: 6px;">⚡ 第一批（并行执行）</div>
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                  <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(255,255,255,0.03); border-radius: 3px;">
+                    <span style="font-size: 8px; color: #e2e8f0;">支付宝支付接口</span>
+                    <span style="font-size: 7px; color: #60a5fa;">Agent A</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(255,255,255,0.03); border-radius: 3px;">
+                    <span style="font-size: 8px; color: #e2e8f0;">微信支付接口对接</span>
+                    <span style="font-size: 7px; color: #10b981;">Agent B</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Batch 2 -->
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                <div style="font-size: 9px; color: #6b7280; margin-bottom: 6px;">📋 第二批（第一批完成后）</div>
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                  <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(255,255,255,0.02); border-radius: 3px;">
+                    <span style="font-size: 8px; color: #94a3b8;">支付回调处理</span>
+                    <span style="font-size: 7px; color: #60a5fa;">Agent A</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(255,255,255,0.02); border-radius: 3px;">
+                    <span style="font-size: 8px; color: #94a3b8;">退款流程实现</span>
+                    <span style="font-size: 7px; color: #10b981;">Agent B</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(255,255,255,0.02); border-radius: 3px;">
+                    <span style="font-size: 8px; color: #94a3b8;">支付集成测试</span>
+                    <span style="font-size: 7px; color: #60a5fa;">Agent A</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 6px;">
+                <button style="background: #818cf8; color: white; border: none; padding: 5px 16px; border-radius: 5px; font-size: 9px;">✓ 确认并开始执行</button>
+                <button style="background: rgba(255,255,255,0.06); color: #94a3b8; border: none; padding: 5px 16px; border-radius: 5px; font-size: 9px;">调整计划</button>
+                <button style="background: transparent; color: #4b5563; border: none; padding: 5px 10px; border-radius: 5px; font-size: 9px;">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-bottom: 24px;">
+  <h3>阶段 3: 执行中 — Agent 正在执行任务</h3>
+  <div class="mockup">
+    <div class="mockup-header">AI 视图 · 执行阶段</div>
+    <div class="mockup-body" style="background: #0f0f1a; min-height: 380px; display: flex;">
+      <!-- Left: tasks with live status -->
+      <div style="width: 200px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <span style="font-size: 10px; color: #94a3b8;">任务 · 2/5 执行中</span>
+        </div>
+        <div style="flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.15); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #e2e8f0;">支付宝支付接口</span>
+            <div style="display: flex; align-items: center; gap: 3px; margin-top: 3px;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #1e3a5f; color: #60a5fa; font-size: 5px; display: flex; align-items: center; justify-content: center;">A</div>
+              <div style="flex: 1; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden;">
+                <div style="width: 72%; height: 100%; background: #60a5fa; border-radius: 1px; animation: progress 2s infinite;"></div>
+              </div>
+              <span style="font-size: 7px; color: #60a5fa;">72%</span>
+            </div>
+          </div>
+          <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #e2e8f0;">微信支付接口对接</span>
+            <div style="display: flex; align-items: center; gap: 3px; margin-top: 3px;">
+              <div style="width: 10px; height: 10px; border-radius: 50%; background: #1a3d2e; color: #10b981; font-size: 5px; display: flex; align-items: center; justify-content: center;">B</div>
+              <div style="flex: 1; height: 2px; background: rgba(255,255,255,0.05); border-radius: 1px; overflow: hidden;">
+                <div style="width: 45%; height: 100%; background: #10b981; border-radius: 1px; animation: progress 2s infinite;"></div>
+              </div>
+              <span style="font-size: 7px; color: #10b981;">45%</span>
+            </div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 8px; opacity: 0.5;">
+            <span style="font-size: 9px; color: #6b7280;">支付回调处理</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">⏳ 等待中</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 8px; opacity: 0.5;">
+            <span style="font-size: 9px; color: #6b7280;">退款流程实现</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">⏳ 等待中</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 8px; opacity: 0.5;">
+            <span style="font-size: 9px; color: #6b7280;">支付集成测试</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">⏳ 等待中</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Middle: activity -->
+      <div style="width: 220px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <span style="font-size: 10px; color: #94a3b8;">活动流</span>
+        </div>
+        <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="padding: 4px; border-radius: 3px; background: rgba(129,140,248,0.04); font-size: 7px; color: #6b7280;">🤖 计划已确认 10:32</div>
+          <div style="padding: 4px; border-radius: 3px; background: rgba(96,165,250,0.04); border-left: 2px solid #60a5fa; font-size: 7px; color: #93c5fd;">A 开始: 支付宝接口 10:33</div>
+          <div style="padding: 4px; border-radius: 3px; background: rgba(16,185,129,0.04); border-left: 2px solid #10b981; font-size: 7px; color: #6ee7b7;">B 开始: 微信接口 10:33</div>
+          <div style="padding: 4px; border-radius: 3px; background: rgba(96,165,250,0.04); font-size: 7px; color: #6b7280;">A 创建 handler.ts 10:38</div>
+          <div style="padding: 4px; border-radius: 3px; background: rgba(16,185,129,0.04); font-size: 7px; color: #6b7280;">B 对接微信 SDK 10:40</div>
+          <div style="padding: 4px; border-radius: 3px; background: rgba(96,165,250,0.04); font-size: 7px; color: #60a5fa;">A 实现签名验证 10:45</div>
+          <div style="padding: 4px; border-radius: 3px; display: flex; align-items: center; gap: 2px;">
+            <div style="width: 4px; height: 4px; border-radius: 50%; background: #60a5fa; animation: pulse 1.4s infinite;"></div>
+            <span style="font-size: 7px; color: #6b7280;">2 个 Agent 执行中...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: chat with execution logs -->
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <div style="padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px;">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px;">🤖</div>
+          <div style="font-size: 11px; color: #e2e8f0; font-weight: 600;">AI 对话 · 执行中</div>
+        </div>
+        <div style="flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;">
+          <!-- Agent A execution card in chat -->
+          <div style="display: flex; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0;">🤖</div>
+            <div style="flex: 1;">
+              <div style="font-size: 9px; color: #c4b5fd; margin-bottom: 6px;">两个 Agent 已开始并行执行：</div>
+
+              <div style="background: rgba(96,165,250,0.05); border: 1px solid rgba(96,165,250,0.1); border-radius: 8px; overflow: hidden; margin-bottom: 8px;">
+                <div style="padding: 5px 10px; background: rgba(96,165,250,0.08); display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #1e3a5f; color: #60a5fa; font-size: 5px; display: flex; align-items: center; justify-content: center;">A</div>
+                    <span style="font-size: 8px; color: #60a5fa;">支付宝接口 · 72%</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 2px;">
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #60a5fa; animation: pulse 1.4s infinite;"></div>
+                    <span style="font-size: 7px; color: #60a5fa;">运行中</span>
+                  </div>
+                </div>
+                <div style="padding: 6px 10px; font-family: monospace; font-size: 7px; line-height: 1.5;">
+                  <div style="color: #10b981;">✓ handler.ts (+67行)</div>
+                  <div style="color: #10b981;">✓ signature.ts (+43行)</div>
+                  <div style="color: #60a5fa;">$ 编写回调路由...</div>
+                </div>
+              </div>
+
+              <div style="background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.1); border-radius: 8px; overflow: hidden;">
+                <div style="padding: 5px 10px; background: rgba(16,185,129,0.08); display: flex; justify-content: space-between; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #1a3d2e; color: #10b981; font-size: 5px; display: flex; align-items: center; justify-content: center;">B</div>
+                    <span style="font-size: 8px; color: #10b981;">微信接口 · 45%</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 2px;">
+                    <div style="width: 4px; height: 4px; border-radius: 50%; background: #10b981; animation: pulse 1.4s infinite;"></div>
+                    <span style="font-size: 7px; color: #10b981;">运行中</span>
+                  </div>
+                </div>
+                <div style="padding: 6px 10px; font-family: monospace; font-size: 7px; line-height: 1.5;">
+                  <div style="color: #10b981;">✓ config.ts (+23行)</div>
+                  <div style="color: #10b981;">$ 集成微信 SDK...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User asking -->
+          <div style="display: flex; justify-content: flex-end;">
+            <div style="background: rgba(129,140,248,0.15); border-radius: 10px 10px 2px 10px; padding: 7px 10px; max-width: 70%;">
+              <div style="font-size: 10px; color: #c4b5fd;">进度怎么样了？</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0;">🤖</div>
+            <div style="font-size: 9px; color: #c4b5fd; line-height: 1.5;">Agent A 进度 72%，预计还需 5 分钟。Agent B 进度 45%，预计还需 8 分钟。目前没有异常。</div>
+          </div>
+        </div>
+        <div style="padding: 8px 14px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2);">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 12px;">
+              <span style="font-size: 10px; color: #4b5563;">提问或下达指令...</span>
+            </div>
+            <button style="background: #818cf8; color: white; border: none; width: 32px; height: 32px; border-radius: 6px; font-size: 14px;">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>阶段 4: 完成 — 审核结果</h3>
+  <div class="mockup">
+    <div class="mockup-header">AI 视图 · 完成审核阶段</div>
+    <div class="mockup-body" style="background: #0f0f1a; min-height: 380px; display: flex;">
+      <!-- Left: all tasks completed -->
+      <div style="width: 200px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 10px; color: #10b981;">✓ 5/5 已完成</span>
+        </div>
+        <div style="flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #6ee7b7;">✓ 支付宝支付接口</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">Agent A · 18分钟</div>
+          </div>
+          <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #6ee7b7;">✓ 微信支付接口对接</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">Agent B · 22分钟</div>
+          </div>
+          <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #6ee7b7;">✓ 支付回调处理</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">Agent A · 15分钟</div>
+          </div>
+          <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #6ee7b7;">✓ 退款流程实现</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">Agent B · 20分钟</div>
+          </div>
+          <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 6px; padding: 6px 8px;">
+            <span style="font-size: 9px; color: #6ee7b7;">✓ 支付集成测试</span>
+            <div style="font-size: 7px; color: #4b5563; margin-top: 2px;">Agent A · 12分钟</div>
+          </div>
+        </div>
+        <!-- Summary -->
+        <div style="padding: 8px; border-top: 1px solid rgba(16,185,129,0.1); background: rgba(16,185,129,0.04);">
+          <div style="font-size: 8px; color: #10b981; margin-bottom: 2px;">📊 总结</div>
+          <div style="font-size: 7px; color: #6b7280;">总耗时: 87分钟</div>
+          <div style="font-size: 7px; color: #6b7280;">文件变更: 18个文件</div>
+          <div style="font-size: 7px; color: #6b7280;">测试: 12/12 通过</div>
+        </div>
+      </div>
+
+      <!-- Middle: final activity -->
+      <div style="width: 220px; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <span style="font-size: 10px; color: #94a3b8;">活动流</span>
+        </div>
+        <div style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 3px;">
+          <div style="padding: 3px; border-radius: 3px; background: rgba(96,165,250,0.04); font-size: 7px; color: #93c5fd;">A 开始: 支付宝接口 10:33</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.04); font-size: 7px; color: #6ee7b7;">B 开始: 微信接口 10:33</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.06); border-left: 2px solid #10b981; font-size: 7px; color: #6ee7b7;">✓ A 完成: 支付宝 10:51</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.06); border-left: 2px solid #10b981; font-size: 7px; color: #6ee7b7;">✓ B 完成: 微信 10:55</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(96,165,250,0.04); font-size: 7px; color: #93c5fd;">A 开始: 支付回调 10:56</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.04); font-size: 7px; color: #6ee7b7;">B 开始: 退款流程 10:56</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.06); font-size: 7px; color: #6ee7b7;">✓ A 完成: 回调 11:11</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.06); font-size: 7px; color: #6ee7b7;">✓ B 完成: 退款 11:16</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(96,165,250,0.04); font-size: 7px; color: #93c5fd;">A 开始: 集成测试 11:17</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(16,185,129,0.08); border-left: 2px solid #10b981; font-size: 7px; color: #10b981; font-weight: bold;">✓ 全部完成! 11:29</div>
+          <div style="padding: 3px; border-radius: 3px; background: rgba(129,140,248,0.06); border-left: 2px solid #818cf8; font-size: 7px; color: #818cf8;">⏳ 等待用户审核</div>
+        </div>
+      </div>
+
+      <!-- Right: review chat -->
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <div style="padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 8px;">
+          <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px;">🤖</div>
+          <div>
+            <div style="font-size: 11px; color: #10b981; font-weight: 600;">AI 对话 · 完成审核</div>
+          </div>
+        </div>
+        <div style="flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
+          <!-- AI completion summary -->
+          <div style="display: flex; gap: 8px;">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #818cf8, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0;">🤖</div>
+            <div style="flex: 1;">
+              <div style="font-size: 10px; color: #10b981; font-weight: 600; margin-bottom: 6px;">支付模块需求已全部完成 ✓</div>
+
+              <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.12); border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+                <div style="font-size: 9px; color: #6ee7b7; margin-bottom: 6px;">📊 执行总结</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 8px;">
+                  <div style="color: #94a3b8;">总任务: <span style="color: #e2e8f0;">5</span></div>
+                  <div style="color: #94a3b8;">总耗时: <span style="color: #e2e8f0;">87 分钟</span></div>
+                  <div style="color: #94a3b8;">文件变更: <span style="color: #e2e8f0;">18 个</span></div>
+                  <div style="color: #94a3b8;">测试: <span style="color: #10b981;">12/12 通过</span></div>
+                  <div style="color: #94a3b8;">代码行数: <span style="color: #e2e8f0;">+1,247 -89</span></div>
+                  <div style="color: #94a3b8;">Agent: <span style="color: #e2e8f0;">A(3) + B(2)</span></div>
+                </div>
+              </div>
+
+              <!-- Changes summary -->
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+                <div style="font-size: 9px; color: #94a3b8; margin-bottom: 6px;">📝 主要变更</div>
+                <div style="font-family: monospace; font-size: 8px; line-height: 1.6;">
+                  <div style="color: #10b981;">✓ src/payment/alipay/ (+3 文件)</div>
+                  <div style="color: #10b981;">✓ src/payment/wechat/ (+3 文件)</div>
+                  <div style="color: #10b981;">✓ src/payment/callback/ (+2 文件)</div>
+                  <div style="color: #10b981;">✓ src/payment/refund/ (+2 文件)</div>
+                  <div style="color: #10b981;">✓ src/routes/payment.ts (+1 文件)</div>
+                  <div style="color: #10b981;">✓ tests/payment/ (+7 文件)</div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 6px;">
+                <button style="background: #10b981; color: white; border: none; padding: 5px 16px; border-radius: 5px; font-size: 9px;">✓ 确认完成，合并代码</button>
+                <button style="background: rgba(96,165,250,0.12); color: #60a5fa; border: none; padding: 5px 12px; border-radius: 5px; font-size: 9px;">查看全部变更</button>
+                <button style="background: rgba(239,68,68,0.12); color: #ef4444; border: none; padding: 5px 12px; border-radius: 5px; font-size: 9px;">有问题，回退</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 8px 14px; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2);">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 12px;">
+              <span style="font-size: 10px; color: #4b5563;">提问或下达新指令...</span>
+            </div>
+            <button style="background: #818cf8; color: white; border: none; width: 32px; height: 32px; border-radius: 6px; font-size: 14px;">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+  @keyframes progress {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; }
+  }
+</style>
