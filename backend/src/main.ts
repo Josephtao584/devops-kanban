@@ -9,7 +9,7 @@ const start = async () => {
       host: app.config.SERVER_HOST,
     });
 
-    console.log(`🚀 DevOps Kanban Backend (Node.js) starting...`);
+    console.log(`🚀 Coplat Backend (Node.js) starting...`);
     console.log(`   Server: http://${app.config.SERVER_HOST}:${app.config.SERVER_PORT}`);
     console.log(`   API Docs: http://${app.config.SERVER_HOST}:${app.config.SERVER_PORT}/docs`);
     console.log(`   Data path: ${app.config.STORAGE_PATH}`);
@@ -20,7 +20,7 @@ const start = async () => {
 };
 
 process.on('SIGTERM', () => {
-  console.log('👋 DevOps Kanban Backend shutting down...');
+  console.log('👋 Coplat Backend shutting down...');
 
   if (app.schedulerService) {
     app.schedulerService.shutdown();

@@ -82,8 +82,8 @@ class WorkflowService {
               projectName = project?.name || '';
             }
             const header = projectName
-              ? `[DevOps-Kanban:${projectName}] ${event.taskTitle}`
-              : `[DevOps-Kanban] ${event.taskTitle}`;
+              ? `[Coplat:${projectName}] ${event.taskTitle}`
+              : `[Coplat] ${event.taskTitle}`;
 
             const completedSteps = event.steps
               .filter((s) => s.status === 'COMPLETED' && s.summary)

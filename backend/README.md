@@ -1,4 +1,4 @@
-# DevOps Kanban Backend (Node.js)
+# Coplat Backend (Node.js)
 
 基于 Fastify 的 Node.js 后端服务，提供 DevOps 看板管理系统的 API 接口。
 

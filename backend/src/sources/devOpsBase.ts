@@ -62,7 +62,7 @@ abstract class DevOpsBaseAdapter extends TaskSourceAdapter {
   _getHeaders(body?: string): Headers {
     const headers: Headers = {
       Accept: 'application/json',
-      'User-Agent': 'DevOps-Kanban-App',
+      'User-Agent': 'Coplat-App',
     };
 
     if (this.token) {

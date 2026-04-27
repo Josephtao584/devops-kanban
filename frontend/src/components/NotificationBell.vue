@@ -154,7 +154,7 @@ async function handleTestSend() {
   if (!chatConfig.value.url) return
   chatLoading.value = true
   try {
-    await sendNotification('[DevOps-Kanban] 通知测试 — 这是一条测试消息，用于验证消息通知通道是否正常工作')
+    await sendNotification('[Coplat] 通知测试 — 这是一条测试消息，用于验证消息通知通道是否正常工作')
   } finally {
     chatLoading.value = false
   }

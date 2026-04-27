@@ -76,7 +76,7 @@ export async function buildApp() {
 
   fastify.get('/', async () => ({
     success: true,
-    message: 'DevOps Kanban API',
+    message: 'Coplat API',
     version: '0.1.0 (Node.js)',
     data: {
       endpoints: {

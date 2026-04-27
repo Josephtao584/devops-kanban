@@ -27,7 +27,7 @@ export default {
     groupWorkspace: '工作面板',
     groupPlatformConfig: '平台配置',
     projects: '项目列表',
-    kanban: '看板',
+    kanban: '工作台',
     taskSources: '任务源',
     agents: '我的团队',
     workflowTemplate: '工作流模板',

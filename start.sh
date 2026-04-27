@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# DevOps Kanban - 一键启动脚本
+# Coplat - 一键启动脚本
 # 同时启动前端和后端服务（Node.js 后端）
 # 自动检测并清理端口占用的进程
 
-echo "🚀 DevOps Kanban 启动中..."
+echo "🚀 Coplat 启动中..."
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
@@ -57,7 +57,7 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  DevOps Kanban - 启动检查${NC}"
+echo -e "${BLUE}  Coplat - 启动检查${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
@@ -174,7 +174,7 @@ done
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  DevOps Kanban 启动完成！${NC}"
+echo -e "${GREEN}  Coplat 启动完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "  前端：${BLUE}http://localhost:$FRONTEND_PORT${NC}"

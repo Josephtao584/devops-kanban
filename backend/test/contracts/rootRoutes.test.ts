@@ -8,7 +8,7 @@ test.test('root route preserves success, message, version and endpoint data shap
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
     success: true,
-    message: 'DevOps Kanban API',
+    message: 'Coplat API',
     version: '0.1.0 (Node.js)',
     data: {
       endpoints: {
