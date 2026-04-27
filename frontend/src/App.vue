@@ -4,7 +4,7 @@
     <aside class="sidebar" :class="{ 'collapsed': isSidebarCollapsed }">
       <!-- Logo/品牌区域 -->
       <div class="sidebar-header">
-        <span v-if="!isSidebarCollapsed" class="brand-text">DevOps Kanban</span>
+        <span v-if="!isSidebarCollapsed" class="brand-text">Coplat</span>
         <button @click="toggleSidebar" class="sidebar-toggle" :title="isSidebarCollapsed ? 'Expand' : 'Collapse'">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline v-if="isSidebarCollapsed" points="9 18 15 12 9 6"></polyline>

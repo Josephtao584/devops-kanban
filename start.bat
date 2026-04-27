@@ -1,11 +1,11 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-:: DevOps Kanban - Windows Startup Script
+:: Coplat - Windows Startup Script
 
 echo.
 echo ========================================
-echo   DevOps Kanban Starting...
+echo   Coplat Starting...
 echo ========================================
 echo.
 
@@ -168,7 +168,7 @@ if "!FRONTEND_READY!"=="0" (
 
 echo.
 echo ========================================
-echo   DevOps Kanban Started!
+echo   Coplat Started!
 echo ========================================
 echo.
 echo   Frontend: http://localhost:!FRONTEND_PORT!

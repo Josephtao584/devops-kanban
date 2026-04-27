@@ -527,7 +527,7 @@ test.test('InternalApiAdapter uses configured authorization header value as-is',
 
   assert.deepEqual(adapter._getHeaders(), {
     Accept: 'application/json',
-    'User-Agent': 'DevOps-Kanban-App',
+    'User-Agent': 'Coplat-App',
     Authorization: 'ApiKey demo-key',
   });
 });
@@ -550,7 +550,7 @@ test.test('InternalApiAdapter preserves explicit port and supports http transpor
     path: '/tasks',
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'DevOps-Kanban-App',
+      'User-Agent': 'Coplat-App',
     },
     method: 'GET',
   });
@@ -578,7 +578,7 @@ test.test('InternalApiAdapter adds JSON headers when request body is present', (
     path: '/tasks',
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'DevOps-Kanban-App',
+      'User-Agent': 'Coplat-App',
       Authorization: 'Bearer demo-token',
       'Content-Type': 'application/json',
       'Content-Length': String(Buffer.byteLength(body)),

@@ -1,7 +1,7 @@
 {
-  "name": "devops-kanban-backend",
+  "name": "coplat-backend",
   "version": "0.1.0",
-  "description": "DevOps Kanban Backend API - Node.js Fastify",
+  "description": "Coplat Backend API - Node.js Fastify",
   "type": "module",
   "main": "dist/src/main.js",
   "engines": {

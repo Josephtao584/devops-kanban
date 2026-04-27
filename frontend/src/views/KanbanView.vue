@@ -348,8 +348,7 @@
 
         <div v-if="!selectedTask && !taskSourceStore.syncPanelVisible && !isChatCollapsed" class="chat-welcome">
           <div class="welcome-logo">
-            <span class="logo-devops">DevOps</span>
-            <span class="logo-kanban">Kanban</span>
+            <span class="logo-kanban">Coplat</span>
           </div>
           <h2>点击任务查看 Workflow</h2>
         </div>

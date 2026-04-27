@@ -2,7 +2,7 @@
   <div class="project-list-view page-shell page-shell--canvas page-shell--padded">
     <div class="page-shell__inner page-shell__inner--narrow project-home">
       <div class="brand-banner">
-        <h1 class="brand-wordmark">DevOps Kanban</h1>
+        <h1 class="brand-wordmark">Cooperation Platform</h1>
       </div>
 
       <section class="surface-panel home-header">

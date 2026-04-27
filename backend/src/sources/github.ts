@@ -82,7 +82,7 @@ class GitHubAdapter extends TaskSourceAdapter {
 
   _getHeaders(): Headers {
     const headers: Headers = {
-      'User-Agent': 'DevOps-Kanban-App',
+      'User-Agent': 'Coplat-App',
       Accept: 'application/vnd.github.v3+json',
     };
 

@@ -36,7 +36,7 @@ npm run test:run     # Vitest single run (CI mode)
 
 ## Architecture Overview
 
-DevOps Kanban board for managing projects/tasks with AI agent execution in isolated Git worktrees. Users create projects, define requirements and tasks, then execute tasks via AI coding agents (Claude Code) that work in separate Git branches.
+Coplat board for managing projects/tasks with AI agent execution in isolated Git worktrees. Users create projects, define requirements and tasks, then execute tasks via AI coding agents (Claude Code) that work in separate Git branches.
 
 ### Backend (`backend/`) - Fastify 4.x + Zod + JSON file storage
 

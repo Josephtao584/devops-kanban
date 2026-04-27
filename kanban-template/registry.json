@@ -4,48 +4,48 @@
     "displayName": "完整启动包",
     "description": "包含全部 5 个 Agent（架构师、后端开发、前端开发、测试工程师、CI/CD 部署工程师）和全部工作流模板，每个 Agent 预装对应 Skills 和 MCP Server，适合新团队快速启动",
     "tags": ["推荐", "全栈"],
-    "filename": "devops-kanban-full-starter.zip"
+    "filename": "coplat-full-starter.zip"
   },
   {
     "name": "default-workflow",
     "displayName": "默认工作流",
     "description": "标准交付流程：头脑风暴设计 → 开发实现 → 测试验证 → 结果评审，含架构师、后端开发、测试工程师，预装 superpowers、TDD、playwright 等技能",
     "tags": ["通用"],
-    "filename": "devops-kanban-default-workflow.zip"
+    "filename": "coplat-default-workflow.zip"
   },
   {
     "name": "standard-feature-dev-sdd-tdd",
     "displayName": "SDD/TDD 标准功能开发",
     "description": "7 步标准功能开发流程：需求澄清 → 方案设计 → 测试先行 → 最小实现 → 自动化验证 → 前端验收 → 交付评审",
     "tags": ["功能开发", "TDD", "SDD"],
-    "filename": "devops-kanban-standard-feature-dev-sdd-tdd.zip"
+    "filename": "coplat-standard-feature-dev-sdd-tdd.zip"
   },
   {
     "name": "bugfix-regression-prevention",
     "displayName": "缺陷修复与防回归",
     "description": "7 步缺陷修复流程：问题澄清 → 根因设计 → 失败测试补齐 → 最小修复 → 自动化回归 → 前端验收 → 修复评审",
     "tags": ["缺陷修复", "防回归", "TDD"],
-    "filename": "devops-kanban-bugfix-regression-prevention.zip"
+    "filename": "coplat-bugfix-regression-prevention.zip"
   },
   {
     "name": "frontend-dev-delivery",
     "displayName": "前端开发通用功能交付",
     "description": "6 步前端交付流程：需求与原型 → 方案设计 → 测试先行 → 功能实现 → 测试执行 → 交付评审，含前端开发和 Playwright 验收环节",
     "tags": ["前端开发", "功能交付"],
-    "filename": "devops-kanban-frontend-dev-delivery.zip"
+    "filename": "coplat-frontend-dev-delivery.zip"
   },
   {
     "name": "code-explorer",
     "displayName": "代码仓探索",
     "description": "一键分析代码仓，生成结构化介绍报告（KANBAN_COMPASS.md），含架构师 Agent 和 superpowers 技能",
     "tags": ["探索", "分析"],
-    "filename": "devops-kanban-code-explorer.zip"
+    "filename": "coplat-code-explorer.zip"
   },
   {
     "name": "vulnerability-fix",
     "displayName": "安全漏洞修复",
     "description": "7 步安全漏洞修复流程：漏洞分析 → 补丁设计 → 安全测试 → 最小补丁 → 回归验证 → 真实环境验证 → 交付与部署评审，含 CI/CD 部署工程师",
     "tags": ["安全", "漏洞修复", "CVE"],
-    "filename": "devops-kanban-vulnerability-fix.zip"
+    "filename": "coplat-vulnerability-fix.zip"
   }
 ]
