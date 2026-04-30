@@ -111,16 +111,23 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r name type repo; do
   cd "$REPO_PATH"
 
   ERROR_LOG="$LOG_DIR/${name}.log"
-  if claude -p "$PROMPT" --output-file "$OUTPUT_DIR/${name}.yaml" 2>"$ERROR_LOG"; then
-    echo "  [完成] → profiles/${name}.yaml"
-    rm -f "$ERROR_LOG"
-    SUCCESS=$((SUCCESS + 1))
+  if claude -p "$PROMPT" > "$OUTPUT_DIR/${name}.yaml" 2>"$ERROR_LOG"; then
+    if [ -s "$OUTPUT_DIR/${name}.yaml" ]; then
+      echo "  [完成] → profiles/${name}.yaml"
+      rm -f "$ERROR_LOG"
+      SUCCESS=$((SUCCESS + 1))
+    else
+      echo "  [失败] Claude 返回空内容"
+      rm -f "$OUTPUT_DIR/${name}.yaml"
+      FAIL=$((FAIL + 1))
+    fi
   else
     echo "  [失败] Claude 分析出错，错误信息："
     echo "  ----------------------------------------"
     sed 's/^/  /' "$ERROR_LOG"
     echo "  ----------------------------------------"
     echo "  完整日志: $ERROR_LOG"
+    rm -f "$OUTPUT_DIR/${name}.yaml"
     FAIL=$((FAIL + 1))
   fi
 
