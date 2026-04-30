@@ -1,0 +1,8 @@
+服务名,类型,仓库地址
+order-service,backend,git@github.com:your-org/order-service.git
+user-service,backend,git@github.com:your-org/user-service.git
+payment-service,backend,git@github.com:your-org/payment-service.git
+inventory-service,backend,git@github.com:your-org/inventory-service.git
+mall-web,frontend,git@github.com:your-org/mall-web.git
+admin-web,frontend,git@github.com:your-org/admin-web.git
+api-gateway,gateway,git@github.com:your-org/api-gateway.git
