@@ -1,11 +1,11 @@
 # 需求分析 Prompt
 
-将 `service-analysis/architecture.yaml` 的内容粘贴到下方 `{架构全景}` 处，然后把整段发给 LLM。
+将 `service-analysis/architecture.md` 的内容粘贴到下方 `{架构全景}` 处，然后把整段发给 LLM。
 
 ---
 
 ```
-以下是我们的微服务架构全景（YAML 格式）：
+以下是我们的微服务架构全景（Markdown 格式）：
 
 {架构全景}
 
