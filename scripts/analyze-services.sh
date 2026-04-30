@@ -156,46 +156,14 @@ while IFS=',' read -r name type repo <&3; do
   echo ""
 done 3< <(tail -n +2 "$CSV_FILE")
 
-# === 汇总 ===
-echo "========================================="
-echo "  汇总所有服务画像"
-echo "========================================="
-
 PROFILE_COUNT=$(ls "$OUTPUT_DIR"/*.md 2>/dev/null | wc -l | xargs)
-
-if [ "$PROFILE_COUNT" -eq 0 ]; then
-  echo "没有生成任何服务画像，跳过汇总"
-  exit 1
-fi
-
-cat > "$SUMMARY_FILE" << EOF
-# 微服务架构全景
-
-> 自动生成于 $(date '+%Y-%m-%d %H:%M:%S') | 服务总数: $PROFILE_COUNT
->
-> 用途: 作为 LLM 上下文，用于需求分析时定位涉及的微服务
-
----
-EOF
-
-for f in "$OUTPUT_DIR"/*.md; do
-  if [ -f "$f" ]; then
-    echo "" >> "$SUMMARY_FILE"
-    cat "$f" >> "$SUMMARY_FILE"
-    echo "" >> "$SUMMARY_FILE"
-    echo "---" >> "$SUMMARY_FILE"
-  fi
-done
 
 echo ""
 echo "========================================="
 echo "  完成"
 echo "========================================="
 echo "单个服务画像: $OUTPUT_DIR/"
-echo "汇总文件:     $SUMMARY_FILE"
-echo "服务总数:     $PROFILE_COUNT"
-echo ""
-echo "下一步: 用 requirement-analysis-prompt.md 中的 prompt 做需求分析"
+echo "已生成:       $PROFILE_COUNT 个"
 echo ""
 echo "按回车键退出..."
 read -r
