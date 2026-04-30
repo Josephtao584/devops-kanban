@@ -6,3 +6,5 @@ inventory-service,backend,git@github.com:your-org/inventory-service.git
 mall-web,frontend,git@github.com:your-org/mall-web.git
 admin-web,frontend,git@github.com:your-org/admin-web.git
 api-gateway,gateway,git@github.com:your-org/api-gateway.git
+common-api,library,git@github.com:your-org/common-api.git
+common-utils,library,git@github.com:your-org/common-utils.git
