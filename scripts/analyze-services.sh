@@ -3,7 +3,14 @@
 # 用法: ./analyze-services.sh [services.csv]
 # 依赖: git, claude (Claude Code CLI)
 
-set -e
+LOG_DIR=""
+
+cleanup() {
+  if [ -n "$LOG_DIR" ] && [ -d "$LOG_DIR" ]; then
+    rm -rf "$LOG_DIR"
+  fi
+}
+trap cleanup EXIT
 
 WORK_DIR="$(pwd)/service-analysis"
 OUTPUT_DIR="$WORK_DIR/profiles"
@@ -18,7 +25,8 @@ if [ ! -f "$CSV_FILE" ]; then
   exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR" "$REPOS_DIR"
+LOG_DIR="$WORK_DIR/logs"
+mkdir -p "$OUTPUT_DIR" "$REPOS_DIR" "$LOG_DIR"
 
 PROMPT='你是一个代码架构分析师。请分析当前代码仓库，输出纯 YAML（不要用 ```yaml 包裹，直接输出 YAML 内容）。
 只基于代码中实际存在的内容，找不到的字段填 null。
@@ -83,7 +91,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r name type repo; do
     echo "  已存在，跳过 clone"
   else
     echo "  正在 clone..."
-    if ! git clone --depth 1 "$repo" "$REPO_PATH" 2>/dev/null; then
+    if ! git clone --depth 1 "$repo" "$REPO_PATH" 2>&1 | tail -5; then
       echo "  [失败] clone 失败，跳过"
       FAIL=$((FAIL + 1))
       continue
@@ -102,11 +110,17 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r name type repo; do
   CURRENT_DIR=$(pwd)
   cd "$REPO_PATH"
 
-  if claude -p "$PROMPT" --output-file "$OUTPUT_DIR/${name}.yaml" 2>/dev/null; then
+  ERROR_LOG="$LOG_DIR/${name}.log"
+  if claude -p "$PROMPT" --output-file "$OUTPUT_DIR/${name}.yaml" 2>"$ERROR_LOG"; then
     echo "  [完成] → profiles/${name}.yaml"
+    rm -f "$ERROR_LOG"
     SUCCESS=$((SUCCESS + 1))
   else
-    echo "  [失败] Claude 分析出错"
+    echo "  [失败] Claude 分析出错，错误信息："
+    echo "  ----------------------------------------"
+    sed 's/^/  /' "$ERROR_LOG"
+    echo "  ----------------------------------------"
+    echo "  完整日志: $ERROR_LOG"
     FAIL=$((FAIL + 1))
   fi
 
