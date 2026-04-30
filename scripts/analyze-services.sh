@@ -74,20 +74,34 @@ SUCCESS=0
 FAIL=0
 SKIP=0
 
+TOTAL=0
 echo "========================================="
 echo "  微服务架构分析"
 echo "========================================="
 echo "输入文件: $CSV_FILE"
 echo "工作目录: $WORK_DIR"
 echo ""
+echo "本次待分析服务列表："
+echo "-----------------------------------------"
+printf "  %-4s %-30s %-10s\n" "序号" "服务名" "类型"
+echo "-----------------------------------------"
+while IFS=',' read -r name type repo; do
+  name=$(echo "$name" | xargs)
+  type=$(echo "$type" | xargs)
+  [ -z "$name" ] && continue
+  TOTAL=$((TOTAL + 1))
+  printf "  %-4s %-30s %-10s\n" "$TOTAL" "$name" "$type"
+done < <(tail -n +2 "$CSV_FILE")
+echo "-----------------------------------------"
+echo "共 $TOTAL 个服务"
+echo ""
 
-tail -n +2 "$CSV_FILE" | while IFS=',' read -r name type repo; do
-  # 去除空白
+# 使用文件描述符 3 读取 CSV，避免 claude 命令吃掉 stdin
+while IFS=',' read -r name type repo <&3; do
   name=$(echo "$name" | xargs)
   type=$(echo "$type" | xargs)
   repo=$(echo "$repo" | xargs)
 
-  # 跳过空行
   [ -z "$name" ] && continue
 
   echo "--- [$name] ($type) ---"
@@ -118,7 +132,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r name type repo; do
   cd "$REPO_PATH"
 
   ERROR_LOG="$LOG_DIR/${name}.log"
-  if claude -p "$PROMPT" > "$OUTPUT_DIR/${name}.md" 2>"$ERROR_LOG"; then
+  if claude -p "$PROMPT" < /dev/null > "$OUTPUT_DIR/${name}.md" 2>"$ERROR_LOG"; then
     if [ -s "$OUTPUT_DIR/${name}.md" ]; then
       echo "  [完成] → profiles/${name}.md"
       rm -f "$ERROR_LOG"
@@ -140,7 +154,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r name type repo; do
 
   cd "$CURRENT_DIR"
   echo ""
-done
+done 3< <(tail -n +2 "$CSV_FILE")
 
 # === 汇总 ===
 echo "========================================="
