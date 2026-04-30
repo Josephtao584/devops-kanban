@@ -182,3 +182,6 @@ echo "汇总文件:     $SUMMARY_FILE"
 echo "服务总数:     $PROFILE_COUNT"
 echo ""
 echo "下一步: 用 requirement-analysis-prompt.md 中的 prompt 做需求分析"
+echo ""
+echo "按回车键退出..."
+read -r
