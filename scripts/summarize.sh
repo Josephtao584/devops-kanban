@@ -19,34 +19,31 @@ if [ "$PROFILE_COUNT" -eq 0 ]; then
   exit 1
 fi
 
+# 用绝对路径，避免 claude 在任意 cwd 下也能正确定位
+ABS_PROFILES_DIR=$(cd "$PROFILES_DIR" && pwd)
+ABS_OUTPUT_DIR=$(cd "$(dirname "$OUTPUT_FILE")" 2>/dev/null && pwd || mkdir -p "$(dirname "$OUTPUT_FILE")" && cd "$(dirname "$OUTPUT_FILE")" && pwd)
+ABS_OUTPUT_FILE="$ABS_OUTPUT_DIR/$(basename "$OUTPUT_FILE")"
+
 echo "========================================="
 echo "  架构总览生成"
 echo "========================================="
-echo "服务画像目录: $PROFILES_DIR"
+echo "服务画像目录: $ABS_PROFILES_DIR"
 echo "服务数量:     $PROFILE_COUNT"
+echo "输出文件:     $ABS_OUTPUT_FILE"
 echo ""
+echo "正在让 AI 读取画像并生成架构总览（可能需要几分钟）..."
 
-# 拼接所有 profiles 作为输入
-ALL_PROFILES=""
-for f in "$PROFILES_DIR"/*.md; do
-  if [ -f "$f" ]; then
-    SERVICE_NAME=$(basename "$f" .md)
-    echo "  读取: $SERVICE_NAME"
-    ALL_PROFILES="$ALL_PROFILES
----
-$(cat "$f")
-"
-  fi
-done
+PROMPT="你是一个架构师。请使用你的 Read/Glob 工具读取目录 \`$ABS_PROFILES_DIR\` 下所有 .md 文件（共 $PROFILE_COUNT 个服务画像），然后生成一份精简的架构总览文档。
 
-echo ""
-echo "正在让 AI 生成架构总览（可能需要几分钟）..."
+读取方法：
+- 先用 Glob 列出 \`$ABS_PROFILES_DIR/*.md\` 所有文件
+- 逐个 Read 每个 .md 文件了解服务详情
+- 读完后再开始生成总览
 
-PROMPT="你是一个架构师。以下是我们所有微服务和二方库的详细画像，请生成一份精简的架构总览文档。
-
-要求：
+输出要求：
 1. 不要重复每个服务的完整信息，只提炼关键内容
-2. 按以下结构输出（直接输出 Markdown，不要用 \`\`\`markdown 包裹）：
+2. 将最终总览内容直接输出到 stdout（纯 Markdown，不要用 \`\`\`markdown 包裹，不要写任何其它文件）
+3. 按以下结构输出：
 
 # 微服务架构总览
 
@@ -74,31 +71,42 @@ PROMPT="你是一个架构师。以下是我们所有微服务和二方库的详
 
 ## 外部集成汇总
 
-所有对外的第三方集成（支付、短信、OSS 等）集中列出，标注由哪个服务负责
+所有对外的第三方集成（支付、短信、OSS 等）集中列出，标注由哪个服务负责"
 
----
-
-以下是所有服务的详细画像：
-
-$ALL_PROFILES"
-
-if claude -p "$PROMPT" < /dev/null > "$OUTPUT_FILE" 2>/dev/null; then
-  if [ -s "$OUTPUT_FILE" ]; then
+# --permission-mode acceptEdits 允许 Read/Glob 等只读工具在非交互模式下直接执行
+if claude -p "$PROMPT" \
+    --permission-mode acceptEdits \
+    < /dev/null \
+    > "$ABS_OUTPUT_FILE" \
+    2> "$ABS_OUTPUT_FILE.err"; then
+  if [ -s "$ABS_OUTPUT_FILE" ]; then
     echo ""
     echo "========================================="
     echo "  完成"
     echo "========================================="
-    echo "架构总览: $OUTPUT_FILE"
+    echo "架构总览: $ABS_OUTPUT_FILE"
     echo ""
     echo "做需求分析时，先给 AI 看这个总览文件定位涉及的服务，"
     echo "再让它看 profiles/ 下对应服务的详细画像了解细节。"
+    rm -f "$ABS_OUTPUT_FILE.err"
   else
     echo "[失败] AI 返回空内容"
-    rm -f "$OUTPUT_FILE"
+    if [ -s "$ABS_OUTPUT_FILE.err" ]; then
+      echo "--- claude stderr ---"
+      cat "$ABS_OUTPUT_FILE.err"
+      echo "---------------------"
+    fi
+    rm -f "$ABS_OUTPUT_FILE" "$ABS_OUTPUT_FILE.err"
   fi
 else
-  echo "[失败] AI 总结出错"
-  rm -f "$OUTPUT_FILE"
+  EXIT_CODE=$?
+  echo "[失败] AI 总结出错 (claude 退出码: $EXIT_CODE)"
+  if [ -s "$ABS_OUTPUT_FILE.err" ]; then
+    echo "--- claude stderr ---"
+    cat "$ABS_OUTPUT_FILE.err"
+    echo "---------------------"
+  fi
+  rm -f "$ABS_OUTPUT_FILE" "$ABS_OUTPUT_FILE.err"
 fi
 
 echo ""
