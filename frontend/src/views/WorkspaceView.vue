@@ -49,6 +49,14 @@
             </svg>
             新建
           </el-button>
+          <el-button
+            v-if="selectedProjectId"
+            size="small"
+            text
+            @click="showTaskSourceDialog = true"
+          >
+            任务源
+          </el-button>
         </div>
         <template v-if="taskListViewMode === 'list'">
           <div
@@ -161,6 +169,23 @@
       </div>
     </div>
 
+    <el-dialog
+      v-model="showTaskSourceDialog"
+      title="任务源管理"
+      width="960px"
+      align-center
+      :destroy-on-close="true"
+      class="task-source-workspace-dialog"
+    >
+      <TaskSourcePanel
+        v-if="selectedProjectId"
+        :project-id="String(selectedProjectId)"
+        :visible="showTaskSourceDialog"
+        @update:visible="showTaskSourceDialog = $event"
+        @tasks-imported="handleTasksImported"
+      />
+    </el-dialog>
+
     <div class="resize-handle" @mousedown="(e) => handleMouseDown(e, 'left')"></div>
 
     <!-- Right: 2-row layout -->
@@ -212,6 +237,7 @@
             @step-select="onStepSelect"
             @open-template="onOpenTemplateDialog"
             @show-split-suggestions="showSplitSuggestionsDialog = true"
+            @confirm="onWorkflowConfirm"
           />
         </div>
 
@@ -395,6 +421,14 @@
         @dismiss="showSplitSuggestionsDialog = false"
       />
     </el-dialog>
+
+    <WorkflowProgressDialog
+      v-model="showWorkflowProgressDialog"
+      :task-id="workflowProgressTaskId"
+      :workflow-run-id="workflowProgressRunId"
+      :task-title="selectedTask?.title || ''"
+      @workflow-completed="onWorkflowCompleted"
+    />
   </div>
 </template>
 
@@ -410,19 +444,25 @@ import StepSessionPanel from '../components/workflow/StepSessionPanel.vue'
 import AiSplitCard from '../components/workspace/AiSplitCard.vue'
 import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplateSelectDialog.vue'
 import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
+import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
+import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
 import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useProjectStore } from '../stores/projectStore.js'
 import { useAgentStore } from '../stores/agentStore.js'
 import { useSplitSuggestionsStore } from '../stores/splitSuggestions.js'
+import { useTaskSourceStore } from '../stores/taskSourceStore.js'
 import { getRoleConfig } from '../constants/agent.js'
 import { listTasks, getTaskPipeline, createTask, updateTask, deleteTask as deleteTaskApi, startTask } from '../api/task.js'
+import { useWorktree } from '../composables/useWorktree.js'
 import draggable from 'vuedraggable'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer.js'
 
 const projectStore = useProjectStore()
 const agentStore = useAgentStore()
 const splitStore = useSplitSuggestionsStore()
+const taskSourceStore = useTaskSourceStore()
+const { handleWorktree } = useWorktree()
 const { runningTasks } = useTaskTimer()
 const route = useRoute()
 const router = useRouter()
@@ -511,6 +551,11 @@ async function handleSaveTask() {
   }
 }
 
+async function handleTasksImported() {
+  await loadTasks()
+  ElMessage.success('任务已导入')
+}
+
 async function handleDeleteTask(task) {
   if (task.id <= 0) return
   try {
@@ -576,6 +621,10 @@ const selectedStatus = ref(null)
 const taskListViewMode = ref('list') // 'list' | 'kanban'
 const showWorkflowTemplateDialog = ref(false)
 const showSplitSuggestionsDialog = ref(false)
+const showTaskSourceDialog = ref(false)
+const showWorkflowProgressDialog = ref(false)
+const workflowProgressRunId = ref(null)
+const workflowProgressTaskId = ref(null)
 
 const pendingSplitCount = computed(() => {
   const id = selectedTask.value?.id
@@ -665,11 +714,28 @@ async function handleWorkflowTemplateConfirm({ templateId }) {
   }
 }
 
-async function handleWorkflowStartEditorConfirm(draftTemplate) {
+async function handleWorkflowStartEditorConfirm(draftTemplate, autoCreateWorktree) {
   if (!selectedTask.value?.id || !selectedWorkflowTemplateId.value) {
     showWorkflowStartEditorDialog.value = false
     return
   }
+
+  if (autoCreateWorktree && selectedTask.value.worktree_status !== 'created') {
+    try {
+      const result = await handleWorktree(selectedTask.value)
+      if (!result) {
+        showWorkflowStartEditorDialog.value = false
+        ElMessageBox.alert('Worktree 创建失败，无法启动任务', '启动失败', { type: 'error' })
+        return
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Worktree 创建失败，无法启动任务'
+      showWorkflowStartEditorDialog.value = false
+      ElMessageBox.alert(msg, '启动失败', { type: 'error' })
+      return
+    }
+  }
+
   try {
     const resp = await startTask(selectedTask.value.id, {
       workflow_template_id: selectedWorkflowTemplateId.value,
@@ -896,6 +962,16 @@ async function onWorkflowRefresh() {
   if (selectedTask.value?.id) {
     await loadPipeline(selectedTask.value.id)
   }
+}
+
+function onWorkflowConfirm({ workflowRunId, taskId }) {
+  workflowProgressRunId.value = workflowRunId
+  workflowProgressTaskId.value = taskId
+  showWorkflowProgressDialog.value = true
+}
+
+function onWorkflowCompleted() {
+  onWorkflowRefresh()
 }
 
 // Extract the active step's session info from a workflow run

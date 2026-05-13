@@ -132,6 +132,18 @@
           取消
         </button>
       </el-tooltip>
+      <el-tooltip content="确认继续" placement="top">
+        <button
+          class="quick-action-btn quick-action-confirm"
+          :disabled="confirmDisabled || actionLoading"
+          @click="handleConfirm"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          确认
+        </button>
+      </el-tooltip>
       <el-tooltip v-if="pendingSplitCount > 0" :content="`${pendingSplitCount} 条 AI 拆分建议待确认`" placement="top">
         <button class="quick-action-btn quick-action-split" :disabled="actionLoading" @click="emit('show-split-suggestions')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -159,6 +171,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getTask, startTask } from '../../api/task.js'
 import { getWorkflowRun, cancelWorkflow, retryWorkflow } from '../../api/workflow.js'
+import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling.js'
 
 const props = defineProps({
   taskId: { type: Number, default: null },
@@ -167,7 +180,7 @@ const props = defineProps({
   pendingSplitCount: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['refresh', 'run-update', 'step-select', 'open-template', 'show-split-suggestions'])
+const emit = defineEmits(['refresh', 'run-update', 'step-select', 'open-template', 'show-split-suggestions', 'confirm'])
 
 const task = ref(null)
 const run = ref(null)
@@ -176,6 +189,22 @@ const error = ref(null)
 const actionLoading = ref(false)
 const selectedStepId = ref(null)
 
+const isWorkflowTerminal = computed(() => {
+  const status = run.value?.status
+  return status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED' || status === 'DONE'
+})
+
+async function fetchWorkflowRun() {
+  if (!task.value?.workflow_run_id) return
+  await loadRun(task.value.workflow_run_id)
+}
+
+const { startPolling, stopPolling } = useWorkflowRunPolling({
+  fetchFn: fetchWorkflowRun,
+  isTerminal: () => isWorkflowTerminal.value,
+  interval: 5000,
+})
+
 const STATUS_CLASS = {
   DONE: 'done',
   COMPLETED: 'done',
@@ -183,7 +212,7 @@ const STATUS_CLASS = {
   RUNNING: 'running',
   FAILED: 'failed',
   CANCELLED: 'failed',
-  SUSPENDED: 'running',
+  SUSPENDED: 'suspended',
   PENDING: 'pending'
 }
 
@@ -300,6 +329,24 @@ const cancelTooltip = computed(() => {
   return ''
 })
 
+const confirmDisabled = computed(() => {
+  if (!run.value) return true
+  return runStatus.value !== 'SUSPENDED'
+})
+const confirmTooltip = computed(() => {
+  if (!run.value) return '暂无工作流运行'
+  if (runStatus.value === 'SUSPENDED') return ''
+  return '仅暂停状态的工作流可确认'
+})
+
+function handleConfirm() {
+  if (confirmDisabled.value) return
+  emit('confirm', {
+    workflowRunId: task.value?.workflow_run_id,
+    taskId: props.taskId,
+  })
+}
+
 function handleStepClick(step) {
   selectedStepId.value = step.id
   emit('step-select', step)
@@ -346,6 +393,7 @@ async function loadRun(runId) {
 async function load() {
   error.value = null
   run.value = null
+  stopPolling()
   if (!props.taskId) {
     task.value = null
     return
@@ -355,6 +403,9 @@ async function load() {
     const t = await loadTask(props.taskId)
     if (t?.workflow_run_id) {
       await loadRun(t.workflow_run_id)
+      if (!isWorkflowTerminal.value) {
+        startPolling()
+      }
     }
   } finally {
     loading.value = false
@@ -422,6 +473,12 @@ watch(() => props.taskId, () => {
   selectedStepId.value = null
   load()
 }, { immediate: true })
+
+watch(isWorkflowTerminal, (terminal) => {
+  if (terminal) {
+    stopPolling()
+  }
+})
 
 defineExpose({ workflowName })
 </script>
@@ -592,6 +649,23 @@ defineExpose({ workflowName })
   border-color: #ef4444;
 }
 
+.step-node-h.suspended .step-indicator {
+  background: #fff;
+  color: #d97706;
+  border-color: #d97706;
+  animation: pulse-suspend 2s ease-in-out infinite;
+}
+
+.step-node-h.suspended {
+  background: #fffbeb;
+  border-color: #fbbf24;
+}
+
+@keyframes pulse-suspend {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(217, 119, 6, 0); }
+}
+
 .step-index {
   display: inline-block;
   line-height: 1;
@@ -629,6 +703,10 @@ defineExpose({ workflowName })
 
 .step-node-h.failed .step-agent-h {
   color: #ef4444;
+}
+
+.step-node-h.suspended .step-agent-h {
+  color: #d97706;
 }
 
 .quick-actions {
@@ -720,6 +798,18 @@ defineExpose({ workflowName })
 .quick-action-btn.quick-action-retry:hover:not(:disabled) {
   background: #059669;
   border-color: #059669;
+  color: #fff;
+}
+
+.quick-action-btn.quick-action-confirm {
+  color: #d97706;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.quick-action-btn.quick-action-confirm:hover:not(:disabled) {
+  background: #d97706;
+  border-color: #d97706;
   color: #fff;
 }
 </style>

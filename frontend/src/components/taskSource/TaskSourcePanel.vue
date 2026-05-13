@@ -1,66 +1,72 @@
 <template>
   <div v-if="visible" class="task-source-panel">
-    <div class="panel-header">
-      <span class="panel-title">{{ $t('taskSource.manageTitle', '任务源管理') }}</span>
-      <div class="panel-actions">
-        <el-button class="add-source-btn" type="primary" size="small" @click="showAddDialog">
-          {{ $t('taskSource.add', '添加任务源') }}
-        </el-button>
-        <el-button class="collapse-btn" size="small" @click="handleCollapse">
-          {{ $t('taskSource.collapse', '收起') }} ▲
+    <div class="panel-body">
+      <div v-if="taskSourceStore.loading" class="loading">{{ $t('common.loading', '加载中...') }}</div>
+
+      <div v-else-if="taskSourceStore.taskSources.length === 0" class="empty-state">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </div>
+        <div class="empty-text">{{ $t('taskSource.emptyState', '暂无任务源') }}</div>
+        <el-button type="primary" size="default" @click="showAddDialog">
+          {{ $t('taskSource.addFirst', '添加第一个任务源') }}
         </el-button>
       </div>
-    </div>
 
-    <div v-if="taskSourceStore.loading" class="loading">{{ $t('common.loading', '加载中...') }}</div>
-
-    <div v-else-if="taskSourceStore.taskSources.length === 0" class="empty-state">
-      {{ $t('taskSource.emptyState', '暂无任务源') }}
-      <el-button type="primary" size="small" @click="showAddDialog">
-        {{ $t('taskSource.addFirst', '添加第一个任务源') }}
-      </el-button>
-    </div>
-
-    <div v-else class="sources-grid">
-      <div v-for="source in taskSourceStore.taskSources" :key="source.id" class="source-card">
-        <div class="source-header">
-          <div>
-            <h3>{{ source.name }}</h3>
-            <div class="source-id">ID: {{ source.id }}</div>
+      <div v-else class="sources-grid">
+        <div v-for="source in taskSourceStore.taskSources" :key="source.id" class="source-card">
+          <div class="source-header">
+            <div class="source-title-wrap">
+              <h3>{{ source.name }}</h3>
+              <div class="source-id">ID: {{ source.id }}</div>
+            </div>
+            <span class="source-type-badge">{{ getTypeLabel(source.type) }}</span>
           </div>
-          <span class="source-type-badge">{{ getTypeLabel(source.type) }}</span>
-        </div>
 
-        <div class="source-details">
-          <div class="detail-row">
-            <span class="label">{{ $t('taskSource.lastSync', '最后同步') }}:</span>
-            <span class="value">{{ formatDateTimeWithFallback(source.last_sync_at) }}</span>
+          <div class="source-details">
+            <div class="detail-row">
+              <span class="label">{{ $t('taskSource.lastSync', '最后同步') }}</span>
+              <span class="value">{{ formatDateTimeWithFallback(source.last_sync_at) }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">{{ $t('taskSource.status', '状态') }}</span>
+              <span class="value" :class="{ 'value-enabled': source.enabled }">
+                {{ source.enabled ? $t('taskSource.enabled', '已启用') : $t('taskSource.disabled', '已禁用') }}
+              </span>
+            </div>
           </div>
-          <div class="detail-row">
-            <span class="label">{{ $t('taskSource.status', '状态') }}:</span>
-            <span class="value">{{ source.enabled ? $t('taskSource.enabled', '已启用') : $t('taskSource.disabled', '已禁用') }}</span>
+
+          <div v-if="source.sync_schedule" class="source-schedule-badge">
+            <span class="schedule-dot"></span>
+            <span class="schedule-text">{{ formatScheduleLabel(source.sync_schedule) }}</span>
+          </div>
+
+          <div class="source-actions">
+            <el-button size="small" type="primary" @click="handleSync(source)" :disabled="taskSourceStore.syncing">
+              {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
+            </el-button>
+            <el-button size="small" @click="openSyncHistory(source)">
+              {{ $t('taskSource.syncHistory', '历史') }}
+            </el-button>
+            <el-button size="small" @click="editSource(source)">
+              {{ $t('taskSource.edit', '编辑') }}
+            </el-button>
+            <el-button size="small" type="danger" plain @click="confirmDelete(source)">
+              {{ $t('taskSource.delete', '删除') }}
+            </el-button>
           </div>
         </div>
-
-        <div v-if="source.sync_schedule" class="source-schedule-badge">
-          <span class="schedule-dot"></span>
-          <span class="schedule-text">{{ formatScheduleLabel(source.sync_schedule) }}</span>
-        </div>
-
-        <div class="source-actions">
-          <el-button size="small" @click="handleSync(source)" :disabled="taskSourceStore.syncing">
-            {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
-          </el-button>
-          <el-button size="small" @click="openSyncHistory(source)">
-            {{ $t('taskSource.syncHistory', '同步历史') }}
-          </el-button>
-          <el-button size="small" @click="editSource(source)">
-            {{ $t('taskSource.edit', '编辑') }}
-          </el-button>
-          <el-button size="small" type="danger" @click="confirmDelete(source)">
-            {{ $t('taskSource.delete', '删除') }}
-          </el-button>
-        </div>
+        <button class="source-card source-card-add" @click="showAddDialog">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>{{ $t('taskSource.add', '添加任务源') }}</span>
+        </button>
       </div>
     </div>
 
@@ -1122,31 +1128,16 @@ const deselectAllAiResults = () => {
 <style scoped>
 .task-source-panel {
   background: var(--bg-primary);
-  border-bottom: 2px solid var(--accent-color);
-  padding: 12px 16px;
 }
 
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.panel-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.panel-actions {
-  display: flex;
-  gap: 8px;
+.panel-body {
+  width: 100%;
 }
 
 .loading, .empty-state {
+  width: 100%;
   text-align: center;
-  padding: 24px 20px;
+  padding: 48px 20px;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
@@ -1154,84 +1145,131 @@ const deselectAllAiResults = () => {
 .empty-state {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
 }
 
+.empty-icon {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
 .sources-grid {
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
 }
 
 .source-card {
-  background: var(--panel-bg);
+  background: var(--bg-primary);
   border-radius: var(--radius-md);
   padding: 14px;
   border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
   transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .source-card:hover {
-  border-color: rgba(37, 198, 201, 0.35);
-  box-shadow: var(--shadow-md);
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(37, 198, 201, 0.1);
+}
+
+.source-card-add {
+  min-height: 180px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.source-card-add:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: var(--accent-color-soft);
+}
+
+.source-card-add svg {
+  opacity: 0.7;
+}
+
+.source-card-add:hover svg {
+  opacity: 1;
 }
 
 .source-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color);
   gap: 10px;
+}
+
+.source-title-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 .source-header h3 {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-id {
-  margin-top: 4px;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
   word-break: break-all;
 }
 
 .source-type-badge {
   background: var(--accent-color-soft);
-  padding: 4px 9px;
-  border-radius: 999px;
+  padding: 3px 8px;
+  border-radius: 4px;
   font-size: 10px;
-  font-weight: 700;
-  color: var(--accent-color);
+  font-weight: 600;
+  color: var(--accent-color-strong);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .source-details {
-  background: var(--bg-secondary);
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
-  font-size: var(--font-size-xs);
-  padding: 3px 0;
+  font-size: 12px;
   gap: 10px;
 }
 
 .detail-row .label {
-  color: var(--text-secondary);
-  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .detail-row .value {
@@ -1240,17 +1278,28 @@ const deselectAllAiResults = () => {
   text-align: right;
 }
 
+.detail-row .value-enabled {
+  color: var(--done-strong);
+}
+
 .source-actions {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
 }
 
 .source-actions :deep(.el-button) {
-  min-height: 28px;
-  padding: 4px 10px;
+  min-height: 26px;
+  padding: 3px 10px;
   font-size: 12px;
-  border-radius: 6px;
+  margin: 0;
+}
+
+.source-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 /* Dialog styles */
@@ -1524,28 +1573,27 @@ const deselectAllAiResults = () => {
 }
 
 .source-schedule-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #f0fffe;
-  border: 1px solid rgba(37, 198, 201, 0.2);
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 10px;
+  background: var(--accent-color-soft);
+  padding: 4px 8px;
+  border-radius: 4px;
+  align-self: flex-start;
 }
 
 .schedule-dot {
-  width: 8px;
-  height: 8px;
-  background: #25c6c9;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-color);
   border-radius: 50%;
   animation: pulse 2s infinite;
 }
 
 .schedule-text {
-  font-size: 12px;
-  font-weight: 600;
-  color: #25c6c9;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-color-strong);
 }
 
 .sync-history-loading {

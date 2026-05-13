@@ -129,12 +129,9 @@ describe('TaskSourcePanel', () => {
   })
 
   describe('rendering', () => {
-    it('renders panel with header and add button when visible', () => {
+    it('renders panel when visible', () => {
       const wrapper = mountPanel()
       expect(wrapper.find('.task-source-panel').exists()).toBe(true)
-      expect(wrapper.find('.panel-title').text()).toContain('任务源管理')
-      expect(wrapper.find('.add-source-btn').exists()).toBe(true)
-      expect(wrapper.find('.collapse-btn').exists()).toBe(true)
     })
 
     it('shows empty state when no task sources', () => {
@@ -182,10 +179,10 @@ describe('TaskSourcePanel', () => {
   })
 
   describe('add/edit dialog', () => {
-    it('sets dialogVisible to true when add button clicked', async () => {
+    it('sets dialogVisible to true when showAddDialog called', () => {
       const wrapper = mountPanel()
 
-      await wrapper.find('.add-source-btn').trigger('click')
+      wrapper.vm.showAddDialog()
 
       expect(wrapper.vm.dialogVisible).toBe(true)
       expect(wrapper.vm.isEditMode).toBe(false)
@@ -242,19 +239,19 @@ describe('TaskSourcePanel', () => {
   })
 
   describe('collapse', () => {
-    it('emits update:visible with false when collapse button clicked', async () => {
+    it('emits update:visible with false when handleCollapse called', () => {
       const wrapper = mountPanel()
 
-      await wrapper.find('.collapse-btn').trigger('click')
+      wrapper.vm.handleCollapse()
 
       expect(wrapper.emitted('update:visible')).toBeTruthy()
       expect(wrapper.emitted('update:visible')[0]).toEqual([false])
     })
 
-    it('calls closePreviewDialog on collapse', async () => {
+    it('calls closePreviewDialog on collapse', () => {
       const wrapper = mountPanel()
 
-      await wrapper.find('.collapse-btn').trigger('click')
+      wrapper.vm.handleCollapse()
 
       expect(closePreviewDialogMock).toHaveBeenCalled()
     })
