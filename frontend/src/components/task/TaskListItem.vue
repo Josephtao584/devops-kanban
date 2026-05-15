@@ -702,7 +702,6 @@ const handleNodeClick = (node) => {
 // Handle start button click
 const handleStartClick = () => {
   if (!canStartTask.value) return
-  console.log('[TaskListItem] handleStartClick called, task:', props.task?.id, 'running:', props.running)
   emit('workflow-action', { action: 'start', task: props.task })
 }
 

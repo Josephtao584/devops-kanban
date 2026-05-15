@@ -43,7 +43,6 @@ export function useWorkflowManager({
     } else if (action === 'stop') {
       // Stop current session
       // This would require session management integration
-      console.log('Stopping workflow')
     }
   }
 
@@ -61,8 +60,6 @@ export function useWorkflowManager({
     if (!selectedTask.value) {
       return
     }
-
-    console.log('Starting workflow for task:', selectedTask.value)
   }
 
   return {
