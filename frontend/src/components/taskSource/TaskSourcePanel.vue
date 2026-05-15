@@ -168,7 +168,7 @@
                     clearable
                   >
                     <el-option
-                      v-for="agent in agents"
+                      v-for="agent in agentStore.agents"
                       :key="agent.id"
                       :label="agent.name"
                       :value="agent.id"
@@ -214,7 +214,7 @@
             <el-form-item v-if="formData.sync_schedule && formData.sync_schedule !== '__custom__'" :label="$t('taskSource.defaultWorkflowTemplate', '默认AgentTeam模板')">
               <el-select v-model="formData.default_workflow_template_id" :placeholder="$t('taskSource.autoWorkflowNone', '不自动触发')" clearable style="width: 100%;">
                 <el-option
-                  v-for="tpl in workflowTemplates"
+                  v-for="tpl in workflowTemplateStore.templates"
                   :key="tpl.template_id"
                   :label="tpl.name"
                   :value="tpl.template_id"
@@ -424,7 +424,7 @@
                     class="result-workflow-input"
                   >
                     <el-option
-                      v-for="tpl in workflowTemplates"
+                      v-for="tpl in workflowTemplateStore.templates"
                       :key="tpl.template_id"
                       :label="tpl.name"
                       :value="tpl.template_id"
@@ -527,12 +527,13 @@ import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTaskSourceStore } from '../../stores/taskSourceStore'
 import { useTaskStore } from '../../stores/taskStore'
+import { useAgentStore } from '../../stores/agentStore'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore'
 import BaseDialog from '../BaseDialog.vue'
 import { ElMessageBox } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useToast } from '../../composables/ui/useToast'
 import { formatDateTime } from '../../utils/dateFormat'
-import api from '../../api/index.js'
 
 const props = defineProps({
   projectId: {
@@ -551,6 +552,8 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const taskSourceStore = useTaskSourceStore()
 const taskStore = useTaskStore()
+const agentStore = useAgentStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
 const toast = useToast()
 
 const dialogVisible = ref(false)
@@ -568,7 +571,6 @@ const descriptionRefs = ref({})
 const availableLabels = ref({})
 
 const customCronExpression = ref('')
-const workflowTemplates = ref([])
 
 const formData = ref({
   name: '',
@@ -621,10 +623,10 @@ watch(() => props.projectId, async (newVal) => {
 
 // Auto-match scenario tags to template IDs when AI results load
 watch(() => taskSourceStore.aiPreviewResults, (results) => {
-  const allTags = [...new Set(workflowTemplates.value.flatMap(t => t.tags || []))]
+  const allTags = [...new Set(workflowTemplateStore.templates.flatMap(t => t.tags || []))]
   for (const r of results) {
     if (r.scenarioTag && !r.recommendedWorkflowTemplateId && allTags.includes(r.scenarioTag)) {
-      const matched = workflowTemplates.value.find(t => (t.tags || []).includes(r.scenarioTag))
+      const matched = workflowTemplateStore.templates.find(t => (t.tags || []).includes(r.scenarioTag))
       if (matched) {
         r.recommendedWorkflowTemplateId = matched.template_id
       }
@@ -656,10 +658,7 @@ const formatScheduleLabel = (cronExpr) => {
 
 const loadWorkflowTemplates = async () => {
   try {
-    const response = await api.get('/workflow-template')
-    if (response?.success) {
-      workflowTemplates.value = response.data || []
-    }
+    await workflowTemplateStore.fetchTemplates()
   } catch (e) {
     console.warn('Failed to load workflow templates:', e)
   }
@@ -756,19 +755,6 @@ const isFieldHidden = (key) => {
   return false
 }
 
-// --- Agents ---
-const agents = ref([])
-
-const loadAgents = async () => {
-  try {
-    const { default: api } = await import('../../api/index.js')
-    const response = await api.get('/agents')
-    agents.value = response.data?.data || response.data || []
-  } catch {
-    agents.value = []
-  }
-}
-
 // --- Form ---
 const buildDefaultConfig = (typeKey) => {
   const typeConfig = taskSourceStore.availableTypes.find(type => type.key === typeKey)
@@ -802,7 +788,7 @@ const gitUrlToRepo = (gitUrl) => {
 
 const showAddDialog = () => {
   isEditMode.value = false
-  loadAgents()
+  agentStore.fetchAgents()
 
   const currentProject = projectStore.projectList.find(p => String(p.id) === props.projectId)
   const gitUrl = currentProject?.git_url || ''
@@ -830,7 +816,7 @@ const showAddDialog = () => {
 
 const editSource = (source) => {
   isEditMode.value = true
-  loadAgents()
+  agentStore.fetchAgents()
   const config = { ...source.config }
 
   if (typeof config.token === 'string' && config.token) {

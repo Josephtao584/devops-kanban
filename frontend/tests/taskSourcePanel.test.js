@@ -102,6 +102,20 @@ vi.mock('../src/stores/taskStore', () => ({
   })
 }))
 
+vi.mock('../src/stores/agentStore', () => ({
+  useAgentStore: () => ({
+    agents: [],
+    fetchAgents: vi.fn(() => Promise.resolve())
+  })
+}))
+
+vi.mock('../src/stores/workflowTemplateStore', () => ({
+  useWorkflowTemplateStore: () => ({
+    templates: [],
+    fetchTemplates: vi.fn(() => Promise.resolve())
+  })
+}))
+
 import TaskSourcePanel from '../src/components/taskSource/TaskSourcePanel.vue'
 
 const mountPanel = (propsOverrides = {}) => mount(TaskSourcePanel, {
