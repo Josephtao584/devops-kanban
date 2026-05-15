@@ -222,22 +222,23 @@
                           </button>
                         </el-tooltip>
 
-                        <div class="workflow-step-card__top">
-                          <span class="workflow-step-card__order">{{ index + 1 }}</span>
+                        <div class="workflow-step-card__order">{{ String(index + 1).padStart(2, '0') }}</div>
+
+                        <div class="workflow-step-card__head">
+                          <div class="workflow-step-card__avatar">
+                            <span v-html="previewSteps[index]?.roleConfig?.icon" class="workflow-step-card__avatar-icon"></span>
+                          </div>
+                          <div class="workflow-step-card__identity">
+                            <div class="workflow-step-card__agent-name">{{ previewSteps[index]?.agentName }}</div>
+                            <div v-if="previewSteps[index]?.executorLabel" class="workflow-step-card__executor">{{ previewSteps[index]?.executorLabel }}</div>
+                          </div>
                         </div>
 
-                        <div class="workflow-step-card__name">{{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}</div>
-
-                        <div class="workflow-step-card__meta">
-                          <div class="workflow-step-card__chips">
-                            <span class="workflow-chip" :class="previewSteps[index]?.agentStateClass">{{ previewSteps[index]?.agentSummary }}</span>
-                            <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-chip workflow-chip--warning">
-                              {{ $t('workflowTemplate.requiresConfirmation') }}
-                            </span>
-                          </div>
-                          <div v-if="previewSteps[index]?.skillNames?.length" class="workflow-step-card__skills">
-                            <span v-for="skill in previewSteps[index].skillNames" :key="skill.name" class="workflow-skill-tag">{{ skill.name }}</span>
-                          </div>
+                        <div class="workflow-step-card__footer">
+                          <span class="workflow-step-card__name" :title="previewSteps[index]?.name">{{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}</span>
+                          <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-step-card__flag">
+                            {{ $t('workflowTemplate.requiresConfirmation') }}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -285,19 +286,15 @@
               </div>
 
               <div class="step-editor-grid">
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.stepName') }}</label>
-                  <el-input
-                    v-model="selectedStep.name"
-                    :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
-                    maxlength="200"
-                    show-word-limit
-                  />
-                </div>
-
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.executor') }}</label>
-                  <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
+                <div class="editor-field editor-field--full editor-field--agent">
+                  <label class="editor-field__label-strong">{{ $t('workflowTemplate.executor') }}</label>
+                  <el-select
+                    v-model="selectedStep.agentId"
+                    clearable
+                    class="agent-picker"
+                    :placeholder="$t('workflowTemplate.unassignedAgent')"
+                    style="width: 100%"
+                  >
                     <el-option
                       v-for="agent in agents"
                       :key="agent.id"
@@ -306,6 +303,16 @@
                       :disabled="agent.enabled === false"
                     />
                   </el-select>
+                </div>
+
+                <div class="editor-field editor-field--full">
+                  <label>{{ $t('workflowTemplate.stepName') }}</label>
+                  <el-input
+                    v-model="selectedStep.name"
+                    :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+                    maxlength="200"
+                    show-word-limit
+                  />
                 </div>
 
                 <div class="editor-field editor-field--full">
@@ -321,23 +328,11 @@
                   </div>
                 </div>
 
-                <div class="editor-field editor-field--full step-type-field">
+                <div v-if="selectedStep.type === 'SPLIT_TASK'" class="editor-field editor-field--full step-type-field">
                   <label>{{ $t('workflowTemplate.stepType') }}</label>
                   <div class="editor-field__row">
-                    <el-select
-                      v-model="selectedStep.type"
-                      size="small"
-                      style="flex: 0 0 280px"
-                      :disabled="selectedStep.type === 'SPLIT_TASK'"
-                    >
-                      <el-option :label="$t('workflowTemplate.stepTypeDefault')" value="DEFAULT" />
-                      <el-option
-                        v-if="selectedStep.type === 'SPLIT_TASK'"
-                        :label="$t('workflowTemplate.stepTypeSplit')"
-                        value="SPLIT_TASK"
-                      />
-                    </el-select>
-                    <span v-if="selectedStep.type === 'SPLIT_TASK'" class="step-type-hint">
+                    <el-tag type="info">{{ $t('workflowTemplate.stepTypeSplit') }}</el-tag>
+                    <span class="step-type-hint">
                       {{ $t('workflowTemplate.stepTypeSplitHint') }}
                     </span>
                   </div>
@@ -432,6 +427,7 @@ import {
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
 import { useSkillStore } from '../stores/skillStore'
+import { getRoleConfig } from '../constants/agent.js'
 import {
   MIN_WORKFLOW_TEMPLATE_STEPS,
   normalizeWorkflowStep,
@@ -591,6 +587,8 @@ const createDraftTemplate = () => ({
   steps: (template.value?.steps || []).map(step => normalizeWorkflowStep(step))
 })
 
+const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
+
 const previewSteps = computed(() => {
   return (template.value?.steps || []).map((step, index) => {
     const sanitized = sanitizeWorkflowStep(step)
@@ -598,19 +596,27 @@ const previewSteps = computed(() => {
     let agentStateClass = 'workflow-chip--info'
     let stateClass = 'state-ready'
     let skillNames = []
+    let agentName = t('workflowTemplate.unassignedAgent')
+    let executorLabel = ''
+    let roleConfig = getRoleConfig(null)
 
     if (typeof sanitized.agentId === 'number') {
       if (isMissingAgent(sanitized)) {
         agentSummary = t('workflowTemplate.missingAgent', { id: sanitized.agentId })
+        agentName = agentSummary
         agentStateClass = 'workflow-chip--danger'
         stateClass = 'state-missing'
       } else if (isDisabledAgent(sanitized)) {
         agentSummary = formatBoundAgentState(sanitized)
+        agentName = agentSummary
         agentStateClass = 'workflow-chip--warning'
         stateClass = 'state-disabled'
       } else {
         const agent = getAgentById(sanitized.agentId)
         agentSummary = getAgentLabel(agent)
+        agentName = agent?.name || agentSummary
+        executorLabel = EXECUTOR_LABEL[agent?.executorType] || agent?.executorType || ''
+        roleConfig = getRoleConfig(agent?.role)
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {
           const skill = skillStore.skills.find(s => s.id === skillId)
@@ -624,6 +630,9 @@ const previewSteps = computed(() => {
       ...sanitized,
       localKey: `${index}-${step.id || 'empty'}`,
       agentSummary,
+      agentName,
+      executorLabel,
+      roleConfig,
       agentStateClass,
       stateClass,
       skillNames,
@@ -1380,7 +1389,7 @@ const handlePreviewPrompt = async () => {
 }
 
 .meta-value {
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   word-break: break-all;
 }
@@ -1506,80 +1515,148 @@ const handlePreviewPrompt = async () => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 236px;
-  min-height: 130px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
+  width: 220px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: #fff;
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.04) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s ease;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .workflow-step-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(37, 198, 201, 0.24);
-  box-shadow: var(--shadow-md);
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(37, 198, 201, 0.10);
 }
 
 .workflow-step-card.is-selected {
-  border-color: var(--accent-color);
-  background: linear-gradient(180deg, #ffffff 0%, rgba(37, 198, 201, 0.05) 100%);
-  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.10);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.10) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+}
+
+.workflow-step-card.is-selected .workflow-step-card__avatar {
+  background: var(--accent-color-soft);
+  color: var(--accent-color-strong);
+  border-color: transparent;
 }
 
 .workflow-step-card.has-warning {
-  border-color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .workflow-step-card.state-missing {
-  border-color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .workflow-step-card.state-disabled {
-  border-color: #f59e0b;
-}
-
-.workflow-step-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .workflow-step-card__order {
+  position: absolute;
+  top: -2px;
+  left: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--bg-primary);
+  padding: 0 4px;
+  z-index: 2;
+}
+
+.workflow-step-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.workflow-step-card__avatar {
   width: 28px;
   height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
+  border-radius: 7px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37, 198, 201, 0.12);
-  color: var(--accent-color);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.workflow-step-card__avatar-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.workflow-step-card__avatar-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+
+.workflow-step-card__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.workflow-step-card__agent-name {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.workflow-step-card__executor {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.workflow-step-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-color);
+  background: linear-gradient(180deg, rgba(37, 198, 201, 0.025), rgba(37, 198, 201, 0.06));
 }
 
 .workflow-step-card__name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.workflow-step-card__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.workflow-step-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.workflow-step-card__flag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
 }
 
 .workflow-step-card__delete {
@@ -1689,7 +1766,7 @@ const handlePreviewPrompt = async () => {
 }
 
 .step-editor-card__title {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -1734,6 +1811,52 @@ const handlePreviewPrompt = async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.editor-field--agent {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-color-soft);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.08) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+  margin-bottom: 4px;
+}
+
+.editor-field__label-strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  letter-spacing: 0.02em;
+}
+
+.editor-field__label-strong::before {
+  content: '';
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--accent-color);
+}
+
+.agent-picker :deep(.el-input__wrapper) {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+.agent-picker :deep(.el-input__wrapper:hover),
+.agent-picker :deep(.el-select .el-input.is-focus .el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--accent-color) inset;
+}
+
+.agent-picker :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .editor-field--full {
@@ -1803,7 +1926,7 @@ const handlePreviewPrompt = async () => {
   display: block;
   margin-bottom: 8px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 

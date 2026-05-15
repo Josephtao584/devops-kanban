@@ -42,33 +42,30 @@
         <!-- Agent roster -->
         <div class="agent-roster">
           <div
-            v-for="step in steps"
+            v-for="(step, si) in steps"
             :key="step.id"
-            class="agent-card"
-            :class="[step.statusClass, { selected: selectedStepId === step.id }]"
-            @click="handleStepClick(step)"
+            class="agent-card-wrapper"
           >
-            <!-- Agent identity header -->
-            <div class="agent-card-header">
-              <div
-                class="agent-avatar"
-                :style="{ background: getStepRoleConfig(step).gradient }"
-              >
-                <span v-html="getStepRoleConfig(step).icon" class="agent-avatar-icon"></span>
+            <div class="agent-step-index">{{ String(si + 1).padStart(2, '0') }}</div>
+            <div
+              class="agent-card"
+              :class="[step.statusClass, { selected: selectedStepId === step.id }]"
+              @click="handleStepClick(step)"
+            >
+              <div class="agent-card-top">
+                <div class="agent-avatar">
+                  <span v-html="getStepRoleConfig(step).icon" class="agent-avatar-icon"></span>
+                </div>
+                <div class="agent-card-info">
+                  <div class="agent-card-name">{{ getStepAgentName(step) }}</div>
+                  <div v-if="getStepAgentLabel(step)" class="agent-card-executor">{{ getStepAgentLabel(step) }}</div>
+                </div>
+                <span class="agent-status-dot" :class="step.statusClass"></span>
               </div>
-              <div class="agent-card-info">
-                <span class="agent-card-name">{{ getStepAgentName(step) }}</span>
-                <span class="agent-card-executor">{{ getStepAgentLabel(step) || '—' }}</span>
+              <div class="agent-card-footer">
+                <span class="agent-step-name" :title="step.name">{{ step.name }}</span>
+                <span class="agent-step-status" :class="step.statusClass">{{ step.statusLabel }}</span>
               </div>
-              <span class="agent-status-badge" :class="step.statusClass">
-                {{ step.statusLabel }}
-              </span>
-            </div>
-
-            <!-- Step name -->
-            <div class="agent-step-name-row">
-              <span class="agent-step-status-dot" :class="step.statusClass"></span>
-              <span class="agent-step-name">{{ step.name }}</span>
             </div>
           </div>
         </div>
@@ -631,9 +628,9 @@ defineExpose({ workflowName })
 /* Agent Roster Container */
 .agent-roster {
   display: flex;
-  gap: 0;
+  gap: 16px;
   overflow-x: auto;
-  padding: 8px 0 12px;
+  padding: 4px 2px 10px;
   align-items: stretch;
 }
 
@@ -648,111 +645,137 @@ defineExpose({ workflowName })
   border-radius: 2px;
 }
 
-/* Connector between cards */
 .agent-card-wrapper {
+  position: relative;
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   flex-shrink: 0;
 }
 
 .agent-card-wrapper + .agent-card-wrapper::before {
   content: '';
-  width: 28px;
-  flex-shrink: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='20' viewBox='0 0 28 20'%3E%3Cpath d='M0 10h20M16 5l5 5-5 5' stroke='%23d7e6de' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  position: relative;
-  z-index: 1;
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: var(--border-color);
 }
 
-.agent-card-wrapper.has-done + .agent-card-wrapper::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='20' viewBox='0 0 28 20'%3E%3Cpath d='M0 10h20M16 5l5 5-5 5' stroke='%2325C6C9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-}
-
-.agent-card-wrapper.has-running + .agent-card-wrapper::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='20' viewBox='0 0 28 20'%3E%3Cpath d='M0 10h20M16 5l5 5-5 5' stroke='%2325C6C9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='10' cy='10' r='2' fill='%2325C6C9'%3E%3Canimate attributeName='cx' values='2;26;2' dur='2s' repeatCount='indefinite'/%3E%3Canimate attributeName='opacity' values='1;0;1' dur='2s' repeatCount='indefinite'/%3E%3C/circle%3E%3C/svg%3E");
+.agent-step-index {
+  position: absolute;
+  top: -2px;
+  left: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--bg-primary);
+  padding: 0 4px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* Agent Card */
 .agent-card {
-  min-width: 140px;
-  max-width: 160px;
-  flex-shrink: 0;
-  border-radius: 14px;
-  border: 1.5px solid var(--border-color);
-  background: var(--bg-primary);
-  overflow: hidden;
-  transition: all 0.3s ease;
-  scroll-snap-align: start;
-  cursor: pointer;
   position: relative;
+  width: 200px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.04) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
 }
 
 .agent-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(37, 198, 201, 0.12);
   border-color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(37, 198, 201, 0.10);
+  transform: translateY(-1px);
 }
 
 .agent-card.selected {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.2);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.10) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
 }
 
 .agent-card.running {
-  border-color: var(--accent-color);
-  animation: card-glow 2s ease-in-out infinite;
+  border-color: #f59e0b;
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(245, 158, 11, 0.02) 70%),
+    linear-gradient(180deg, #ffffff 0%, #fffdf7 100%);
 }
 
-@keyframes card-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(37, 198, 201, 0.15); }
-  50% { box-shadow: 0 0 20px rgba(37, 198, 201, 0.3), 0 0 40px rgba(37, 198, 201, 0.1); }
-}
-
-.agent-card.done {
-  opacity: 0.75;
+.agent-card.suspended {
+  border-color: #f59e0b;
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(245, 158, 11, 0.02) 70%),
+    linear-gradient(180deg, #ffffff 0%, #fffdf7 100%);
 }
 
 .agent-card.failed {
-  border-color: var(--danger-strong);
+  border-color: rgba(239, 68, 68, 0.4);
+  background:
+    linear-gradient(135deg, rgba(239, 68, 68, 0.06) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fefcfc 100%);
 }
 
-/* Agent Card Header */
-.agent-card-header {
+.agent-card.done {
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.05) 0%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #fcfdfd 0%, #f7fafa 100%);
+}
+
+/* Card top: avatar + name/executor + status dot in one row */
+.agent-card-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 10px 8px;
+  gap: 10px;
+  padding: 10px 12px;
 }
 
 .agent-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 18px;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  position: relative;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 
-.agent-card.running .agent-avatar {
-  animation: avatar-pulse 2s ease-in-out infinite;
+.agent-card.running .agent-avatar,
+.agent-card.suspended .agent-avatar {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border-color: transparent;
 }
 
-@keyframes avatar-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+.agent-card.selected .agent-avatar {
+  background: var(--accent-color-soft);
+  color: var(--accent-color-strong);
+  border-color: transparent;
 }
 
 .agent-avatar-icon {
-  font-style: normal;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.agent-avatar-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 
 .agent-card-info {
@@ -764,95 +787,84 @@ defineExpose({ workflowName })
 }
 
 .agent-card-name {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
 }
 
 .agent-card-executor {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11.5px;
   color: var(--text-muted);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
-/* Agent Status Badge */
-.agent-status-badge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.agent-status-badge.done {
-  background: var(--done-soft);
-  color: var(--done-strong);
-}
-.agent-status-badge.running {
-  background: var(--in-progress-soft);
-  color: var(--in-progress-strong);
-}
-.agent-status-badge.failed {
-  background: var(--danger-soft);
-  color: var(--danger-strong);
-}
-.agent-status-badge.suspended {
-  background: var(--warning-soft);
-  color: var(--warning-strong);
-}
-.agent-status-badge.pending {
-  background: var(--neutral-soft);
-  color: var(--neutral-strong);
-}
-
-/* Step name row */
-.agent-step-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px 8px;
-  border-top: 1px solid var(--border-color);
-}
-
-.agent-step-status-dot {
-  width: 6px;
-  height: 6px;
+/* Status dot (top-right, very subtle) */
+.agent-status-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.agent-step-status-dot.done {
+.agent-status-dot.done {
   background: var(--accent-color);
 }
-.agent-step-status-dot.running {
-  background: #fbbf24;
-  animation: dot-pulse 1.2s ease-in-out infinite;
-}
-.agent-step-status-dot.failed {
-  background: #ef4444;
-}
-.agent-step-status-dot.suspended {
-  background: #d97706;
-}
-.agent-step-status-dot.pending {
-  background: var(--text-muted);
-  opacity: 0.4;
+
+.agent-status-dot.running {
+  background: #f59e0b;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  animation: dot-running 1.6s ease-in-out infinite;
 }
 
-@keyframes dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.5); }
+@keyframes dot-running {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
+  50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+}
+
+.agent-status-dot.failed {
+  background: var(--danger-strong);
+}
+
+.agent-status-dot.suspended {
+  background: #f59e0b;
+}
+
+.agent-status-dot.pending {
+  background: transparent;
+  border: 1px solid var(--border-color);
+}
+
+/* Card footer: step name + status */
+.agent-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-color);
+  background: linear-gradient(180deg, rgba(37, 198, 201, 0.025), rgba(37, 198, 201, 0.06));
+}
+
+.agent-card.running .agent-card-footer,
+.agent-card.suspended .agent-card-footer {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.04), rgba(245, 158, 11, 0.10));
+}
+
+.agent-card.failed .agent-card-footer {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03), rgba(239, 68, 68, 0.08));
 }
 
 .agent-step-name {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   color: var(--text-primary);
   flex: 1;
@@ -861,6 +873,19 @@ defineExpose({ workflowName })
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.agent-step-status {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.agent-step-status.done { color: var(--accent-color-strong); }
+.agent-step-status.running { color: #b45309; }
+.agent-step-status.failed { color: var(--danger-strong); }
+.agent-step-status.suspended { color: #b45309; }
 
 .quick-actions {
   display: flex;

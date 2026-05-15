@@ -76,26 +76,23 @@
                       </button>
                     </el-tooltip>
 
-                    <div class="workflow-step-card__top">
-                      <span class="workflow-step-card__order">{{ index + 1 }}</span>
+                    <div class="workflow-step-card__order">{{ String(index + 1).padStart(2, '0') }}</div>
+
+                    <div class="workflow-step-card__head">
+                      <div class="workflow-step-card__avatar">
+                        <span v-html="previewSteps[index]?.roleConfig?.icon" class="workflow-step-card__avatar-icon"></span>
+                      </div>
+                      <div class="workflow-step-card__identity">
+                        <div class="workflow-step-card__agent-name">{{ previewSteps[index]?.agentName }}</div>
+                        <div v-if="previewSteps[index]?.executorLabel" class="workflow-step-card__executor">{{ previewSteps[index]?.executorLabel }}</div>
+                      </div>
                     </div>
 
-                    <div class="workflow-step-card__name workflow-start-editor-step-name">
-                      {{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}
-                    </div>
-
-                    <div class="workflow-step-card__meta workflow-start-editor-step-summary">
-                      <div class="workflow-step-card__chips">
-                        <span class="workflow-chip" :class="previewSteps[index]?.agentStateClass">
-                          {{ previewSteps[index]?.agentSummary }}
-                        </span>
-                        <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-chip workflow-chip--warning">
-                          {{ $t('workflowTemplate.requiresConfirmation') }}
-                        </span>
-                      </div>
-                      <div v-if="previewSteps[index]?.skillNames?.length" class="workflow-step-card__skills">
-                        <span v-for="skill in previewSteps[index].skillNames" :key="skill.name" class="workflow-skill-tag">{{ skill.name }}</span>
-                      </div>
+                    <div class="workflow-step-card__footer">
+                      <span class="workflow-step-card__name" :title="previewSteps[index]?.name">{{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}</span>
+                      <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-step-card__flag">
+                        {{ $t('workflowTemplate.requiresConfirmation') }}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -155,17 +152,15 @@
         </div>
 
         <div class="step-editor-grid">
-          <div class="editor-field">
-            <label>{{ $t('workflowTemplate.stepName') }}</label>
-            <el-input
-              v-model="selectedStep.name"
-              :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
-            />
-          </div>
-
-          <div class="editor-field editor-field--full">
-            <label>{{ $t('workflowTemplate.executor') }}</label>
-            <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
+          <div class="editor-field editor-field--full editor-field--agent">
+            <label class="editor-field__label-strong">{{ $t('workflowTemplate.executor') }}</label>
+            <el-select
+              v-model="selectedStep.agentId"
+              clearable
+              class="agent-picker"
+              :placeholder="$t('workflowTemplate.unassignedAgent')"
+              style="width: 100%"
+            >
               <el-option
                 v-for="agent in agents"
                 :key="agent.id"
@@ -174,6 +169,14 @@
                 :disabled="agent.enabled === false"
               />
             </el-select>
+          </div>
+
+          <div class="editor-field editor-field--full">
+            <label>{{ $t('workflowTemplate.stepName') }}</label>
+            <el-input
+              v-model="selectedStep.name"
+              :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+            />
           </div>
 
           <div class="editor-field editor-field--full">
@@ -248,6 +251,9 @@ import {
   formatBoundAgentState as formatAgentBindingState,
 } from './templateEditorShared.js'
 import { previewPrompt } from '../../api/workflowTemplate'
+import { getRoleConfig } from '../../constants/agent.js'
+
+const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
 
 const MIN_START_EDITOR_STEPS = 1
 
@@ -326,19 +332,27 @@ const previewSteps = computed(() => {
     let agentStateClass = 'workflow-chip--info'
     let stateClass = 'state-ready'
     let skillNames = []
+    let agentName = t('workflowTemplate.unassignedAgent')
+    let executorLabel = ''
+    let roleConfig = getRoleConfig(null)
 
     if (typeof sanitized.agentId === 'number') {
       if (isMissingAgent(sanitized)) {
         agentSummary = t('workflowTemplate.missingAgent', { id: sanitized.agentId })
+        agentName = agentSummary
         agentStateClass = 'workflow-chip--danger'
         stateClass = 'state-missing'
       } else if (isDisabledAgent(sanitized)) {
         agentSummary = formatBoundAgentState(sanitized)
+        agentName = agentSummary
         agentStateClass = 'workflow-chip--warning'
         stateClass = 'state-disabled'
       } else {
         const agent = getAgentById(sanitized.agentId)
         agentSummary = getAgentDisplayName(agent, t)
+        agentName = agent?.name || agentSummary
+        executorLabel = EXECUTOR_LABEL[agent?.executorType] || agent?.executorType || ''
+        roleConfig = getRoleConfig(agent?.role)
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {
           const skill = skillStore.skills.find(s => s.id === skillId)
@@ -352,6 +366,9 @@ const previewSteps = computed(() => {
       ...sanitized,
       localKey: `${index}-${step.id || 'empty'}`,
       agentSummary,
+      agentName,
+      executorLabel,
+      roleConfig,
       agentStateClass,
       stateClass,
       skillNames,
@@ -518,23 +535,6 @@ const handlePreviewPrompt = async () => {
 </script>
 
 <style scoped>
-.workflow-step-card__skills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.workflow-skill-tag {
-  display: inline-flex;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-  background: rgba(99, 102, 241, 0.08);
-  color: #25C6C9;
-  border: 1px solid rgba(99, 102, 241, 0.15);
-}
-
 .template-meta {
   margin-bottom: 16px;
 }
@@ -543,15 +543,17 @@ const handlePreviewPrompt = async () => {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  font-size: 13px;
 }
 
 .meta-label {
-  color: #666;
+  color: var(--text-secondary);
   min-width: 72px;
 }
 
 .meta-value {
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 .section-heading-row {
@@ -565,7 +567,7 @@ const handlePreviewPrompt = async () => {
 .section-heading {
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
   letter-spacing: 0.02em;
 }
 
@@ -575,17 +577,17 @@ const handlePreviewPrompt = async () => {
 
 .workflow-preview-shell {
   overflow-x: auto;
-  padding: 10px 4px 14px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #e2e8f0;
+  padding: 14px 8px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
 }
 
 .workflow-preview-track {
   display: flex;
   align-items: stretch;
   min-width: max-content;
-  padding: 8px;
+  padding: 4px;
 }
 
 .workflow-draggable-track {
@@ -601,13 +603,13 @@ const handlePreviewPrompt = async () => {
 
 .step-ghost {
   opacity: 0.4;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px dashed #3b82f6;
+  background: rgba(37, 198, 201, 0.08);
+  border: 1px dashed var(--accent-color);
 }
 
 .workflow-connector--insert {
   position: relative;
-  width: 48px;
+  width: 36px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -621,129 +623,189 @@ const handlePreviewPrompt = async () => {
   right: 0;
   top: 50%;
   height: 1px;
-  background: #94a3b8;
+  background: var(--border-color);
   transform: translateY(-50%);
 }
 
 .workflow-connector__btn {
   position: relative;
   z-index: 1;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
-  border: 1px solid #94a3b8;
-  color: #64748b;
-  font-size: 14px;
-  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: all 0.18s ease;
 }
 
 .workflow-connector--insert:hover .workflow-connector__btn {
-  background: #3b82f6;
-  border-color: #3b82f6;
+  background: var(--accent-color);
+  border-color: var(--accent-color);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
-.workflow-start-editor-step {
-  width: 236px;
-  min-height: 130px;
-}
-
+/* Agent step card (matches template config) */
 .workflow-step-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 2px solid #dbe4ee;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  width: 220px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.04) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s ease;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .workflow-step-card:hover {
-  transform: translateY(-2px);
-  border-color: #93c5fd;
-  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.12);
+  transform: translateY(-1px);
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(37, 198, 201, 0.10);
 }
 
 .workflow-step-card.is-selected {
-  border-color: #3b82f6;
-  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.10) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+}
+
+.workflow-step-card.is-selected .workflow-step-card__avatar {
+  background: var(--accent-color-soft);
+  color: var(--accent-color-strong);
+  border-color: transparent;
 }
 
 .workflow-step-card.has-warning {
-  border-color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .workflow-step-card.state-missing {
-  border-color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .workflow-step-card.state-disabled {
-  border-color: #f59e0b;
-}
-
-.workflow-step-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .workflow-step-card__order {
+  position: absolute;
+  top: -2px;
+  left: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--bg-secondary);
+  padding: 0 4px;
+  z-index: 2;
+}
+
+.workflow-step-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.workflow-step-card__avatar {
   width: 28px;
   height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
+  border-radius: 7px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: #dbeafe;
-  color: #1d4ed8;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.workflow-step-card__avatar-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.workflow-step-card__avatar-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+
+.workflow-step-card__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.workflow-step-card__agent-name {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.workflow-step-card__executor {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.workflow-step-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-color);
+  background: linear-gradient(180deg, rgba(37, 198, 201, 0.025), rgba(37, 198, 201, 0.06));
 }
 
 .workflow-step-card__name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.workflow-start-editor-step-id {
   font-size: 12px;
-  color: #64748b;
-}
-
-.workflow-step-card__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  font-weight: 500;
+  color: var(--text-primary);
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.workflow-step-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.workflow-step-card__flag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
 }
 
 .workflow-step-card__delete {
   position: absolute;
   top: 6px;
   right: 6px;
-  z-index: 2;
-  width: 24px;
-  height: 24px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -751,19 +813,13 @@ const handlePreviewPrompt = async () => {
   border: none;
   background: transparent;
   color: rgba(0, 0, 0, 0.18);
-  font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
 }
 
 .workflow-step-card__delete:hover {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.1);
-}
-
-.workflow-step-card__delete:active {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.18);
 }
 
 .workflow-step-card__delete:disabled {
@@ -772,56 +828,22 @@ const handlePreviewPrompt = async () => {
 }
 
 .workflow-step-card__delete :deep(.el-icon) {
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.workflow-chip--success {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.workflow-chip--neutral {
-  background: #e2e8f0;
-  color: #334155;
-}
-
-.workflow-chip--warning {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.workflow-chip--danger {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
+/* Step details dialog */
 .step-editor-card {
-  border-radius: 16px;
-  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
   background: #fff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
-  padding: 20px;
-}
-
-.step-editor-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.step-editor-card__title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
+  padding: 16px;
 }
 
 .step-editor-state-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .binding-state-row {
@@ -830,67 +852,81 @@ const handlePreviewPrompt = async () => {
 
 .step-editor-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 14px;
 }
 
 .editor-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .editor-field--full {
   grid-column: 1 / -1;
 }
 
+.editor-field--agent {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-color-soft);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.08) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+}
+
 .editor-field label {
-  color: #475569;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.editor-field__label-strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  letter-spacing: 0.02em;
+}
+
+.editor-field__label-strong::before {
+  content: '';
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--accent-color);
+}
+
+.agent-picker :deep(.el-input__wrapper) {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+.agent-picker :deep(.el-input__wrapper:hover),
+.agent-picker :deep(.el-select .el-input.is-focus .el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--accent-color) inset;
+}
+
+.agent-picker :deep(.el-input__inner) {
   font-size: 13px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .confirmation-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-}
-
-.confirmation-prompt-field {
-  margin-top: 12px;
-  padding: 12px;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-
-.confirmation-prompt-field label {
-  display: block;
-  margin-bottom: 8px;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-@media (max-width: 900px) {
-  .step-editor-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .editor-field--full {
-    grid-column: auto;
-  }
-
-  .workflow-start-editor-step {
-    width: 180px;
-  }
 }
 
 .preview-prompt-loading {
   text-align: center;
   padding: 32px 20px;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -902,12 +938,12 @@ const handlePreviewPrompt = async () => {
   line-height: 1.7;
   padding: 16px;
   margin: 0;
-  background: var(--bg-secondary, #f8fafc);
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid var(--border-color, #e2e8f0);
+  border: 1px solid var(--border-color);
   max-height: 60vh;
   overflow-y: auto;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
 }
 
 .worktree-option {
@@ -925,10 +961,10 @@ const handlePreviewPrompt = async () => {
   gap: 6px;
   margin-top: 6px;
   padding: 8px;
-  background: rgba(230, 162, 60, 0.08);
+  background: rgba(245, 158, 11, 0.08);
   border-radius: 6px;
   font-size: 12px;
-  color: #E6A23C;
+  color: #b45309;
 }
 
 .worktree-warning .el-icon {
