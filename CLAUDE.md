@@ -70,6 +70,14 @@ Coplat board for managing projects/tasks with AI agent execution in isolated Git
 - WorkflowRunRepository serializes all mutations to prevent race conditions when steps execute rapidly
 - Mastra stores workflow state in `data/mastra.db` (LibSQL)
 
+**Workflow Step Fields:**
+- `agentId` (number) — assigned agent ID
+- `instructionPrompt` (string) — prompt template for the step
+- `requiresConfirmation` (boolean) — pause for user confirmation before proceeding
+- `canEarlyExit` (boolean) — allow AI to terminate the step early
+- `type` (string) — step type: `'DEFAULT'` or `'SPLIT_TASK'`
+- `maxRetries` (number, 0-3) — number of automatic retries on failure
+
 **Agent Configuration:**
 - Each Agent can configure `settingsPath` (optional) — maps to Claude Code CLI `--settings <path>` flag
 - When `settingsPath` is set on an agent, the executor appends `--settings <path>` to the `claude` CLI invocation
@@ -83,8 +91,13 @@ Coplat board for managing projects/tasks with AI agent execution in isolated Git
 - `/kanban/:projectId` → KanbanView (main board)
 - `/task-sources/:projectId` → TaskSourceConfig
 - `/agents` → AgentConfig
+- `/workflow-templates` → WorkflowTemplateConfig (AgentTeam 模板管理)
 
 Key directories: `views/`, `components/`, `api/` (Axios clients), `stores/` (Pinia), `services/websocket.js` (native WebSocket client), `locales/` (i18n: zh-CN/en)
+
+**Workflow Template Editor Layout (`WorkflowTemplateConfig.vue`):**
+- 阶段编辑器中，角色选择器（executor 下拉框）独占一行
+- 需要确认、智能终止、失败重试等开关在角色下方另起一行
 
 ### Data Storage
 
