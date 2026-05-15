@@ -166,7 +166,7 @@ const sessionStatus = ref('')
 const eventsContainer = ref(null)
 const autoScrollEnabled = ref(true)
 const hideToolMessages = ref(true)
-const hideThinkingMessages = ref(true)
+const hideThinkingMessages = ref(false)
 const messageInput = ref(null)
 const showPrompt = ref(false)
 
