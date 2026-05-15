@@ -149,7 +149,11 @@ const loadChanges = async () => {
   try {
     const response = await getUncommittedChanges(props.projectId, props.taskId)
     if (response.success) {
-      changes.value = (response.data || []).map(c => ({ ...c, selected: true }))
+      // Backend returns either { changes, isWorktree, ... } object or legacy array
+      const raw = Array.isArray(response.data)
+        ? response.data
+        : (response.data?.changes || [])
+      changes.value = raw.map(c => ({ ...c, selected: true }))
       if (changes.value.length > 0) {
         selectedFile.value = changes.value[0].path
       }

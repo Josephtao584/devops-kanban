@@ -717,15 +717,15 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Build git add command
       if (addAll) {
-        execSync('git add -A', { cwd: repoPath, encoding: 'utf-8' });
+        execFileSync('git', ['add', '-A'], { cwd: repoPath, encoding: 'utf-8' });
       } else if (files.length > 0) {
         for (const file of files) {
-          execSync(`git add "${file}"`, { cwd: repoPath, encoding: 'utf-8' });
+          execFileSync('git', ['add', '--', file], { cwd: repoPath, encoding: 'utf-8' });
         }
       }
 
       // Build git commit command
-      const commitOutput = execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, {
+      const commitOutput = execFileSync('git', ['commit', '-m', message], {
         cwd: repoPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -956,7 +956,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // POST /worktrees/:taskId/merge-into-current - Merge worktree branch into current local branch
+  // POST /worktrees/:taskId/merge-into-current - Merge worktree branch into current local branch of project repo
   fastify.post<{ Params: { taskId: string }; Querystring: ProjectIdQuery }>(
     '/worktrees/:taskId/merge-into-current',
     async (request, reply) => {
@@ -971,18 +971,44 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
           reply.code(400);
           return errorResponse('Task has no worktree branch');
         }
-
-        // Merge worktree branch into current branch of project repo
-        let repoPath = task.worktree_path;
-        if (!repoPath && task.project_id) {
-          const project = await projectRepo.findById(task.project_id);
-          if (project?.local_path && isGitRepository(project.local_path)) {
-            repoPath = project.local_path;
-          }
-        }
-        if (!repoPath) {
+        if (!task.project_id) {
           reply.code(400);
-          return errorResponse('No repository found');
+          return errorResponse('Task has no associated project');
+        }
+
+        // Always merge into the project repo's current branch (NOT into the worktree itself,
+        // because the worktree's HEAD IS the worktree branch — that would be a self-merge).
+        const project = await projectRepo.findById(task.project_id);
+        if (!project?.local_path || !isGitRepository(project.local_path)) {
+          reply.code(400);
+          return errorResponse('Project has no valid local repository');
+        }
+        const repoPath = project.local_path;
+
+        // Pre-check: refuse if the project repo's current branch IS the worktree branch
+        let currentBranch = '';
+        try {
+          currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+        } catch {
+          // ignore — git will surface the error during merge
+        }
+        if (currentBranch && currentBranch === task.worktree_branch) {
+          reply.code(400);
+          return errorResponse(`当前分支就是 worktree 分支 ${task.worktree_branch}，无法合入自身。请先切换到目标分支。`);
+        }
+
+        // Pre-check: refuse if the project repo has uncommitted changes
+        try {
+          const statusOutput = execFileSync('git', ['status', '--porcelain'], {
+            cwd: repoPath,
+            encoding: 'utf-8',
+          });
+          if (statusOutput.trim().length > 0) {
+            reply.code(400);
+            return errorResponse('当前分支有未提交的更改，请先提交或暂存后再合入');
+          }
+        } catch {
+          // ignore — git will surface the error during merge
         }
 
         const result = mergeBranch(task.worktree_branch, repoPath, { noFastForward: true });
@@ -1001,6 +1027,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
           hasConflicts: false,
           conflicts: [],
           message: result.message,
+          targetBranch: currentBranch,
         }, 'Branch merged into current branch successfully');
       } catch (error) {
         logError(error, request);

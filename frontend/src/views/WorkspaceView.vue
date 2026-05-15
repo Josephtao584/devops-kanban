@@ -481,9 +481,11 @@ const selectedProjectId = ref(route.params.projectId ? Number(route.params.proje
 const activeSession = ref(null) // { session_id, step_name, assembled_prompt }
 const currentRun = ref(null)
 
-// Auto-retry: when the workflow run becomes FAILED, automatically retry once
+// Auto-retry: when the workflow run becomes FAILED, automatically retry up to MAX_AUTO_RETRIES times per run
 const autoRetryEnabled = ref(false)
 const prevRunStatus = ref(null)
+const autoRetryCountByRun = ref(new Map())
+const MAX_AUTO_RETRIES = 3
 
 function onAutoRetryChange(enabled) {
   autoRetryEnabled.value = enabled
@@ -494,13 +496,16 @@ async function autoRetryRun() {
   const runId = currentRun.value?.id || selectedTask.value?.workflow_run_id
   if (!runId || status !== 'FAILED' || !autoRetryEnabled.value) return
 
-  // Only trigger retry on first detection of FAILED state
-  if (prevRunStatus.value !== 'FAILED') {
+  // Bound retry attempts per run id to prevent infinite loops
+  const count = autoRetryCountByRun.value.get(runId) || 0
+  if (count >= MAX_AUTO_RETRIES) {
+    ElMessage.warning(`已达到最大自动重试次数 (${MAX_AUTO_RETRIES}），停止自动重试`)
     return
   }
-  prevRunStatus.value = 'RETRYING'
+  autoRetryCountByRun.value.set(runId, count + 1)
+
   try {
-    ElMessage.info('工作流失败，正在自动重试...')
+    ElMessage.info(`工作流失败，正在自动重试 (${count + 1}/${MAX_AUTO_RETRIES})...`)
     const resp = await retryWorkflow(runId)
     if (resp?.success) {
       ElMessage.success('已自动重新执行')
@@ -1063,6 +1068,11 @@ function onRunUpdate(run) {
     autoRetryRun()
   } else {
     prevRunStatus.value = newStatus || null
+    // Reset retry count when run reaches a non-failed terminal state
+    if (newStatus === 'COMPLETED' || newStatus === 'DONE' || newStatus === 'CANCELLED') {
+      const runId = run.id
+      if (runId) autoRetryCountByRun.value.delete(runId)
+    }
   }
 
   // Preserve manual step selection; only auto-select on first run or no manual selection
