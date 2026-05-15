@@ -22,27 +22,27 @@
       <div class="skill-list-panel">
         <div class="panel-header">
           <h3>{{ $t('skill.skillList') }}</h3>
-          <div class="panel-header-right">
-            <span class="skill-count">{{ filteredSkills.length }}</span>
-            <el-select
-              v-model="selectedTemplateId"
-              :placeholder="$t('skill.filterAllTemplates')"
-              clearable
-              class="skill-filter-select"
-              size="small"
-            >
-              <el-option
-                v-for="tpl in workflowTemplates"
-                :key="tpl.template_id"
-                :label="tpl.name"
-                :value="tpl.template_id"
-              />
-            </el-select>
-            <span v-if="selectedTemplateId" class="skill-filter-badge">
-              <span class="badge-dot"></span>
-              {{ $t('skill.filteringByTemplate') }}
-            </span>
-          </div>
+          <span class="skill-count">{{ filteredSkills.length }}</span>
+        </div>
+        <div class="skill-filter-bar">
+          <el-select
+            v-model="selectedTemplateId"
+            :placeholder="$t('skill.filterAllTemplates')"
+            clearable
+            class="skill-filter-select"
+            size="small"
+          >
+            <el-option
+              v-for="tpl in workflowTemplates"
+              :key="tpl.template_id"
+              :label="tpl.name"
+              :value="tpl.template_id"
+            />
+          </el-select>
+          <span v-if="selectedTemplateId" class="skill-filter-badge">
+            <span class="badge-dot"></span>
+            {{ $t('skill.filteringByTemplate') }}
+          </span>
         </div>
         <div class="skill-list" v-if="!skillStore.loading">
           <div
@@ -52,11 +52,9 @@
             :class="{ 'active': selectedSkill?.id === skill.id }"
             @click="selectSkill(skill)"
           >
-            <div class="skill-item-info">
-              <span class="skill-name">{{ skill.name }}</span>
-            </div>
-            <div class="skill-item-meta">
-              <span class="skill-description-preview">{{ truncateDescription(skill.description) }}</span>
+            <div class="skill-list-item__body">
+              <span class="skill-list-item__name">{{ skill.name }}</span>
+              <span v-if="skill.description" class="skill-list-item__desc">{{ truncateDescription(skill.description) }}</span>
             </div>
           </div>
           <div v-if="filteredSkills.length === 0" class="empty-list">
@@ -82,6 +80,14 @@
             <div class="skill-title-row">
               <div class="title-left">
                 <h2>{{ selectedSkill.name }}</h2>
+                <span v-if="selectedSkill.created_at" class="meta-chip" :title="$t('skill.createdAt')">
+                  <span class="meta-chip__label">{{ $t('skill.createdAt') }}</span>
+                  <span class="meta-chip__value">{{ formatDateWithFallback(selectedSkill.created_at) }}</span>
+                </span>
+                <span v-if="selectedSkill.updated_at" class="meta-chip" :title="$t('skill.updatedAt')">
+                  <span class="meta-chip__label">{{ $t('skill.updatedAt') }}</span>
+                  <span class="meta-chip__value">{{ formatDateWithFallback(selectedSkill.updated_at) }}</span>
+                </span>
               </div>
               <div class="header-actions">
                 <button class="btn btn-secondary btn-sm" @click="openEditForm">
@@ -92,22 +98,7 @@
                 </button>
               </div>
             </div>
-          </div>
-
-          <!-- 技能基本信息 -->
-          <div class="info-section">
-            <div class="info-item">
-              <span class="info-label">{{ $t('skill.description') }}</span>
-              <span class="info-value description-text">{{ selectedSkill.description || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('skill.createdAt') }}</span>
-              <span class="info-value">{{ formatDateWithFallback(selectedSkill.created_at) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('skill.updatedAt') }}</span>
-              <span class="info-value">{{ formatDateWithFallback(selectedSkill.updated_at) }}</span>
-            </div>
+            <p v-if="selectedSkill.description" class="skill-description">{{ selectedSkill.description }}</p>
           </div>
 
           <!-- 文件管理区域 -->
@@ -494,7 +485,7 @@ const arrayBufferToBase64 = (arrayBuffer) => {
 
 const truncateDescription = (description) => {
   if (!description) return ''
-  return description.length > 30 ? description.substring(0, 30) + '...' : description
+  return description.length > 80 ? description.substring(0, 80) + '...' : description
 }
 
 const formatDateWithFallback = (dateStr) => formatDate(dateStr, { fallback: '-' })
@@ -651,57 +642,57 @@ onMounted(loadSkills)
 
 .skill-count {
   background: var(--accent-color-soft);
-  color: var(--accent-color);
-  padding: 3px 9px;
+  color: var(--accent-color-strong, var(--accent-color));
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   font-weight: 700;
+  min-width: 22px;
+  text-align: center;
 }
 
-.panel-header-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.panel-header-right {
+.skill-filter-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-}
-
-.skill-filter-select {
-  width: 160px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
   flex-shrink: 0;
 }
 
+.skill-filter-select {
+  flex: 1;
+  min-width: 0;
+}
+
 .skill-filter-select :deep(.el-input__wrapper) {
-  background: var(--bg-secondary);
-  box-shadow: none;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  transition: border-color 0.2s;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
 }
 
 .skill-filter-select :deep(.el-input__wrapper:hover) {
-  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
 }
 
+.skill-filter-select :deep(.el-input.is-focus .el-input__wrapper),
 .skill-filter-select :deep(.el-input__wrapper.is-focus) {
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.15);
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
 }
 
 .skill-filter-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(37, 198, 201, 0.1);
-  color: var(--accent-color);
+  gap: 5px;
+  background: var(--accent-color-soft, rgba(37, 198, 201, 0.12));
+  color: var(--accent-color-strong, var(--accent-color));
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
   flex-shrink: 0;
@@ -723,64 +714,64 @@ onMounted(loadSkills)
 .skill-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 8px;
   background: var(--panel-bg);
 }
 
 .skill-list-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 8px;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+  margin-bottom: 4px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
+  text-align: left;
 }
 
 .skill-list-item:hover {
   background: var(--bg-secondary);
-  border-color: rgba(37, 198, 201, 0.35);
+  border-color: rgba(37, 198, 201, 0.24);
 }
 
 .skill-list-item.active {
-  background: var(--hover-bg);
-  border: 1px solid var(--accent-color);
-  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.1);
+  background: rgba(37, 198, 201, 0.05);
+  border-color: var(--accent-color);
+  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.12);
 }
 
-.skill-item-info {
+.skill-list-item__body {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
   min-width: 0;
+  gap: 2px;
+  flex: 1;
 }
 
-.skill-name {
+.skill-list-item__name {
   font-weight: 600;
-  font-size: var(--font-size-sm);
+  font-size: 13px;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
-.skill-item-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.skill-description-preview {
-  font-size: 10px;
-  color: var(--text-secondary);
-  max-width: 100px;
+.skill-list-item__desc {
+  font-size: 11px;
+  color: var(--text-muted, var(--text-secondary));
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
 }
 
 /* Right panel - Skill detail */
@@ -798,23 +789,56 @@ onMounted(loadSkills)
 .skill-title-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.skill-title-row .title-left {
+  flex-wrap: wrap;
   align-items: center;
 }
 
 .skill-title-row h2 {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
-/* Skill-specific overrides for info section */
-.info-item {
-  align-items: flex-start;
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--bg-tertiary, rgba(31, 41, 55, 0.04));
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
 }
 
-.info-label {
-  width: 100px;
+.meta-chip__label {
+  color: var(--text-muted, var(--text-secondary));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.meta-chip__value {
+  color: var(--text-primary);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 500;
+}
+
+.skill-description {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Files section */
@@ -841,28 +865,19 @@ onMounted(loadSkills)
 .file-browser {
   flex: 1;
   display: flex;
-  gap: 16px;
+  gap: 0;
   overflow: hidden;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-}
-
-.file-list {
-  width: 200px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  padding: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-primary);
-  border-right: 1px solid var(--border-color);
 }
 
 .file-tree-container {
   width: 240px;
   min-width: 240px;
   overflow-y: auto;
-  padding: 8px;
-  background: var(--bg-primary);
+  padding: 6px;
+  background: var(--bg-secondary, #fafbfc);
   border-right: 1px solid var(--border-color);
 }
 
@@ -874,18 +889,20 @@ onMounted(loadSkills)
 
 .node-icon {
   font-size: 11px;
-  min-width: 20px;
+  min-width: 22px;
   text-align: center;
 }
 
 .node-icon.is-file {
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border-radius: 3px;
-  padding: 1px 4px;
-  font-size: 10px;
-  font-weight: 500;
-  font-family: monospace;
+  color: var(--accent-color-strong, var(--accent-color));
+  background: var(--accent-color-soft, rgba(37, 198, 201, 0.1));
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .node-icon.is-folder {
@@ -899,41 +916,22 @@ onMounted(loadSkills)
 
 :deep(.el-tree-node__content) {
   height: 28px;
+  border-radius: 6px;
+  margin: 1px 0;
+  transition: background-color 0.15s ease;
+}
+
+:deep(.el-tree-node__content:hover) {
+  background-color: rgba(37, 198, 201, 0.06);
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: rgba(64, 158, 255, 0.1);
+  background-color: rgba(37, 198, 201, 0.12);
 }
 
-.file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.file-item:hover {
-  background: var(--bg-secondary);
-}
-
-.file-item.active {
-  background: rgba(37, 198, 201, 0.1);
-  border: 1px solid var(--accent-color);
-}
-
-.file-icon {
-  font-size: 14px;
-}
-
-.file-name {
-  font-size: 12px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+:deep(.el-tree-node.is-current > .el-tree-node__content) .node-label {
+  color: var(--accent-color-strong, var(--accent-color));
+  font-weight: 600;
 }
 
 .empty-files {
@@ -962,28 +960,31 @@ onMounted(loadSkills)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--bg-secondary, #fafbfc);
 }
 
 .preview-filename {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0;
 }
 
 .preview-code {
   flex: 1;
   margin: 0;
-  padding: 12px;
+  padding: 14px 16px;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.65;
   overflow: auto;
   background: var(--bg-primary);
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
 }
 
 .loading-preview,
@@ -1000,6 +1001,51 @@ onMounted(loadSkills)
 .empty-preview-hint p {
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+/* Form dialog refinements */
+.modal-hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+:deep(.el-form-item__label) {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 6px !important;
+  line-height: 1.4 !important;
+}
+
+:deep(.el-form-item .el-input__wrapper),
+:deep(.el-form-item .el-textarea__inner) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+:deep(.el-form-item .el-input__wrapper:hover),
+:deep(.el-form-item .el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
+}
+
+:deep(.el-form-item .el-input.is-focus .el-input__wrapper),
+:deep(.el-form-item .el-input__wrapper.is-focus),
+:deep(.el-form-item .el-textarea__inner:focus) {
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
+}
+
+:deep(.el-form-item .el-input__inner) {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 </style>
