@@ -44,6 +44,12 @@ export const getDiff = (projectId, taskId) =>
 export const mergeBranch = (projectId, source, target) =>
   api.post(`/git/branches/${encodeURIComponent(source)}/merge/${encodeURIComponent(target)}`, null, { params: { projectId } })
 
+/**
+ * Merge worktree branch into current local branch
+ */
+export const mergeWorktreeIntoCurrent = (projectId, taskId) =>
+  api.post(`/git/worktrees/${taskId}/merge-into-current`, null, { params: { projectId } })
+
 // ==================== File Editing ====================
 
 /**

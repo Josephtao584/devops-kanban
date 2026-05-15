@@ -956,6 +956,68 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // POST /worktrees/:taskId/merge-into-current - Merge worktree branch into current local branch
+  fastify.post<{ Params: { taskId: string }; Querystring: ProjectIdQuery }>(
+    '/worktrees/:taskId/merge-into-current',
+    async (request, reply) => {
+      try {
+        const taskId = parseNumber(request.params.taskId);
+        const task = await taskRepo.findById(taskId);
+        if (!task) {
+          reply.code(404);
+          return errorResponse('Task not found');
+        }
+        if (!task.worktree_branch) {
+          reply.code(400);
+          return errorResponse('Task has no worktree branch');
+        }
+
+        // Merge worktree branch into current branch of project repo
+        let repoPath = task.worktree_path;
+        if (!repoPath && task.project_id) {
+          const project = await projectRepo.findById(task.project_id);
+          if (project?.local_path && isGitRepository(project.local_path)) {
+            repoPath = project.local_path;
+          }
+        }
+        if (!repoPath) {
+          reply.code(400);
+          return errorResponse('No repository found');
+        }
+
+        const result = mergeBranch(task.worktree_branch, repoPath, { noFastForward: true });
+
+        if (result.hasConflicts) {
+          return successResponse({
+            success: false,
+            hasConflicts: true,
+            conflicts: result.conflicts,
+            message: result.message,
+          }, 'Merge conflicts detected');
+        }
+
+        return successResponse({
+          success: true,
+          hasConflicts: false,
+          conflicts: [],
+          message: result.message,
+        }, 'Branch merged into current branch successfully');
+      } catch (error) {
+        logError(error, request);
+        const execError = error as Error & { stderr?: string };
+        const stderr = execError.stderr || execError.message;
+
+        if (stderr.includes('does not exist')) {
+          reply.code(404);
+          return errorResponse('Branch not found');
+        }
+
+        reply.code(getStatusCode(error));
+        return errorResponse(getErrorMessage(error, `Failed to merge: ${stderr}`));
+      }
+    }
+  );
+
   // ==================== Diff ====================
 
   fastify.get<{ Params: { taskId: string }; Querystring: ProjectIdQuery & { source?: string; target?: string } }>('/worktrees/:taskId/diff', async (request, reply) => {

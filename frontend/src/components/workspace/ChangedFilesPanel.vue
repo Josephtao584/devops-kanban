@@ -62,7 +62,6 @@
       </div>
 
       <!-- Action buttons -->
-      <!-- Action buttons -->
       <div class="worktree-actions">
         <el-button
           size="small"
@@ -99,6 +98,20 @@
             <path d="M6 21V9a9 9 0 0 0 9 9"></path>
           </svg>
           合入
+        </el-button>
+        <el-button
+          v-if="isWorktree"
+          size="small"
+          :loading="mergingToCurrent"
+          @click="handleMergeIntoCurrent"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
+          合入当前分支
         </el-button>
         <span v-if="!isWorktree" class="no-worktree-warning">未隔离分支，提交将直接作用于项目仓库</span>
       </div>
@@ -178,7 +191,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getUncommittedChanges, getDiff, pushWorktree } from '../../api/git.js'
+import { getUncommittedChanges, getDiff, pushWorktree, mergeWorktreeIntoCurrent } from '../../api/git.js'
 import { createTaskWorktree, deleteTaskWorktree } from '../../api/taskWorktree.js'
 import CommitDialog from '../CommitDialog.vue'
 import MergeDialog from '../MergeDialog.vue'
@@ -199,6 +212,7 @@ const diffLoading = ref(null)
 const creating = ref(false)
 const deleting = ref(false)
 const pushing = ref(false)
+const mergingToCurrent = ref(false)
 const showCommitDialog = ref(false)
 const showMergeDialog = ref(false)
 const loadError = ref(null)
@@ -392,6 +406,41 @@ function handleMerge() {
     return
   }
   showMergeDialog.value = true
+}
+
+async function handleMergeIntoCurrent() {
+  if (!props.task?.project_id || !props.taskId) {
+    ElMessage.warning('当前任务无法合入')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将 worktree 分支 ${props.task.worktree_branch} 合入到当前分支，确定继续？`,
+      '确认合入',
+      { confirmButtonText: '合入', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  mergingToCurrent.value = true
+  try {
+    const resp = await mergeWorktreeIntoCurrent(props.task.project_id, props.taskId)
+    if (resp?.success) {
+      if (resp.data?.hasConflicts) {
+        ElMessage.warning(`存在 ${resp.data.conflicts?.length || 0} 个冲突文件`)
+      } else {
+        ElMessage.success('已合入当前分支')
+      }
+      await loadChanges()
+      emit('refresh')
+    } else {
+      ElMessage.error(resp?.message || '合入失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.message || '合入失败')
+  } finally {
+    mergingToCurrent.value = false
+  }
 }
 
 async function onCommitted() {
