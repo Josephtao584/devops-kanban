@@ -711,7 +711,7 @@ onMounted(loadSkills)
 .skill-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 10px;
   background: var(--panel-bg);
 }
 
@@ -720,11 +720,11 @@ onMounted(loadSkills)
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   text-align: left;
