@@ -187,7 +187,8 @@ export function buildWorktreeDiff(taskWorktreePath: string): { files: WorktreeDi
     encoding: 'utf-8',
   });
 
-  const parsedFiles = parsePorcelainStatus(statusOutput);
+  const parsedFiles = parsePorcelainStatus(statusOutput)
+    .filter(file => !file.path.startsWith('.claude/') && file.path !== '.gitignore');
   const files: WorktreeDiffFile[] = [];
   const diffs: Record<string, string> = {};
 
@@ -622,23 +623,34 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
-        return successResponse([]);
+      // Fall back to project's local_path when no worktree exists
+      let repoPath = task.worktree_path;
+      let isWorktree = true;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+          isWorktree = false;
+        }
+      }
+
+      if (!repoPath) {
+        return successResponse({ changes: [], isWorktree: false, noRepo: true });
       }
 
       const statusOutput = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
-        cwd: task.worktree_path,
+        cwd: repoPath,
         encoding: 'utf-8',
       });
 
       const changes = parsePorcelainStatus(statusOutput)
-        .filter(file => !file.path.startsWith('.claude/'))
+        .filter(file => !file.path.startsWith('.claude/') && file.path !== '.gitignore')
         .map((file) => ({
           path: file.path,
           status: file.status,
         }));
 
-      return successResponse(changes);
+      return successResponse({ changes, isWorktree, noRepo: false });
     } catch (error) {
       logError(error, request);
       reply.code(getStatusCode(error));
@@ -908,12 +920,21 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
-        reply.code(400);
-        return errorResponse('Task has no worktree');
+      // Fall back to project's local_path when no worktree exists
+      let repoPath = task.worktree_path;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+        }
       }
 
-      const result = buildWorktreeDiff(task.worktree_path);
+      if (!repoPath) {
+        reply.code(400);
+        return errorResponse('Task has no worktree and project has no local repository');
+      }
+
+      const result = buildWorktreeDiff(repoPath);
       return successResponse(result);
     } catch (error) {
       logError(error, request);

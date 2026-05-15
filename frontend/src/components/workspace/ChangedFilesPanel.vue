@@ -1,21 +1,17 @@
 <template>
   <div class="changed-files-panel">
-    <!-- No task / no worktree -->
     <div v-if="!taskId" class="panel-empty">请选择任务</div>
-    <div v-else-if="!task?.worktree_path" class="panel-empty">
-      <span>该任务尚未创建 worktree</span>
-      <el-button size="small" type="primary" :loading="creating" @click="handleCreateWorktree">
-        创建 worktree
-      </el-button>
-    </div>
     <div v-else-if="loading" class="panel-empty"><el-skeleton :rows="5" animated /></div>
     <div v-else-if="loadError" class="panel-empty">
       <span style="color: var(--danger-strong);">{{ loadError }}</span>
       <el-button size="small" @click="loadChanges">重试</el-button>
     </div>
+    <div v-else-if="noRepo" class="panel-empty">
+      <span>当前项目未配置本地仓库</span>
+    </div>
     <div v-else class="panel-body">
-      <!-- Worktree info bar -->
-      <div class="worktree-info">
+      <!-- Worktree / Project repo info bar -->
+      <div v-if="isWorktree" class="worktree-info">
         <div class="worktree-info-row">
           <span class="info-item">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -45,6 +41,17 @@
           </span>
         </div>
       </div>
+      <div v-else class="project-repo-info">
+        <span class="project-repo-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          项目仓库
+        </span>
+        <el-button size="small" type="primary" :loading="creating" @click="handleCreateWorktree">
+          创建 worktree 隔离到任务分支
+        </el-button>
+      </div>
 
       <!-- Change stats -->
       <div class="change-stats" v-if="changes.length">
@@ -55,7 +62,7 @@
       </div>
 
       <!-- Action buttons -->
-      <div class="worktree-actions">
+      <div class="worktree-actions" v-if="isWorktree">
         <el-button
           size="small"
           type="primary"
@@ -92,6 +99,9 @@
           </svg>
           合入
         </el-button>
+      </div>
+      <div v-else class="worktree-actions">
+        <span class="no-worktree-hint">创建 worktree 后可提交、推送和合入</span>
       </div>
 
       <!-- File list -->
@@ -193,6 +203,8 @@ const pushing = ref(false)
 const showCommitDialog = ref(false)
 const showMergeDialog = ref(false)
 const loadError = ref(null)
+const isWorktree = ref(true)
+const noRepo = ref(false)
 const LOAD_TIMEOUT = 10000
 
 function withTimeout(promise, ms) {
@@ -208,7 +220,7 @@ const deletedCount = computed(() => changes.value.filter(f => f.status === 'dele
 const untrackedCount = computed(() => changes.value.filter(f => f.status === 'untracked').length)
 
 async function loadChanges() {
-  if (!props.taskId || !props.projectId || !props.task?.worktree_path) {
+  if (!props.taskId || !props.projectId) {
     changes.value = []
     return
   }
@@ -216,8 +228,19 @@ async function loadChanges() {
   loadError.value = null
   try {
     const resp = await withTimeout(getUncommittedChanges(props.projectId, props.taskId), LOAD_TIMEOUT)
-    if (resp?.success) changes.value = resp.data || []
-    else {
+    if (resp?.success) {
+      const data = resp.data
+      if (typeof data === 'object' && data !== null) {
+        changes.value = data.changes || []
+        isWorktree.value = data.isWorktree ?? true
+        noRepo.value = data.noRepo ?? false
+      } else {
+        // Fallback for older API responses (array)
+        changes.value = Array.isArray(data) ? data : []
+        isWorktree.value = true
+        noRepo.value = false
+      }
+    } else {
       changes.value = []
       loadError.value = resp?.message || '加载改动失败'
     }
@@ -457,6 +480,39 @@ watch(() => [props.taskId, props.projectId, props.task?.worktree_path], () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Project repo info (when no worktree) */
+.project-repo-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.project-repo-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  color: var(--warning-strong);
+}
+
+.project-repo-label svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.no-worktree-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* Change stats */
