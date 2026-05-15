@@ -64,6 +64,7 @@ export default {
     deleteConfirmMessage: '确定要删除 "{name}" 吗？这将同时删除该项目关联的所有任务和数据。',
     loadFailed: '加载项目失败',
     homeDescription: '管理工作空间、查看项目配置，并快速进入对应看板继续处理任务。',
+    homeSlogan: '拼接 AI 智能，打造高效协作之路',
     workspaceTitle: '工作空间',
     workspaceDescription: '查看当前配置，直接进入 Coplat。',
     workspaceCountSuffix: '个项目',

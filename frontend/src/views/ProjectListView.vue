@@ -7,7 +7,7 @@
         <div class="hero-banner__inner">
           <div class="hero-banner__content">
             <h1 class="hero-banner__title">Cooperation Platform</h1>
-            <p class="hero-banner__description">{{ $t('project.homeDescription') }}</p>
+            <p class="hero-banner__slogan">{{ $t('project.homeSlogan') }}</p>
           </div>
           <div class="hero-banner__actions">
             <el-button type="primary" size="large" class="hero-banner__cta" @click="showCreateDialog">
@@ -260,6 +260,16 @@ watch(() => dialogVisible.value, (newValue) => {
   font-size: 14px;
   line-height: 1.65;
   color: var(--text-secondary);
+  max-width: 600px;
+}
+
+.hero-banner__slogan {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
   max-width: 600px;
 }
 
