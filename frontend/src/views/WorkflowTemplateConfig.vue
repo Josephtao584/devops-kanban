@@ -100,36 +100,36 @@
 
         <template v-else-if="template">
           <div class="editor-header">
+            <div class="editor-header__top">
+              <div class="editor-header__id">
+                <span class="editor-header__id-label">{{ $t('workflowTemplate.templateId') }}</span>
+                <code data-testid="template-id" class="editor-header__id-value">{{ template.template_id }}</code>
+              </div>
+              <div class="editor-actions editor-actions--template">
+                <el-button
+                  data-testid="delete-template-button"
+                  :disabled="(!canDeleteSelected && !isDraftTemplate) || deleting || saving"
+                  @click="handleDeleteTemplate"
+                >
+                  {{ deleting ? $t('common.loading') : $t('common.delete') }}
+                </el-button>
+                <el-button
+                  data-testid="save-template-button"
+                  type="primary"
+                  :disabled="saving || deleting"
+                  @click="saveTemplate"
+                >
+                  {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
+                </el-button>
+              </div>
+            </div>
             <div class="template-meta">
-              <div class="meta-row">
-                <span class="meta-label">{{ $t('workflowTemplate.templateId') }}</span>
-                <span data-testid="template-id" class="meta-value">{{ template.template_id }}</span>
+              <div class="meta-field">
+                <label class="meta-field__label">{{ $t('workflowTemplate.name') }}</label>
+                <el-input v-model="template.name" data-testid="template-name-input" maxlength="200" show-word-limit class="meta-field__control" />
               </div>
-              <div class="meta-row meta-row--stacked">
-                <span class="meta-label">{{ $t('workflowTemplate.name') }}</span>
-                <div class="template-name-row">
-                  <el-input v-model="template.name" data-testid="template-name-input" maxlength="200" show-word-limit />
-                  <div class="editor-actions editor-actions--template">
-                    <el-button
-                      data-testid="delete-template-button"
-                      :disabled="(!canDeleteSelected && !isDraftTemplate) || deleting || saving"
-                      @click="handleDeleteTemplate"
-                    >
-                      {{ deleting ? $t('common.loading') : $t('common.delete') }}
-                    </el-button>
-                    <el-button
-                      data-testid="save-template-button"
-                      type="primary"
-                      :disabled="saving || deleting"
-                      @click="saveTemplate"
-                    >
-                      {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-              <div class="meta-row meta-row--stacked">
-                <span class="meta-label">标签</span>
+              <div class="meta-field">
+                <label class="meta-field__label">{{ $t('workflowTemplate.tagsLabel', '标签') }}</label>
                 <el-select
                   v-model="template.tags"
                   multiple
@@ -137,8 +137,8 @@
                   allow-create
                   default-first-option
                   size="small"
-                  placeholder="输入标签，回车添加"
-                  class="tags-input"
+                  :placeholder="$t('workflowTemplate.tagsPlaceholder', '输入标签，回车添加')"
+                  class="meta-field__control tags-input"
                 >
                   <el-option
                     v-for="tag in allTags"
@@ -148,15 +148,17 @@
                   />
                 </el-select>
               </div>
-              <div class="meta-row">
-                <span class="meta-label">{{ $t('workflowTemplate.aiSplitToggleLabel', 'AI 拆分') }}</span>
-                <el-switch
-                  :model-value="aiSplitEnabled"
-                  size="small"
-                  data-testid="ai-split-toggle"
-                  @update:model-value="onToggleAiSplit"
-                />
-                <span class="meta-hint">{{ $t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）') }}</span>
+              <div class="meta-field meta-field--toggle">
+                <div class="meta-field__toggle-head">
+                  <label class="meta-field__label">{{ $t('workflowTemplate.aiSplitToggleLabel', 'AI 拆分') }}</label>
+                  <el-switch
+                    :model-value="aiSplitEnabled"
+                    size="small"
+                    data-testid="ai-split-toggle"
+                    @update:model-value="onToggleAiSplit"
+                  />
+                </div>
+                <p class="meta-field__hint">{{ $t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）') }}</p>
               </div>
             </div>
           </div>
@@ -316,15 +318,16 @@
                 </div>
 
                 <div class="editor-field editor-field--full">
-                  <div class="editor-field__row editor-field__row--options">
-                    <el-switch
-                      v-model="selectedStep.requiresConfirmation"
-                      :active-text="$t('workflowTemplate.requiresConfirmation')"
-                    />
-                    <el-switch
-                      v-model="selectedStep.canEarlyExit"
-                      :active-text="$t('workflowTemplate.canEarlyExit')"
-                    />
+                  <label>{{ $t('workflowTemplate.stepOptions', '选项') }}</label>
+                  <div class="step-options">
+                    <label class="step-option">
+                      <el-switch v-model="selectedStep.requiresConfirmation" size="small" />
+                      <span class="step-option__label">{{ $t('workflowTemplate.requiresConfirmation') }}</span>
+                    </label>
+                    <label class="step-option">
+                      <el-switch v-model="selectedStep.canEarlyExit" size="small" />
+                      <span class="step-option__label">{{ $t('workflowTemplate.canEarlyExit') }}</span>
+                    </label>
                   </div>
                 </div>
 
@@ -340,7 +343,12 @@
               </div>
 
               <div class="editor-field editor-field--full editor-field--prompt">
-                <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+                <div class="editor-field__head">
+                  <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+                  <el-button class="preview-prompt-btn" plain size="small" @click="handlePreviewPrompt">
+                    {{ $t('workflowTemplate.previewPrompt') }}
+                  </el-button>
+                </div>
                 <div class="editor-field__hint">{{ $t('workflowTemplate.deliveryPromptGuidance') }}</div>
                 <div v-if="selectedStep.type === 'SPLIT_TASK'" class="editor-field__hint split-prompt-hint">
                   AI 拆分逻辑由内置的 task-splitter Skill 提供详细规则；此处 prompt 用于引导 Agent 调用该 Skill 并传入上下文。
@@ -354,9 +362,6 @@
                   :maxlength="2000"
                   show-word-limit
                 />
-                <el-button class="preview-prompt-btn" plain @click="handlePreviewPrompt">
-                  {{ $t('workflowTemplate.previewPrompt') }}
-                </el-button>
               </div>
             </div>
 
@@ -1346,23 +1351,105 @@ const handlePreviewPrompt = async () => {
   flex-shrink: 0;
 }
 
+.editor-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.editor-header__id {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editor-header__id-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.editor-header__id-value {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-tertiary, #f3f5f7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+
 .template-meta {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   flex: 1;
 }
 
-.template-name-row {
+.meta-field {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.template-name-row :deep(.el-input) {
-  flex: 0 1 520px;
-  width: min(100%, 520px);
-  min-width: 320px;
+.meta-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.meta-field__control {
+  width: 100%;
+  max-width: 520px;
+}
+
+.meta-field--toggle {
+  gap: 6px;
+}
+
+.meta-field__toggle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 520px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: #fff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.meta-field__toggle-head:hover {
+  border-color: var(--accent-color-soft, rgba(37, 198, 201, 0.4));
+}
+
+.meta-field__toggle-head .meta-field__label {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.meta-field__hint {
+  margin: 0;
+  max-width: 520px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 .tags-input {
@@ -1370,28 +1457,57 @@ const handlePreviewPrompt = async () => {
   max-width: 520px;
 }
 
-.meta-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.meta-field__control :deep(.el-input__wrapper),
+.tags-input :deep(.el-input__wrapper) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
 }
 
-.meta-row--stacked {
-  align-items: flex-start;
-  flex-direction: column;
+.meta-field__control :deep(.el-input__wrapper:hover),
+.tags-input :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
 }
 
-.meta-label {
-  min-width: 88px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+.meta-field__control :deep(.el-input.is-focus .el-input__wrapper),
+.meta-field__control :deep(.el-input__wrapper.is-focus),
+.tags-input :deep(.el-input.is-focus .el-input__wrapper),
+.tags-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
 }
 
-.meta-value {
-  font-size: var(--font-size-sm);
+.meta-field__control :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
-  word-break: break-all;
+}
+
+.tags-input :deep(.el-select__tags) {
+  gap: 4px;
+}
+
+.tags-input :deep(.el-tag) {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-color-soft, rgba(37, 198, 201, 0.12));
+  border-color: transparent;
+  color: var(--accent-color-strong, #0d8c8e);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tags-input :deep(.el-tag .el-tag__close) {
+  color: var(--accent-color-strong, #0d8c8e);
+  background: transparent;
+}
+
+.tags-input :deep(.el-tag .el-tag__close:hover) {
+  background: rgba(37, 198, 201, 0.2);
+  color: var(--accent-color-strong, #0d8c8e);
 }
 
 .step-validation-hint {
@@ -1801,6 +1917,48 @@ const handlePreviewPrompt = async () => {
   gap: 12px;
 }
 
+.step-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.step-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.step-option:hover {
+  border-color: var(--accent-color-soft, rgba(37, 198, 201, 0.4));
+  background: rgba(37, 198, 201, 0.04);
+}
+
+.step-option__label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  user-select: none;
+}
+
+.editor-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.editor-field__head label {
+  margin: 0;
+}
+
 .step-type-hint {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
@@ -1865,8 +2023,37 @@ const handlePreviewPrompt = async () => {
 
 .editor-field label {
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.editor-field :deep(.el-input__wrapper),
+.editor-field :deep(.el-textarea__inner) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+.editor-field :deep(.el-input__wrapper:hover),
+.editor-field :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
+}
+
+.editor-field :deep(.el-input.is-focus .el-input__wrapper),
+.editor-field :deep(.el-input__wrapper.is-focus),
+.editor-field :deep(.el-textarea__inner:focus) {
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
+}
+
+.editor-field :deep(.el-input__inner) {
+  font-size: 13px;
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 .editor-field__hint {
@@ -1880,8 +2067,7 @@ const handlePreviewPrompt = async () => {
 }
 
 .preview-prompt-btn {
-  margin-top: 8px;
-  align-self: flex-start;
+  flex-shrink: 0;
 }
 
 .preview-prompt-loading {
