@@ -79,17 +79,23 @@ vi.mock('../src/stores/workflowTemplateStore', () => {
 })
 
 vi.mock('../src/stores/agentStore', () => {
-  const agentsRef = { value: [] }
+  const agentsRef = ref([])
+  const fetchAgentsFn = vi.fn().mockImplementation(async () => {
+    // Will be overridden per-test; default returns empty
+    return { success: true, data: [] }
+  })
   const storeMethods = {
-    agents: agentsRef,
+    get agents() { return agentsRef },
     loading: { value: false },
     error: { value: null },
-    fetchAgents: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    fetchAgents: fetchAgentsFn,
     createAgent: vi.fn(),
     updateAgent: vi.fn(),
     deleteAgent: vi.fn(),
     toggleAgentEnabled: vi.fn(),
-    clearError: vi.fn()
+    clearError: vi.fn(),
+    _agentsRef: agentsRef,
+    _setAgents(data) { agentsRef.value = data }
   }
   return { useAgentStore: vi.fn(() => storeMethods), storeMethods }
 })
@@ -440,13 +446,14 @@ describe('WorkflowTemplateConfig', () => {
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue()
 
     mockTemplateApis()
-    agentStoreMethods.fetchAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: 'Claude Dev', enabled: true },
-        { id: 2, name: 'Disabled Agent', enabled: false },
-        { id: 3, name: 'Codex Reviewer', enabled: true }
-      ]
+    const agentsData = [
+      { id: 1, name: 'Claude Dev', enabled: true },
+      { id: 2, name: 'Disabled Agent', enabled: false },
+      { id: 3, name: 'Codex Reviewer', enabled: true }
+    ]
+    agentStoreMethods.fetchAgents.mockImplementation(async () => {
+      agentStoreMethods._setAgents(agentsData)
+      return { success: true, data: agentsData }
     })
   })
 
@@ -633,7 +640,7 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('does not report missing agents when agent loading fails', async () => {
-    getAgents.mockRejectedValueOnce(new Error('agent service unavailable'))
+    agentStoreMethods.fetchAgents.mockRejectedValueOnce(new Error('agent service unavailable'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -657,7 +664,7 @@ describe('WorkflowTemplateConfig', () => {
       ]
     }
 
-    getWorkflowTemplates.mockResolvedValue({
+    fetchTemplatesMock.mockResolvedValue({
       success: true,
       data: [defaultTemplate, customTemplate, bugfixTemplate]
     })
@@ -717,7 +724,7 @@ describe('WorkflowTemplateConfig', () => {
       data: null
     })
 
-    getWorkflowTemplates
+    fetchTemplatesMock
       .mockResolvedValueOnce({
         success: true,
         data: [defaultTemplate, customTemplate]
@@ -733,7 +740,7 @@ describe('WorkflowTemplateConfig', () => {
     await flushPromises()
 
     expect(deleteTemplateMock).toHaveBeenCalledWith('release-workflow-v1')
-    expect(ElMessage.success).toHaveBeenCalledWith('工作流模板已删除')
+    expect(ElMessage.success).toHaveBeenCalledWith('AgentTeam模板已删除')
     expect(ElMessage.error).toHaveBeenCalledWith('refresh failed')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
@@ -790,7 +797,7 @@ describe('WorkflowTemplateConfig', () => {
     })
 
     expect(getStepCards(wrapper)[0].find('.workflow-step-card__name').text()).toBe('发布评审')
-    expect(getStepCards(wrapper)[0].find('.workflow-chip').text()).toContain('Codex Reviewer')
+    expect(getStepCards(wrapper)[0].find('.workflow-step-card__agent-name').text()).toContain('Codex Reviewer')
     expect(wrapper.find('.step-editor-section').exists()).toBe(true)
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
 
@@ -927,7 +934,7 @@ describe('WorkflowTemplateConfig', () => {
       data: null
     })
 
-    getWorkflowTemplates
+    fetchTemplatesMock
       .mockResolvedValueOnce({
         success: true,
         data: [defaultTemplate, customTemplate]

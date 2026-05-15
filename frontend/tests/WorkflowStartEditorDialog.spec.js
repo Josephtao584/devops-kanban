@@ -5,7 +5,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import i18n from '../src/locales'
 import WorkflowStartEditorDialog from '../src/components/workflow/WorkflowStartEditorDialog.vue'
-import { getAgents } from '../src/api/agent'
+
+const mockAgentStore = vi.hoisted(() => ({
+  agents: [],
+  loading: { value: false },
+  error: { value: null },
+  fetchAgents: vi.fn(),
+  clearError: vi.fn()
+}))
 
 vi.mock('vuedraggable', () => ({
   default: defineComponent({
@@ -26,14 +33,29 @@ vi.mock('vuedraggable', () => ({
   })
 }))
 
-vi.mock('../src/api/agent', () => ({
-  getAgents: vi.fn()
+vi.mock('../src/stores/agentStore', () => ({
+  useAgentStore: () => mockAgentStore,
+  storeMethods: mockAgentStore
 }))
 
 vi.mock('../src/stores/skillStore', () => ({
   useSkillStore: vi.fn().mockReturnValue({
     skills: [],
     fetchSkills: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+vi.mock('../src/stores/workflowTemplateStore', () => ({
+  useWorkflowTemplateStore: () => ({
+    loading: { value: false },
+    error: { value: null },
+    fetchTemplates: vi.fn(),
+    getWorkflowTemplateById: vi.fn(),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+    deleteTemplate: vi.fn(),
+    reorderTemplates: vi.fn(),
+    previewPrompt: vi.fn()
   })
 }))
 
@@ -246,20 +268,34 @@ const getConnectors = (wrapper) => wrapper.findAll('.workflow-connector--insert'
 const getDeleteButtons = (wrapper) => wrapper.findAll('.workflow-step-card__delete')
 
 describe('WorkflowStartEditorDialog', () => {
+  const defaultAgents = [
+    { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+    { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
+  ]
+
+  function mockFetchAgentsWithData(agents = defaultAgents) {
+    mockAgentStore.fetchAgents.mockImplementation(async () => {
+      mockAgentStore.agents = agents
+      return { success: true, data: agents }
+    })
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAgentStore.agents = []
     vi.spyOn(ElMessage, 'error').mockImplementation(() => {})
     vi.spyOn(ElMessage, 'success').mockImplementation(() => {})
     vi.spyOn(ElMessage, 'warning').mockImplementation(() => {})
   })
 
   it('renders workflow preview with step cards and connectors', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
+    const agentsData = [
+      { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+      { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
+    ]
+    mockAgentStore.fetchAgents.mockImplementation(async () => {
+      mockAgentStore.agents = agentsData
+      return { success: true, data: agentsData }
     })
 
     const wrapper = mountDialog()
@@ -268,35 +304,23 @@ describe('WorkflowStartEditorDialog', () => {
     expect(wrapper.find('.workflow-preview-section').exists()).toBe(true)
     expect(getStepCards(wrapper)).toHaveLength(2)
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(1)
-    expect(wrapper.find('.workflow-start-editor-step-name').text()).toBe('需求设计')
+    expect(wrapper.find('.workflow-step-card__name').text()).toBe('需求设计')
     expect(getConnectors(wrapper).length).toBeGreaterThanOrEqual(3)
   })
 
   it('uses neutral chip style for assigned agents', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
 
     const firstCard = getStepCards(wrapper)[0]
-    expect(firstCard.find('.workflow-chip').classes()).toContain('workflow-chip--neutral')
+    expect(firstCard.find('.workflow-step-card__agent-name').text()).toContain('架构师')
     expect(firstCard.text()).not.toContain('requirement-design')
   })
 
   it('renders delete buttons on cards with aria labels and connectors between cards', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -311,13 +335,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('opens step details dialog when a step is selected via connector insert', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -329,13 +347,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('updates agent selection in the nested step details dialog', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -348,17 +360,13 @@ describe('WorkflowStartEditorDialog', () => {
     await select.setValue('2')
     await flushPromises()
 
-    expect(wrapper.findAll('.workflow-chip')[1].text()).toContain('开发工程师 - 小李')
+    // The new step card (index 1) should show the selected agent name
+    const newCard = getStepCards(wrapper)[1]
+    expect(newCard.find('.workflow-step-card__agent-name').text()).toContain('开发工程师')
   })
 
   it('updates prompt in the nested step details dialog and includes it in the confirm payload', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -401,14 +409,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('prevents confirming after adding a stage until the new stage is fully configured', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 3, name: '测试工程师 - 小张', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -422,14 +423,11 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('emits a valid snapshot with generated step id after adding and configuring a new stage', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 3, name: '测试工程师 - 小张', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData([
+      { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+      { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
+      { id: 3, name: '测试工程师', enabled: true, executorType: 'CLAUDE_CODE' }
+    ])
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -472,14 +470,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('inserts a new stage before the second card via between connector', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 3, name: '测试工程师 - 小张', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -490,7 +481,7 @@ describe('WorkflowStartEditorDialog', () => {
     await flushPromises()
 
     expect(getStepCards(wrapper)).toHaveLength(3)
-    expect(getStepCards(wrapper).map((card) => card.find('.workflow-start-editor-step-name').text())).toEqual([
+    expect(getStepCards(wrapper).map((card) => card.find('.workflow-step-card__name').text())).toEqual([
       '需求设计',
       '新阶段',
       '代码开发'
@@ -500,14 +491,11 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('inserts a new stage after the first card via connector and emits correct order after configuration', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 3, name: '测试工程师 - 小张', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData([
+      { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
+      { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' },
+      { id: 3, name: '测试工程师', enabled: true, executorType: 'CLAUDE_CODE' }
+    ])
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -538,12 +526,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('keeps one remaining stage undeletable in startup editing', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue()
 
     const wrapper = mountDialog({
@@ -568,12 +551,10 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('renders missing and disabled agent states on cards', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: false, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData([
+      { id: 1, name: '架构师 - 老王', enabled: false, executorType: 'CLAUDE_CODE' },
+      { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
+    ])
 
     const wrapper = mountDialog({
       draftTemplate: {
@@ -592,7 +573,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('reports agent loading failures', async () => {
-    getAgents.mockRejectedValue(new Error('agent service unavailable'))
+    mockAgentStore.fetchAgents.mockRejectedValue(new Error('agent service unavailable'))
 
     mountDialog()
     await flushPromises()
@@ -601,13 +582,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('renders delete buttons always visible with light icon', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -620,13 +595,7 @@ describe('WorkflowStartEditorDialog', () => {
   })
 
   it('renders the draggable track wrapping step cards', async () => {
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: '架构师 - 老王', enabled: true, executorType: 'CLAUDE_CODE' },
-        { id: 2, name: '开发工程师 - 小李', enabled: true, executorType: 'CLAUDE_CODE' }
-      ]
-    })
+    mockFetchAgentsWithData()
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -636,3 +605,4 @@ describe('WorkflowStartEditorDialog', () => {
     expect(getStepCards(wrapper)).toHaveLength(2)
   })
 })
+

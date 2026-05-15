@@ -304,7 +304,8 @@ import { formatDateTime } from '../../utils/dateFormat'
 import { useWorktree } from '../../composables/useWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
-import { getWorkflowRun, cancelWorkflow, retryWorkflow, resumeWorkflow } from '../../api/workflow'
+import { useWorkflowStore } from '../../stores/workflowStore'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore'
 import {
   toTimelineWorkflow,
   getWorkflowProgress,
@@ -313,6 +314,9 @@ import {
 } from '../../utils/workflowRunViewModel'
 import InlineWorkflowPanel from '../workflow/InlineWorkflowPanel.vue'
 import PriorityBadge from '../common/PriorityBadge.vue'
+
+const workflowStore = useWorkflowStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const props = defineProps({
   task: {
@@ -382,13 +386,12 @@ const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, getWorktreeStat
 const { getStatusClass } = useStatusStyle()
 
 // Auto-execute controls
-import { getWorkflowTemplates } from '../../api/workflowTemplate.js'
 const workflowTemplates = ref([])
 
 async function loadTemplates() {
   if (workflowTemplates.value.length > 0) return
   try {
-    const res = await getWorkflowTemplates()
+    const res = await workflowTemplateStore.fetchTemplates()
     if (res.success && res.data) {
       workflowTemplates.value = res.data
     }
@@ -438,7 +441,7 @@ const isAskUserSuspended = computed(() => {
 const fetchWorkflowRun = async () => {
   if (!props.task?.workflow_run_id) return
   try {
-    const response = await getWorkflowRun(props.task.workflow_run_id)
+    const response = await workflowStore.getWorkflowRun(props.task.workflow_run_id)
     if (response.success) {
       realWorkflowRun.value = response.data
     }
@@ -512,7 +515,7 @@ const handleCancelWorkflow = async () => {
   if (!props.task?.workflow_run_id) return
   cancelLoading.value = true
   try {
-    const response = await cancelWorkflow(props.task.workflow_run_id)
+    const response = await workflowStore.cancelWorkflow(props.task.workflow_run_id)
     if (response.success) {
       ElMessage.success('AgentTeam已取消')
       realWorkflowRun.value = response.data
@@ -531,7 +534,7 @@ const handleRetryWorkflow = async () => {
   if (!props.task?.workflow_run_id) return
   retryLoading.value = true
   try {
-    const response = await retryWorkflow(props.task.workflow_run_id)
+    const response = await workflowStore.retryWorkflow(props.task.workflow_run_id)
     if (response.success) {
       ElMessage.success('AgentTeam重试已开始')
       realWorkflowRun.value = response.data
@@ -555,7 +558,7 @@ const handleResumeWorkflow = async () => {
   if (!props.task?.workflow_run_id) return
   resumeLoading.value = true
   try {
-    const latest = await getWorkflowRun(props.task.workflow_run_id)
+    const latest = await workflowStore.getWorkflowRun(props.task.workflow_run_id)
     if (!latest.success) {
       ElMessage.error(latest.message || '获取AgentTeam状态失败')
       return
@@ -568,7 +571,7 @@ const handleResumeWorkflow = async () => {
       return
     }
 
-    const response = await resumeWorkflow(props.task.workflow_run_id)
+    const response = await workflowStore.resumeWorkflow(props.task.workflow_run_id)
     if (response.success) {
       ElMessage.success('AgentTeam已继续执行')
       realWorkflowRun.value = response.data

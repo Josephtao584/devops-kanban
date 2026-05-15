@@ -4,10 +4,16 @@ import { defineComponent, h } from 'vue'
 
 import i18n from '../src/locales'
 import WorkflowTemplateSelectDialog from '../src/components/workflow/WorkflowTemplateSelectDialog.vue'
-import { getWorkflowTemplates } from '../src/api/workflowTemplate.js'
 
-vi.mock('../src/api/workflowTemplate.js', () => ({
-  getWorkflowTemplates: vi.fn()
+const mockStore = vi.hoisted(() => ({
+  fetchTemplates: vi.fn(),
+  loading: { value: false },
+  error: { value: null }
+}))
+
+vi.mock('../src/stores/workflowTemplateStore', () => ({
+  useWorkflowTemplateStore: () => mockStore,
+  storeMethods: mockStore
 }))
 
 const ElDialogStub = defineComponent({
@@ -84,14 +90,8 @@ const longFeatureTemplate = {
   template_id: 'feature-v1',
   name: '新功能工作流',
   steps: [
-    { id: 'step-1' },
-    { id: 'step-2' },
-    { id: 'step-3' },
-    { id: 'step-4' },
-    { id: 'step-5' },
-    { id: 'step-6' },
-    { id: 'step-7' },
-    { id: 'step-8' }
+    { id: 'step-1' }, { id: 'step-2' }, { id: 'step-3' }, { id: 'step-4' },
+    { id: 'step-5' }, { id: 'step-6' }, { id: 'step-7' }, { id: 'step-8' }
   ]
 }
 
@@ -99,13 +99,8 @@ const longRefactorTemplate = {
   template_id: 'refactoring-v1',
   name: '重构工作流',
   steps: [
-    { id: 'step-a' },
-    { id: 'step-b' },
-    { id: 'step-c' },
-    { id: 'step-d' },
-    { id: 'step-e' },
-    { id: 'step-f' },
-    { id: 'step-g' }
+    { id: 'step-a' }, { id: 'step-b' }, { id: 'step-c' }, { id: 'step-d' },
+    { id: 'step-e' }, { id: 'step-f' }, { id: 'step-g' }
   ]
 }
 
@@ -115,7 +110,7 @@ describe('WorkflowTemplateSelectDialog', () => {
   })
 
   it('loads templates and confirms the selected template id', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [firstTemplate, secondTemplate]
     })
@@ -132,15 +127,12 @@ describe('WorkflowTemplateSelectDialog', () => {
     await getConfirmButton(wrapper).trigger('click')
 
     expect(wrapper.emitted('confirm')).toEqual([[
-      {
-        templateId: 'review-only-v1',
-        autoCreateWorktree: true
-      }
+      { templateId: 'review-only-v1', autoCreateWorktree: true }
     ]])
   })
 
   it('preselects the first returned template on initial load and allows immediate confirm', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [firstTemplate, secondTemplate]
     })
@@ -159,15 +151,12 @@ describe('WorkflowTemplateSelectDialog', () => {
     await confirmButton.trigger('click')
 
     expect(wrapper.emitted('confirm')).toEqual([[
-      {
-        templateId: 'quick-fix-v1',
-        autoCreateWorktree: true
-      }
+      { templateId: 'quick-fix-v1', autoCreateWorktree: true }
     ]])
   })
 
   it('preselects the recommended template when it exists in the returned list', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [firstTemplate, secondTemplate]
     })
@@ -187,7 +176,7 @@ describe('WorkflowTemplateSelectDialog', () => {
   })
 
   it('renders long template step counts including 7 and 8 steps', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [longFeatureTemplate, longRefactorTemplate]
     })
@@ -207,7 +196,7 @@ describe('WorkflowTemplateSelectDialog', () => {
   })
 
   it('supports confirming an 8-step recommended template directly', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [secondTemplate, longFeatureTemplate]
     })
@@ -218,15 +207,12 @@ describe('WorkflowTemplateSelectDialog', () => {
     await getConfirmButton(wrapper).trigger('click')
 
     expect(wrapper.emitted('confirm')).toEqual([[
-      {
-        templateId: 'feature-v1',
-        autoCreateWorktree: true
-      }
+      { templateId: 'feature-v1', autoCreateWorktree: true }
     ]])
   })
 
   it('supports confirming a 7-step template after selection', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [longFeatureTemplate, longRefactorTemplate]
     })
@@ -239,15 +225,12 @@ describe('WorkflowTemplateSelectDialog', () => {
     await getConfirmButton(wrapper).trigger('click')
 
     expect(wrapper.emitted('confirm')).toEqual([[
-      {
-        templateId: 'refactoring-v1',
-        autoCreateWorktree: true
-      }
+      { templateId: 'refactoring-v1', autoCreateWorktree: true }
     ]])
   })
 
   it('renders mixed short and long template metadata together', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: [secondTemplate, firstTemplate, longRefactorTemplate, longFeatureTemplate]
     })
@@ -262,7 +245,7 @@ describe('WorkflowTemplateSelectDialog', () => {
   })
 
   it('renders an empty state when no templates are available', async () => {
-    getWorkflowTemplates.mockResolvedValue({
+    mockStore.fetchTemplates.mockResolvedValue({
       success: true,
       data: []
     })
@@ -270,17 +253,14 @@ describe('WorkflowTemplateSelectDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('暂无可用的工作流模板')
+    expect(wrapper.text()).toContain('暂无可用的AgentTeam模板')
     expect(getConfirmButton(wrapper).attributes('disabled')).toBeDefined()
   })
 
   it('renders an error state and retries loading', async () => {
-    getWorkflowTemplates
+    mockStore.fetchTemplates
       .mockResolvedValueOnce({ success: false, message: '模板接口失败' })
-      .mockResolvedValueOnce({
-        success: true,
-        data: [longFeatureTemplate]
-      })
+      .mockResolvedValueOnce({ success: true, data: [longFeatureTemplate] })
 
     const wrapper = mountDialog()
     await flushPromises()
@@ -292,7 +272,7 @@ describe('WorkflowTemplateSelectDialog', () => {
     await retryButton.trigger('click')
     await flushPromises()
 
-    expect(getWorkflowTemplates).toHaveBeenCalledTimes(2)
+    expect(mockStore.fetchTemplates).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('新功能工作流')
     expect(wrapper.text()).toContain('8 个步骤')
   })

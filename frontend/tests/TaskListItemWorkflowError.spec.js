@@ -6,6 +6,28 @@ import { nextTick } from 'vue'
 import i18n from '../src/locales'
 import TaskListItem from '../src/components/task/TaskListItem.vue'
 
+const mockWorkflowStore = vi.hoisted(() => ({
+  getWorkflowRun: vi.fn(),
+  cancelWorkflow: vi.fn(),
+  retryWorkflow: vi.fn(),
+  resumeWorkflow: vi.fn(),
+  loading: { value: false },
+  error: { value: null }
+}))
+
+vi.mock('../src/stores/workflowStore', () => ({
+  useWorkflowStore: () => mockWorkflowStore
+}))
+
+vi.mock('../src/stores/workflowTemplateStore', () => ({
+  useWorkflowTemplateStore: () => ({
+    loading: { value: false },
+    error: { value: null },
+    fetchTemplates: vi.fn(),
+    getWorkflowTemplateById: vi.fn()
+  })
+}))
+
 vi.mock('../src/composables/useWorktree', () => ({
   useWorktree: () => ({
     handleWorktree: vi.fn(),
@@ -30,8 +52,16 @@ vi.mock('../src/composables/kanban/useTaskTimer', () => ({
   })
 }))
 
-vi.mock('../src/api/workflow.js', () => ({
-  getWorkflowRun: vi.fn()
+vi.mock('../src/composables/kanban/useWorkflowRunPolling', () => ({
+  useWorkflowRunPolling: ({ fetchFn, isTerminal, getStatus }) => ({
+    pollingEnabled: { value: true },
+    isPolling: { value: false },
+    startPolling: vi.fn(() => {
+      fetchFn().catch(() => {})
+    }),
+    stopPolling: vi.fn(),
+    togglePolling: vi.fn()
+  })
 }))
 
 const taskWithWorkflow = {
@@ -75,9 +105,7 @@ describe('TaskListItem workflow failure notification', () => {
   })
 
   it('does NOT show ElMessageBox.alert when workflow fails', async () => {
-    const { getWorkflowRun } = await import('../src/api/workflow.js')
-
-    getWorkflowRun.mockResolvedValue({
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({
       success: true,
       data: {
         id: 10, task_id: 1, status: 'FAILED',
@@ -99,9 +127,7 @@ describe('TaskListItem workflow failure notification', () => {
   })
 
   it('emits node-click with failed node when workflow fails', async () => {
-    const { getWorkflowRun } = await import('../src/api/workflow.js')
-
-    getWorkflowRun.mockResolvedValue({
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({
       success: true,
       data: {
         id: 10, task_id: 1, status: 'FAILED',
@@ -128,9 +154,7 @@ describe('TaskListItem workflow failure notification', () => {
   })
 
   it('does not emit node-click when workflow is RUNNING', async () => {
-    const { getWorkflowRun } = await import('../src/api/workflow.js')
-
-    getWorkflowRun.mockResolvedValue({
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({
       success: true,
       data: { id: 10, task_id: 1, status: 'RUNNING', steps: [], context: {} }
     })
