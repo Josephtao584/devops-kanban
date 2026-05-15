@@ -24,17 +24,13 @@
             class="agent-list-item"
             v-for="agent in agentStore.agents"
             :key="agent.id"
-            :class="{ 'active': selectedAgent?.id === agent.id }"
+            :class="{ 'active': selectedAgent?.id === agent.id, 'is-disabled': !agent.enabled }"
             @click="selectAgent(agent)"
           >
-            <div class="agent-item-info">
-              <span class="agent-name">{{ agent.name }}</span>
-            </div>
-            <div class="agent-item-meta">
-              <span class="role-tag">{{ locale === 'zh' ? getRoleConfig(agent.role || 'BACKEND_DEV').name : getRoleConfig(agent.role || 'BACKEND_DEV').nameEn }}</span>
-              <span class="enabled-badge" :class="{ 'disabled': !agent.enabled }">
-                {{ agent.enabled ? $t('common.enabled') : $t('common.disabled') }}
-              </span>
+            <span class="agent-list-item__dot" :class="{ 'is-off': !agent.enabled }"></span>
+            <div class="agent-list-item__body">
+              <span class="agent-list-item__name">{{ agent.name }}</span>
+              <span class="agent-list-item__role">{{ locale === 'zh' ? getRoleConfig(agent.role || 'BACKEND_DEV').name : getRoleConfig(agent.role || 'BACKEND_DEV').nameEn }}</span>
             </div>
           </div>
           <div v-if="agentStore.agents.length === 0" class="empty-list">
@@ -60,6 +56,10 @@
             <div class="agent-title-row">
               <div class="title-left">
                 <h2>{{ selectedAgent.name }}</h2>
+                <span class="role-badge-inline">
+                  {{ locale === 'zh' ? getRoleConfig(selectedAgent.role || 'BACKEND_DEV').name : getRoleConfig(selectedAgent.role || 'BACKEND_DEV').nameEn }}
+                </span>
+                <span class="executor-chip">{{ formatExecutorType(selectedAgent.executorType) }}</span>
               </div>
               <div class="header-actions">
                 <button class="btn btn-secondary btn-sm" @click="openEditForm">
@@ -74,28 +74,19 @@
 
           <!-- 角色基本信息 -->
           <div class="info-section">
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.agentType') }}</span>
-              <span class="info-value">{{ formatExecutorType(selectedAgent.executorType) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.role') }}</span>
-              <span class="info-value">
-                <span class="role-badge-inline">
-                  {{ locale === 'zh' ? getRoleConfig(selectedAgent.role || 'BACKEND_DEV').name : getRoleConfig(selectedAgent.role || 'BACKEND_DEV').nameEn }}
-                </span>
-              </span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('agent.description') }}</span>
-              <span class="info-value description-text">{{ selectedAgent.description || '-' }}</span>
-            </div>
-            <div class="info-item">
+            <div class="info-item info-item--toggle">
               <span class="info-label">{{ $t('common.enabled') }}</span>
               <label class="toggle">
                 <input type="checkbox" :checked="selectedAgent.enabled" @change="toggleEnabled(selectedAgent)" />
                 <span class="slider"></span>
               </label>
+              <span class="toggle-state" :class="{ 'is-off': !selectedAgent.enabled }">
+                {{ selectedAgent.enabled ? $t('common.enabled') : $t('common.disabled') }}
+              </span>
+            </div>
+            <div class="info-item info-item--stacked">
+              <span class="info-label">{{ $t('agent.description') }}</span>
+              <span class="info-value description-text">{{ selectedAgent.description || '-' }}</span>
             </div>
           </div>
 
@@ -106,6 +97,7 @@
               <span v-for="skill in getVisibleAgentSkills(selectedAgent)" :key="skill" class="skill-tag">
                 {{ skill }}
               </span>
+              <span v-if="getVisibleAgentSkills(selectedAgent).length === 0" class="no-items-hint">-</span>
             </div>
           </div>
 
@@ -152,30 +144,32 @@
       :title="editingAgent ? $t('agent.editAgent') : $t('agent.createAgent')"
       width="520px"
     >
-      <el-form data-testid="agent-form" label-position="top" @submit.prevent="saveAgent">
+      <el-form data-testid="agent-form" label-position="top" class="agent-form" @submit.prevent="saveAgent">
         <el-form-item :label="$t('agent.agentName')">
           <el-input v-model="form.name" data-testid="agent-name-input" maxlength="200" show-word-limit />
         </el-form-item>
 
-        <el-form-item :label="$t('agent.agentType')">
-          <el-select v-model="form.executorType" data-testid="agent-executor-type-select" style="width: 100%">
-            <el-option value="CLAUDE_CODE" :label="$t('agent.types.CLAUDE_CODE')" />
-            <el-option value="OPEN_CODE" :label="$t('agent.types.OPEN_CODE')" />
-          </el-select>
-        </el-form-item>
+        <div class="form-grid form-grid--2">
+          <el-form-item :label="$t('agent.agentType')">
+            <el-select v-model="form.executorType" data-testid="agent-executor-type-select" style="width: 100%">
+              <el-option value="CLAUDE_CODE" :label="$t('agent.types.CLAUDE_CODE')" />
+              <el-option value="OPEN_CODE" :label="$t('agent.types.OPEN_CODE')" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item :label="$t('agent.role')">
-          <el-select v-model="form.role" style="width: 100%" @change="onRoleChange">
-            <el-option v-for="opt in roleOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
-          </el-select>
-        </el-form-item>
+          <el-form-item :label="$t('agent.role')">
+            <el-select v-model="form.role" style="width: 100%" @change="onRoleChange">
+              <el-option v-for="opt in roleOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
+            </el-select>
+          </el-form-item>
+        </div>
 
         <el-form-item :label="$t('agent.skills')">
-          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+          <div class="form-stack">
             <el-select v-model="selectedSkillToAdd" :placeholder="$t('agent.selectExistingSkill')" style="width: 100%" @change="addSelectedSkill">
               <el-option v-for="skill in availableSkillOptions" :key="skill" :value="skill" :label="skillStore.skills.find(s => s.id === skill)?.name" />
             </el-select>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <div class="form-tag-list">
               <el-tag v-for="(skillId, index) in form.skills" :key="index" closable @close="removeSkill(index)">
                 {{ skillStore.skills.find(s => s.id === skillId)?.name }}
               </el-tag>
@@ -184,11 +178,11 @@
         </el-form-item>
 
         <el-form-item :label="$t('agent.mcpServers')">
-          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+          <div class="form-stack">
             <el-select v-model="selectedMcpServerToAdd" :placeholder="$t('agent.selectMcpServer')" style="width: 100%" @change="addSelectedMcpServer">
               <el-option v-for="server in availableMcpServerOptions" :key="server.id" :value="server.id" :label="server.name" />
             </el-select>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <div class="form-tag-list">
               <el-tag v-for="(serverId, index) in form.mcpServers" :key="index" closable @close="removeMcpServer(index)">
                 {{ mcpServerStore.mcpServers.find(s => s.id === serverId)?.name }}
               </el-tag>
@@ -197,11 +191,11 @@
         </el-form-item>
 
         <el-form-item :label="$t('agent.description')">
-          <el-input v-model="form.description" :placeholder="$t('agent.descriptionPlaceholder')" maxlength="5000" show-word-limit />
+          <el-input v-model="form.description" type="textarea" :rows="2" :placeholder="$t('agent.descriptionPlaceholder')" maxlength="5000" show-word-limit />
         </el-form-item>
 
         <el-form-item :label="$t('agent.env')">
-          <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
+          <div class="form-stack">
             <div v-for="(item, index) in form.envPairs" :key="index" class="env-pair-row">
               <el-input v-model="item.key" :placeholder="$t('agent.envKey')" class="env-input" />
               <span class="env-eq">=</span>
@@ -539,91 +533,91 @@ onMounted(loadAgents)
 
 .agent-count {
   background: var(--accent-color-soft);
-  color: var(--accent-color);
-  padding: 3px 9px;
+  color: var(--accent-color-strong, var(--accent-color));
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   font-weight: 700;
+  min-width: 22px;
+  text-align: center;
 }
 
 .agent-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 8px;
   background: var(--panel-bg);
 }
 
 .agent-list-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 8px;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+  margin-bottom: 4px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
+  text-align: left;
 }
 
 .agent-list-item:hover {
   background: var(--bg-secondary);
-  border-color: rgba(37, 198, 201, 0.35);
+  border-color: rgba(37, 198, 201, 0.24);
 }
 
 .agent-list-item.active {
-  background: var(--hover-bg);
-  border: 1px solid var(--accent-color);
-  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.1);
+  background: rgba(37, 198, 201, 0.05);
+  border-color: var(--accent-color);
+  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.12);
 }
 
-.agent-item-info {
+.agent-list-item.is-disabled .agent-list-item__name {
+  color: var(--text-secondary);
+}
+
+.agent-list-item__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.16);
+}
+
+.agent-list-item__dot.is-off {
+  background: #d1d5db;
+  box-shadow: none;
+}
+
+.agent-list-item__body {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
   min-width: 0;
+  gap: 2px;
+  flex: 1;
 }
 
-.agent-name {
+.agent-list-item__name {
   font-weight: 600;
-  font-size: var(--font-size-sm);
+  font-size: 13px;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
-.agent-item-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.role-tag {
-  font-size: 10px;
-  color: var(--text-secondary);
-  background: rgba(31, 41, 55, 0.04);
-  padding: 3px 7px;
-  border-radius: 999px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.enabled-badge {
-  font-size: 10px;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: #d1fae5;
-  color: #065f46;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.enabled-badge.disabled {
-  background: #fee2e2;
-  color: #991b1b;
+.agent-list-item__role {
+  font-size: 11px;
+  color: var(--text-muted, var(--text-secondary));
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Right panel - Agent detail */
@@ -648,35 +642,95 @@ onMounted(loadAgents)
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.agent-title-row .title-left {
+  flex-wrap: wrap;
 }
 
 .agent-title-row h2 {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .role-badge-inline {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 24px;
+  height: 22px;
   padding: 0 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent-color);
-  background: rgba(37, 198, 201, 0.10);
-  border: 1px solid rgba(37, 198, 201, 0.16);
+  color: var(--accent-color-strong, var(--accent-color));
+  background: var(--accent-color-soft, rgba(37, 198, 201, 0.12));
+  border: 1px solid transparent;
   letter-spacing: 0.02em;
+}
+
+.executor-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary, rgba(31, 41, 55, 0.04));
+  border: 1px solid var(--border-color);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0;
+}
+
+/* Info section refinements (override shared) */
+.info-item--toggle {
+  gap: 12px;
+}
+
+.info-item--stacked {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-item--stacked .info-label {
+  width: auto;
+}
+
+.info-item--stacked .info-value {
+  width: 100%;
+}
+
+.toggle-state {
+  font-size: 12px;
+  font-weight: 600;
+  color: #065f46;
+  background: #d1fae5;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.toggle-state.is-off {
+  color: #991b1b;
+  background: #fee2e2;
 }
 
 /* Skills section */
 .skills-section {
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: var(--panel-bg);
+}
+
+.skills-section:last-child {
+  border-bottom: none;
 }
 
 .skills-tags {
@@ -688,30 +742,30 @@ onMounted(loadAgents)
 .skill-tag {
   background: rgba(31, 41, 55, 0.04);
   color: rgba(75, 85, 99, 0.88);
-  padding: 3px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
   border: 1px solid rgba(31, 41, 55, 0.06);
-  transition: all 0.2s;
+  transition: all 0.18s ease;
 }
 
 .skill-tag:hover {
-  background: rgba(31, 41, 55, 0.05);
-  border-color: rgba(31, 41, 55, 0.08);
+  background: rgba(31, 41, 55, 0.06);
+  border-color: rgba(31, 41, 55, 0.1);
 }
 
 .skill-tag.mcp-tag {
   background: rgba(37, 198, 201, 0.08);
-  color: #1EA9AC;
-  border-color: rgba(37, 198, 201, 0.14);
+  color: var(--accent-color-strong, #1EA9AC);
+  border-color: rgba(37, 198, 201, 0.16);
 }
 
 .skill-tag.env-tag {
   background: rgba(139, 92, 246, 0.08);
   color: #7c3aed;
-  border-color: rgba(139, 92, 246, 0.14);
-  font-family: monospace;
+  border-color: rgba(139, 92, 246, 0.16);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
 }
 
@@ -753,16 +807,17 @@ onMounted(loadAgents)
 }
 
 .no-items-hint {
-  color: var(--text-muted);
-  font-size: var(--font-size-sm);
+  color: var(--text-muted, var(--text-secondary));
+  font-size: 12px;
 }
 
 /* Toggle switch */
 .toggle {
   position: relative;
   display: inline-block;
-  width: 40px;
+  width: 38px;
   height: 22px;
+  flex-shrink: 0;
 }
 
 .toggle input {
@@ -793,6 +848,7 @@ onMounted(loadAgents)
   background-color: white;
   transition: 0.2s;
   border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 .toggle input:checked + .slider {
@@ -800,7 +856,7 @@ onMounted(loadAgents)
 }
 
 .toggle input:checked + .slider:before {
-  transform: translateX(18px);
+  transform: translateX(16px);
 }
 
 .skills-editor {
@@ -939,6 +995,94 @@ onMounted(loadAgents)
 .checkbox-label input {
   width: auto;
   accent-color: var(--accent-color);
+}
+
+/* Form dialog refinements */
+.agent-form :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.agent-form :deep(.el-form-item__label) {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 6px !important;
+  line-height: 1.4 !important;
+}
+
+.agent-form :deep(.el-input__wrapper),
+.agent-form :deep(.el-textarea__inner) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+.agent-form :deep(.el-input__wrapper:hover),
+.agent-form :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
+}
+
+.agent-form :deep(.el-input.is-focus .el-input__wrapper),
+.agent-form :deep(.el-input__wrapper.is-focus),
+.agent-form :deep(.el-textarea__inner:focus) {
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
+}
+
+.agent-form :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.form-grid--2 :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.form-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.form-tag-list :deep(.el-tag) {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-color-soft, rgba(37, 198, 201, 0.12));
+  border-color: transparent;
+  color: var(--accent-color-strong, #0d8c8e);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.form-tag-list :deep(.el-tag .el-tag__close) {
+  color: var(--accent-color-strong, #0d8c8e);
+}
+
+.form-tag-list :deep(.el-tag .el-tag__close:hover) {
+  background: rgba(37, 198, 201, 0.2);
+  color: var(--accent-color-strong, #0d8c8e);
 }
 
 </style>
