@@ -421,17 +421,9 @@ import UnifiedExportDialog from '../components/bundle/UnifiedExportDialog.vue'
 import BundleImportDialog from '../components/bundle/BundleImportDialog.vue'
 import PresetBundleDialog from '../components/bundle/PresetBundleDialog.vue'
 import BaseDialog from '../components/BaseDialog.vue'
-import {
-  createWorkflowTemplate,
-  deleteWorkflowTemplate,
-  getWorkflowTemplateById,
-  getWorkflowTemplates,
-  updateWorkflowTemplate,
-  reorderWorkflowTemplates,
-  previewPrompt
-} from '../api/workflowTemplate'
-import { getAgents } from '../api/agent'
 import { useSkillStore } from '../stores/skillStore'
+import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore'
+import { useAgentStore } from '../stores/agentStore'
 import { getRoleConfig } from '../constants/agent.js'
 import {
   MIN_WORKFLOW_TEMPLATE_STEPS,
@@ -456,6 +448,8 @@ const DEFAULT_TEMPLATE_ID = 'workflow-v1'
 
 const { t } = useI18n()
 const skillStore = useSkillStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
+const agentStore = useAgentStore()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -466,7 +460,7 @@ const selectedTemplateId = ref('')
 const selectedStepIndex = ref(0)
 const template = ref(null)
 const templateSnapshot = ref(null)
-const agents = ref([])
+const agents = agentStore.agents
 const agentsLoaded = ref(false)
 const agentsLoadFailed = ref(false)
 let templateDetailRequestToken = 0
@@ -708,7 +702,7 @@ const onTemplateDragEnd = async (evt) => {
   if (oldIndex === newIndex) return
 
   try {
-    await reorderWorkflowTemplates(templates.value)
+    await workflowTemplateStore.reorderTemplates(templates.value)
   } catch (error) {
     ElMessage.error(t('workflowTemplate.reorderFailed'))
     await loadTemplateList(selectedTemplateId.value)
@@ -811,7 +805,7 @@ const loadTemplateDetail = async (templateId, options = {}) => {
   const requestToken = ++templateDetailRequestToken
   latestTemplateDetailRequestToken = requestToken
 
-  const response = await getWorkflowTemplateById(templateId)
+  const response = await workflowTemplateStore.getWorkflowTemplateById(templateId)
   const loadedTemplate = normalizeTemplate(getApiData(response, 'workflowTemplate.loadFailed'))
 
   if (!allowStale && requestToken !== latestTemplateDetailRequestToken) {
@@ -827,7 +821,7 @@ const loadTemplateDetail = async (templateId, options = {}) => {
 }
 
 const loadTemplateList = async (preferredId = DEFAULT_TEMPLATE_ID) => {
-  const response = await getWorkflowTemplates()
+  const response = await workflowTemplateStore.fetchTemplates()
   const loadedTemplates = getApiData(response, 'workflowTemplate.loadFailed')
   templates.value = Array.isArray(loadedTemplates) ? loadedTemplates.map(normalizeTemplate) : []
 
@@ -873,11 +867,8 @@ const loadAgents = async () => {
   agentsLoadFailed.value = false
 
   try {
-    const response = await getAgents()
-    const loadedAgents = getApiData(response, 'workflowTemplate.loadAgentsFailed')
-    agents.value = Array.isArray(loadedAgents) ? loadedAgents : []
+    await agentStore.fetchAgents()
   } catch (error) {
-    agents.value = []
     agentsLoadFailed.value = true
     ElMessage.error(getErrorMessage(error, 'workflowTemplate.loadAgentsFailed'))
   } finally {
@@ -1010,8 +1001,8 @@ const saveTemplate = async () => {
       template_id: isDraftTemplate.value ? generateTemplateId() : template.value.template_id
     })
     const response = isDraftTemplate.value
-      ? await createWorkflowTemplate(payload)
-      : await updateWorkflowTemplate(payload)
+      ? await workflowTemplateStore.createTemplate(payload)
+      : await workflowTemplateStore.updateTemplate(payload)
     const savedTemplate = normalizeTemplate(getApiData(response, isDraftTemplate.value ? 'workflowTemplate.createFailed' : 'workflowTemplate.saveFailed'))
 
     if (isDraftTemplate.value) {
@@ -1049,7 +1040,7 @@ const handleDeleteTemplate = async () => {
       finalizeDraftDeletion(deletedTemplateId)
       return
     }
-    await deleteWorkflowTemplate(deletedTemplateId)
+    await workflowTemplateStore.deleteTemplate(deletedTemplateId)
     await finalizeTemplateDeletion(deletedTemplateId)
   } catch (error) {
     handleActionFailure(error, 'workflowTemplate.deleteFailed')
@@ -1106,7 +1097,7 @@ const handlePreviewPrompt = async () => {
   previewContent.value = ''
 
   try {
-    const response = await previewPrompt({
+    const response = await workflowTemplateStore.previewPrompt({
       step: { name: step.name, instructionPrompt: step.instructionPrompt || '', agentId: step.agentId, type: step.type },
       upstreamSteps,
       ...(step.canEarlyExit ? { canEarlyExit: true } : {}),

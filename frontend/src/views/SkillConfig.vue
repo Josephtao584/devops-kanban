@@ -240,7 +240,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSkillStore } from '../stores/skillStore'
 import { useAgentStore } from '../stores/agentStore'
-import { getWorkflowTemplates } from '../api/workflowTemplate'
+import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore'
 import { filterSkillsByTemplate } from '../utils/skillWorkflowFilter'
 import { formatDate } from '../utils/dateFormat'
 import BaseDialog from '../components/BaseDialog.vue'
@@ -248,9 +248,10 @@ import BaseDialog from '../components/BaseDialog.vue'
 const { t } = useI18n()
 const skillStore = useSkillStore()
 const agentStore = useAgentStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const selectedTemplateId = ref('')
-const workflowTemplates = ref([])
+const workflowTemplates = computed(() => workflowTemplateStore.templates)
 
 const filteredSkills = computed(() =>
   filterSkillsByTemplate(
@@ -302,9 +303,7 @@ const loadSkills = async () => {
       selectSkill(skillStore.skills[0])
     }
     agentStore.fetchAgents().catch(() => {})
-    getWorkflowTemplates().then(res => {
-      workflowTemplates.value = res?.success ? (res.data || []) : []
-    }).catch(() => {})
+    workflowTemplateStore.fetchTemplates().catch(() => {})
   } catch (e) {
     console.error('Failed to load skills:', e)
     showToast(t('skill.loadFailed'), 'error')

@@ -34,8 +34,13 @@ vi.mock('../src/stores/agentStore', () => ({
   })
 }))
 
-vi.mock('../src/api/workflowTemplate', () => ({
-  getWorkflowTemplates: vi.fn().mockResolvedValue({ success: true, data: [] })
+vi.mock('../src/stores/workflowTemplateStore', () => ({
+  useWorkflowTemplateStore: () => ({
+    templates: [],
+    loading: false,
+    error: null,
+    fetchTemplates: vi.fn().mockResolvedValue({ success: true, data: [] })
+  })
 }))
 
 const flushPromises = async () => {
