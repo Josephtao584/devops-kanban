@@ -165,12 +165,6 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
       // SPLIT_TASK steps use a different execution path with renderSplitPrompt — no agent wrapping
       if (step.type === 'SPLIT_TASK') {
         const { renderSplitPrompt, DEFAULT_SPLIT_PROMPT } = await import('../services/workflow/defaultSplitPrompt.js');
-        const { ProjectRepository } = await import('../repositories/projectRepository.js');
-        const projectRepo = new ProjectRepository();
-        const allProjects = await projectRepo.findAll();
-        const availableProjectsBlock = allProjects
-          .map(p => `- ${p.name} (id=${p.id}) → ${p.git_url ?? '(no git_url)'}`)
-          .join('\n') || '(no other projects)';
 
         const lastUpstream = upstreamSteps[upstreamSteps.length - 1];
         const lastStepOutput = lastUpstream ? `{{上游步骤「${lastUpstream.name}」的执行摘要}}` : '';
@@ -181,7 +175,6 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
           project_name: '{{当前项目名}}',
           project_repo_url: '{{当前仓库 URL}}',
           last_step_output: lastStepOutput,
-          available_projects: availableProjectsBlock,
         });
 
         return successResponse({ prompt });
