@@ -404,7 +404,11 @@ async function loadChanges() {
   try {
     const res = await getUncommittedChanges(props.projectId, props.taskId)
     if (res.success) {
-      changedFiles.value = (res.data || []).map(f => ({ ...f, selected: true }))
+      // Backend returns either { changes, isWorktree, ... } object or legacy array
+      const raw = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.changes || [])
+      changedFiles.value = raw.map(f => ({ ...f, selected: true }))
     }
   } catch {
     // silently fail

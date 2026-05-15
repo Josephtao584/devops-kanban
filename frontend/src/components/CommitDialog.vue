@@ -20,6 +20,7 @@
         @toggle-file="toggleFileByPath"
         @select-all="selectAll"
         @deselect-all="deselectAll"
+        @stage-file="handleStageFile"
       />
     </div>
 
@@ -53,7 +54,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import BaseDialog from './BaseDialog.vue'
 import GitDiffViewer from './GitDiffViewer.vue'
-import { commit, getUncommittedChanges, getDiff } from '../api/git'
+import { commit, stageFiles, getUncommittedChanges, getDiff } from '../api/git'
 
 const props = defineProps({
   projectId: {
@@ -149,7 +150,11 @@ const loadChanges = async () => {
   try {
     const response = await getUncommittedChanges(props.projectId, props.taskId)
     if (response.success) {
-      changes.value = (response.data || []).map(c => ({ ...c, selected: true }))
+      // Backend returns either { changes, isWorktree, ... } object or legacy array
+      const raw = Array.isArray(response.data)
+        ? response.data
+        : (response.data?.changes || [])
+      changes.value = raw.map(c => ({ ...c, selected: true }))
       if (changes.value.length > 0) {
         selectedFile.value = changes.value[0].path
       }
@@ -200,6 +205,22 @@ const handleCommit = async () => {
     ElMessage.error('提交失败')
   } finally {
     committing.value = false
+  }
+}
+
+const handleStageFile = async (path) => {
+  try {
+    const response = await stageFiles(props.projectId, props.taskId, [path])
+    if (response.success) {
+      ElMessage.success(`已添加: ${path}`)
+      // Reload changes to reflect the staged state
+      await loadChanges()
+    } else {
+      ElMessage.error(response.message || '添加失败')
+    }
+  } catch (e) {
+    console.error('Stage file failed:', e)
+    ElMessage.error('添加失败')
   }
 }
 

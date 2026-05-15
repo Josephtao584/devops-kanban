@@ -24,6 +24,15 @@
               <span class="file-path" :title="file.path">{{ file.displayName }}</span>
             </div>
             <el-tag :type="getStatusType(file.status)" size="small">{{ getStatusLabel(file.status) }}</el-tag>
+            <el-button
+              v-if="selectable && file.status === 'untracked'"
+              size="small"
+              link
+              type="primary"
+              @click.stop="$emit('stage-file', file.path)"
+            >
+              添加
+            </el-button>
           </div>
 
           <div v-if="fileItems.length === 0 && !loading" class="empty-files">
@@ -103,7 +112,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['update:selectedFilePath', 'toggle-file', 'select-all', 'deselect-all'])
+defineEmits(['update:selectedFilePath', 'toggle-file', 'select-all', 'deselect-all', 'stage-file'])
 
 const selectedCount = computed(() => props.fileItems.filter(file => file.selected).length)
 
@@ -174,6 +183,7 @@ const getStatusType = (status) => {
 const getStatusLabel = (status) => {
   if (status === 'deleted') return '删除'
   if (status === 'modified') return '修改'
+  if (status === 'untracked') return '未跟踪'
   return '新增'
 }
 </script>
