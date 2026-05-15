@@ -1,17 +1,17 @@
 <template>
   <div class="project-list-view">
     <div class="project-home">
-      <div class="brand-banner">
-        <h1 class="brand-wordmark">Cooperation Platform</h1>
-      </div>
-
-      <section class="surface-panel home-header">
-        <div class="page-header home-header__inner">
-          <div class="page-header__content">
-            <p class="page-header__description">{{ $t('project.homeDescription') }}</p>
+      <section class="hero-banner surface-panel">
+        <div class="hero-banner__decor hero-banner__decor--a"></div>
+        <div class="hero-banner__decor hero-banner__decor--b"></div>
+        <div class="hero-banner__inner">
+          <div class="hero-banner__content">
+            <span class="hero-banner__eyebrow">Cooperation Platform</span>
+            <h1 class="hero-banner__title">{{ $t('project.workspaceTitle') }}</h1>
+            <p class="hero-banner__description">{{ $t('project.homeDescription') }}</p>
           </div>
-          <div class="page-actions">
-            <el-button type="primary" @click="showCreateDialog">
+          <div class="hero-banner__actions">
+            <el-button type="primary" size="large" class="hero-banner__cta" @click="showCreateDialog">
               <el-icon><Plus /></el-icon>
               {{ $t('project.newProject') }}
             </el-button>
@@ -172,7 +172,10 @@ watch(() => dialogVisible.value, (newValue) => {
 .project-list-view {
   min-height: 100%;
   padding: var(--page-padding);
-  background: var(--page-bg);
+  background:
+    radial-gradient(120% 80% at 20% -10%, rgba(37, 198, 201, 0.10), transparent 60%),
+    radial-gradient(80% 60% at 95% 0%, rgba(99, 102, 241, 0.06), transparent 65%),
+    var(--page-bg);
 }
 
 .project-home {
@@ -181,85 +184,175 @@ watch(() => dialogVisible.value, (newValue) => {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.brand-banner {
-  padding: 4px 0 0;
-}
-
-.brand-wordmark {
-  display: inline-block;
-  margin: 0;
-  font-size: 36px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  color: #25C6C9;
-}
-
-.home-header {
+/* Hero banner with soft gradient */
+.hero-banner {
+  position: relative;
   overflow: hidden;
+  padding: 32px 36px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 198, 201, 0.18);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.10) 0%, rgba(37, 198, 201, 0.02) 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #ffffff 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 6px 18px rgba(15, 35, 50, 0.04),
+    0 24px 48px rgba(15, 35, 50, 0.05);
 }
 
-.home-header__inner {
-  border-bottom: 1px solid var(--border-color);
+.hero-banner__decor {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+}
+
+.hero-banner__decor--a {
+  top: -80px;
+  right: -60px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(37, 198, 201, 0.45), transparent 70%);
+}
+
+.hero-banner__decor--b {
+  bottom: -120px;
+  left: 30%;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(124, 92, 246, 0.18), transparent 70%);
+}
+
+.hero-banner__inner {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+  z-index: 1;
+}
+
+.hero-banner__content {
+  flex: 1;
+  min-width: 0;
+  max-width: 720px;
+}
+
+.hero-banner__eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-color-strong);
+  background: var(--surface-tint-strong);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 198, 201, 0.16);
+  margin-bottom: 14px;
+}
+
+.hero-banner__title {
+  margin: 0 0 8px;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #0f3a3b 0%, #25C6C9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-banner__description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 600px;
+}
+
+.hero-banner__actions {
+  display: flex;
   align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
+.hero-banner__cta :deep(.el-icon) {
+  margin-right: 6px;
+}
+
+/* Workspace panel */
 .workspace-panel {
   overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 2px rgba(15, 35, 50, 0.04);
 }
 
 .workspace-panel__header {
   border-bottom: 1px solid var(--border-color);
+  padding: 18px 24px;
 }
 
 .workspace-panel__count {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   background: var(--surface-tint-strong);
   color: var(--accent-color-strong);
   font-size: 12px;
   font-weight: 600;
+  border: 1px solid rgba(37, 198, 201, 0.18);
 }
 
 .workspace-panel__body {
-  padding: 20px;
+  padding: 24px;
 }
 
 .project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .empty-workspace {
-  min-height: 280px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 32px;
+  gap: 14px;
+  padding: 40px;
   text-align: center;
   border: 1px dashed var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-secondary);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(37, 198, 201, 0.02), transparent),
+    var(--bg-secondary);
 }
 
 .empty-workspace__icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 26px;
   color: var(--accent-color-strong);
   background: var(--surface-tint-strong);
+  border: 1px solid rgba(37, 198, 201, 0.18);
 }
 
 .empty-workspace__title {
