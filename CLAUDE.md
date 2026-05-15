@@ -38,14 +38,15 @@ npm run test:run     # Vitest single run (CI mode)
 
 Coplat board for managing projects/tasks with AI agent execution in isolated Git worktrees. Users create projects, define requirements and tasks, then execute tasks via AI coding agents (Claude Code) that work in separate Git branches.
 
-### Backend (`backend/`) - Fastify 4.x + Zod + JSON file storage
+### Backend (`backend/`) - Fastify 4.x + Zod + SQLite (LibSQL) + JSON file storage
 
-**Layered architecture**: Routes → Services → Repositories → JSON files
+**Layered architecture**: Routes → Services → Repositories → SQLite / JSON files
 
 - `src/main.js` - Entry point, registers all routes and plugins (CORS, WebSocket)
-- `src/routes/` - Fastify route handlers (one file per resource)
-- `src/services/` - Business logic (ProjectService, TaskService, SessionService, ExecutionService, TaskSourceService)
-- `src/repositories/` - Data access with `BaseRepository` base class that provides CRUD over JSON files. Each entity repo extends it.
+- `src/routes/` - Fastify route handlers (agents, agentChat, bundle, executions, git, iterations, mcpServers, notifications, presets, projects, sessions, settings, skills, splitSuggestions, tasks, taskSources, workflows, workflowTemplate)
+- `src/services/` - Business logic (ProjectService, TaskService, SessionService, ExecutionService, TaskSourceService, AgentChatService, IterationService, McpServerService, SkillService, BundleService, PresetService, WorkflowInstanceService, SplitSuggestionService, SchedulerService, NotificationService, SettingsService)
+- `src/services/workflow/` - Workflow system (WorkflowService, WorkflowLifecycle, WorkflowTemplateService, executors)
+- `src/repositories/` - Data access with `BaseRepository` base class. Repositories for agents, tasks, projects, sessions, executions, skills, MCP servers, workflow templates, workflow instances, split suggestions, iterations, settings, and more.
 - `src/adapters/` - External integrations (GitHub task source adapter)
 - `src/utils/response.js` - Standard response format: `{ success, message, data, error }`
 - `src/utils/git.js` - Git worktree management (create/remove/list worktrees per task)
@@ -88,10 +89,11 @@ Coplat board for managing projects/tasks with AI agent execution in isolated Git
 
 **Routes:**
 - `/` → ProjectListView
-- `/kanban/:projectId` → KanbanView (main board)
-- `/task-sources/:projectId` → TaskSourceConfig
+- `/workspace/:projectId?` → WorkspaceView (main board / kanban)
 - `/agents` → AgentConfig
-- `/workflow-templates` → WorkflowTemplateConfig (AgentTeam 模板管理)
+- `/template` → WorkflowTemplateConfig (AgentTeam 模板管理)
+- `/skills` → SkillConfig
+- `/mcp-servers` → McpServerConfig
 
 Key directories: `views/`, `components/`, `api/` (Axios clients), `stores/` (Pinia), `services/websocket.js` (native WebSocket client), `locales/` (i18n: zh-CN/en)
 
@@ -101,9 +103,8 @@ Key directories: `views/`, `components/`, `api/` (Axios clients), `stores/` (Pin
 
 ### Data Storage
 
-JSON files in `data/` (project root, accessed via `../data` from backend):
-- `projects.json`, `requirements.json`, `tasks.json`
-- `agents.json`, `sessions.json`, `executions.json`, `task_sources.json`
+**SQLite (LibSQL)** — `data/kanban.db` for project/task/session data, `data/mastra.db` for workflow state
+**JSON files** — `data/agent_chats.json` for chat history, `data/skills/` for skill files
 
 ### Task Status Workflow
 ```
@@ -124,6 +125,13 @@ Priority levels: CRITICAL, HIGH, MEDIUM, LOW
 | Executions | `GET/POST/PUT/DELETE /api/executions` |
 | Agents | `GET/POST/PUT/DELETE /api/agents` |
 | Agent Chat | `POST /api/agents/{id}/chat/sessions`, `GET/POST/DELETE /api/agents/{id}/chat/sessions/{chatId}/messages` |
+| Workflows | `GET/POST /api/workflows/execute`, `POST /api/workflows/cancel/{runId}`, `POST /api/workflows/retry/{runId}` |
+| Workflow Templates | `GET/POST/PUT/DELETE /api/workflow-templates`, `POST /api/workflow-templates/preview-prompt` |
+| Skills | `GET/POST/PUT/DELETE /api/skills` |
+| MCP Servers | `GET/POST/PUT/DELETE /api/mcp-servers` |
+| Iterations | `GET/POST/PUT/DELETE /api/iterations` |
+| Bundles | `POST /api/bundle/preview`, `POST /api/bundle/import` |
+| Settings | `GET/PUT /api/settings` |
 | Health | `GET /health`, `GET /` |
 
 ### Agent Chat API
@@ -179,8 +187,8 @@ error.statusCode = 404;
 
 1. **API Response Handling**: Backend always returns `{ success, message, data, error }`. Frontend must check `response.success` before using `response.data`.
 
-2. **Backend Data Path**: Uses relative `../data`. Always start from `backend/` directory or use `./start.sh`.
+2. **Port Conflicts**: `./start.sh` auto-kills processes on ports 3000/8000 and restarts.
 
-3. **Port Conflicts**: `./start.sh` auto-kills processes on ports 3000/8000 and restarts.
+3. **Backend Data Path**: SQLite databases live in `data/` at project root. Backend accesses via relative `../data`. Always start from `backend/` directory or use `./start.sh`.
 
-4. **JSON Encoding**: Data files use UTF-8. Validate with: `node -e "JSON.parse(require('fs').readFileSync('data/projects.json'))"`
+4. **Workflow Concurrency**: WorkflowRunRepository serializes all mutations via `_serializeMutation` queue. Direct DB writes to `mastra.db` bypass this and can cause race conditions.
