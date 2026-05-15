@@ -11,6 +11,12 @@ export const commit = (projectId, taskId, { message, addAll = true, files = [], 
   api.post(`/git/worktrees/${taskId}/commit`, { message, addAll, files, authorName, authorEmail }, { params: { projectId } })
 
 /**
+ * Stage specific files (for untracked files)
+ */
+export const stageFiles = (projectId, taskId, files = []) =>
+  api.post(`/git/worktrees/${taskId}/stage`, { files }, { params: { projectId } })
+
+/**
  * Push committed changes to remote
  */
 export const pushWorktree = (projectId, taskId, { remote = 'origin', setUpstream = true } = {}) =>

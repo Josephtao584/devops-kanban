@@ -748,6 +748,53 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // POST /worktrees/:taskId/stage - Stage specific files (for untracked files)
+  fastify.post<{ Params: { taskId: string }; Querystring: ProjectIdQuery; Body: { files?: string[] } }>(
+    '/worktrees/:taskId/stage',
+    async (request, reply) => {
+      try {
+        const taskId = parseNumber(request.params.taskId);
+        const { files = [] } = request.body || {};
+
+        const task = await taskRepo.findById(taskId);
+        if (!task) {
+          reply.code(404);
+          return errorResponse('Task not found');
+        }
+
+        let repoPath = task.worktree_path;
+        if (!repoPath && task.project_id) {
+          const project = await projectRepo.findById(task.project_id);
+          if (project?.local_path && isGitRepository(project.local_path)) {
+            repoPath = project.local_path;
+          }
+        }
+
+        if (!repoPath) {
+          reply.code(400);
+          return errorResponse('No repository found');
+        }
+
+        if (files.length === 0) {
+          // Stage all changes
+          execFileSync('git', ['add', '-A'], { cwd: repoPath, encoding: 'utf-8' });
+        } else {
+          for (const file of files) {
+            execFileSync('git', ['add', '--', file], { cwd: repoPath, encoding: 'utf-8' });
+          }
+        }
+
+        return successResponse({ staged: files.length }, 'Files staged successfully');
+      } catch (error) {
+        logError(error, request);
+        const execError = error as Error & { stderr?: string };
+        const stderr = execError.stderr || execError.message;
+        reply.code(getStatusCode(error));
+        return errorResponse(getErrorMessage(error, `Failed to stage files: ${stderr}`));
+      }
+    }
+  );
+
   fastify.post<{ Params: { taskId: string }; Querystring: ProjectIdQuery; Body: { remote?: string; setUpstream?: boolean } }>('/worktrees/:taskId/push', async (request, reply) => {
     try {
       const taskId = parseNumber(request.params.taskId);
