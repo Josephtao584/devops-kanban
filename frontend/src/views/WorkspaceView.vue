@@ -505,7 +505,7 @@ async function autoRetryRun() {
   autoRetryCountByRun.value.set(runId, count + 1)
 
   try {
-    ElMessage.info(`工作流失败，正在自动重试 (${count + 1}/${MAX_AUTO_RETRIES})...`)
+    ElMessage.info(`AgentTeam失败，正在自动重试 (${count + 1}/${MAX_AUTO_RETRIES})...`)
     const resp = await retryWorkflow(runId)
     if (resp?.success) {
       ElMessage.success('已自动重新执行')
@@ -701,14 +701,14 @@ async function openStartEditorForConfiguredTemplate(templateId) {
   try {
     const tplResp = await getWorkflowTemplateById(templateId)
     if (!tplResp?.success) {
-      ElMessage.error(tplResp?.message || '加载工作流模板失败')
+      ElMessage.error(tplResp?.message || '加载AgentTeam模板失败')
       return
     }
     selectedWorkflowTemplateId.value = templateId
     workflowStartDraftTemplate.value = normalizeWorkflowTemplate(tplResp.data)
     showWorkflowStartEditorDialog.value = true
   } catch (e) {
-    ElMessage.error(e?.message || '加载工作流模板失败')
+    ElMessage.error(e?.message || '加载AgentTeam模板失败')
   }
 }
 
@@ -743,7 +743,7 @@ async function handleWorkflowTemplateConfirm({ templateId }) {
   try {
     const tplResp = await getWorkflowTemplateById(templateId)
     if (!tplResp?.success) {
-      ElMessage.error(tplResp?.message || '加载工作流模板失败')
+      ElMessage.error(tplResp?.message || '加载AgentTeam模板失败')
       return
     }
     await updateTask(selectedTask.value.id, {
@@ -755,7 +755,7 @@ async function handleWorkflowTemplateConfirm({ templateId }) {
     showWorkflowTemplateDialog.value = false
     showWorkflowStartEditorDialog.value = true
   } catch (e) {
-    ElMessage.error(e?.message || '加载工作流模板失败')
+    ElMessage.error(e?.message || '加载AgentTeam模板失败')
   }
 }
 
@@ -1747,7 +1747,7 @@ watch(taskListViewMode, (mode) => {
   letter-spacing: 0.02em;
 }
 
-/* Unified workflow header (merges 工作流链路 + 当前工作流) */
+/* Unified AgentTeam header */
 .workflow-unified-header {
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-color);

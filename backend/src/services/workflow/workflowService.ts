@@ -337,7 +337,31 @@ class WorkflowService {
 
 
   async getWorkflowRun(runId: number) {
-    return this.workflowRunRepo.findById(runId);
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) return null;
+
+    // Enrich with workflow_template_snapshot from the instance
+    if (run.workflow_instance_id) {
+      const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
+      if (instance) {
+        run.workflow_template_snapshot = {
+          template_id: instance.template_id,
+          name: instance.name,
+          steps: instance.steps.map(s => ({
+            id: s.id,
+            name: s.name,
+            instructionPrompt: s.instructionPrompt,
+            agentId: s.agentId,
+            requiresConfirmation: s.requiresConfirmation,
+            canEarlyExit: s.canEarlyExit,
+            type: s.type,
+            maxRetries: s.maxRetries ?? 0,
+          })),
+        };
+      }
+    }
+
+    return run;
   }
 
   async getAllRunsByTask(taskId: number) {

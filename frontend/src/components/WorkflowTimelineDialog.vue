@@ -78,10 +78,10 @@ async function loadWorkflow() {
     if (response.success) {
       workflow.value = toTimelineWorkflow(response.data)
     } else {
-      error.value = response.message || '加载工作流失败'
+      error.value = response.message || '加载AgentTeam失败'
     }
   } catch (err) {
-    error.value = err.message || '加载工作流失败'
+    error.value = err.message || '加载AgentTeam失败'
   } finally {
     loading.value = false
   }

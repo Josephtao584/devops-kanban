@@ -103,7 +103,7 @@
               提交回答
             </el-button>
             <el-button @click="handleResume(false)">
-              取消工作流
+              取消AgentTeam
             </el-button>
           </div>
         </div>
@@ -139,7 +139,7 @@
               确认继续
             </el-button>
             <el-button type="danger" @click="handleResume(false)" :disabled="isResuming">
-              取消工作流
+              取消AgentTeam
             </el-button>
           </div>
         </div>
@@ -163,7 +163,7 @@
         @click="handleCancel"
         :disabled="cancelling"
       >
-        {{ cancelling ? '取消中...' : '取消工作流' }}
+        {{ cancelling ? '取消中...' : '取消AgentTeam' }}
       </el-button>
       <el-button size="small" @click="fetchRun" :disabled="loading">
         {{ loading ? '刷新中...' : '刷新' }}
@@ -217,7 +217,7 @@ const askUserAnswer = ref('')
 const confirmComment = ref('')
 let pollTimer = null
 
-const dialogTitle = computed(() => `工作流进度${props.taskTitle ? ' - ' + props.taskTitle : ''}`)
+const dialogTitle = computed(() => `AgentTeam进度${props.taskTitle ? ' - ' + props.taskTitle : ''}`)
 
 const statusClass = computed(() => {
   if (!run.value) return ''
@@ -333,7 +333,7 @@ async function handleResume(approved) {
 
     const latest = await getWorkflowRun(props.workflowRunId)
     if (!latest.success) {
-      ElMessage.error(latest.message || '获取工作流状态失败')
+      ElMessage.error(latest.message || '获取AgentTeam状态失败')
       return
     }
 
@@ -341,7 +341,7 @@ async function handleResume(approved) {
     syncSelectedStep()
 
     if (approved && !isResumableRun(latest.data)) {
-      ElMessage.warning('当前工作流还未进入可继续状态，请刷新后重试')
+      ElMessage.warning('当前AgentTeam还未进入可继续状态，请刷新后重试')
       return
     }
 
@@ -349,7 +349,7 @@ async function handleResume(approved) {
     const response = await resumeWorkflow(props.workflowRunId, resumeData)
 
     if (response.success) {
-      ElMessage.success(approved ? '工作流已继续执行' : '工作流已取消')
+      ElMessage.success(approved ? 'AgentTeam已继续执行' : 'AgentTeam已取消')
       confirmComment.value = ''
       await fetchRun()
     } else {
@@ -380,7 +380,7 @@ async function fetchRun() {
         stopPolling()
       }
     } else {
-      error.value = response.message || '获取工作流状态失败'
+      error.value = response.message || '获取AgentTeam状态失败'
     }
   } catch (err) {
     error.value = err.response?.data?.message || err.message || '网络错误'

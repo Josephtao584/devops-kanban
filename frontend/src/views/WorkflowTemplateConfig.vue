@@ -100,36 +100,36 @@
 
         <template v-else-if="template">
           <div class="editor-header">
+            <div class="editor-header__top">
+              <div class="editor-header__id">
+                <span class="editor-header__id-label">{{ $t('workflowTemplate.templateId') }}</span>
+                <code data-testid="template-id" class="editor-header__id-value">{{ template.template_id }}</code>
+              </div>
+              <div class="editor-actions editor-actions--template">
+                <el-button
+                  data-testid="delete-template-button"
+                  :disabled="(!canDeleteSelected && !isDraftTemplate) || deleting || saving"
+                  @click="handleDeleteTemplate"
+                >
+                  {{ deleting ? $t('common.loading') : $t('common.delete') }}
+                </el-button>
+                <el-button
+                  data-testid="save-template-button"
+                  type="primary"
+                  :disabled="saving || deleting"
+                  @click="saveTemplate"
+                >
+                  {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
+                </el-button>
+              </div>
+            </div>
             <div class="template-meta">
-              <div class="meta-row">
-                <span class="meta-label">{{ $t('workflowTemplate.templateId') }}</span>
-                <span data-testid="template-id" class="meta-value">{{ template.template_id }}</span>
+              <div class="meta-field">
+                <label class="meta-field__label">{{ $t('workflowTemplate.name') }}</label>
+                <el-input v-model="template.name" data-testid="template-name-input" maxlength="200" show-word-limit class="meta-field__control" />
               </div>
-              <div class="meta-row meta-row--stacked">
-                <span class="meta-label">{{ $t('workflowTemplate.name') }}</span>
-                <div class="template-name-row">
-                  <el-input v-model="template.name" data-testid="template-name-input" maxlength="200" show-word-limit />
-                  <div class="editor-actions editor-actions--template">
-                    <el-button
-                      data-testid="delete-template-button"
-                      :disabled="(!canDeleteSelected && !isDraftTemplate) || deleting || saving"
-                      @click="handleDeleteTemplate"
-                    >
-                      {{ deleting ? $t('common.loading') : $t('common.delete') }}
-                    </el-button>
-                    <el-button
-                      data-testid="save-template-button"
-                      type="primary"
-                      :disabled="saving || deleting"
-                      @click="saveTemplate"
-                    >
-                      {{ saving ? $t('common.saving', '保存中...') : $t('common.save') }}
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-              <div class="meta-row meta-row--stacked">
-                <span class="meta-label">标签</span>
+              <div class="meta-field">
+                <label class="meta-field__label">{{ $t('workflowTemplate.tagsLabel', '标签') }}</label>
                 <el-select
                   v-model="template.tags"
                   multiple
@@ -137,8 +137,8 @@
                   allow-create
                   default-first-option
                   size="small"
-                  placeholder="输入标签，回车添加"
-                  class="tags-input"
+                  :placeholder="$t('workflowTemplate.tagsPlaceholder', '输入标签，回车添加')"
+                  class="meta-field__control tags-input"
                 >
                   <el-option
                     v-for="tag in allTags"
@@ -148,15 +148,17 @@
                   />
                 </el-select>
               </div>
-              <div class="meta-row">
-                <span class="meta-label">{{ $t('workflowTemplate.aiSplitToggleLabel', 'AI 拆分') }}</span>
-                <el-switch
-                  :model-value="aiSplitEnabled"
-                  size="small"
-                  data-testid="ai-split-toggle"
-                  @update:model-value="onToggleAiSplit"
-                />
-                <span class="meta-hint">{{ $t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）') }}</span>
+              <div class="meta-field meta-field--toggle">
+                <div class="meta-field__toggle-head">
+                  <label class="meta-field__label">{{ $t('workflowTemplate.aiSplitToggleLabel', 'AI 拆分') }}</label>
+                  <el-switch
+                    :model-value="aiSplitEnabled"
+                    size="small"
+                    data-testid="ai-split-toggle"
+                    @update:model-value="onToggleAiSplit"
+                  />
+                </div>
+                <p class="meta-field__hint">{{ $t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）') }}</p>
               </div>
             </div>
           </div>
@@ -222,22 +224,23 @@
                           </button>
                         </el-tooltip>
 
-                        <div class="workflow-step-card__top">
-                          <span class="workflow-step-card__order">{{ index + 1 }}</span>
+                        <div class="workflow-step-card__order">{{ String(index + 1).padStart(2, '0') }}</div>
+
+                        <div class="workflow-step-card__head">
+                          <div class="workflow-step-card__avatar">
+                            <span v-html="previewSteps[index]?.roleConfig?.icon" class="workflow-step-card__avatar-icon"></span>
+                          </div>
+                          <div class="workflow-step-card__identity">
+                            <div class="workflow-step-card__agent-name">{{ previewSteps[index]?.agentName }}</div>
+                            <div v-if="previewSteps[index]?.executorLabel" class="workflow-step-card__executor">{{ previewSteps[index]?.executorLabel }}</div>
+                          </div>
                         </div>
 
-                        <div class="workflow-step-card__name">{{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}</div>
-
-                        <div class="workflow-step-card__meta">
-                          <div class="workflow-step-card__chips">
-                            <span class="workflow-chip" :class="previewSteps[index]?.agentStateClass">{{ previewSteps[index]?.agentSummary }}</span>
-                            <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-chip workflow-chip--warning">
-                              {{ $t('workflowTemplate.requiresConfirmation') }}
-                            </span>
-                          </div>
-                          <div v-if="previewSteps[index]?.skillNames?.length" class="workflow-step-card__skills">
-                            <span v-for="skill in previewSteps[index].skillNames" :key="skill.name" class="workflow-skill-tag">{{ skill.name }}</span>
-                          </div>
+                        <div class="workflow-step-card__footer">
+                          <span class="workflow-step-card__name" :title="previewSteps[index]?.name">{{ previewSteps[index]?.name || $t('workflowTemplate.newStepDefaultName') }}</span>
+                          <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-step-card__flag">
+                            {{ $t('workflowTemplate.requiresConfirmation') }}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -285,19 +288,15 @@
               </div>
 
               <div class="step-editor-grid">
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.stepName') }}</label>
-                  <el-input
-                    v-model="selectedStep.name"
-                    :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
-                    maxlength="200"
-                    show-word-limit
-                  />
-                </div>
-
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.executor') }}</label>
-                  <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
+                <div class="editor-field editor-field--full editor-field--agent">
+                  <label class="editor-field__label-strong">{{ $t('workflowTemplate.executor') }}</label>
+                  <el-select
+                    v-model="selectedStep.agentId"
+                    clearable
+                    class="agent-picker"
+                    :placeholder="$t('workflowTemplate.unassignedAgent')"
+                    style="width: 100%"
+                  >
                     <el-option
                       v-for="agent in agents"
                       :key="agent.id"
@@ -309,35 +308,34 @@
                 </div>
 
                 <div class="editor-field editor-field--full">
-                  <div class="editor-field__row editor-field__row--options">
-                    <el-switch
-                      v-model="selectedStep.requiresConfirmation"
-                      :active-text="$t('workflowTemplate.requiresConfirmation')"
-                    />
-                    <el-switch
-                      v-model="selectedStep.canEarlyExit"
-                      :active-text="$t('workflowTemplate.canEarlyExit')"
-                    />
+                  <label>{{ $t('workflowTemplate.stepName') }}</label>
+                  <el-input
+                    v-model="selectedStep.name"
+                    :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
+                    maxlength="200"
+                    show-word-limit
+                  />
+                </div>
+
+                <div class="editor-field editor-field--full">
+                  <label>{{ $t('workflowTemplate.stepOptions', '选项') }}</label>
+                  <div class="step-options">
+                    <label class="step-option">
+                      <el-switch v-model="selectedStep.requiresConfirmation" size="small" />
+                      <span class="step-option__label">{{ $t('workflowTemplate.requiresConfirmation') }}</span>
+                    </label>
+                    <label class="step-option">
+                      <el-switch v-model="selectedStep.canEarlyExit" size="small" />
+                      <span class="step-option__label">{{ $t('workflowTemplate.canEarlyExit') }}</span>
+                    </label>
                   </div>
                 </div>
 
-                <div class="editor-field editor-field--full step-type-field">
+                <div v-if="selectedStep.type === 'SPLIT_TASK'" class="editor-field editor-field--full step-type-field">
                   <label>{{ $t('workflowTemplate.stepType') }}</label>
                   <div class="editor-field__row">
-                    <el-select
-                      v-model="selectedStep.type"
-                      size="small"
-                      style="flex: 0 0 280px"
-                      :disabled="selectedStep.type === 'SPLIT_TASK'"
-                    >
-                      <el-option :label="$t('workflowTemplate.stepTypeDefault')" value="DEFAULT" />
-                      <el-option
-                        v-if="selectedStep.type === 'SPLIT_TASK'"
-                        :label="$t('workflowTemplate.stepTypeSplit')"
-                        value="SPLIT_TASK"
-                      />
-                    </el-select>
-                    <span v-if="selectedStep.type === 'SPLIT_TASK'" class="step-type-hint">
+                    <el-tag type="info">{{ $t('workflowTemplate.stepTypeSplit') }}</el-tag>
+                    <span class="step-type-hint">
                       {{ $t('workflowTemplate.stepTypeSplitHint') }}
                     </span>
                   </div>
@@ -345,7 +343,12 @@
               </div>
 
               <div class="editor-field editor-field--full editor-field--prompt">
-                <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+                <div class="editor-field__head">
+                  <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
+                  <el-button class="preview-prompt-btn" plain size="small" @click="handlePreviewPrompt">
+                    {{ $t('workflowTemplate.previewPrompt') }}
+                  </el-button>
+                </div>
                 <div class="editor-field__hint">{{ $t('workflowTemplate.deliveryPromptGuidance') }}</div>
                 <div v-if="selectedStep.type === 'SPLIT_TASK'" class="editor-field__hint split-prompt-hint">
                   AI 拆分逻辑由内置的 task-splitter Skill 提供详细规则；此处 prompt 用于引导 Agent 调用该 Skill 并传入上下文。
@@ -359,9 +362,6 @@
                   :maxlength="2000"
                   show-word-limit
                 />
-                <el-button class="preview-prompt-btn" plain @click="handlePreviewPrompt">
-                  {{ $t('workflowTemplate.previewPrompt') }}
-                </el-button>
               </div>
             </div>
 
@@ -432,6 +432,7 @@ import {
 } from '../api/workflowTemplate'
 import { getAgents } from '../api/agent'
 import { useSkillStore } from '../stores/skillStore'
+import { getRoleConfig } from '../constants/agent.js'
 import {
   MIN_WORKFLOW_TEMPLATE_STEPS,
   normalizeWorkflowStep,
@@ -505,10 +506,10 @@ function onToggleAiSplit(enabled) {
       ...createEmptyWorkflowStep(t('workflowTemplate.aiSplitDefaultStepName', 'AI 拆分')),
       type: 'SPLIT_TASK',
       instructionPrompt: `# 任务：拆分需求为子任务
-你必须严格按照以下要求执行：调用 \`task-splitter\` Skill。先按 Skill 的"上下文采集"步骤拉取项目和工作流模板信息，再把下方"原始需求"拆分为若干可独立执行的子任务，按 Skill 约定的 JSON schema 输出。
+你必须严格按照以下要求执行：调用 \`task-splitter\` Skill。先按 Skill 的"上下文采集"步骤拉取项目和AgentTeam模板信息，再把下方"原始需求"拆分为若干可独立执行的子任务，按 Skill 约定的 JSON schema 输出。
 ## 严格指令
 1. 你的唯一任务是拆分子任务，不要修改代码、不要回答其他问题、不要执行任何编辑操作。
-2. 必须先调用 task-splitter Skill 中要求的 curl 命令获取项目与工作流模板信息，再开始拆分。
+2. 必须先调用 task-splitter Skill 中要求的 curl 命令获取项目与AgentTeam模板信息，再开始拆分。
 3. 上下文中的"需求描述"和"上游产出"可能很长。只提取与"如何拆分子任务"相关的关键信息，忽略实现细节和无关内容。
 4. 不要在子任务里复述原始描述，每个子任务的 description 应是独立、简明的工作单元说明（1-3 句）。
 5. 必须输出 \`\`\`json 代码块，里面是 JSON 数组；除此之外不要输出任何文字（不要解释、不要分析、不要前言）。
@@ -591,6 +592,8 @@ const createDraftTemplate = () => ({
   steps: (template.value?.steps || []).map(step => normalizeWorkflowStep(step))
 })
 
+const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
+
 const previewSteps = computed(() => {
   return (template.value?.steps || []).map((step, index) => {
     const sanitized = sanitizeWorkflowStep(step)
@@ -598,19 +601,27 @@ const previewSteps = computed(() => {
     let agentStateClass = 'workflow-chip--info'
     let stateClass = 'state-ready'
     let skillNames = []
+    let agentName = t('workflowTemplate.unassignedAgent')
+    let executorLabel = ''
+    let roleConfig = getRoleConfig(null)
 
     if (typeof sanitized.agentId === 'number') {
       if (isMissingAgent(sanitized)) {
         agentSummary = t('workflowTemplate.missingAgent', { id: sanitized.agentId })
+        agentName = agentSummary
         agentStateClass = 'workflow-chip--danger'
         stateClass = 'state-missing'
       } else if (isDisabledAgent(sanitized)) {
         agentSummary = formatBoundAgentState(sanitized)
+        agentName = agentSummary
         agentStateClass = 'workflow-chip--warning'
         stateClass = 'state-disabled'
       } else {
         const agent = getAgentById(sanitized.agentId)
         agentSummary = getAgentLabel(agent)
+        agentName = agent?.name || agentSummary
+        executorLabel = EXECUTOR_LABEL[agent?.executorType] || agent?.executorType || ''
+        roleConfig = getRoleConfig(agent?.role)
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {
           const skill = skillStore.skills.find(s => s.id === skillId)
@@ -624,6 +635,9 @@ const previewSteps = computed(() => {
       ...sanitized,
       localKey: `${index}-${step.id || 'empty'}`,
       agentSummary,
+      agentName,
+      executorLabel,
+      roleConfig,
       agentStateClass,
       stateClass,
       skillNames,
@@ -1337,23 +1351,105 @@ const handlePreviewPrompt = async () => {
   flex-shrink: 0;
 }
 
+.editor-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.editor-header__id {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editor-header__id-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.editor-header__id-value {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: var(--bg-tertiary, #f3f5f7);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+
 .template-meta {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   flex: 1;
 }
 
-.template-name-row {
+.meta-field {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.template-name-row :deep(.el-input) {
-  flex: 0 1 520px;
-  width: min(100%, 520px);
-  min-width: 320px;
+.meta-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.meta-field__control {
+  width: 100%;
+  max-width: 520px;
+}
+
+.meta-field--toggle {
+  gap: 6px;
+}
+
+.meta-field__toggle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 520px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: #fff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.meta-field__toggle-head:hover {
+  border-color: var(--accent-color-soft, rgba(37, 198, 201, 0.4));
+}
+
+.meta-field__toggle-head .meta-field__label {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.meta-field__hint {
+  margin: 0;
+  max-width: 520px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }
 
 .tags-input {
@@ -1361,28 +1457,57 @@ const handlePreviewPrompt = async () => {
   max-width: 520px;
 }
 
-.meta-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.meta-field__control :deep(.el-input__wrapper),
+.tags-input :deep(.el-input__wrapper) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
 }
 
-.meta-row--stacked {
-  align-items: flex-start;
-  flex-direction: column;
+.meta-field__control :deep(.el-input__wrapper:hover),
+.tags-input :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
 }
 
-.meta-label {
-  min-width: 88px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+.meta-field__control :deep(.el-input.is-focus .el-input__wrapper),
+.meta-field__control :deep(.el-input__wrapper.is-focus),
+.tags-input :deep(.el-input.is-focus .el-input__wrapper),
+.tags-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
 }
 
-.meta-value {
-  font-size: var(--font-size-md);
+.meta-field__control :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
-  word-break: break-all;
+}
+
+.tags-input :deep(.el-select__tags) {
+  gap: 4px;
+}
+
+.tags-input :deep(.el-tag) {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-color-soft, rgba(37, 198, 201, 0.12));
+  border-color: transparent;
+  color: var(--accent-color-strong, #0d8c8e);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tags-input :deep(.el-tag .el-tag__close) {
+  color: var(--accent-color-strong, #0d8c8e);
+  background: transparent;
+}
+
+.tags-input :deep(.el-tag .el-tag__close:hover) {
+  background: rgba(37, 198, 201, 0.2);
+  color: var(--accent-color-strong, #0d8c8e);
 }
 
 .step-validation-hint {
@@ -1506,80 +1631,148 @@ const handlePreviewPrompt = async () => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: 236px;
-  min-height: 130px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
+  width: 220px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: #fff;
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.04) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s ease;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .workflow-step-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(37, 198, 201, 0.24);
-  box-shadow: var(--shadow-md);
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(37, 198, 201, 0.10);
 }
 
 .workflow-step-card.is-selected {
-  border-color: var(--accent-color);
-  background: linear-gradient(180deg, #ffffff 0%, rgba(37, 198, 201, 0.05) 100%);
-  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.10);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.10) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+}
+
+.workflow-step-card.is-selected .workflow-step-card__avatar {
+  background: var(--accent-color-soft);
+  color: var(--accent-color-strong);
+  border-color: transparent;
 }
 
 .workflow-step-card.has-warning {
-  border-color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .workflow-step-card.state-missing {
-  border-color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .workflow-step-card.state-disabled {
-  border-color: #f59e0b;
-}
-
-.workflow-step-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .workflow-step-card__order {
+  position: absolute;
+  top: -2px;
+  left: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--bg-primary);
+  padding: 0 4px;
+  z-index: 2;
+}
+
+.workflow-step-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.workflow-step-card__avatar {
   width: 28px;
   height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
+  border-radius: 7px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37, 198, 201, 0.12);
-  color: var(--accent-color);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.workflow-step-card__avatar-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+.workflow-step-card__avatar-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+
+.workflow-step-card__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.workflow-step-card__agent-name {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.workflow-step-card__executor {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.workflow-step-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-color);
+  background: linear-gradient(180deg, rgba(37, 198, 201, 0.025), rgba(37, 198, 201, 0.06));
 }
 
 .workflow-step-card__name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.workflow-step-card__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.workflow-step-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.workflow-step-card__flag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
 }
 
 .workflow-step-card__delete {
@@ -1689,7 +1882,7 @@ const handlePreviewPrompt = async () => {
 }
 
 .step-editor-card__title {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
 }
@@ -1724,6 +1917,48 @@ const handlePreviewPrompt = async () => {
   gap: 12px;
 }
 
+.step-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.step-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.step-option:hover {
+  border-color: var(--accent-color-soft, rgba(37, 198, 201, 0.4));
+  background: rgba(37, 198, 201, 0.04);
+}
+
+.step-option__label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  user-select: none;
+}
+
+.editor-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.editor-field__head label {
+  margin: 0;
+}
+
 .step-type-hint {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
@@ -1736,14 +1971,89 @@ const handlePreviewPrompt = async () => {
   gap: 6px;
 }
 
+.editor-field--agent {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-color-soft);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.08) 0%, rgba(37, 198, 201, 0.02) 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
+  margin-bottom: 4px;
+}
+
+.editor-field__label-strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  letter-spacing: 0.02em;
+}
+
+.editor-field__label-strong::before {
+  content: '';
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--accent-color);
+}
+
+.agent-picker :deep(.el-input__wrapper) {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+.agent-picker :deep(.el-input__wrapper:hover),
+.agent-picker :deep(.el-select .el-input.is-focus .el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--accent-color) inset;
+}
+
+.agent-picker :deep(.el-input__inner) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .editor-field--full {
   grid-column: 1 / -1;
 }
 
 .editor-field label {
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.editor-field :deep(.el-input__wrapper),
+.editor-field :deep(.el-textarea__inner) {
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+  border-radius: 8px;
+  transition: box-shadow 0.18s ease;
+}
+
+.editor-field :deep(.el-input__wrapper:hover),
+.editor-field :deep(.el-textarea__inner:hover) {
+  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
+}
+
+.editor-field :deep(.el-input.is-focus .el-input__wrapper),
+.editor-field :deep(.el-input__wrapper.is-focus),
+.editor-field :deep(.el-textarea__inner:focus) {
+  box-shadow:
+    0 0 0 1px var(--accent-color) inset,
+    0 0 0 3px rgba(37, 198, 201, 0.12);
+}
+
+.editor-field :deep(.el-input__inner) {
+  font-size: 13px;
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 .editor-field__hint {
@@ -1757,8 +2067,7 @@ const handlePreviewPrompt = async () => {
 }
 
 .preview-prompt-btn {
-  margin-top: 8px;
-  align-self: flex-start;
+  flex-shrink: 0;
 }
 
 .preview-prompt-loading {
@@ -1803,7 +2112,7 @@ const handlePreviewPrompt = async () => {
   display: block;
   margin-bottom: 8px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 

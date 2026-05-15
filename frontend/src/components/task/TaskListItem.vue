@@ -112,7 +112,7 @@
         <button
           class="workflow-collapse-btn"
           @click.stop="$emit('toggle-workflow', task.id)"
-          :title="workflowExpanded ? '收起 Workflow' : '展开 Workflow'"
+          :title="workflowExpanded ? '收起 AgentTeam' : '展开 AgentTeam'"
         >
           <svg v-if="workflowExpanded" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M15 18l-6-6 6-6"></path>
@@ -138,7 +138,7 @@
           :class="{ 'workflow-panel-section-bordered': workflowData || task.workflow_run_id }"
         >
           <div class="workflow-panel-header">
-            <span class="workflow-panel-title">工作流</span>
+            <span class="workflow-panel-title">AgentTeam</span>
             <span
               v-if="workflowData || task.workflow_run_id"
               class="quick-action-status workflow-status"
@@ -221,7 +221,7 @@
             class="quick-action-btn quick-action-cancel"
             :disabled="cancelLoading"
             @click.stop="handleCancelWorkflow"
-            title="取消工作流"
+            title="取消AgentTeam"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -247,7 +247,7 @@
             class="quick-action-btn quick-action-retry"
             :disabled="retryLoading"
             @click.stop="handleRetryWorkflow"
-            title="重试工作流"
+            title="重试AgentTeam"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
@@ -514,13 +514,13 @@ const handleCancelWorkflow = async () => {
   try {
     const response = await cancelWorkflow(props.task.workflow_run_id)
     if (response.success) {
-      ElMessage.success('工作流已取消')
+      ElMessage.success('AgentTeam已取消')
       realWorkflowRun.value = response.data
       emit('workflow-action', { action: 'cancelled', task: props.task })
     }
   } catch (error) {
     console.error('Failed to cancel workflow:', error)
-    ElMessage.error('取消工作流失败')
+    ElMessage.error('取消AgentTeam失败')
   } finally {
     cancelLoading.value = false
   }
@@ -533,14 +533,14 @@ const handleRetryWorkflow = async () => {
   try {
     const response = await retryWorkflow(props.task.workflow_run_id)
     if (response.success) {
-      ElMessage.success('工作流重试已开始')
+      ElMessage.success('AgentTeam重试已开始')
       realWorkflowRun.value = response.data
       emit('workflow-action', { action: 'retry', task: props.task })
       if (pollingEnabled.value) startPolling()
     }
   } catch (error) {
     console.error('Failed to retry workflow:', error)
-    ElMessage.error('重试工作流失败')
+    ElMessage.error('重试AgentTeam失败')
   } finally {
     retryLoading.value = false
   }
@@ -557,27 +557,27 @@ const handleResumeWorkflow = async () => {
   try {
     const latest = await getWorkflowRun(props.task.workflow_run_id)
     if (!latest.success) {
-      ElMessage.error(latest.message || '获取工作流状态失败')
+      ElMessage.error(latest.message || '获取AgentTeam状态失败')
       return
     }
 
     realWorkflowRun.value = latest.data
 
     if (!isResumableWorkflowRun(latest.data)) {
-      ElMessage.warning('当前工作流还未进入可继续状态，请刷新后重试')
+      ElMessage.warning('当前AgentTeam还未进入可继续状态，请刷新后重试')
       return
     }
 
     const response = await resumeWorkflow(props.task.workflow_run_id)
     if (response.success) {
-      ElMessage.success('工作流已继续执行')
+      ElMessage.success('AgentTeam已继续执行')
       realWorkflowRun.value = response.data
       emit('workflow-action', { action: 'resume', task: props.task })
       if (pollingEnabled.value) startPolling()
     }
   } catch (error) {
     console.error('Failed to resume workflow:', error)
-    ElMessage.error(error.response?.data?.message || error.message || '继续工作流失败')
+    ElMessage.error(error.response?.data?.message || error.message || '继续AgentTeam失败')
   } finally {
     resumeLoading.value = false
   }

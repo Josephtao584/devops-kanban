@@ -64,6 +64,7 @@ export default {
     deleteConfirmMessage: '确定要删除 "{name}" 吗？这将同时删除该项目关联的所有任务和数据。',
     loadFailed: '加载项目失败',
     homeDescription: '管理工作空间、查看项目配置，并快速进入对应看板继续处理任务。',
+    homeSlogan: '拼接 AI 智能，打造高效协作之路',
     workspaceTitle: '工作空间',
     workspaceDescription: '查看当前配置，直接进入 Coplat。',
     workspaceCountSuffix: '个项目',
@@ -97,8 +98,8 @@ export default {
     statusReady: '可直接使用',
     statusConfigPending: '待补充配置',
     openWorkspace: '打开看板',
-    defaultTemplate: '默认工作流模板',
-    defaultTemplateHint: '选定后，该项目下新任务将默认使用此工作流模板',
+    defaultTemplate: '默认AgentTeam模板',
+    defaultTemplateHint: '选定后，该项目下新任务将默认使用此AgentTeam模板',
     defaultTemplateNone: '无默认模板'
   },
   task: {
@@ -151,11 +152,11 @@ export default {
     autoTransitionDisabled: '自动流转已禁用',
     category: '任务分类',
     categoryHint: '留空将根据标题自动检测分类',
-    autoAssignWorkflowLabel: '自动分配工作流',
-    autoAssignWorkflowHint: '启用后，新任务将自动分配到合适的工作流阶段',
-    autoAssignWorkflow: '自动分配到工作流',
-    autoAssignWorkflowHelp: '启用后，创建任务时将自动分配到工作流的合适阶段',
-    workflowAssigned: '任务已自动分配到工作流 ({stage})',
+    autoAssignWorkflowLabel: '自动分配AgentTeam',
+    autoAssignWorkflowHint: '启用后，新任务将自动分配到合适的AgentTeam阶段',
+    autoAssignWorkflow: '自动分配到AgentTeam',
+    autoAssignWorkflowHelp: '启用后，创建任务时将自动分配到AgentTeam的合适阶段',
+    workflowAssigned: '任务已自动分配到AgentTeam ({stage})',
     categories: {
       FEATURE: '新功能',
       BUG_FIX: 'Bug修复',
@@ -269,7 +270,7 @@ export default {
     scheduleCustom: '自定义',
     scheduleCustomPlaceholder: '输入 cron 表达式，如 */10 * * * *',
     scheduleInvalid: '无效的 cron 表达式',
-    defaultWorkflowTemplate: '默认工作流模板',
+    defaultWorkflowTemplate: '默认AgentTeam模板',
     autoWorkflowNone: '不自动触发',
     scheduleActive: '定时同步运行中',
     lastScheduledSync: '上次定时同步',
@@ -333,7 +334,7 @@ export default {
     aiSplitToggleLabel: 'AI 拆分',
     aiSplitToggleHint: '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）',
     aiSplitDefaultStepName: 'AI 拆分',
-    aiSplitDefaultPrompt: `你是一个项目任务拆解助手。你的任务是根据上游工作流的产出，把当前任务拆分成若干可以并行或有依赖的子任务。
+    aiSplitDefaultPrompt: `你是一个项目任务拆解助手。你的任务是根据上游AgentTeam的产出，把当前任务拆分成若干可以并行或有依赖的子任务。
 
 ## 任务上下文
 - 任务标题：{{task_title}}
@@ -341,7 +342,7 @@ export default {
 - 当前项目：{{project_name}}
 - 当前仓库：{{project_repo_url}}
 
-## 上游工作流产出
+## 上游AgentTeam产出
 {{last_step_output}}
 
 ## 可用的 Coplat 项目（按仓库 URL 精确匹配，找不到时设为 null）
@@ -368,7 +369,7 @@ export default {
 - \`linked_project_id\`：若能在"可用的 Coplat 项目"里匹配到目标仓库，填该项目 id；否则填 null。
 - \`target_repo_url\`：未匹配到 Coplat 项目时填外部仓库 URL，匹配到则填 null。
 - \`depends_on_indices\`：依赖的其他子任务在此数组中的下标（从 0 开始）。无依赖时为空数组。
-- \`template_id\`：工作流模板 id，不确定时填 null，由用户手动选。
+- \`template_id\`：AgentTeam模板 id，不确定时填 null，由用户手动选。
 - \`enabled\`：默认 true。
 
 只输出 JSON 代码块，不要其他解释。`,
@@ -378,26 +379,26 @@ export default {
     instructionPromptHint: '输入当前步骤的专属执行提示词',
     deliveryPromptGuidance: '建议在提示词中明确本阶段交付物清单，并将真实前端验证拆成独立阶段。summary 推荐包含：本步结论、已完成内容、交付物清单、未完成或范围外内容、风险与影响、阻塞与待确认问题、给下游步骤的交接建议。',
     retry: '重试',
-    loadFailed: '加载工作流模板失败',
+    loadFailed: '加载AgentTeam模板失败',
     loadAgentsFailed: '加载成员失败',
-    createSuccess: '工作流模板已创建',
-    createFailed: '创建工作流模板失败',
-    saveSuccess: '工作流模板已保存',
-    saveFailed: '保存工作流模板失败',
-    deleteSuccess: '工作流模板已删除',
-    deleteFailed: '删除工作流模板失败',
-    deleteTemplateConfirmTitle: '删除工作流模板',
-    deleteTemplateConfirm: '确定要删除当前工作流模板吗？',
+    createSuccess: 'AgentTeam模板已创建',
+    createFailed: '创建AgentTeam模板失败',
+    saveSuccess: 'AgentTeam模板已保存',
+    saveFailed: '保存AgentTeam模板失败',
+    deleteSuccess: 'AgentTeam模板已删除',
+    deleteFailed: '删除AgentTeam模板失败',
+    deleteTemplateConfirmTitle: '删除AgentTeam模板',
+    deleteTemplateConfirm: '确定要删除当前AgentTeam模板吗？',
     missingAgent: '缺失成员 (#{id})',
     disabled: '已禁用',
     agentFallbackName: '成员 #{id}',
     newTemplateId: '新模板 ID',
     newTemplateName: '新模板名称',
-    selectDialogTitle: '选择工作流模板',
+    selectDialogTitle: '选择AgentTeam模板',
     recommendedTemplateHint: '已根据任务类型推荐模板',
-    startEditorTitle: '启动前编辑工作流',
+    startEditorTitle: '启动前编辑AgentTeam',
     confirmStart: '确认并启动',
-    emptyState: '暂无可用的工作流模板',
+    emptyState: '暂无可用的AgentTeam模板',
     stepCount: '{count} 个步骤',
     addStep: '添加阶段',
     insertStepBefore: '前插阶段',
@@ -417,7 +418,7 @@ export default {
     stepIdUnique: '阶段 ID 不能重复',
     stepAgentRequired: '角色不能为空',
     stepPromptRequired: '阶段提示词不能为空',
-    workflowPreview: '工作流预览',
+    workflowPreview: 'AgentTeam预览',
     stepEditor: '阶段编辑器',
     stepDetailsTitle: '阶段详情',
     viewDetails: '详情',
@@ -426,7 +427,7 @@ export default {
     promptPreviewEmpty: '请为当前阶段补充提示词',
     startNode: '开始',
     endNode: '结束',
-    selectStepHint: '请先从上方工作流中选择一个阶段',
+    selectStepHint: '请先从上方AgentTeam中选择一个阶段',
     requiresConfirmation: '需要确认',
     canEarlyExit: '智能终止',
     exportTemplate: '导出模板',
@@ -435,12 +436,12 @@ export default {
     exportSuccess: '模板已导出',
     exportFailed: '导出模板失败',
     importButton: '导入',
-    importTitle: '导入工作流模板',
+    importTitle: '导入AgentTeam模板',
     importDropHint: '将 JSON 文件拖拽到此处，或点击选择文件',
     importSelectFile: '选择文件',
     importInvalidFile: '无效的导入文件，请选择正确的 JSON 文件',
     importPreviewFailed: '导入预览失败',
-    importPreviewSummary: '共检测到 {count} 个工作流模板',
+    importPreviewSummary: '共检测到 {count} 个AgentTeam模板',
     importConflict: '已存在',
     importConflictStrategy: '冲突处理策略',
     importStrategySkip: '跳过已存在的模板',
@@ -461,9 +462,9 @@ export default {
     previewPromptFailed: '生成预览失败'
   },
   bundle: {
-    exportTitle: '导出工作流模板',
+    exportTitle: '导出AgentTeam模板',
     importTitle: '打包导入',
-    selectTemplatesHint: '选择要导出的工作流模板：',
+    selectTemplatesHint: '选择要导出的AgentTeam模板：',
     noTemplates: '暂无可导出的模板',
     next: '下一步',
     back: '上一步',
@@ -490,7 +491,7 @@ export default {
     importResultSuccess: '导入成功',
     importResultSkipped: '跳过 {count} 个资源',
     imported: '个已导入',
-    workflowLabel: '工作流模板',
+    workflowLabel: 'AgentTeam模板',
     agentLabel: '成员',
     skillLabel: '技能',
     mcpLabel: 'MCP 服务器',
@@ -498,7 +499,7 @@ export default {
   },
   agent: {
     title: 'Agent角色',
-    pageDescription: '管理 AI Agent 团队成员，配置执行器类型、系统提示词和技能，用于工作流步骤执行任务。',
+    pageDescription: '管理 AI Agent 团队成员，配置执行器类型、系统提示词和技能，用于AgentTeam步骤执行任务。',
     teamList: '团队列表',
     createAgent: '添加成员',
     editAgent: '编辑成员',
@@ -583,7 +584,7 @@ export default {
     inputPlaceholder: '输入消息... (回车发送)',
     noSession: '无活动会话',
     noSessionHint: '选择一个代理并启动会话以开始聊天',
-    workflowNode: '工作流节点对话',
+    workflowNode: 'AgentTeam节点对话',
     workflowNodeHint: '点击消息气泡查看详情',
     noMessages: '暂无对话记录',
     noMessagesHint: '当前节点还没有保存的会话内容',
@@ -706,18 +707,18 @@ export default {
     noTasksFound: '没有找到任务'
   },
   workflow: {
-    title: '工作流',
-    viewWorkflow: '查看工作流',
-    startWorkflow: '启动工作流',
-    noWorkflow: '暂无工作流',
+    title: 'AgentTeam',
+    viewWorkflow: '查看AgentTeam',
+    startWorkflow: '启动AgentTeam',
+    noWorkflow: '暂无AgentTeam',
     progress: '进度',
     stages: '阶段'
   },
   skill: {
     title: 'Skill管理',
-    pageDescription: '管理 AI 技能配置文件，支持创建、编辑和上传技能，供工作流步骤调用。',
+    pageDescription: '管理 AI 技能配置文件，支持创建、编辑和上传技能，供AgentTeam步骤调用。',
     skillList: '技能列表',
-    filterAllTemplates: '按工作流模板筛选',
+    filterAllTemplates: '按AgentTeam模板筛选',
     filteringByTemplate: '筛选中',
     createSkill: '创建技能',
     editSkill: '编辑技能',
@@ -789,7 +790,7 @@ export default {
     jsonInvalidServerType: 'server_type 必须是 "stdio" 或 "http"',
     jsonMissingConfig: 'JSON 必须包含 "config" 对象',
     autoInstall: '自动安装依赖',
-    autoInstallHint: '工作流执行前，如果检测到命令不存在，自动执行安装命令',
+    autoInstallHint: 'AgentTeam执行前，如果检测到命令不存在，自动执行安装命令',
     installCommand: '安装命令',
     installCommandPlaceholder: '例如: pip install mcp-server-weather 或 npm install -g @anthropic-ai/mcp-server-weather',
     testConnection: '测试连接',
@@ -862,9 +863,9 @@ export default {
     permissionDeniedHint: '请在浏览器设置中开启通知',
     enabled: '启用推送通知',
     events: '通知事件',
-    workflowSuspended: '工作流暂停等待确认',
-    suspendedTitle: '工作流等待确认',
-    suspendedBody: '工作流执行已暂停，需要您确认后继续',
+    workflowSuspended: 'AgentTeam暂停等待确认',
+    suspendedTitle: 'AgentTeam等待确认',
+    suspendedBody: 'AgentTeam执行已暂停，需要您确认后继续',
     chatEnabled: '聊天通知',
     apiUrl: '请求地址',
     apiUrlPlaceholder: 'https://your-webhook-url.com/notify',
@@ -874,18 +875,18 @@ export default {
     apiAuthPlaceholder: 'Bearer token 或 API Key',
     testSend: '发送测试',
     sending: '发送中...',
-    workflowCompleted: '工作流完成',
-    completedTitle: '工作流已完成',
-    completedBody: '工作流执行已完成',
-    workflowFailed: '工作流失败',
-    failedTitle: '工作流执行失败',
-    failedBody: '工作流执行失败，请查看详情',
+    workflowCompleted: 'AgentTeam完成',
+    completedTitle: 'AgentTeam已完成',
+    completedBody: 'AgentTeam执行已完成',
+    workflowFailed: 'AgentTeam失败',
+    failedTitle: 'AgentTeam执行失败',
+    failedBody: 'AgentTeam执行失败，请查看详情',
     scheduler: {
       title: '调度配置',
       enableScheduler: '启用调度',
-      currentRunning: '当前运行工作流',
+      currentRunning: '当前运行AgentTeam',
       refresh: '刷新',
-      dispatchCron: '工作流调度频率',
+      dispatchCron: 'AgentTeam调度频率',
       maxConcurrent: '最大并发数',
       maxTasksPerExecution: '每次最多执行',
       triggerNow: '立即触发',
@@ -906,7 +907,7 @@ export default {
   },
   autoExecute: {
     label: '自动执行',
-    templatePlaceholder: '选择工作流模板',
+    templatePlaceholder: '选择AgentTeam模板',
   },
   preset: {
     library: '模板库',

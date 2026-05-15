@@ -14,8 +14,15 @@ const AGENT_ROLES = {
   PRODUCT_MANAGER: 'PRODUCT_MANAGER', // 产品经理
   DESIGNER: 'DESIGNER',             // 设计师
   SECURITY: 'SECURITY',             // 安全工程师
-  DATA_ENGINEER: 'DATA_ENGINEER'    // 数据工程师
+  DATA_ENGINEER: 'DATA_ENGINEER',   // 数据工程师
+  TASK_SPLITTER: 'TASK_SPLITTER'    // 任务拆分助手（内置）
 }
+
+/**
+ * Built-in roles that should not be selectable when creating or editing user agents.
+ * These roles are reserved for system-bootstrapped agents.
+ */
+export const BUILTIN_AGENT_ROLES = new Set([AGENT_ROLES.TASK_SPLITTER])
 
 /**
  * Role display configuration
@@ -25,98 +32,93 @@ export const ROLE_CONFIG = {
   [AGENT_ROLES.ARCHITECT]: {
     name: '架构师',
     nameEn: 'Architect',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m10-11h-6m-6 0H1m15.5-6.5l-4.25 4.25m-4.5 4.5L4.5 19.5m15 0l-4.25-4.25m-4.5-4.5L6.5 4.5"/></svg>',
-    gradient: 'linear-gradient(135deg, #6EDBDD, #25C6C9)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M9 21v-7h6v7"/></svg>`,
     description: '负责系统架构设计和技术选型',
     skills: ['系统设计', '技术选型', '架构评估', '微服务设计']
   },
   [AGENT_ROLES.TECH_LEAD]: {
     name: '技术负责人',
     nameEn: 'Tech Lead',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
-    gradient: 'linear-gradient(135deg, #F4D289, #EAB445)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M5 20V8l7 3 7-3v12"/></svg>`,
     description: '负责技术决策和团队协调',
     skills: ['技术决策', '代码审查', '团队协调', '技术方案设计']
   },
   [AGENT_ROLES.BACKEND_DEV]: {
     name: '后端开发',
     nameEn: 'Backend Developer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6" y2="6"/><line x1="6" y1="18" x2="6" y2="18"/></svg>',
-    gradient: 'linear-gradient(135deg, #34d399, #10b981)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r="0.6" fill="currentColor"/><circle cx="7" cy="17" r="0.6" fill="currentColor"/></svg>`,
     description: '负责后端服务和 API 开发',
     skills: ['Java', 'Spring Boot', 'RESTful API', '数据库设计']
   },
   [AGENT_ROLES.FRONTEND_DEV]: {
     name: '前端开发',
     nameEn: 'Frontend Developer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
-    gradient: 'linear-gradient(135deg, #60a5fa, #3b82f6)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
     description: '负责用户界面和交互开发',
     skills: ['Vue.js', 'React', 'TypeScript', 'CSS/SCSS']
   },
   [AGENT_ROLES.FULLSTACK_DEV]: {
     name: '全栈开发',
     nameEn: 'Fullstack Developer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7h6V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="8" y1="22" x2="8" y2="12"/><line x1="16" y1="22" x2="16" y2="12"/></svg>',
-    gradient: 'linear-gradient(135deg, #55d2d5, #25C6C9)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 7.5l9 4.5 9-4.5L12 3z"/><path d="M3 16.5 12 21l9-4.5"/><path d="M3 12l9 4.5 9-4.5"/></svg>`,
     description: '负责前后端全栈开发',
     skills: ['前后端开发', '数据库设计', 'API 集成', 'DevOps']
   },
   [AGENT_ROLES.QA_ENGINEER]: {
     name: '测试工程师',
     nameEn: 'QA Engineer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>',
-    gradient: 'linear-gradient(135deg, #f472b6, #ec4899)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>`,
     description: '负责质量保证和测试',
     skills: ['单元测试', '集成测试', '自动化测试', '性能测试']
   },
   [AGENT_ROLES.DBA]: {
     name: '数据库管理员',
     nameEn: 'DBA',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
-    gradient: 'linear-gradient(135deg, #2dd4bf, #14b8a6)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="2.5"/><path d="M20 12c0 1.4-3.6 2.5-8 2.5S4 13.4 4 12"/><path d="M4 5v14c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5V5"/></svg>`,
     description: '负责数据库设计和优化',
     skills: ['SQL 优化', '数据库设计', '数据迁移', '性能调优']
   },
   [AGENT_ROLES.DEVOPS]: {
     name: '运维工程师',
     nameEn: 'DevOps Engineer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-    gradient: 'linear-gradient(135deg, #fb923c, #f97316)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5C2 14 2 10 4.5 7.5c2-2 5-2 7-1l-2.5 2.5L11 11l3-3-2-2c2-1 5-1 7 1 2.5 2.5 2.5 6.5 0 9-2 2-5 2-7 1l2.5-2.5L13 12l-3 3 2 2c-2 1-5 1-7-1z"/></svg>`,
     description: '负责部署和运维自动化',
     skills: ['CI/CD', 'Docker', 'Kubernetes', '云原生']
   },
   [AGENT_ROLES.PRODUCT_MANAGER]: {
     name: '产品经理',
     nameEn: 'Product Manager',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
-    gradient: 'linear-gradient(135deg, #c084fc, #a855f7)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>`,
     description: '负责产品规划和需求管理',
     skills: ['需求分析', '原型设计', '用户研究', '产品规划']
   },
   [AGENT_ROLES.DESIGNER]: {
     name: '设计师',
     nameEn: 'Designer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>',
-    gradient: 'linear-gradient(135deg, #e879f9, #d946ef)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2"/><path d="M16.5 9.5a4 4 0 0 1 0 5.66L12 19.66 7.34 15a4 4 0 1 1 5.66-5.66"/></svg>`,
     description: '负责 UI/UX 设计',
     skills: ['UI 设计', 'UX 设计', '交互设计', '视觉设计']
   },
   [AGENT_ROLES.SECURITY]: {
     name: '安全工程师',
     nameEn: 'Security Engineer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="10" r="3"/></svg>',
-    gradient: 'linear-gradient(135deg, #f87171, #ef4444)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-3.5 7-9V5l-7-2-7 2v7c0 5.5 7 9 7 9z"/></svg>`,
     description: '负责安全审计和防护',
     skills: ['安全审计', '渗透测试', '代码审计', '安全加固']
   },
   [AGENT_ROLES.DATA_ENGINEER]: {
     name: '数据工程师',
     nameEn: 'Data Engineer',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
-    gradient: 'linear-gradient(135deg, #4ade80, #22c55e)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="10"/></svg>`,
     description: '负责数据处理和分析',
     skills: ['数据处理', 'ETL', '数据分析', '大数据技术']
+  },
+  [AGENT_ROLES.TASK_SPLITTER]: {
+    name: '任务拆分助手',
+    nameEn: 'Task Splitter',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
+    description: '内置角色，负责将任务拆分为可独立执行的子任务',
+    skills: ['任务拆分', '依赖分析', '需求分解']
   }
 }
 
@@ -129,8 +131,7 @@ export function getRoleConfig(role) {
   return ROLE_CONFIG[role] || {
     name: role,
     nameEn: role,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
-    gradient: 'linear-gradient(135deg, #9ca3af, #6b7280)',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>`,
     description: '',
     skills: []
   }

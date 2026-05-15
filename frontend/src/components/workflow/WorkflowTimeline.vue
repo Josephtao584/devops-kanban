@@ -1,9 +1,9 @@
 <template>
   <div class="workflow-timeline" :class="{ 'is-collapsed': isCollapsed }">
-    <!-- Workflow 标签 -->
-    <span class="workflow-label">WORKFLOW</span>
+    <!-- AgentTeam 标签 -->
+    <span class="workflow-label">AGENTTEAM</span>
 
-    <!-- 工作流标题区 -->
+    <!-- AgentTeam标题区 -->
     <div class="workflow-header">
       <div class="workflow-title">
         <el-icon class="workflow-icon"><Refresh /></el-icon>
@@ -13,7 +13,7 @@
           v-if="isWorkflowPending"
           class="start-workflow-btn"
           @click="handleStartWorkflow"
-          title="启动工作流"
+          title="启动AgentTeam"
         >
           ▶ 启动
         </button>
@@ -29,7 +29,7 @@
         <button
           class="collapse-btn"
           @click="toggleCollapse"
-          :title="isCollapsed ? '展开工作流' : '折叠工作流'"
+          :title="isCollapsed ? '展开AgentTeam' : '折叠AgentTeam'"
         >
           <el-icon>
             <ArrowUp v-if="!isCollapsed" />
@@ -269,7 +269,7 @@ const hasForwardConnectors = computed(() => {
   return sortedStages.value.length > 0
 })
 
-// 判断工作流是否处于待运行状态（所有节点都是 PENDING 或 TODO）
+// 判断AgentTeam是否处于待运行状态（所有节点都是 PENDING 或 TODO）
 const isWorkflowPending = computed(() => {
   if (!props.workflow?.stages) return false
   const allNodes = getAllNodes(props.workflow)
@@ -277,12 +277,12 @@ const isWorkflowPending = computed(() => {
   return allNodes.every(node => node.status === 'PENDING' || node.status === 'TODO')
 })
 
-// 启动工作流
+// 启动AgentTeam
 const handleStartWorkflow = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要启动此工作流吗？系统将按顺序执行各阶段任务节点。',
-      '启动工作流',
+      '确定要启动此AgentTeam吗？系统将按顺序执行各阶段任务节点。',
+      '启动AgentTeam',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -921,7 +921,7 @@ onUnmounted(() => {
   background: var(--text-secondary, #6b7280);
 }
 
-/* 启动工作流按钮 */
+/* 启动AgentTeam按钮 */
 .start-workflow-btn {
   margin-left: 10px;
   padding: 4px 12px;

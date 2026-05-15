@@ -38,9 +38,11 @@
 
 .panel-header h3 {
   margin: 0;
-  font-size: var(--font-size-sm);
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .empty-list, .loading-state {
@@ -74,7 +76,7 @@
 }
 
 .detail-header {
-  padding: 14px 16px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   background: var(--panel-bg);
@@ -83,6 +85,7 @@
 .title-left {
   display: flex;
   align-items: center;
+  gap: 10px;
 }
 
 .header-actions {
@@ -100,58 +103,68 @@
 
 /* Info section */
 .info-section {
-  padding: 12px 16px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border-color);
   background: var(--panel-bg);
+  display: grid;
+  gap: 8px;
 }
 
 .info-item {
   display: flex;
   align-items: center;
-  padding: 6px 0;
+  padding: 0;
+  gap: 12px;
 }
 
 .info-item:not(:last-child) {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: none;
 }
 
 .info-label {
-  width: 90px;
+  width: 96px;
   flex-shrink: 0;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .info-value {
+  flex: 1;
+  min-width: 0;
   color: var(--text-primary);
   font-size: 13px;
+  font-weight: 500;
 }
 
 .description-text {
   word-break: break-word;
   line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .section-label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
-  margin-bottom: 8px;
-  font-weight: 500;
+  margin-bottom: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.05em;
 }
 
 /* Buttons */
 .btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s ease;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -163,28 +176,32 @@
 }
 
 .btn-sm {
-  padding: 4px 10px;
+  padding: 4px 12px;
   font-size: 12px;
 }
 
 .btn-primary {
-  background: var(--accent-color);
-  color: white;
+  background: var(--button-primary-gradient, var(--accent-color));
+  color: var(--button-primary-text, #fff);
+  border-color: var(--button-primary-active-border, var(--accent-color));
+  box-shadow: var(--button-primary-shadow, none);
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--button-primary-gradient-hover, var(--accent-color));
+  box-shadow: var(--button-primary-shadow-hover, none);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
+  background: var(--button-surface-bg, var(--bg-secondary));
+  color: var(--button-surface-text, var(--text-secondary));
+  border: 1px solid var(--button-surface-border, var(--border-color));
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  border-color: var(--border-color);
+  background: var(--button-surface-hover-bg, var(--bg-tertiary));
+  border-color: var(--button-surface-hover-border, var(--border-color));
+  color: var(--button-surface-hover-text, var(--text-primary));
 }
 
 .btn-danger {

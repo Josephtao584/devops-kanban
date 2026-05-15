@@ -99,17 +99,44 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
   min-height: 220px;
   display: flex;
   flex-direction: column;
+  position: relative;
   border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdfd 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 1px 2px rgba(15, 35, 50, 0.03);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  overflow: hidden;
+}
+
+.project-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-color) 0%, rgba(124, 92, 246, 0.6) 100%);
+  opacity: 0;
+  transition: opacity 0.22s ease;
 }
 
 .project-card:hover {
-  border-color: rgba(37, 198, 201, 0.24);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: rgba(37, 198, 201, 0.35);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 8px 18px rgba(15, 35, 50, 0.06),
+    0 24px 40px rgba(15, 35, 50, 0.08);
+}
+
+.project-card:hover::before {
+  opacity: 1;
 }
 
 .project-card :deep(.el-card__header) {
-  padding: 16px 18px 0;
+  padding: 18px 20px 4px;
   border-bottom: none;
 }
 
@@ -117,12 +144,13 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 14px 18px 16px;
+  padding: 12px 20px 16px;
 }
 
 .project-card :deep(.el-card__footer) {
-  padding: 0 18px 16px;
-  border-top: none;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(15, 35, 50, 0.05);
+  background: linear-gradient(180deg, transparent, rgba(37, 198, 201, 0.025));
 }
 
 .card-header {
@@ -140,15 +168,18 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
 }
 
 .project-symbol {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--accent-color-strong);
-  background: var(--surface-tint-strong);
+  background:
+    linear-gradient(135deg, rgba(37, 198, 201, 0.18) 0%, rgba(37, 198, 201, 0.06) 100%);
+  border: 1px solid rgba(37, 198, 201, 0.2);
   flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(15, 35, 50, 0.04);
 }
 
 .project-name-block {
@@ -161,12 +192,19 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
   line-height: 1.4;
   font-weight: 700;
   color: var(--el-text-color-primary);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .project-mode {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .project-card__body {
@@ -178,7 +216,7 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
   min-height: 60px;
   font-size: 13px;
   color: var(--el-text-color-secondary);
-  line-height: 1.6;
+  line-height: 1.65;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -189,12 +227,21 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
 .project-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+}
+
+.project-tags :deep(.el-tag) {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  border-width: 1px;
 }
 
 .project-meta {
   margin-top: auto;
-  padding-top: 6px;
+  padding-top: 4px;
 }
 
 .meta-row {
@@ -205,14 +252,18 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
 }
 
 .meta-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .meta-value {
   font-size: 12px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
 }
 
 .card-footer {
@@ -223,13 +274,45 @@ const formattedCreatedAt = computed(() => formatDate(props.project.createdAt))
 }
 
 .footer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  font-weight: 500;
+}
+
+.footer-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18);
 }
 
 .footer-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   font-weight: 600;
   color: var(--accent-color-strong);
+  transition: gap 0.18s ease;
+}
+
+.footer-action::after {
+  content: '→';
+  font-size: 14px;
+  font-weight: 500;
+  transition: transform 0.18s ease;
+}
+
+.project-card:hover .footer-action {
+  gap: 8px;
+}
+
+.project-card:hover .footer-action::after {
+  transform: translateX(2px);
 }
 </style>
