@@ -36,6 +36,8 @@ process.on('SIGTERM', () => {
 process.on('uncaughtException', (error) => {
   console.error('💥 UNCAUGHT EXCEPTION:', error);
   console.error('Stack:', error.stack);
+  // Process state is undefined after uncaught exception — must restart
+  setTimeout(() => process.exit(1), 1000);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -44,6 +46,8 @@ process.on('unhandledRejection', (reason, promise) => {
   if (reason instanceof Error) {
     console.error('Stack:', reason.stack);
   }
+  // Prevent data corruption from continuing in undefined state
+  setTimeout(() => process.exit(1), 1000);
 });
 
 await start();

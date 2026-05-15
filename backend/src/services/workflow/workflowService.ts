@@ -1,5 +1,5 @@
 import { existsSync } from 'fs';
-import { WorkflowRunRepository } from '../../repositories/workflowRunRepository.js';
+import { WorkflowRunRepository, sharedWorkflowRunRepo } from '../../repositories/workflowRunRepository.js';
 import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
@@ -58,7 +58,7 @@ class WorkflowService {
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
   } = {}) {
-    this.workflowRunRepo = workflowRunRepo || new WorkflowRunRepository();
+    this.workflowRunRepo = workflowRunRepo || sharedWorkflowRunRepo;
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
     this.instanceService = instanceService || new WorkflowInstanceService();
@@ -150,10 +150,6 @@ class WorkflowService {
     }
 
     const executionPath = await this.resolveExecutionPath(task);
-    const existing = await this.workflowRunRepo.findLatestByTaskId(taskId);
-    if (existing && (existing.status === 'RUNNING' || existing.status === 'PENDING' || existing.status === 'SUSPENDED')) {
-      throw new ConflictError('任务已有活跃的工作流运行', 'Task already has an active workflow run', { taskId, existingRunId: existing.id });
-    }
 
     if (!options.workflowTemplateId?.trim()) {
       throw new ValidationError('工作流模板 ID 不能为空', 'workflow template id is required');
@@ -165,7 +161,10 @@ class WorkflowService {
       : await this.instanceService.createFromTemplate(options.workflowTemplateId);
     await this.validateInstanceAgents(instance);
 
-    const run = await this.workflowRunRepo.create({
+    // Atomically check for active runs and create a new one if none exist.
+    // This prevents race conditions where two concurrent calls both see no
+    // active run and both create one.
+    const result = await this.workflowRunRepo.createIfNoActiveRun({
       task_id: taskId,
       workflow_instance_id: instance.instance_id,
       mastra_run_id: null,
@@ -177,11 +176,22 @@ class WorkflowService {
       context: {},
     });
 
+    if (result.existing) {
+      throw new ConflictError('任务已有活跃的工作流运行', 'Task already has an active workflow run', { taskId, existingRunId: result.existing.id });
+    }
+
+    const run = result.created;
     await this.taskRepo.update(taskId, { workflow_run_id: run.id });
     const project = await this.projectRepo.findById(task.project_id);
     const projectEnv = project?.env || {};
     this.executeWorkflow(run.id, { ...task, execution_path: executionPath, project_env: projectEnv }, instance).catch((err) => {
-      logger.error('WorkflowService', `Fatal error in workflow run #${run.id}: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('WorkflowService', `Fatal error in workflow run #${run.id}: ${errorMessage}`);
+      this.workflowRunRepo.update(run.id, {
+        status: 'FAILED',
+        current_step: null,
+        context: { error: errorMessage },
+      }).catch(() => {});
     });
 
     return run;
@@ -488,7 +498,13 @@ class WorkflowService {
     // Fire-and-forget — timeTravelStream.result resolves when the (re-run)
     // workflow finishes or suspends. Lifecycle callbacks drive state updates.
     this.executeRetry(runId, mastraRun, stepId, task, executionPath, projectEnv).catch((err) => {
-      logger.error('WorkflowService', `Fatal error in retryStep run #${runId}: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('WorkflowService', `Fatal error in retryStep run #${runId}: ${errorMessage}`);
+      this.workflowRunRepo.update(runId, {
+        status: 'FAILED',
+        current_step: null,
+        context: { error: errorMessage },
+      }).catch(() => {});
     });
   }
 
@@ -548,7 +564,13 @@ class WorkflowService {
 
     // Execute retry in background (non-blocking)
     this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath, projectEnv).catch((err) => {
-      logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${errorMessage}`);
+      this.workflowRunRepo.update(runId, {
+        status: 'FAILED',
+        current_step: null,
+        context: { error: errorMessage },
+      }).catch(() => {});
     });
 
     return await this.workflowRunRepo.findById(runId);
@@ -586,6 +608,11 @@ class WorkflowService {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.lifecycle.onWorkflowError(runId, errorMessage).catch(() => {});
+      await this.workflowRunRepo.update(runId, {
+        status: 'FAILED',
+        current_step: null,
+        context: { error: errorMessage },
+      }).catch(() => {});
       await this.resetTaskToTodo(task.id);
     }
   }

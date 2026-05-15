@@ -100,34 +100,49 @@ class BaseRepository<T extends BaseEntity> {
   }
 
   /**
-   * Update an existing record.
+   * Update an existing record (transactional to prevent lost updates).
    */
   async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
     return withRetry(async () => {
-      const existing = await this.findById(entityId);
-      if (!existing) return null;
+      const txn = await this.client.transaction('write');
+      try {
+        const existingResult = await txn.execute({
+          sql: `SELECT * FROM "${this.tableName}" WHERE "id" = ?`,
+          args: [entityId],
+        });
+        if (existingResult.rows.length === 0) {
+          txn.close();
+          return null;
+        }
 
-      const now = new Date().toISOString();
-      const data = this.serializeRow(entityData as Partial<T>);
+        const now = new Date().toISOString();
+        const data = this.serializeRow(entityData as Partial<T>);
 
-      // Filter out id, undefined values, and auto-managed fields
-      const definedEntries = Object.entries(data).filter(
-        ([key, value]) => key !== 'id' && key !== 'created_at' && key !== 'updated_at' && value !== undefined
-      );
+        const definedEntries = Object.entries(data).filter(
+          ([key, value]) => key !== 'id' && key !== 'created_at' && key !== 'updated_at' && value !== undefined
+        );
 
-      if (definedEntries.length === 0) return existing;
+        if (definedEntries.length === 0) {
+          txn.close();
+          return this.parseRow(existingResult.rows[0] as Record<string, unknown>);
+        }
 
-      const setClauses = definedEntries.map(([key]) => `"${key}" = ?`);
-      const values = definedEntries.map(([, value]) => value);
+        const setClauses = definedEntries.map(([key]) => `"${key}" = ?`);
+        const values = definedEntries.map(([, value]) => value);
 
-      const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')}, "updated_at" = ? WHERE "id" = ?`;
-      await this.client.execute({
-        sql,
-        args: [...values as InValue[], now, entityId],
-      });
+        await txn.execute({
+          sql: `UPDATE "${this.tableName}" SET ${setClauses.join(', ')}, "updated_at" = ? WHERE "id" = ?`,
+          args: [...values as InValue[], now, entityId],
+        });
 
-      // Re-fetch to get properly parsed row (e.g. JSON fields parsed correctly)
-      return await this.findById(entityId);
+        await txn.commit();
+        txn.close();
+        return await this.findById(entityId);
+      } catch (error) {
+        await txn.rollback();
+        txn.close();
+        throw error;
+      }
     });
   }
 
