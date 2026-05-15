@@ -298,18 +298,21 @@
                   />
                 </div>
 
-                <div class="editor-field editor-field--with-switch">
+                <div class="editor-field editor-field--full">
                   <label>{{ $t('workflowTemplate.executor') }}</label>
-                  <div class="editor-field__row">
-                    <el-select v-model="selectedStep.agentId" clearable style="flex: 1">
-                      <el-option
-                        v-for="agent in agents"
-                        :key="agent.id"
-                        :label="formatWorkflowAgentOption(agent)"
-                        :value="agent.id"
-                        :disabled="agent.enabled === false"
-                      />
-                    </el-select>
+                  <el-select v-model="selectedStep.agentId" clearable style="width: 100%">
+                    <el-option
+                      v-for="agent in agents"
+                      :key="agent.id"
+                      :label="formatWorkflowAgentOption(agent)"
+                      :value="agent.id"
+                      :disabled="agent.enabled === false"
+                    />
+                  </el-select>
+                </div>
+
+                <div class="editor-field editor-field--full">
+                  <div class="editor-field__row editor-field__row--options">
                     <el-switch
                       v-model="selectedStep.requiresConfirmation"
                       :active-text="$t('workflowTemplate.requiresConfirmation')"
@@ -1723,6 +1726,12 @@ const handlePreviewPrompt = async () => {
 }
 
 .editor-field--with-switch .editor-field__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.editor-field__row--options {
   display: flex;
   align-items: center;
   gap: 12px;
