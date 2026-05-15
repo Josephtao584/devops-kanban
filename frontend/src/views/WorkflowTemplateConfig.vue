@@ -234,9 +234,6 @@
                             <span v-if="previewSteps[index]?.requiresConfirmation" class="workflow-chip workflow-chip--warning">
                               {{ $t('workflowTemplate.requiresConfirmation') }}
                             </span>
-                            <span v-if="previewSteps[index]?.maxRetries > 0" class="workflow-chip workflow-chip--info">
-                              重试{{ previewSteps[index].maxRetries }}
-                            </span>
                           </div>
                           <div v-if="previewSteps[index]?.skillNames?.length" class="workflow-step-card__skills">
                             <span v-for="skill in previewSteps[index].skillNames" :key="skill.name" class="workflow-skill-tag">{{ skill.name }}</span>
@@ -320,16 +317,6 @@
                     <el-switch
                       v-model="selectedStep.canEarlyExit"
                       :active-text="$t('workflowTemplate.canEarlyExit')"
-                    />
-                    <span class="retries-label">失败重试</span>
-                    <el-input-number
-                      v-model="selectedStep.maxRetries"
-                      :min="0"
-                      :max="3"
-                      :step="1"
-                      size="small"
-                      controls-position="right"
-                      style="width: 80px"
                     />
                   </div>
                 </div>
@@ -1735,13 +1722,6 @@ const handlePreviewPrompt = async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.retries-label {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
-  white-space: nowrap;
 }
 
 .step-type-hint {

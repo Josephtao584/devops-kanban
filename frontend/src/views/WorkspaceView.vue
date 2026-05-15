@@ -241,6 +241,7 @@
             @show-split-suggestions="showSplitSuggestionsDialog = true"
             @confirm="onWorkflowConfirm"
             @workflow-completed="onWorkflowCompleted"
+            @auto-retry-change="onAutoRetryChange"
           />
         </div>
 
@@ -452,7 +453,7 @@ import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEdito
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
 import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
-import { resumeWorkflow } from '../api/workflow.js'
+import { resumeWorkflow, retryWorkflow } from '../api/workflow.js'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useProjectStore } from '../stores/projectStore.js'
 import { useAgentStore } from '../stores/agentStore.js'
@@ -479,6 +480,38 @@ const selectedProjectId = ref(route.params.projectId ? Number(route.params.proje
 // Active step session info from the current workflow run
 const activeSession = ref(null) // { session_id, step_name, assembled_prompt }
 const currentRun = ref(null)
+
+// Auto-retry: when the workflow run becomes FAILED, automatically retry once
+const autoRetryEnabled = ref(false)
+const prevRunStatus = ref(null)
+
+function onAutoRetryChange(enabled) {
+  autoRetryEnabled.value = enabled
+}
+
+async function autoRetryRun() {
+  const status = currentRun.value?.status
+  const runId = currentRun.value?.id || selectedTask.value?.workflow_run_id
+  if (!runId || status !== 'FAILED' || !autoRetryEnabled.value) return
+
+  // Only trigger retry on first detection of FAILED state
+  if (prevRunStatus.value !== 'FAILED') {
+    return
+  }
+  prevRunStatus.value = 'RETRYING'
+  try {
+    ElMessage.info('工作流失败，正在自动重试...')
+    const resp = await retryWorkflow(runId)
+    if (resp?.success) {
+      ElMessage.success('已自动重新执行')
+      await onWorkflowRefresh()
+    } else {
+      ElMessage.error(resp?.message || '自动重试失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.message || '自动重试失败')
+  }
+}
 
 // When user manually clicks a step in CurrentWorkflow, show that step's session
 const userSelectedStep = ref(null) // { step_id, name, session_id, assembled_prompt }
@@ -1022,6 +1055,16 @@ function onRunUpdate(run) {
     activeSession.value = null
     return
   }
+
+  // Track status transitions for auto-retry
+  const newStatus = run.status
+  if (prevRunStatus.value && newStatus === 'FAILED' && prevRunStatus.value !== 'FAILED' && autoRetryEnabled.value) {
+    prevRunStatus.value = 'FAILED'
+    autoRetryRun()
+  } else {
+    prevRunStatus.value = newStatus || null
+  }
+
   // Preserve manual step selection; only auto-select on first run or no manual selection
   if (!userSelectedStep.value) {
     // Priority: running step first, then suspended, then last step with session

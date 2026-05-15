@@ -223,6 +223,9 @@ class WorkflowTemplateService {
         instructionPrompt: step.instructionPrompt,
         agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
         requiresConfirmation: step.requiresConfirmation || false,
+        canEarlyExit: step.canEarlyExit || false,
+        type: step.type,
+        maxRetries: step.maxRetries,
       })),
     }));
 
@@ -296,6 +299,9 @@ class WorkflowTemplateService {
           instructionPrompt: step.instructionPrompt,
           agentId,
           requiresConfirmation: step.requiresConfirmation || false,
+          canEarlyExit: step.canEarlyExit,
+          type: step.type,
+          maxRetries: step.maxRetries,
         });
       });
 
