@@ -6,8 +6,7 @@
         <div class="hero-banner__decor hero-banner__decor--b"></div>
         <div class="hero-banner__inner">
           <div class="hero-banner__content">
-            <span class="hero-banner__eyebrow">Cooperation Platform</span>
-            <h1 class="hero-banner__title">{{ $t('project.workspaceTitle') }}</h1>
+            <h1 class="hero-banner__title">Cooperation Platform</h1>
             <p class="hero-banner__description">{{ $t('project.homeDescription') }}</p>
           </div>
           <div class="hero-banner__actions">
@@ -241,20 +240,6 @@ watch(() => dialogVisible.value, (newValue) => {
   flex: 1;
   min-width: 0;
   max-width: 720px;
-}
-
-.hero-banner__eyebrow {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent-color-strong);
-  background: var(--surface-tint-strong);
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(37, 198, 201, 0.16);
-  margin-bottom: 14px;
 }
 
 .hero-banner__title {
