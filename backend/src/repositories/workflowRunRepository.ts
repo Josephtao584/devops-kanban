@@ -113,6 +113,63 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
+  /**
+   * Atomically check for active runs and create a new one if none exist.
+   * Uses the serialization queue to prevent race conditions where two
+   * concurrent calls both see no active run and both create one.
+   */
+  async createIfNoActiveRun(payload: {
+    task_id: number;
+    workflow_instance_id: string;
+    mastra_run_id: string | null;
+    status: string;
+    current_step: string | null;
+    steps: unknown;
+    worktree_path: string;
+    branch: string;
+    context: Record<string, unknown>;
+  }): Promise<{ created: WorkflowRunEntity; existing: null } | { created: null; existing: WorkflowRunEntity }> {
+    return this.serializeMutation(async () => {
+      const activeResult = await this.client.execute({
+        sql: "SELECT * FROM workflow_runs WHERE task_id = ? AND status IN ('RUNNING', 'PENDING', 'SUSPENDED') ORDER BY created_at DESC, id DESC LIMIT 1",
+        args: [payload.task_id],
+      });
+
+      if (activeResult.rows.length > 0) {
+        const existing = this.parseRow(activeResult.rows[0] as Record<string, unknown>);
+        return { created: null, existing };
+      }
+
+      const now = new Date().toISOString();
+      const serializedSteps = JSON.stringify(payload.steps);
+      const serializedContext = JSON.stringify(payload.context);
+
+      const insertResult = await this.client.execute({
+        sql: `INSERT INTO workflow_runs (task_id, workflow_instance_id, mastra_run_id, status, current_step, steps, worktree_path, branch, context, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          payload.task_id,
+          payload.workflow_instance_id,
+          payload.mastra_run_id,
+          payload.status,
+          payload.current_step,
+          serializedSteps,
+          payload.worktree_path,
+          payload.branch,
+          serializedContext,
+          now,
+          now,
+        ],
+      });
+
+      const created = await this.findById(Number(insertResult.lastInsertRowid));
+      if (!created) {
+        throw new Error(`Failed to fetch created workflow run with id ${insertResult.lastInsertRowid}`);
+      }
+      return { created, existing: null };
+    });
+  }
+
   override async update(runId: number, entityData: { status?: string; current_step?: string | null; context?: Record<string, unknown>; mastra_run_id?: string }): Promise<WorkflowRunEntity | null> {
     return this.serializeMutation(async () => {
       return super.update(runId, entityData);
@@ -155,4 +212,5 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
 }
 
 export { WorkflowRunRepository };
+export const sharedWorkflowRunRepo = new WorkflowRunRepository();
 export type { UpdateWorkflowStepRecord };
