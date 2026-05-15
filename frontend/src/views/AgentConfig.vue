@@ -80,9 +80,6 @@
                 <input type="checkbox" :checked="selectedAgent.enabled" @change="toggleEnabled(selectedAgent)" />
                 <span class="slider"></span>
               </label>
-              <span class="toggle-state" :class="{ 'is-off': !selectedAgent.enabled }">
-                {{ selectedAgent.enabled ? $t('common.enabled') : $t('common.disabled') }}
-              </span>
             </div>
             <div class="info-item info-item--stacked">
               <span class="info-label">{{ $t('agent.description') }}</span>
@@ -235,7 +232,7 @@ import { useI18n } from 'vue-i18n'
 import { useAgentStore } from '../stores/agentStore'
 import { useSkillStore } from '../stores/skillStore'
 import { useMcpServerStore } from '../stores/mcpServerStore'
-import { ROLE_CONFIG, getRoleConfig } from '../constants/agent'
+import { ROLE_CONFIG, BUILTIN_AGENT_ROLES, getRoleConfig } from '../constants/agent'
 import BaseDialog from '../components/BaseDialog.vue'
 import AgentChatPanel from '../components/AgentChatPanel.vue'
 
@@ -341,10 +338,12 @@ resetFormState()
 
 // Get role options for select dropdown
 const roleOptions = computed(() => {
-  return Object.entries(ROLE_CONFIG).map(([key, config]) => ({
-    value: key,
-    label: locale.value === 'zh' ? config.name : config.nameEn
-  }))
+  return Object.entries(ROLE_CONFIG)
+    .filter(([key]) => !BUILTIN_AGENT_ROLES.has(key))
+    .map(([key, config]) => ({
+      value: key,
+      label: locale.value === 'zh' ? config.name : config.nameEn
+    }))
 })
 
 const toast = ref({ show: false, message: '', type: 'success' })
@@ -705,21 +704,6 @@ onMounted(loadAgents)
 
 .info-item--stacked .info-value {
   width: 100%;
-}
-
-.toggle-state {
-  font-size: 12px;
-  font-weight: 600;
-  color: #065f46;
-  background: #d1fae5;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
-}
-
-.toggle-state.is-off {
-  color: #991b1b;
-  background: #fee2e2;
 }
 
 /* Skills section */

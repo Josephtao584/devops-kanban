@@ -14,8 +14,15 @@ const AGENT_ROLES = {
   PRODUCT_MANAGER: 'PRODUCT_MANAGER', // 产品经理
   DESIGNER: 'DESIGNER',             // 设计师
   SECURITY: 'SECURITY',             // 安全工程师
-  DATA_ENGINEER: 'DATA_ENGINEER'    // 数据工程师
+  DATA_ENGINEER: 'DATA_ENGINEER',   // 数据工程师
+  TASK_SPLITTER: 'TASK_SPLITTER'    // 任务拆分助手（内置）
 }
+
+/**
+ * Built-in roles that should not be selectable when creating or editing user agents.
+ * These roles are reserved for system-bootstrapped agents.
+ */
+export const BUILTIN_AGENT_ROLES = new Set([AGENT_ROLES.TASK_SPLITTER])
 
 /**
  * Role display configuration
@@ -105,6 +112,13 @@ export const ROLE_CONFIG = {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="10"/></svg>`,
     description: '负责数据处理和分析',
     skills: ['数据处理', 'ETL', '数据分析', '大数据技术']
+  },
+  [AGENT_ROLES.TASK_SPLITTER]: {
+    name: '任务拆分助手',
+    nameEn: 'Task Splitter',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
+    description: '内置角色，负责将任务拆分为可独立执行的子任务',
+    skills: ['任务拆分', '依赖分析', '需求分解']
   }
 }
 
