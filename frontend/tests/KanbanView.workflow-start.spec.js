@@ -417,7 +417,8 @@ describe('KanbanView workflow start entrypoint', () => {
             agentId: 11,
             requiresConfirmation: false,
             canEarlyExit: false,
-            type: 'DEFAULT'
+            type: 'DEFAULT',
+            maxRetries: 0,
           },
           {
             id: 'fix',
@@ -426,7 +427,8 @@ describe('KanbanView workflow start entrypoint', () => {
             agentId: 12,
             requiresConfirmation: false,
             canEarlyExit: false,
-            type: 'DEFAULT'
+            type: 'DEFAULT',
+            maxRetries: 0,
           }
         ]
       }
@@ -478,7 +480,8 @@ describe('KanbanView workflow start entrypoint', () => {
             agentId: 11,
             requiresConfirmation: false,
             canEarlyExit: false,
-            type: 'DEFAULT'
+            type: 'DEFAULT',
+            maxRetries: 0,
           },
           {
             id: 'fix',
@@ -487,7 +490,8 @@ describe('KanbanView workflow start entrypoint', () => {
             agentId: 12,
             requiresConfirmation: false,
             canEarlyExit: false,
-            type: 'DEFAULT'
+            type: 'DEFAULT',
+            maxRetries: 0,
           }
         ]
       }

@@ -323,7 +323,7 @@ describe('StepSessionPanel', () => {
     expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
   })
 
-  it('hides thinking messages by default via the hide-thinking checkbox', async () => {
+  it('shows thinking messages by default via the thinking checkbox', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 3, hasMore: false })
     eventsRef.value = [
       { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} },
@@ -335,19 +335,19 @@ describe('StepSessionPanel', () => {
 
     await flushPromises()
 
-    // hideThinkingMessages defaults to true, so thinking is filtered out
+    // hideThinkingMessages defaults to false, so thinking is shown
     const stubs = wrapper.findAll('.session-event-renderer-stub')
-    expect(stubs).toHaveLength(2)
-    expect(stubs.map(e => e.attributes('data-seq'))).toEqual(['1', '3'])
+    expect(stubs).toHaveLength(3)
+    expect(stubs.map(e => e.attributes('data-seq'))).toEqual(['1', '2', '3'])
 
     const labels = wrapper.findAll('.auto-scroll-check')
     const hideThinkingLabel = labels.find(l => l.text().includes('隐藏思考过程'))
     expect(hideThinkingLabel).toBeTruthy()
     const hideThinkingCheck = hideThinkingLabel.find('.check-box')
-    expect(hideThinkingCheck.classes()).toContain('checked')
+    expect(hideThinkingCheck.classes()).not.toContain('checked')
   })
 
-  it('shows thinking messages when the hide-thinking checkbox is unchecked', async () => {
+  it('hides thinking messages when the hide-thinking checkbox is clicked', async () => {
     loadInitial.mockResolvedValue({ events: [], lastSeq: 2, hasMore: false })
     eventsRef.value = [
       { id: 1, seq: 1, kind: 'message', role: 'assistant', content: 'hello', payload: {} },
@@ -358,19 +358,19 @@ describe('StepSessionPanel', () => {
 
     await flushPromises()
 
-    // Default: thinking hidden, only 1 event shown
-    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
+    // Default: thinking shown, both events
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
 
     const labels = wrapper.findAll('.auto-scroll-check')
     const hideThinkingLabel = labels.find(l => l.text().includes('隐藏思考过程'))
 
-    // Click to show thinking
+    // Click to hide thinking
     await hideThinkingLabel.trigger('click')
     await flushPromises()
 
     const hideThinkingCheck = hideThinkingLabel.find('.check-box')
-    expect(hideThinkingCheck.classes()).not.toContain('checked')
-    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
+    expect(hideThinkingCheck.classes()).toContain('checked')
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(1)
   })
 
   it('keeps tool filter and thinking filter independent', async () => {
@@ -386,16 +386,16 @@ describe('StepSessionPanel', () => {
 
     await flushPromises()
 
-    // Both filters default to true: only non-tool, non-thinking events shown
-    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
+    // hideToolMessages=true, hideThinkingMessages=false: non-tool events including thinking
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(3)
 
-    // Uncheck thinking filter: now 3 events (still hiding tool)
+    // Check thinking filter: now 2 events (still hiding tool)
     const labels = wrapper.findAll('.auto-scroll-check')
     const hideThinkingLabel = labels.find(l => l.text().includes('隐藏思考过程'))
     await hideThinkingLabel.trigger('click')
     await flushPromises()
 
-    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(3)
+    expect(wrapper.findAll('.session-event-renderer-stub')).toHaveLength(2)
   })
 
   it('keeps metadata subordinate to the conversation title', async () => {

@@ -151,10 +151,6 @@ export function buildWorkflowFromInstance(
             if (!project) throw new Error(`Project ${task.project_id} not found`);
 
             const allProjects = await projectRepo.findAll();
-            const availableProjectsBlock = allProjects
-              .filter(p => p.id !== project.id)
-              .map(p => `- ${p.name} (id=${p.id}) → ${p.git_url ?? '(no git_url)'}`)
-              .join('\n');
 
             // inputData can be firstStepInputSchema or stepOutputSchema — summary only on stepOutputSchema
             const lastStepOutput = 'summary' in (inputData as Record<string, unknown>)
@@ -167,7 +163,6 @@ export function buildWorkflowFromInstance(
               project_name: project.name,
               project_repo_url: project.git_url ?? '',
               last_step_output: lastStepOutput,
-              available_projects: availableProjectsBlock || '(no other projects)',
             }).replaceAll('\n', '\\n');
 
             // Execute agent with split prompt

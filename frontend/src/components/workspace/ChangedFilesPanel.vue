@@ -1,21 +1,17 @@
 <template>
   <div class="changed-files-panel">
-    <!-- No task / no worktree -->
     <div v-if="!taskId" class="panel-empty">请选择任务</div>
-    <div v-else-if="!task?.worktree_path" class="panel-empty">
-      <span>该任务尚未创建 worktree</span>
-      <el-button size="small" type="primary" :loading="creating" @click="handleCreateWorktree">
-        创建 worktree
-      </el-button>
-    </div>
     <div v-else-if="loading" class="panel-empty"><el-skeleton :rows="5" animated /></div>
     <div v-else-if="loadError" class="panel-empty">
       <span style="color: var(--danger-strong);">{{ loadError }}</span>
       <el-button size="small" @click="loadChanges">重试</el-button>
     </div>
+    <div v-else-if="noRepo" class="panel-empty">
+      <span>当前项目未配置本地仓库</span>
+    </div>
     <div v-else class="panel-body">
-      <!-- Worktree info bar -->
-      <div class="worktree-info">
+      <!-- Worktree / Project repo info bar -->
+      <div v-if="isWorktree" class="worktree-info">
         <div class="worktree-info-row">
           <span class="info-item">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -44,6 +40,17 @@
             {{ shortPath(task.worktree_path) }}
           </span>
         </div>
+      </div>
+      <div v-else class="project-repo-info">
+        <span class="project-repo-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          项目仓库
+        </span>
+        <el-button size="small" type="primary" :loading="creating" @click="handleCreateWorktree">
+          创建 worktree 隔离到任务分支
+        </el-button>
       </div>
 
       <!-- Change stats -->
@@ -82,7 +89,7 @@
         </el-button>
         <el-button
           size="small"
-          type="success"
+          :type="isWorktree ? 'success' : 'warning'"
           @click="handleMerge"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
@@ -92,6 +99,21 @@
           </svg>
           合入
         </el-button>
+        <el-button
+          v-if="isWorktree"
+          size="small"
+          :loading="mergingToCurrent"
+          @click="handleMergeIntoCurrent"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
+          合入当前分支
+        </el-button>
+        <span v-if="!isWorktree" class="no-worktree-warning">未隔离分支，提交将直接作用于项目仓库</span>
       </div>
 
       <!-- File list -->
@@ -150,7 +172,7 @@
       v-if="showCommitDialog && task?.project_id && taskId > 0"
       :project-id="task.project_id"
       :task-id="taskId"
-      :current-branch="task.worktree_branch"
+      :current-branch="currentBranch || task.worktree_branch"
       @close="showCommitDialog = false"
       @committed="onCommitted"
     />
@@ -159,7 +181,7 @@
       v-if="showMergeDialog && task?.project_id && taskId > 0"
       :project-id="task.project_id"
       :task-id="taskId"
-      :source-branch="task.worktree_branch"
+      :source-branch="currentBranch || task.worktree_branch"
       @close="showMergeDialog = false"
       @merged="onMerged"
     />
@@ -169,7 +191,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getUncommittedChanges, getDiff, pushWorktree } from '../../api/git.js'
+import { getUncommittedChanges, getDiff, pushWorktree, mergeWorktreeIntoCurrent } from '../../api/git.js'
 import { createTaskWorktree, deleteTaskWorktree } from '../../api/taskWorktree.js'
 import CommitDialog from '../CommitDialog.vue'
 import MergeDialog from '../MergeDialog.vue'
@@ -190,9 +212,13 @@ const diffLoading = ref(null)
 const creating = ref(false)
 const deleting = ref(false)
 const pushing = ref(false)
+const mergingToCurrent = ref(false)
 const showCommitDialog = ref(false)
 const showMergeDialog = ref(false)
 const loadError = ref(null)
+const isWorktree = ref(true)
+const noRepo = ref(false)
+const currentBranch = ref(null)
 const LOAD_TIMEOUT = 10000
 
 function withTimeout(promise, ms) {
@@ -208,7 +234,7 @@ const deletedCount = computed(() => changes.value.filter(f => f.status === 'dele
 const untrackedCount = computed(() => changes.value.filter(f => f.status === 'untracked').length)
 
 async function loadChanges() {
-  if (!props.taskId || !props.projectId || !props.task?.worktree_path) {
+  if (!props.taskId || !props.projectId) {
     changes.value = []
     return
   }
@@ -216,8 +242,20 @@ async function loadChanges() {
   loadError.value = null
   try {
     const resp = await withTimeout(getUncommittedChanges(props.projectId, props.taskId), LOAD_TIMEOUT)
-    if (resp?.success) changes.value = resp.data || []
-    else {
+    if (resp?.success) {
+      const data = resp.data
+      if (typeof data === 'object' && data !== null) {
+        changes.value = data.changes || []
+        isWorktree.value = data.isWorktree ?? true
+        noRepo.value = data.noRepo ?? false
+        currentBranch.value = data.currentBranch || null
+      } else {
+        // Fallback for older API responses (array)
+        changes.value = Array.isArray(data) ? data : []
+        isWorktree.value = true
+        noRepo.value = false
+      }
+    } else {
       changes.value = []
       loadError.value = resp?.message || '加载改动失败'
     }
@@ -337,9 +375,10 @@ async function handleDeleteWorktree() {
 
 async function handlePush() {
   if (!props.task?.project_id || !props.taskId) return
+  const branch = currentBranch.value || props.task.worktree_branch || ''
   try {
     await ElMessageBox.confirm(
-      `将推送分支 ${props.task.worktree_branch || ''} 到远程仓库，确定继续？`,
+      `将推送分支 ${branch} 到远程仓库，确定继续？`,
       '确认推送',
       { confirmButtonText: '推送', cancelButtonText: '取消', type: 'warning' }
     )
@@ -367,6 +406,41 @@ function handleMerge() {
     return
   }
   showMergeDialog.value = true
+}
+
+async function handleMergeIntoCurrent() {
+  if (!props.task?.project_id || !props.taskId) {
+    ElMessage.warning('当前任务无法合入')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将 worktree 分支 ${props.task.worktree_branch} 合入到当前分支，确定继续？`,
+      '确认合入',
+      { confirmButtonText: '合入', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  mergingToCurrent.value = true
+  try {
+    const resp = await mergeWorktreeIntoCurrent(props.task.project_id, props.taskId)
+    if (resp?.success) {
+      if (resp.data?.hasConflicts) {
+        ElMessage.warning(`存在 ${resp.data.conflicts?.length || 0} 个冲突文件`)
+      } else {
+        ElMessage.success('已合入当前分支')
+      }
+      await loadChanges()
+      emit('refresh')
+    } else {
+      ElMessage.error(resp?.message || '合入失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.message || '合入失败')
+  } finally {
+    mergingToCurrent.value = false
+  }
 }
 
 async function onCommitted() {
@@ -457,6 +531,39 @@ watch(() => [props.taskId, props.projectId, props.task?.worktree_path], () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Project repo info (when no worktree) */
+.project-repo-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.project-repo-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  color: var(--warning-strong);
+}
+
+.project-repo-label svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.no-worktree-warning {
+  font-size: 12px;
+  color: var(--warning-strong);
+  font-style: italic;
 }
 
 /* Change stats */

@@ -163,6 +163,11 @@
         </svg>
         刷新
       </button>
+      <label class="quick-action-btn quick-action-autoretry" :title="autoRetry ? '已开启自动重试：工作流失败时将自动重新执行' : '已关闭自动重试'">
+        <input type="checkbox" v-model="autoRetry" class="autoretry-check" />
+        <span class="autoretry-box"></span>
+        <span class="autoretry-label">自动重试</span>
+      </label>
     </div>
   </div>
 </template>
@@ -181,7 +186,7 @@ const props = defineProps({
   pendingSplitCount: { type: Number, default: 0 }
 })
 
-const emit = defineEmits(['refresh', 'run-update', 'step-select', 'open-template', 'show-split-suggestions', 'confirm', 'workflow-completed'])
+const emit = defineEmits(['refresh', 'run-update', 'step-select', 'open-template', 'show-split-suggestions', 'confirm', 'workflow-completed', 'auto-retry-change'])
 
 const task = ref(null)
 const run = ref(null)
@@ -189,6 +194,11 @@ const loading = ref(false)
 const error = ref(null)
 const actionLoading = ref(false)
 const selectedStepId = ref(null)
+const autoRetry = ref(false)
+
+watch(autoRetry, (enabled) => {
+  emit('auto-retry-change', enabled)
+})
 
 const isWorkflowTerminal = computed(() => {
   const status = run.value?.status
@@ -791,6 +801,18 @@ defineExpose({ workflowName })
   color: #fff;
 }
 
+.quick-action-btn.quick-action-retry {
+  color: #059669;
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.quick-action-btn.quick-action-retry:hover:not(:disabled) {
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+}
+
 .quick-action-badge {
   display: inline-flex;
   align-items: center;
@@ -811,18 +833,6 @@ defineExpose({ workflowName })
   color: #fff !important;
 }
 
-.quick-action-btn.quick-action-retry {
-  color: #059669;
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-}
-
-.quick-action-btn.quick-action-retry:hover:not(:disabled) {
-  background: #059669;
-  border-color: #059669;
-  color: #fff;
-}
-
 .quick-action-btn.quick-action-confirm {
   color: #d97706;
   border-color: #fde68a;
@@ -833,5 +843,60 @@ defineExpose({ workflowName })
   background: #d97706;
   border-color: #d97706;
   color: #fff;
+}
+
+.quick-action-autoretry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.quick-action-autoretry:hover {
+  background: var(--bg-secondary);
+}
+
+.autoretry-check {
+  display: none;
+}
+
+.autoretry-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.autoretry-check:checked + .autoretry-box {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.autoretry-check:checked + .autoretry-box::after {
+  content: '✓';
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.autoretry-label {
+  font-size: 12px;
+  font-weight: 600;
 }
 </style>

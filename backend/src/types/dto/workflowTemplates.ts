@@ -33,6 +33,9 @@ export interface ExportedWorkflowStep {
   instructionPrompt: string;
   agentName: string;
   requiresConfirmation?: boolean;
+  canEarlyExit?: boolean;
+  type?: string;
+  maxRetries?: number;
 }
 
 export interface ExportedWorkflowTemplate {

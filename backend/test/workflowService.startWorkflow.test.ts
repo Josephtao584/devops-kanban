@@ -63,13 +63,10 @@ test.test('startWorkflow creates workflow instance from template', async () => {
       },
     } as never,
     workflowRunRepo: {
-      async findLatestByTaskId(taskId: number) {
-        assert.equal(taskId, 7);
-        return null;
-      },
-      async create(payload: Record<string, unknown>) {
+      async createIfNoActiveRun(payload: Record<string, unknown>) {
+        const run = { id: 91, ...payload };
         createdRuns.push(payload);
-        return { id: 91, ...payload };
+        return { created: run, existing: null };
       },
     } as never,
     instanceService: {
@@ -120,9 +117,14 @@ test.test('startWorkflow rejects requests without template id', async () => {
         return buildTask(worktreePath);
       },
     } as never,
+    projectRepo: {
+      async findById() {
+        return { local_path: worktreePath };
+      },
+    } as never,
     workflowRunRepo: {
-      async findLatestByTaskId() {
-        return null;
+      async createIfNoActiveRun() {
+        return { created: { id: 91 }, existing: null };
       },
     } as never,
   });

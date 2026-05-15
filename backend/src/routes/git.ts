@@ -187,7 +187,15 @@ export function buildWorktreeDiff(taskWorktreePath: string): { files: WorktreeDi
     encoding: 'utf-8',
   });
 
-  const parsedFiles = parsePorcelainStatus(statusOutput);
+  const parsedFiles = parsePorcelainStatus(statusOutput)
+    .filter(file => {
+      if (file.path.startsWith('.claude/')) return false;
+      if (file.path.startsWith('.opencode/')) return false;
+      if (file.path === '.gitignore') return false;
+      const ignoredPrefixes = ['node_modules/', 'dist/', '.next/', 'build/', 'coverage/', '.nyc_output/'];
+      if (ignoredPrefixes.some(prefix => file.path.startsWith(prefix))) return false;
+      return true;
+    });
   const files: WorktreeDiffFile[] = [];
   const diffs: Record<string, string> = {};
 
@@ -622,23 +630,52 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
-        return successResponse([]);
+      // Fall back to project's local_path when no worktree exists
+      let repoPath = task.worktree_path;
+      let isWorktree = true;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+          isWorktree = false;
+        }
+      }
+
+      if (!repoPath) {
+        return successResponse({ changes: [], isWorktree: false, noRepo: true });
       }
 
       const statusOutput = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all'], {
-        cwd: task.worktree_path,
+        cwd: repoPath,
         encoding: 'utf-8',
       });
 
       const changes = parsePorcelainStatus(statusOutput)
-        .filter(file => !file.path.startsWith('.claude/'))
+        .filter(file => {
+          if (file.path.startsWith('.claude/')) return false;
+          if (file.path.startsWith('.opencode/')) return false;
+          if (file.path === '.gitignore') return false;
+          // Always filter common ignored paths regardless of .gitignore config
+          const ignoredPrefixes = ['node_modules/', 'dist/', '.next/', 'build/', 'coverage/', '.nyc_output/'];
+          if (ignoredPrefixes.some(prefix => file.path.startsWith(prefix))) return false;
+          return true;
+        })
         .map((file) => ({
           path: file.path,
           status: file.status,
         }));
 
-      return successResponse(changes);
+      // Get current branch for non-worktree case
+      let currentBranch = task.worktree_branch || null;
+      if (!currentBranch && repoPath) {
+        try {
+          currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+        } catch {
+          // ignore
+        }
+      }
+
+      return successResponse({ changes, isWorktree, noRepo: false, currentBranch });
     } catch (error) {
       logError(error, request);
       reply.code(getStatusCode(error));
@@ -664,23 +701,32 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
+      // Fall back to project local_path when no worktree
+      let repoPath = task.worktree_path;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+        }
+      }
+
+      if (!repoPath) {
         reply.code(400);
-        return errorResponse('Task has no worktree');
+        return errorResponse('Task has no worktree and project has no local repository');
       }
 
       // Build git add command
       if (addAll) {
-        execSync('git add -A', { cwd: task.worktree_path, encoding: 'utf-8' });
+        execSync('git add -A', { cwd: repoPath, encoding: 'utf-8' });
       } else if (files.length > 0) {
         for (const file of files) {
-          execSync(`git add "${file}"`, { cwd: task.worktree_path, encoding: 'utf-8' });
+          execSync(`git add "${file}"`, { cwd: repoPath, encoding: 'utf-8' });
         }
       }
 
       // Build git commit command
       const commitOutput = execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, {
-        cwd: task.worktree_path,
+        cwd: repoPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -713,14 +759,19 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
-        reply.code(400);
-        return errorResponse('Task has no worktree');
+      // Fall back to project local_path when no worktree
+      let repoPath = task.worktree_path;
+      let branchName = task.worktree_branch;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+        }
       }
 
-      if (!fs.existsSync(task.worktree_path)) {
+      if (!repoPath || !fs.existsSync(repoPath)) {
         reply.code(400);
-        return errorResponse('Task worktree path does not exist');
+        return errorResponse('Task has no worktree and project has no local repository');
       }
 
       if (!isValidRemoteName(remote)) {
@@ -728,15 +779,24 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Invalid remote');
       }
 
+      // Get current branch if no worktree branch
+      if (!branchName) {
+        try {
+          branchName = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+        } catch {
+          branchName = `task/${taskId}`;
+        }
+      }
+
       const args = ['push'];
       if (setUpstream) {
-        args.push('--set-upstream', remote, task.worktree_branch || `task/${taskId}`);
+        args.push('--set-upstream', remote, branchName);
       } else {
         args.push(remote);
       }
 
       const result = spawnSync('git', args, {
-        cwd: task.worktree_path,
+        cwd: repoPath,
         encoding: 'utf-8',
       });
 
@@ -896,6 +956,68 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // POST /worktrees/:taskId/merge-into-current - Merge worktree branch into current local branch
+  fastify.post<{ Params: { taskId: string }; Querystring: ProjectIdQuery }>(
+    '/worktrees/:taskId/merge-into-current',
+    async (request, reply) => {
+      try {
+        const taskId = parseNumber(request.params.taskId);
+        const task = await taskRepo.findById(taskId);
+        if (!task) {
+          reply.code(404);
+          return errorResponse('Task not found');
+        }
+        if (!task.worktree_branch) {
+          reply.code(400);
+          return errorResponse('Task has no worktree branch');
+        }
+
+        // Merge worktree branch into current branch of project repo
+        let repoPath = task.worktree_path;
+        if (!repoPath && task.project_id) {
+          const project = await projectRepo.findById(task.project_id);
+          if (project?.local_path && isGitRepository(project.local_path)) {
+            repoPath = project.local_path;
+          }
+        }
+        if (!repoPath) {
+          reply.code(400);
+          return errorResponse('No repository found');
+        }
+
+        const result = mergeBranch(task.worktree_branch, repoPath, { noFastForward: true });
+
+        if (result.hasConflicts) {
+          return successResponse({
+            success: false,
+            hasConflicts: true,
+            conflicts: result.conflicts,
+            message: result.message,
+          }, 'Merge conflicts detected');
+        }
+
+        return successResponse({
+          success: true,
+          hasConflicts: false,
+          conflicts: [],
+          message: result.message,
+        }, 'Branch merged into current branch successfully');
+      } catch (error) {
+        logError(error, request);
+        const execError = error as Error & { stderr?: string };
+        const stderr = execError.stderr || execError.message;
+
+        if (stderr.includes('does not exist')) {
+          reply.code(404);
+          return errorResponse('Branch not found');
+        }
+
+        reply.code(getStatusCode(error));
+        return errorResponse(getErrorMessage(error, `Failed to merge: ${stderr}`));
+      }
+    }
+  );
+
   // ==================== Diff ====================
 
   fastify.get<{ Params: { taskId: string }; Querystring: ProjectIdQuery & { source?: string; target?: string } }>('/worktrees/:taskId/diff', async (request, reply) => {
@@ -908,12 +1030,21 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
-        reply.code(400);
-        return errorResponse('Task has no worktree');
+      // Fall back to project's local_path when no worktree exists
+      let repoPath = task.worktree_path;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+        }
       }
 
-      const result = buildWorktreeDiff(task.worktree_path);
+      if (!repoPath) {
+        reply.code(400);
+        return errorResponse('Task has no worktree and project has no local repository');
+      }
+
+      const result = buildWorktreeDiff(repoPath);
       return successResponse(result);
     } catch (error) {
       logError(error, request);
