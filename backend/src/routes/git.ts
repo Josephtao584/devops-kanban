@@ -665,7 +665,17 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
           status: file.status,
         }));
 
-      return successResponse({ changes, isWorktree, noRepo: false });
+      // Get current branch for non-worktree case
+      let currentBranch = task.worktree_branch || null;
+      if (!currentBranch && repoPath) {
+        try {
+          currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+        } catch {
+          // ignore
+        }
+      }
+
+      return successResponse({ changes, isWorktree, noRepo: false, currentBranch });
     } catch (error) {
       logError(error, request);
       reply.code(getStatusCode(error));
@@ -691,23 +701,32 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
+      // Fall back to project local_path when no worktree
+      let repoPath = task.worktree_path;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+        }
+      }
+
+      if (!repoPath) {
         reply.code(400);
-        return errorResponse('Task has no worktree');
+        return errorResponse('Task has no worktree and project has no local repository');
       }
 
       // Build git add command
       if (addAll) {
-        execSync('git add -A', { cwd: task.worktree_path, encoding: 'utf-8' });
+        execSync('git add -A', { cwd: repoPath, encoding: 'utf-8' });
       } else if (files.length > 0) {
         for (const file of files) {
-          execSync(`git add "${file}"`, { cwd: task.worktree_path, encoding: 'utf-8' });
+          execSync(`git add "${file}"`, { cwd: repoPath, encoding: 'utf-8' });
         }
       }
 
       // Build git commit command
       const commitOutput = execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, {
-        cwd: task.worktree_path,
+        cwd: repoPath,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -740,14 +759,19 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Task not found');
       }
 
-      if (!task.worktree_path) {
-        reply.code(400);
-        return errorResponse('Task has no worktree');
+      // Fall back to project local_path when no worktree
+      let repoPath = task.worktree_path;
+      let branchName = task.worktree_branch;
+      if (!repoPath && task.project_id) {
+        const project = await projectRepo.findById(task.project_id);
+        if (project?.local_path && isGitRepository(project.local_path)) {
+          repoPath = project.local_path;
+        }
       }
 
-      if (!fs.existsSync(task.worktree_path)) {
+      if (!repoPath || !fs.existsSync(repoPath)) {
         reply.code(400);
-        return errorResponse('Task worktree path does not exist');
+        return errorResponse('Task has no worktree and project has no local repository');
       }
 
       if (!isValidRemoteName(remote)) {
@@ -755,15 +779,24 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Invalid remote');
       }
 
+      // Get current branch if no worktree branch
+      if (!branchName) {
+        try {
+          branchName = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+        } catch {
+          branchName = `task/${taskId}`;
+        }
+      }
+
       const args = ['push'];
       if (setUpstream) {
-        args.push('--set-upstream', remote, task.worktree_branch || `task/${taskId}`);
+        args.push('--set-upstream', remote, branchName);
       } else {
         args.push(remote);
       }
 
       const result = spawnSync('git', args, {
-        cwd: task.worktree_path,
+        cwd: repoPath,
         encoding: 'utf-8',
       });
 

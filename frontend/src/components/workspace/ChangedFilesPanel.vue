@@ -62,7 +62,8 @@
       </div>
 
       <!-- Action buttons -->
-      <div class="worktree-actions" v-if="isWorktree">
+      <!-- Action buttons -->
+      <div class="worktree-actions">
         <el-button
           size="small"
           type="primary"
@@ -89,7 +90,7 @@
         </el-button>
         <el-button
           size="small"
-          type="success"
+          :type="isWorktree ? 'success' : 'warning'"
           @click="handleMerge"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
@@ -99,9 +100,7 @@
           </svg>
           合入
         </el-button>
-      </div>
-      <div v-else class="worktree-actions">
-        <span class="no-worktree-hint">创建 worktree 后可提交、推送和合入</span>
+        <span v-if="!isWorktree" class="no-worktree-warning">未隔离分支，提交将直接作用于项目仓库</span>
       </div>
 
       <!-- File list -->
@@ -160,7 +159,7 @@
       v-if="showCommitDialog && task?.project_id && taskId > 0"
       :project-id="task.project_id"
       :task-id="taskId"
-      :current-branch="task.worktree_branch"
+      :current-branch="currentBranch || task.worktree_branch"
       @close="showCommitDialog = false"
       @committed="onCommitted"
     />
@@ -169,7 +168,7 @@
       v-if="showMergeDialog && task?.project_id && taskId > 0"
       :project-id="task.project_id"
       :task-id="taskId"
-      :source-branch="task.worktree_branch"
+      :source-branch="currentBranch || task.worktree_branch"
       @close="showMergeDialog = false"
       @merged="onMerged"
     />
@@ -205,6 +204,7 @@ const showMergeDialog = ref(false)
 const loadError = ref(null)
 const isWorktree = ref(true)
 const noRepo = ref(false)
+const currentBranch = ref(null)
 const LOAD_TIMEOUT = 10000
 
 function withTimeout(promise, ms) {
@@ -234,6 +234,7 @@ async function loadChanges() {
         changes.value = data.changes || []
         isWorktree.value = data.isWorktree ?? true
         noRepo.value = data.noRepo ?? false
+        currentBranch.value = data.currentBranch || null
       } else {
         // Fallback for older API responses (array)
         changes.value = Array.isArray(data) ? data : []
@@ -360,9 +361,10 @@ async function handleDeleteWorktree() {
 
 async function handlePush() {
   if (!props.task?.project_id || !props.taskId) return
+  const branch = currentBranch.value || props.task.worktree_branch || ''
   try {
     await ElMessageBox.confirm(
-      `将推送分支 ${props.task.worktree_branch || ''} 到远程仓库，确定继续？`,
+      `将推送分支 ${branch} 到远程仓库，确定继续？`,
       '确认推送',
       { confirmButtonText: '推送', cancelButtonText: '取消', type: 'warning' }
     )
@@ -509,9 +511,9 @@ watch(() => [props.taskId, props.projectId, props.task?.worktree_path], () => {
   opacity: 0.7;
 }
 
-.no-worktree-hint {
+.no-worktree-warning {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--warning-strong);
   font-style: italic;
 }
 
