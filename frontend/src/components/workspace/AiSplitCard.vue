@@ -10,7 +10,7 @@
           <path d="M6.5 19.5h-3"></path>
         </svg>
         <h4>AI 拆分建议</h4>
-        <span class="split-subtitle">工作流已完成，建议拆分为以下子任务</span>
+        <span class="split-subtitle">AgentTeam已完成，建议拆分为以下子任务</span>
       </div>
       <div class="split-header-right">
         <span class="split-task-count">{{ suggestions.length }} 个子任务</span>
@@ -45,7 +45,7 @@
                   :model-value="item.template_id || ''"
                   size="small"
                   class="suggestion-template-select"
-                  placeholder="选择工作流模板"
+                  placeholder="选择AgentTeam模板"
                   clearable
                   @update:model-value="(val) => updateField(index, 'template_id', val || null)"
                 >

@@ -211,7 +211,7 @@
               />
             </el-form-item>
 
-            <el-form-item v-if="formData.sync_schedule && formData.sync_schedule !== '__custom__'" :label="$t('taskSource.defaultWorkflowTemplate', '默认工作流模板')">
+            <el-form-item v-if="formData.sync_schedule && formData.sync_schedule !== '__custom__'" :label="$t('taskSource.defaultWorkflowTemplate', '默认AgentTeam模板')">
               <el-select v-model="formData.default_workflow_template_id" :placeholder="$t('taskSource.autoWorkflowNone', '不自动触发')" clearable style="width: 100%;">
                 <el-option
                   v-for="tpl in workflowTemplates"
@@ -420,7 +420,7 @@
                     v-model="item.recommendedWorkflowTemplateId"
                     size="small"
                     clearable
-                    :placeholder="$t('taskSource.aiWorkflowTemplate', '推荐工作流')"
+                    :placeholder="$t('taskSource.aiWorkflowTemplate', '推荐AgentTeam')"
                     class="result-workflow-input"
                   >
                     <el-option

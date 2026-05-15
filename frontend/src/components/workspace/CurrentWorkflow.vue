@@ -1,7 +1,7 @@
 <template>
   <div class="current-workflow-section" :class="{ 'is-embedded': embedded, 'is-collapsed': collapsed }">
     <div v-if="!embedded" class="panel-header">
-      <h4>当前工作流</h4>
+      <h4>当前AgentTeam</h4>
       <span v-if="workflowName" class="current-wf-badge">{{ workflowName }}</span>
       <span v-else-if="loading" class="current-wf-badge">加载中...</span>
     </div>
@@ -39,45 +39,36 @@
           </span>
         </div>
 
-        <!-- Horizontal step timeline -->
-        <div class="workflow-steps">
+        <!-- Agent roster -->
+        <div class="agent-roster">
           <div
-            v-for="(step, index) in steps"
-            :key="step.id || index"
-            class="workflow-step-h"
+            v-for="step in steps"
+            :key="step.id"
+            class="agent-card"
+            :class="[step.statusClass, { selected: selectedStepId === step.id }]"
+            @click="handleStepClick(step)"
           >
-            <div v-if="index > 0" class="step-connector-h" :class="{ active: step.statusClass === 'done' || step.statusClass === 'running' }"></div>
-            <div class="step-node-wrap">
+            <!-- Agent identity header -->
+            <div class="agent-card-header">
               <div
-                class="step-node-h"
-                :class="[step.statusClass, { selected: selectedStepId === step.id }]"
-                @click="handleStepClick(step)"
+                class="agent-avatar"
+                :style="{ background: getStepRoleConfig(step).gradient }"
               >
-                <div class="step-indicator">
-                  <svg v-if="step.statusClass === 'done'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <svg v-else-if="step.statusClass === 'running'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="spin-svg">
-                    <line x1="12" y1="2" x2="12" y2="6"></line>
-                    <line x1="12" y1="18" x2="12" y2="22"></line>
-                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                    <line x1="2" y1="12" x2="6" y2="12"></line>
-                    <line x1="18" y1="12" x2="22" y2="12"></line>
-                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-                  </svg>
-                  <svg v-else-if="step.statusClass === 'failed'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                  <span v-else class="step-index">{{ index + 1 }}</span>
-                </div>
-                <div class="step-content-h">
-                  <span class="step-name-h">{{ step.name }}</span>
-                  <span class="step-agent-h">{{ step.statusLabel }}</span>
-                </div>
+                <span v-html="getStepRoleConfig(step).icon" class="agent-avatar-icon"></span>
               </div>
+              <div class="agent-card-info">
+                <span class="agent-card-name">{{ getStepAgentName(step) }}</span>
+                <span class="agent-card-executor">{{ getStepAgentLabel(step) || '—' }}</span>
+              </div>
+              <span class="agent-status-badge" :class="step.statusClass">
+                {{ step.statusLabel }}
+              </span>
+            </div>
+
+            <!-- Step name -->
+            <div class="agent-step-name-row">
+              <span class="agent-step-status-dot" :class="step.statusClass"></span>
+              <span class="agent-step-name">{{ step.name }}</span>
             </div>
           </div>
         </div>
@@ -97,7 +88,7 @@
           启动
         </button>
       </el-tooltip>
-      <el-tooltip content="切换工作流模板" placement="top">
+      <el-tooltip content="切换AgentTeam模板" placement="top">
         <button class="quick-action-btn" :disabled="actionLoading" @click="handleTemplate">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
@@ -163,7 +154,7 @@
         </svg>
         刷新
       </button>
-      <label class="quick-action-btn quick-action-autoretry" :title="autoRetry ? '已开启自动重试：工作流失败时将自动重新执行' : '已关闭自动重试'">
+      <label class="quick-action-btn quick-action-autoretry" :title="autoRetry ? '已开启自动重试：AgentTeam失败时将自动重新执行' : '已关闭自动重试'">
         <input type="checkbox" v-model="autoRetry" class="autoretry-check" />
         <span class="autoretry-box"></span>
         <span class="autoretry-label">自动重试</span>
@@ -178,6 +169,10 @@ import { ElMessage } from 'element-plus'
 import { getTask, startTask } from '../../api/task.js'
 import { getWorkflowRun, cancelWorkflow, retryWorkflow } from '../../api/workflow.js'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling.js'
+import { getRoleConfig } from '../../constants/agent.js'
+import { useAgentStore } from '../../stores/agentStore.js'
+
+const agentStore = useAgentStore()
 
 const props = defineProps({
   taskId: { type: Number, default: null },
@@ -246,20 +241,59 @@ const workflowName = computed(() => {
 
 const steps = computed(() => {
   const list = run.value?.steps || []
-  return list.map((step, index) => ({
-    id: step.step_id || step.id || index,
-    step_id: step.step_id,
-    name: step.name || step.step_id || `步骤 ${index + 1}`,
-    statusClass: STATUS_CLASS[step.status] || 'pending',
-    statusLabel: STATUS_LABEL[step.status] || step.status || '待执行',
-    session_id: step.session_id || null,
-    provider_session_id: step.provider_session_id || null,
-    status: step.status,
-    assembled_prompt: step.assembled_prompt || '',
-    agent_id: step.agent_id || null,
-    raw: step
-  }))
+  const templateSteps = run.value?.workflow_template_snapshot?.steps || []
+  const templateAgentMap = new Map()
+  for (const ts of templateSteps) {
+    if (ts.agentId != null) templateAgentMap.set(ts.id || ts.step_id, ts.agentId)
+  }
+
+  return list.map((step, index) => {
+    const resolvedAgentId = step.agent_id
+      ?? templateAgentMap.get(step.step_id)
+      ?? null
+    return {
+      id: step.step_id || step.id || index,
+      step_id: step.step_id,
+      name: step.name || step.step_id || `步骤 ${index + 1}`,
+      statusClass: STATUS_CLASS[step.status] || 'pending',
+      statusLabel: STATUS_LABEL[step.status] || step.status || '待执行',
+      session_id: step.session_id || null,
+      provider_session_id: step.provider_session_id || null,
+      status: step.status,
+      assembled_prompt: step.assembled_prompt || '',
+      agent_id: resolvedAgentId,
+      raw: step
+    }
+  })
 })
+
+function resolveAgentInfo(agentId) {
+  if (!agentId) return null
+  const agent = agentStore.agents.find(a => a.id === agentId || String(a.id) === String(agentId))
+  if (!agent) return null
+  const roleConfig = getRoleConfig(agent.role || 'BACKEND_DEV')
+  return { agent, roleConfig }
+}
+
+const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
+
+function getStepAgentLabel(step) {
+  if (!step.agent_id) return ''
+  const info = resolveAgentInfo(step.agent_id)
+  return info?.agent.executorType ? EXECUTOR_LABEL[info.agent.executorType] || info.agent.executorType : ''
+}
+
+function getStepAgentName(step) {
+  if (!step.agent_id) return '未分配'
+  const info = resolveAgentInfo(step.agent_id)
+  return info?.agent.name || '未分配'
+}
+
+function getStepRoleConfig(step) {
+  if (!step.agent_id) return getRoleConfig('BACKEND_DEV')
+  const info = resolveAgentInfo(step.agent_id)
+  return info?.roleConfig || getRoleConfig('BACKEND_DEV')
+}
 
 // Show the 拆分建议 button whenever the workflow includes a SPLIT_TASK step,
 // even before any suggestions exist — user can click to manually trigger.
@@ -336,7 +370,7 @@ const startDisabled = computed(() => {
 })
 const startTooltip = computed(() => {
   if (!task.value) return '请选择任务'
-  if (task.value.workflow_run_id && !isTerminal.value) return '工作流已在运行'
+  if (task.value.workflow_run_id && !isTerminal.value) return 'AgentTeam已在运行'
   return ''
 })
 
@@ -347,7 +381,7 @@ const retryDisabled = computed(() => {
 const retryTooltip = computed(() => {
   if (!run.value) return '暂无AgentTeam运行'
   if (!retryDisabled.value) return ''
-  return '仅失败或已取消的工作流可重试'
+  return '仅失败或已取消的AgentTeam可重试'
 })
 
 const cancelDisabled = computed(() => {
@@ -356,7 +390,7 @@ const cancelDisabled = computed(() => {
 })
 const cancelTooltip = computed(() => {
   if (!run.value) return '暂无AgentTeam运行'
-  if (isTerminal.value) return '工作流已结束'
+  if (isTerminal.value) return 'AgentTeam已结束'
   return ''
 })
 
@@ -367,7 +401,7 @@ const confirmDisabled = computed(() => {
 const confirmTooltip = computed(() => {
   if (!run.value) return '暂无AgentTeam运行'
   if (runStatus.value === 'SUSPENDED') return ''
-  return '仅暂停状态的工作流可确认'
+  return '仅暂停状态的AgentTeam可确认'
 })
 
 function handleConfirm() {
@@ -413,11 +447,11 @@ async function loadRun(runId) {
       run.value = resp.data || null
     } else {
       run.value = null
-      error.value = resp?.message || '加载工作流失败'
+      error.value = resp?.message || '加载AgentTeam失败'
     }
   } catch (e) {
     run.value = null
-    error.value = e?.message || '加载工作流失败'
+    error.value = e?.message || '加载AgentTeam失败'
   }
 }
 
@@ -478,7 +512,7 @@ async function handleCancel() {
   try {
     const resp = await cancelWorkflow(runId)
     if (resp?.success) {
-      ElMessage.success('工作流已取消')
+      ElMessage.success('AgentTeam已取消')
       await load()
       emit('refresh')
     } else {
@@ -594,151 +628,238 @@ defineExpose({ workflowName })
   margin-right: 2px;
 }
 
-.workflow-steps {
+/* Agent Roster Container */
+.agent-roster {
   display: flex;
-  align-items: center;
   gap: 0;
   overflow-x: auto;
-  padding: 2px 0;
+  padding: 8px 0 12px;
+  align-items: stretch;
 }
 
-.workflow-step-h {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
+.agent-roster::-webkit-scrollbar {
+  height: 4px;
 }
-
-.step-connector-h {
-  width: 40px;
-  height: 2px;
+.agent-roster::-webkit-scrollbar-track {
+  background: transparent;
+}
+.agent-roster::-webkit-scrollbar-thumb {
   background: var(--border-color);
-  margin: 0 8px;
+  border-radius: 2px;
+}
+
+/* Connector between cards */
+.agent-card-wrapper {
+  display: flex;
+  align-items: stretch;
   flex-shrink: 0;
-  transition: background 0.2s;
 }
 
-.step-connector-h.active {
-  background: var(--accent-color);
-}
-
-.step-node-wrap {
+.agent-card-wrapper + .agent-card-wrapper::before {
+  content: '';
+  width: 28px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='20' viewBox='0 0 28 20'%3E%3Cpath d='M0 10h20M16 5l5 5-5 5' stroke='%23d7e6de' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
   position: relative;
-  display: inline-block;
+  z-index: 1;
 }
 
-.step-node-h {
+.agent-card-wrapper.has-done + .agent-card-wrapper::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='20' viewBox='0 0 28 20'%3E%3Cpath d='M0 10h20M16 5l5 5-5 5' stroke='%2325C6C9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.agent-card-wrapper.has-running + .agent-card-wrapper::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='20' viewBox='0 0 28 20'%3E%3Cpath d='M0 10h20M16 5l5 5-5 5' stroke='%2325C6C9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='10' cy='10' r='2' fill='%2325C6C9'%3E%3Canimate attributeName='cx' values='2;26;2' dur='2s' repeatCount='indefinite'/%3E%3Canimate attributeName='opacity' values='1;0;1' dur='2s' repeatCount='indefinite'/%3E%3C/circle%3E%3C/svg%3E");
+}
+
+/* Agent Card */
+.agent-card {
+  min-width: 140px;
+  max-width: 160px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-primary);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  scroll-snap-align: start;
+  cursor: pointer;
+  position: relative;
+}
+
+.agent-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(37, 198, 201, 0.12);
+  border-color: var(--accent-color);
+}
+
+.agent-card.selected {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(37, 198, 201, 0.2);
+}
+
+.agent-card.running {
+  border-color: var(--accent-color);
+  animation: card-glow 2s ease-in-out infinite;
+}
+
+@keyframes card-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(37, 198, 201, 0.15); }
+  50% { box-shadow: 0 0 20px rgba(37, 198, 201, 0.3), 0 0 40px rgba(37, 198, 201, 0.1); }
+}
+
+.agent-card.done {
+  opacity: 0.75;
+}
+
+.agent-card.failed {
+  border-color: var(--danger-strong);
+}
+
+/* Agent Card Header */
+.agent-card-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 10px 4px 4px;
-  border-radius: 999px;
-  background: transparent;
-  white-space: nowrap;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  padding: 10px 10px 8px;
 }
 
-.step-node-h:hover {
-  background: var(--bg-secondary);
-}
-
-.step-node-h.selected {
-  background: var(--bg-secondary);
-  box-shadow: inset 0 0 0 1px var(--accent-color);
-}
-
-.step-indicator {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+.agent-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  border: 1.5px solid var(--border-color);
-}
-
-.step-node-h.done .step-indicator {
-  background: var(--accent-color);
-  color: #fff;
-  border-color: var(--accent-color);
-}
-
-.step-node-h.running .step-indicator {
-  background: #fff;
-  color: var(--accent-color);
-  border-color: var(--accent-color);
-}
-
-.step-node-h.failed .step-indicator {
-  background: #ef4444;
-  color: #fff;
-  border-color: #ef4444;
-}
-
-.step-node-h.suspended .step-indicator {
-  background: #fff;
-  color: #d97706;
-  border-color: #d97706;
-  animation: pulse-suspend 2s ease-in-out infinite;
-}
-
-.step-node-h.suspended {
-  background: #fffbeb;
-  border-color: #fbbf24;
-}
-
-@keyframes pulse-suspend {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
-  50% { box-shadow: 0 0 0 4px rgba(217, 119, 6, 0); }
-}
-
-.step-index {
-  display: inline-block;
+  font-size: 18px;
   line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
 }
 
-.spin-svg {
-  animation: spin 1.2s linear infinite;
+.agent-card.running .agent-avatar {
+  animation: avatar-pulse 2s ease-in-out infinite;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+@keyframes avatar-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
 }
 
-.step-content-h {
+.agent-avatar-icon {
+  font-style: normal;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.agent-card-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.3;
+  gap: 1px;
 }
 
-.step-name-h {
-  font-size: 13px;
+.agent-card-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-card-executor {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Agent Status Badge */
+.agent-status-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.agent-status-badge.done {
+  background: var(--done-soft);
+  color: var(--done-strong);
+}
+.agent-status-badge.running {
+  background: var(--in-progress-soft);
+  color: var(--in-progress-strong);
+}
+.agent-status-badge.failed {
+  background: var(--danger-soft);
+  color: var(--danger-strong);
+}
+.agent-status-badge.suspended {
+  background: var(--warning-soft);
+  color: var(--warning-strong);
+}
+.agent-status-badge.pending {
+  background: var(--neutral-soft);
+  color: var(--neutral-strong);
+}
+
+/* Step name row */
+.agent-step-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.agent-step-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-step-status-dot.done {
+  background: var(--accent-color);
+}
+.agent-step-status-dot.running {
+  background: #fbbf24;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.agent-step-status-dot.failed {
+  background: #ef4444;
+}
+.agent-step-status-dot.suspended {
+  background: #d97706;
+}
+.agent-step-status-dot.pending {
+  background: var(--text-muted);
+  opacity: 0.4;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+.agent-step-name {
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-primary);
-}
-
-.step-agent-h {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.step-node-h.done .step-agent-h {
-  color: var(--accent-color);
-}
-
-.step-node-h.failed .step-agent-h {
-  color: #ef4444;
-}
-
-.step-node-h.suspended .step-agent-h {
-  color: #d97706;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .quick-actions {

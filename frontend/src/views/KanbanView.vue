@@ -356,7 +356,7 @@
         <div v-if="selectedTask && !taskSourceStore.syncPanelVisible && !isChatCollapsed && currentViewingNodeId" class="chat-content step-chat-mode">
           <div class="step-chat-header">
             <div class="step-header-copy">
-              <span class="step-header-label">Workflow 对话</span>
+              <span class="step-header-label">AgentTeam 对话</span>
               <div class="step-node-detail" v-if="currentViewingNode">
                 <span class="step-node-name">{{ currentViewingNode.name }}</span>
                 <div class="step-node-meta">
@@ -1212,7 +1212,7 @@ const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree })
   try {
     const response = await getWorkflowTemplateById(templateId)
     if (!response?.success) {
-      ElMessage.error(response?.message || '加载工作流模板失败')
+      ElMessage.error(response?.message || '加载AgentTeam模板失败')
       return
     }
 
@@ -1229,8 +1229,8 @@ const handleWorkflowTemplateConfirm = async ({ templateId, autoCreateWorktree })
     workflowStartDraftTemplate.value.autoCreateWorktree = autoCreateWorktree
     recommendedWorkflowTemplateId.value = ''
   } catch (error) {
-    console.error('加载工作流模板失败:', error)
-    ElMessage.error('加载工作流模板失败')
+    console.error('加载AgentTeam模板失败:', error)
+    ElMessage.error('加载AgentTeam模板失败')
   }
 }
 
@@ -1316,7 +1316,7 @@ const handleStartWithConfiguredTemplate = async (task) => {
   try {
     const response = await getWorkflowTemplateById(task.auto_execute_template_id)
     if (!response?.success) {
-      ElMessage.error(response?.message || '加载工作流模板失败')
+      ElMessage.error(response?.message || '加载AgentTeam模板失败')
       return
     }
     selectedWorkflowTemplateId.value = task.auto_execute_template_id
@@ -1324,8 +1324,8 @@ const handleStartWithConfiguredTemplate = async (task) => {
     workflowStartDraftTemplate.value.autoCreateWorktree = true
     showWorkflowStartEditorDialog.value = true
   } catch (error) {
-    console.error('加载工作流模板失败:', error)
-    ElMessage.error('加载工作流模板失败')
+    console.error('加载AgentTeam模板失败:', error)
+    ElMessage.error('加载AgentTeam模板失败')
   }
 }
 
