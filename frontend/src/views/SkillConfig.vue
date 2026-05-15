@@ -54,7 +54,7 @@
           >
             <div class="skill-list-item__body">
               <span class="skill-list-item__name">{{ skill.name }}</span>
-              <span v-if="skill.description" class="skill-list-item__desc">{{ truncateDescription(skill.description) }}</span>
+              <span class="skill-list-item__desc">{{ skill.description ? truncateDescription(skill.description) : '' }}</span>
             </div>
           </div>
           <div v-if="filteredSkills.length === 0" class="empty-list">
@@ -723,6 +723,7 @@ onMounted(loadSkills)
   align-items: flex-start;
   gap: 10px;
   width: 100%;
+  min-height: 68px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -772,6 +773,7 @@ onMounted(loadSkills)
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   line-height: 1.4;
+  min-height: calc(11px * 1.4 * 2);
 }
 
 /* Right panel - Skill detail */
