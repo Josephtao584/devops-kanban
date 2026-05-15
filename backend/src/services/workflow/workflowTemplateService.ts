@@ -217,16 +217,19 @@ class WorkflowTemplateService {
     const exportedTemplates: ExportedWorkflowTemplate[] = templates.map(t => ({
       template_id: t.template_id,
       name: t.name,
-      steps: t.steps.map((step): ExportedWorkflowStep => ({
-        id: step.id,
-        name: step.name,
-        instructionPrompt: step.instructionPrompt,
-        agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
-        requiresConfirmation: step.requiresConfirmation || false,
-        canEarlyExit: step.canEarlyExit || false,
-        type: step.type,
-        maxRetries: step.maxRetries,
-      })),
+      steps: t.steps.map((step): ExportedWorkflowStep => {
+        const exported: ExportedWorkflowStep = {
+          id: step.id,
+          name: step.name,
+          instructionPrompt: step.instructionPrompt,
+          agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
+          requiresConfirmation: step.requiresConfirmation || false,
+          canEarlyExit: step.canEarlyExit || false,
+        };
+        if (step.type) exported.type = step.type;
+        if (step.maxRetries !== undefined) exported.maxRetries = step.maxRetries;
+        return exported;
+      }),
     }));
 
     return {

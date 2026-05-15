@@ -55,7 +55,7 @@ test.test('startWorkflow prevents duplicate runs under concurrent calls', async 
           assert.equal(taskId, 7);
           return task;
         },
-        async update(taskId: number, updateData: Record<string, unknown>) {
+        async update(_taskId: number, updateData: Record<string, unknown>) {
           taskUpdates.push(updateData);
           return { ...task, ...updateData };
         },
@@ -135,7 +135,6 @@ test.test('startWorkflow allows new run after previous run is COMPLETED', async 
         async createIfNoActiveRun(payload: Record<string, unknown>) {
           // Return existing completed run
           if (createdRuns.length === 0) {
-            const completedRun = { id: 80, task_id: 7, status: 'COMPLETED' };
             return { created: { id: 90, ...payload }, existing: null };
           }
           return { created: null, existing: createdRuns[0] };

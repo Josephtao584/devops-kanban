@@ -381,7 +381,8 @@ describe('WorkflowStartEditorDialog', () => {
             agentId: 1,
             requiresConfirmation: false,
             canEarlyExit: false,
-            type: 'DEFAULT'
+            type: 'DEFAULT',
+            maxRetries: 0,
           },
           {
             id: 'code-development',
@@ -390,7 +391,8 @@ describe('WorkflowStartEditorDialog', () => {
             agentId: 2,
             requiresConfirmation: false,
             canEarlyExit: false,
-            type: 'DEFAULT'
+            type: 'DEFAULT',
+            maxRetries: 0,
           }
         ]
       },
