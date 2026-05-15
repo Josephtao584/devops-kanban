@@ -52,10 +52,7 @@
             :class="{ 'active': selectedSkill?.id === skill.id }"
             @click="selectSkill(skill)"
           >
-            <div class="skill-list-item__body">
-              <span class="skill-list-item__name">{{ skill.name }}</span>
-              <span class="skill-list-item__desc">{{ skill.description ? truncateDescription(skill.description) : '' }}</span>
-            </div>
+            <span class="skill-list-item__name">{{ skill.name }}</span>
           </div>
           <div v-if="filteredSkills.length === 0" class="empty-list">
             {{ $t('skill.noSkills') }}
@@ -98,7 +95,12 @@
                 </button>
               </div>
             </div>
-            <p v-if="selectedSkill.description" class="skill-description">{{ selectedSkill.description }}</p>
+            <div class="skill-description-block">
+              <span class="section-label">{{ $t('skill.description') }}</span>
+              <p class="skill-description" :class="{ 'skill-description--empty': !selectedSkill.description }">
+                {{ selectedSkill.description || $t('skill.noDescription', '暂无描述') }}
+              </p>
+            </div>
           </div>
 
           <!-- 文件管理区域 -->
@@ -483,11 +485,6 @@ const arrayBufferToBase64 = (arrayBuffer) => {
   return btoa(binary)
 }
 
-const truncateDescription = (description) => {
-  if (!description) return ''
-  return description.length > 80 ? description.substring(0, 80) + '...' : description
-}
-
 const formatDateWithFallback = (dateStr) => formatDate(dateStr, { fallback: '-' })
 
 const openAddForm = () => {
@@ -720,10 +717,9 @@ onMounted(loadSkills)
 
 .skill-list-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 68px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -745,14 +741,6 @@ onMounted(loadSkills)
   box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.12);
 }
 
-.skill-list-item__body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 2px;
-  flex: 1;
-}
-
 .skill-list-item__name {
   font-weight: 600;
   font-size: 13px;
@@ -761,19 +749,8 @@ onMounted(loadSkills)
   text-overflow: ellipsis;
   white-space: nowrap;
   letter-spacing: 0.01em;
-}
-
-.skill-list-item__desc {
-  font-size: 11px;
-  color: var(--text-muted, var(--text-secondary));
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.4;
-  min-height: calc(11px * 1.4 * 2);
+  flex: 1;
+  min-width: 0;
 }
 
 /* Right panel - Skill detail */
@@ -834,13 +811,30 @@ onMounted(loadSkills)
   font-weight: 500;
 }
 
+.skill-description-block {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary, #fafbfc);
+}
+
+.skill-description-block .section-label {
+  margin-bottom: 6px;
+}
+
 .skill-description {
-  margin: 12px 0 0;
+  margin: 0;
   font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
+  color: var(--text-primary);
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.skill-description--empty {
+  color: var(--text-muted, var(--text-secondary));
+  font-style: italic;
 }
 
 /* Files section */
