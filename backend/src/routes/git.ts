@@ -190,6 +190,7 @@ export function buildWorktreeDiff(taskWorktreePath: string): { files: WorktreeDi
   const parsedFiles = parsePorcelainStatus(statusOutput)
     .filter(file => {
       if (file.path.startsWith('.claude/')) return false;
+      if (file.path.startsWith('.opencode/')) return false;
       if (file.path === '.gitignore') return false;
       const ignoredPrefixes = ['node_modules/', 'dist/', '.next/', 'build/', 'coverage/', '.nyc_output/'];
       if (ignoredPrefixes.some(prefix => file.path.startsWith(prefix))) return false;
@@ -652,6 +653,7 @@ export const gitRoutes: FastifyPluginAsync = async (fastify) => {
       const changes = parsePorcelainStatus(statusOutput)
         .filter(file => {
           if (file.path.startsWith('.claude/')) return false;
+          if (file.path.startsWith('.opencode/')) return false;
           if (file.path === '.gitignore') return false;
           // Always filter common ignored paths regardless of .gitignore config
           const ignoredPrefixes = ['node_modules/', 'dist/', '.next/', 'build/', 'coverage/', '.nyc_output/'];
