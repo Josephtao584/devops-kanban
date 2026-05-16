@@ -271,101 +271,13 @@
               <div class="section-heading">{{ $t('workflowTemplate.stepEditor') }}</div>
             </div>
 
-            <div v-if="selectedStep" class="step-editor-card">
-              <div
-                v-if="isMissingAgent(selectedStep) || isDisabledAgent(selectedStep) || typeof selectedStep.agentId !== 'number'"
-                class="step-editor-state-row binding-state-row"
-              >
-                <el-tag v-if="isMissingAgent(selectedStep)" type="danger">
-                  {{ $t('workflowTemplate.missingAgent', { id: selectedStep.agentId }) }}
-                </el-tag>
-                <el-tag v-else-if="isDisabledAgent(selectedStep)" type="warning">
-                  {{ formatBoundAgentState(selectedStep) }}
-                </el-tag>
-                <el-tag v-else-if="typeof selectedStep.agentId !== 'number'" type="info">
-                  {{ $t('workflowTemplate.unassignedAgent') }}
-                </el-tag>
-              </div>
-
-              <div class="step-editor-grid">
-                <div class="editor-field editor-field--full editor-field--agent">
-                  <label class="editor-field__label-strong">{{ $t('workflowTemplate.executor') }}</label>
-                  <el-select
-                    v-model="selectedStep.agentId"
-                    clearable
-                    class="agent-picker"
-                    :placeholder="$t('workflowTemplate.unassignedAgent')"
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="agent in agents"
-                      :key="agent.id"
-                      :label="formatWorkflowAgentOption(agent)"
-                      :value="agent.id"
-                      :disabled="agent.enabled === false"
-                    />
-                  </el-select>
-                </div>
-
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.stepName') }}</label>
-                  <el-input
-                    v-model="selectedStep.name"
-                    :placeholder="$t('workflowTemplate.stepNamePlaceholder')"
-                    maxlength="200"
-                    show-word-limit
-                  />
-                </div>
-
-                <div class="editor-field editor-field--full">
-                  <label>{{ $t('workflowTemplate.stepOptions', '选项') }}</label>
-                  <div class="step-options">
-                    <label class="step-option">
-                      <el-switch v-model="selectedStep.requiresConfirmation" size="small" />
-                      <span class="step-option__label">{{ $t('workflowTemplate.requiresConfirmation') }}</span>
-                    </label>
-                    <label class="step-option">
-                      <el-switch v-model="selectedStep.canEarlyExit" size="small" />
-                      <span class="step-option__label">{{ $t('workflowTemplate.canEarlyExit') }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div v-if="selectedStep.type === 'SPLIT_TASK'" class="editor-field editor-field--full step-type-field">
-                  <label>{{ $t('workflowTemplate.stepType') }}</label>
-                  <div class="editor-field__row">
-                    <el-tag type="info">{{ $t('workflowTemplate.stepTypeSplit') }}</el-tag>
-                    <span class="step-type-hint">
-                      {{ $t('workflowTemplate.stepTypeSplitHint') }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="editor-field editor-field--full editor-field--prompt">
-                <div class="editor-field__head">
-                  <label>{{ $t('workflowTemplate.instructionPrompt') }}</label>
-                  <el-button class="preview-prompt-btn" plain size="small" @click="handlePreviewPrompt">
-                    {{ $t('workflowTemplate.previewPrompt') }}
-                  </el-button>
-                </div>
-                <div class="editor-field__hint">{{ $t('workflowTemplate.deliveryPromptGuidance') }}</div>
-                <div v-if="selectedStep.type === 'SPLIT_TASK'" class="editor-field__hint split-prompt-hint">
-                  AI 拆分逻辑由内置的 task-splitter Skill 提供详细规则；此处 prompt 用于引导 Agent 调用该 Skill 并传入上下文。
-                </div>
-                <el-input
-                  v-model="selectedStep.instructionPrompt"
-                  type="textarea"
-                  :rows="6"
-                  resize="vertical"
-                  :placeholder="$t('workflowTemplate.instructionPromptHint')"
-                  :maxlength="2000"
-                  show-word-limit
-                />
-              </div>
-            </div>
-
-            <div v-else class="state-block compact">{{ $t('workflowTemplate.selectStepHint') }}</div>
+            <StepEditorCard
+              :step="selectedStep"
+              :agents="agents"
+              :agents-loaded="agentsLoaded"
+              :agents-load-failed="agentsLoadFailed"
+              @preview-prompt="handlePreviewPrompt"
+            />
           </section>
         </template>
 
@@ -375,16 +287,14 @@
       </el-card>
     </div>
 
-    <BaseDialog
-      :model-value="showPreviewDialog"
-      :title="t('workflowTemplate.previewPromptTitle', { stepName: selectedStep?.name || '' })"
-      width="720px"
-      @update:model-value="showPreviewDialog = $event"
+    <PromptPreviewDialog
+      :visible="showPreviewDialog"
+      :loading="previewLoading"
+      :content="previewContent"
+      :step-name="selectedStep?.name || ''"
+      @update:visible="showPreviewDialog = $event"
       @close="showPreviewDialog = false"
-    >
-      <div v-if="previewLoading" class="preview-prompt-loading">{{ $t('workflowTemplate.previewPromptLoading') }}</div>
-      <pre v-else class="preview-prompt-content">{{ previewContent }}</pre>
-    </BaseDialog>
+    />
 
     <WorkflowTemplateImportDialog
       v-model="showImportDialog"
@@ -416,11 +326,12 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument, Delete, Plus } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
+import StepEditorCard from '../components/workflow/StepEditorCard.vue'
+import PromptPreviewDialog from '../components/workflow/PromptPreviewDialog.vue'
 import WorkflowTemplateImportDialog from '../components/workflow/WorkflowTemplateImportDialog.vue'
 import UnifiedExportDialog from '../components/bundle/UnifiedExportDialog.vue'
 import BundleImportDialog from '../components/bundle/BundleImportDialog.vue'
 import PresetBundleDialog from '../components/bundle/PresetBundleDialog.vue'
-import BaseDialog from '../components/BaseDialog.vue'
 import { useSkillStore } from '../stores/skillStore'
 import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore'
 import { useAgentStore } from '../stores/agentStore'
