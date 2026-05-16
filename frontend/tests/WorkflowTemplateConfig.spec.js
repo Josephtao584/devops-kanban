@@ -85,7 +85,7 @@ vi.mock('../src/stores/agentStore', () => {
     return { success: true, data: [] }
   })
   const storeMethods = {
-    get agents() { return agentsRef },
+    get agents() { return agentsRef.value },
     loading: { value: false },
     error: { value: null },
     fetchAgents: fetchAgentsFn,

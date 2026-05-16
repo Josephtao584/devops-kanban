@@ -479,7 +479,7 @@ const normalizeTemplate = (rawTemplate) => {
 
 const getAgentLabel = (agent) => getAgentDisplayName(agent, t)
 
-const getAgentById = (agentId) => createAgentLookup(agents.value)(agentId)
+const getAgentById = (agentId) => createAgentLookup(agents)(agentId)
 const isMissingAgent = (step) => {
   if (!agentsLoaded.value || agentsLoadFailed.value) return false
   return checkMissingAgent(step, getAgentById)
@@ -855,6 +855,7 @@ const handleActionFailure = (error, fallbackMessageKey) => {
 }
 
 const loadPage = async () => {
+  if (loading.value) return
   loading.value = true
   loadError.value = ''
 

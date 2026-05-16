@@ -100,6 +100,7 @@ const recommendedSelectedTemplateName = computed(() => {
 })
 
 const loadTemplates = async () => {
+  if (loading.value) return
   loading.value = true
   errorMessage.value = ''
 
