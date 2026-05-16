@@ -18,48 +18,16 @@
       </div>
 
       <div v-else class="sources-grid">
-        <div v-for="source in taskSourceStore.taskSources" :key="source.id" class="source-card">
-          <div class="source-header">
-            <div class="source-title-wrap">
-              <h3>{{ source.name }}</h3>
-              <div class="source-id">ID: {{ source.id }}</div>
-            </div>
-            <span class="source-type-badge">{{ getTypeLabel(source.type) }}</span>
-          </div>
-
-          <div class="source-details">
-            <div class="detail-row">
-              <span class="label">{{ $t('taskSource.lastSync', '最后同步') }}</span>
-              <span class="value">{{ formatDateTimeWithFallback(source.last_sync_at) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">{{ $t('taskSource.status', '状态') }}</span>
-              <span class="value" :class="{ 'value-enabled': source.enabled }">
-                {{ source.enabled ? $t('taskSource.enabled', '已启用') : $t('taskSource.disabled', '已禁用') }}
-              </span>
-            </div>
-          </div>
-
-          <div v-if="source.sync_schedule" class="source-schedule-badge">
-            <span class="schedule-dot"></span>
-            <span class="schedule-text">{{ formatScheduleLabel(source.sync_schedule) }}</span>
-          </div>
-
-          <div class="source-actions">
-            <el-button size="small" type="primary" @click="handleSync(source)" :disabled="taskSourceStore.syncing">
-              {{ taskSourceStore.syncing ? '同步中...' : $t('taskSource.sync', '同步') }}
-            </el-button>
-            <el-button size="small" @click="openSyncHistory(source)">
-              {{ $t('taskSource.syncHistory', '历史') }}
-            </el-button>
-            <el-button size="small" @click="editSource(source)">
-              {{ $t('taskSource.edit', '编辑') }}
-            </el-button>
-            <el-button size="small" type="danger" plain @click="confirmDelete(source)">
-              {{ $t('taskSource.delete', '删除') }}
-            </el-button>
-          </div>
-        </div>
+        <TaskSourceCard
+          v-for="source in taskSourceStore.taskSources"
+          :key="source.id"
+          :source="source"
+          :syncing="taskSourceStore.syncing"
+          @sync="handleSync"
+          @sync-history="openSyncHistory"
+          @edit="editSource"
+          @delete="confirmDelete"
+        />
         <button class="source-card source-card-add" @click="showAddDialog">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -71,479 +39,92 @@
     </div>
 
     <!-- Add/Edit Dialog -->
-    <BaseDialog
-      v-model="dialogVisible"
-      :title="isEditMode ? $t('taskSource.editTitle', '编辑任务源') : $t('taskSource.addTitle', '添加任务源')"
-      width="520px"
-      custom-class="task-source-dialog"
-      :body-padding="false"
-      append-to-body
-    >
-      <div class="dialog-content">
-        <el-form ref="formRef" :model="formData" :rules="formRules" label-position="top" size="small">
-          <div class="form-section">
-            <div class="section-title">基本信息</div>
-            <el-form-item :label="$t('taskSource.name', '名称')" prop="name">
-              <el-input v-model="formData.name" :placeholder="$t('taskSource.namePlaceholder', '输入任务源名称')" clearable maxlength="200" show-word-limit />
-            </el-form-item>
-
-            <el-form-item :label="$t('taskSource.type', '类型')" prop="type">
-              <el-select v-model="formData.type" :disabled="isEditMode" @change="onTypeChange" placeholder="选择任务源类型">
-                <el-option
-                  v-for="type in taskSourceStore.availableTypes"
-                  :key="type.key"
-                  :label="type.name"
-                  :value="type.key"
-                >
-                  <div class="type-option">
-                    <span class="type-icon">{{ getTypeIcon(type.key) }}</span>
-                    <span class="type-name">{{ type.name }}</span>
-                  </div>
-                </el-option>
-              </el-select>
-            </el-form-item>
-          </div>
-
-          <template v-if="selectedTypeConfig">
-            <div class="form-section">
-              <div class="section-title">配置信息</div>
-              <template
-                v-for="(field, key) in selectedTypeConfig.configFields"
-                :key="key"
-              >
-                <el-form-item
-                  v-if="field && !field.hidden && !isFieldHidden(key)"
-                  :label="getFieldLabel(key, field)"
-                  :prop="`config.${key}`"
-                  :required="field.required"
-                >
-                  <el-input
-                    v-if="key === 'token'"
-                    v-model="formData.config[key]"
-                    type="password"
-                    :placeholder="getFieldPlaceholder(key, field)"
-                  />
-                  <el-select
-                    v-else-if="key === 'state'"
-                    v-model="formData.config[key]"
-                    :placeholder="getFieldPlaceholder(key, field)"
-                  >
-                    <el-option label="仅开放" value="open" />
-                    <el-option label="仅关闭" value="closed" />
-                    <el-option label="全部" value="all" />
-                  </el-select>
-                  <el-select
-                    v-else-if="field.type === 'array'"
-                    v-model="formData.config[key]"
-                    multiple
-                    :placeholder="$t('taskSource.selectLabels', '选择标签')"
-                  >
-                    <el-option
-                      v-for="label in availableLabels[key]"
-                      :key="label"
-                      :label="label"
-                      :value="label"
-                    />
-                  </el-select>
-                  <el-switch
-                    v-else-if="field.type === 'boolean'"
-                    v-model="formData.config[key]"
-                  />
-                  <el-select
-                    v-else-if="field.options && field.options.length > 0"
-                    v-model="formData.config[key]"
-                    :placeholder="getFieldPlaceholder(key, field)"
-                  >
-                    <el-option
-                      v-for="opt in field.options"
-                      :key="opt.value"
-                      :label="opt.label"
-                      :value="opt.value"
-                    />
-                  </el-select>
-                  <el-select
-                    v-else-if="key === 'agentId'"
-                    v-model="formData.config[key]"
-                    :placeholder="getFieldPlaceholder(key, field)"
-                    clearable
-                  >
-                    <el-option
-                      v-for="agent in agentStore.agents"
-                      :key="agent.id"
-                      :label="agent.name"
-                      :value="agent.id"
-                    />
-                  </el-select>
-                  <el-input
-                    v-else
-                    v-model="formData.config[key]"
-                    :placeholder="getFieldPlaceholder(key, field)"
-                    clearable
-                  />
-                </el-form-item>
-              </template>
-            </div>
-          </template>
-
-          <div class="form-section">
-            <el-form-item :label="$t('taskSource.enabled', '启用')" prop="enabled">
-              <el-switch v-model="formData.enabled" />
-            </el-form-item>
-          </div>
-
-          <div class="form-section">
-            <el-form-item :label="$t('taskSource.syncFrequency', '同步频率')">
-              <el-select v-model="formData.sync_schedule" clearable :placeholder="$t('taskSource.scheduleDisabled', '不启用')">
-                <el-option :label="$t('taskSource.scheduleDisabled', '不启用')" value="" />
-                <el-option label="每 5 分钟" value="*/5 * * * *" />
-                <el-option label="每 15 分钟" value="*/15 * * * *" />
-                <el-option label="每 30 分钟" value="*/30 * * * *" />
-                <el-option label="每小时" value="0 * * * *" />
-                <el-option label="每 6 小时" value="0 */6 * * *" />
-                <el-option label="每天" value="0 0 * * *" />
-                <el-option label="自定义" value="__custom__" />
-              </el-select>
-              <el-input
-                v-if="formData.sync_schedule === '__custom__'"
-                v-model="customCronExpression"
-                style="margin-top: 8px;"
-                :placeholder="$t('taskSource.scheduleCustomPlaceholder', '输入 cron 表达式')"
-              />
-            </el-form-item>
-
-            <el-form-item v-if="formData.sync_schedule && formData.sync_schedule !== '__custom__'" :label="$t('taskSource.defaultWorkflowTemplate', '默认AgentTeam模板')">
-              <el-select v-model="formData.default_workflow_template_id" :placeholder="$t('taskSource.autoWorkflowNone', '不自动触发')" clearable style="width: 100%;">
-                <el-option
-                  v-for="tpl in workflowTemplateStore.templates"
-                  :key="tpl.template_id"
-                  :label="tpl.name"
-                  :value="tpl.template_id"
-                />
-              </el-select>
-            </el-form-item>
-          </div>
-        </el-form>
-      </div>
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ $t('common.cancel', '取消') }}</el-button>
-        <el-button type="primary" @click="submitForm" :disabled="submitting">
-          {{ submitting ? '提交中...' : $t('common.confirm', '确认') }}
-        </el-button>
-      </template>
-    </BaseDialog>
+    <TaskSourceFormDialog
+      v-model:visible="dialogVisible"
+      :is-edit-mode="isEditMode"
+      :submitting="submitting"
+      :form-data="formData"
+      :custom-cron="customCronExpression"
+      :available-types="taskSourceStore.availableTypes"
+      :agents="agentStore.agents"
+      :workflow-templates="workflowTemplateStore.templates"
+      :available-labels="availableLabels"
+      :form-rules="formRules"
+      @type-change="onTypeChange"
+      @update:custom-cron="customCronExpression = $event"
+      @submit="handleFormSubmit"
+    />
 
     <!-- Sync Preview Dialog -->
-    <BaseDialog
-      v-model="taskSourceStore.showPreviewDialog"
-      :title="$t('taskSource.previewTitle', '同步预览')"
-      width="650px"
-      custom-class="sync-preview-dialog"
-      append-to-body
-    >
-      <div v-if="taskSourceStore.syncPreviewTasks.length === 0 && !taskSourceStore.syncError" class="sync-preview-loading">
-        <span>{{ $t('common.loading', '加载中...') }}</span>
-      </div>
-      <div v-else-if="taskSourceStore.syncError" class="sync-preview-error">
-        {{ taskSourceStore.syncError }}
-      </div>
-      <div v-else>
-        <div class="sync-preview-controls">
-          <el-button size="small" @click="selectAllSyncTasks">{{ $t('taskSource.selectAll', '全选') }}</el-button>
-          <el-button size="small" @click="deselectAllSyncTasks">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
-          <span class="selected-count">
-            {{ taskSourceStore.selectedSyncTasks.size }} / {{ taskSourceStore.syncPreviewTasks.filter(t => !t.imported).length }} {{ $t('taskSource.selected', '已选') }}
-          </span>
-        </div>
-        <div class="sync-preview-list">
-          <div
-            v-for="task in taskSourceStore.syncPreviewTasks"
-            :key="task.external_id"
-            class="sync-preview-item"
-            :class="{ selected: taskSourceStore.selectedSyncTasks.has(task.external_id), imported: task.imported }"
-            @click="!task.imported && toggleSyncTask(task)"
-          >
-            <div class="item-checkbox">
-              <input
-                type="checkbox"
-                :checked="taskSourceStore.selectedSyncTasks.has(task.external_id)"
-                :disabled="task.imported"
-                @click.stop="!task.imported && toggleSyncTask(task)"
-              />
-            </div>
-            <div class="item-content">
-              <div class="item-header">
-                <span class="item-title">{{ task.title }}</span>
-                <span class="item-status" :class="task.status?.toLowerCase()">{{ task.status }}</span>
-              </div>
-              <span v-if="task.imported" class="imported-badge">{{ $t('taskSource.imported', '已导入') }}</span>
-              <div class="item-labels" v-if="task.labels && task.labels.length > 0">
-                <span v-for="label in task.labels.slice(0, 5)" :key="label" class="label-badge">{{ label }}</span>
-              </div>
-              <div v-if="task.description" class="item-description-wrapper">
-                <div
-                  :ref="el => setDescriptionRef(el, task.external_id)"
-                  class="item-description"
-                  :class="{ expanded: expandedPreviewDescriptions.has(task.external_id) }"
-                  v-html="formatTaskDescription(task.description || '')"
-                ></div>
-                <button
-                  v-if="descriptionOverflow(task.external_id) || expandedPreviewDescriptions.has(task.external_id)"
-                  class="description-toggle-btn"
-                  @click.stop="toggleDescription(task.external_id)"
-                >
-                  {{ expandedPreviewDescriptions.has(task.external_id) ? '收起 ↑' : '展开 ↓' }}
-                </button>
-              </div>
-              <div class="item-meta">
-                <span class="item-id">#{{ task.external_id }}</span>
-                <span class="item-source">{{ task.sourceName }}</span>
-                <template v-if="task.external_url && task.external_url.startsWith('file://')">
-                  <span
-                    class="external-link local-path"
-                    :title="formatExternalUrl(task.external_url)"
-                  >
-                    {{ formatExternalUrl(task.external_url) }}
-                  </span>
-                </template>
-                <a
-                  v-else-if="task.external_url"
-                  :href="task.external_url"
-                  target="_blank"
-                  class="external-link"
-                  @click.stop
-                >
-                  {{ $t('taskSource.viewExternalItem', '查看外部条目') }} →
-                </a>
-              </div>
-            </div>
-          </div>
-          <div v-if="taskSourceStore.syncPreviewTasks.length === 0" class="sync-preview-empty">
-            {{ $t('taskSource.noTasksToImport', '没有可导入的任务') }}
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="closeSyncPreview">{{ $t('common.cancel', '取消') }}</el-button>
-        <el-button
-          type="primary"
-          @click="confirmSyncImport"
-          :disabled="taskSourceStore.selectedSyncTasks.size === 0"
-        >
-          {{ $t('taskSource.confirmImport', '确认导入') }} ({{ taskSourceStore.selectedSyncTasks.size }})
-        </el-button>
-      </template>
-    </BaseDialog>
+    <SyncPreviewDialog
+      v-model:visible="taskSourceStore.showPreviewDialog"
+      :loading="taskSourceStore.syncing"
+      :sync-error="taskSourceStore.syncError"
+      :sync-preview-tasks="taskSourceStore.syncPreviewTasks"
+      :selected-tasks="taskSourceStore.selectedSyncTasks"
+      :expanded-descriptions="expandedPreviewDescriptions"
+      @toggle-task="toggleSyncTask"
+      @select-all="selectAllSyncTasks"
+      @deselect-all="deselectAllSyncTasks"
+      @confirm-import="confirmSyncImport"
+      @close="closeSyncPreview"
+      @toggle-description="toggleDescription"
+    />
 
-    <!-- AI Preview 2-Step Dialog -->
-    <BaseDialog
-      v-model="taskSourceStore.aiPreviewDialog"
-      :title="taskSourceStore.aiPreviewStep === 'prompt' ? $t('taskSource.aiPreviewPromptTitle', '同步预览 - Prompt') : $t('taskSource.aiPreviewResultsTitle', '同步预览 - AI 结果')"
-      width="700px"
-      custom-class="ai-preview-dialog"
-      append-to-body
-    >
-      <!-- Step 1: Prompt Preview -->
-      <div v-if="taskSourceStore.aiPreviewStep === 'prompt'">
-        <div class="ai-prompt-header">
-          <span class="prompt-file-count">{{ taskSourceStore.aiPreviewFiles.length }} {{ $t('taskSource.aiFilesToAnalyze', '个文件将被分析') }}</span>
-        </div>
-        <div class="ai-prompt-content">
-          <el-input
-            v-model="taskSourceStore.aiPreviewPrompt"
-            type="textarea"
-            :rows="10"
-            class="ai-prompt-editor"
-          />
-        </div>
-        <div class="ai-prompt-files">
-          <div v-for="file in taskSourceStore.aiPreviewFiles" :key="file.filename" class="ai-prompt-file-item">
-            <span class="file-icon">&#x1F4C4;</span>
-            <span class="file-name">{{ file.filename }}</span>
-            <span class="file-size">{{ formatFileSize(file.size) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 2: AI Results / Processing -->
-      <div v-else>
-        <!-- Processing -->
-        <div v-if="taskSourceStore.aiPreviewProcessing" class="ai-processing">
-          <div class="processing-spinner"></div>
-          <p>{{ $t('taskSource.aiProcessing', 'AI 正在分析文件，可关闭对话框稍后查看...') }}</p>
-        </div>
-
-        <!-- Error -->
-        <div v-if="taskSourceStore.aiPreviewError" class="ai-error">
-          <el-alert type="error" :title="taskSourceStore.aiPreviewError" :closable="false" />
-        </div>
-
-        <!-- Fallback warning -->
-        <div v-if="taskSourceStore.aiPreviewAllFallback" class="ai-fallback-warning">
-          <el-alert type="warning" title="AI 未能生成描述，已使用文件名作为标题。您可以手动编辑后确认导入。" :closable="false" />
-        </div>
-
-        <!-- Results -->
-        <template v-if="!taskSourceStore.aiPreviewError && taskSourceStore.aiPreviewResults.length > 0">
-          <div class="ai-results-controls">
-            <el-button size="small" @click="selectAllAiResults">{{ $t('taskSource.selectAll', '全选') }}</el-button>
-            <el-button size="small" @click="deselectAllAiResults">{{ $t('taskSource.deselectAll', '取消全选') }}</el-button>
-            <span class="selected-count">
-              {{ taskSourceStore.aiPreviewSelected.size }} / {{ taskSourceStore.aiPreviewResults.length }} {{ $t('taskSource.selected', '已选') }}
-            </span>
-          </div>
-          <div class="ai-results-list">
-            <div
-              v-for="item in taskSourceStore.aiPreviewResults"
-              :key="item.externalId"
-              class="ai-result-item"
-              :class="{ selected: taskSourceStore.aiPreviewSelected.has(item.externalId) }"
-            >
-              <input
-                type="checkbox"
-                :checked="taskSourceStore.aiPreviewSelected.has(item.externalId)"
-                @change="taskSourceStore.toggleAiPreviewItem(item.externalId)"
-              />
-              <div class="result-content">
-                <div class="result-filename">{{ item.externalId }}</div>
-                <el-input v-model="item.title" size="small" :placeholder="$t('taskSource.aiTaskTitle', '任务标题')" class="result-title-input" />
-                <el-input
-                  v-model="item.description"
-                  type="textarea"
-                  :rows="2"
-                  size="small"
-                  :placeholder="$t('taskSource.aiTaskDesc', '任务描述')"
-                  class="result-desc-input"
-                />
-                <div class="result-tag-row">
-                  <span v-if="item.scenarioTag" class="result-scenario-tag">{{ item.scenarioTag }}</span>
-                  <el-select
-                    v-model="item.recommendedWorkflowTemplateId"
-                    size="small"
-                    clearable
-                    :placeholder="$t('taskSource.aiWorkflowTemplate', '推荐AgentTeam')"
-                    class="result-workflow-input"
-                  >
-                    <el-option
-                      v-for="tpl in workflowTemplateStore.templates"
-                      :key="tpl.template_id"
-                      :label="tpl.name"
-                      :value="tpl.template_id"
-                    />
-                  </el-select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <template #footer>
-        <el-button @click="taskSourceStore.closeAiPreviewDialog()">{{ taskSourceStore.aiPreviewProcessing ? '关闭' : $t('common.cancel', '取消') }}</el-button>
-        <el-button
-          v-if="taskSourceStore.aiPreviewStep === 'prompt'"
-          type="primary"
-          @click="executeAiPreviewAndSync"
-          :loading="taskSourceStore.aiPreviewLoading"
-          :disabled="taskSourceStore.aiPreviewFiles.length === 0"
-        >
-          {{ $t('taskSource.aiConfirmExecute', '确认执行') }}
-        </el-button>
-        <el-button
-          v-else-if="!taskSourceStore.aiPreviewProcessing && !taskSourceStore.aiPreviewError"
-          type="primary"
-          @click="confirmAiPreviewAndImport"
-          :loading="taskSourceStore.aiPreviewLoading"
-          :disabled="taskSourceStore.aiPreviewSelected.size === 0"
-        >
-          {{ $t('taskSource.aiConfirmImport', '确认导入') }} ({{ taskSourceStore.aiPreviewSelected.size }})
-        </el-button>
-      </template>
-    </BaseDialog>
+    <!-- AI Preview Dialog -->
+    <AiPreviewDialog
+      v-model:visible="taskSourceStore.aiPreviewDialog"
+      :step="taskSourceStore.aiPreviewStep"
+      :processing="taskSourceStore.aiPreviewProcessing"
+      :loading="taskSourceStore.aiPreviewLoading"
+      :error="taskSourceStore.aiPreviewError"
+      :all-fallback="taskSourceStore.aiPreviewAllFallback"
+      :prompt="taskSourceStore.aiPreviewPrompt"
+      :files="taskSourceStore.aiPreviewFiles"
+      :results="taskSourceStore.aiPreviewResults"
+      :selected="taskSourceStore.aiPreviewSelected"
+      :workflow-templates="workflowTemplateStore.templates"
+      @update:prompt="taskSourceStore.aiPreviewPrompt = $event"
+      @execute="executeAiPreviewAndSync"
+      @confirm-import="confirmAiPreviewAndImport"
+      @close="taskSourceStore.closeAiPreviewDialog()"
+      @select-all="selectAllAiResults"
+      @deselect-all="deselectAllAiResults"
+      @toggle-ai-item="taskSourceStore.toggleAiPreviewItem($event)"
+    />
 
     <!-- Sync History Dialog -->
-    <BaseDialog
-      v-model="syncHistoryDialogVisible"
-      :title="$t('taskSource.syncHistoryTitle', '同步历史')"
-      width="600px"
-      append-to-body
-    >
-      <div v-if="taskSourceStore.syncHistoryLoading" class="sync-history-loading">
-        {{ $t('taskSource.syncHistoryLoading', '加载中...') }}
-      </div>
-      <div v-else-if="taskSourceStore.syncHistory.length === 0" class="sync-history-empty">
-        {{ $t('taskSource.syncHistoryEmpty', '暂无同步记录') }}
-      </div>
-      <el-table v-else :data="taskSourceStore.syncHistory" size="small" stripe>
-        <el-table-column :label="$t('taskSource.syncHistoryTime', '时间')" prop="startedAt" width="180">
-          <template #default="{ row }">
-            {{ row.startedAt ? formatDate(row.startedAt) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('taskSource.syncHistoryMode', '模式')" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.mode === 'ai' ? 'success' : 'info'" size="small">
-              {{ row.mode === 'ai' ? $t('taskSource.syncHistoryModeAi', 'AI') : $t('taskSource.syncHistoryModeFixed', '固定') }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('taskSource.syncHistoryFiles', '文件数')" prop="fileCount" width="80" />
-        <el-table-column :label="$t('taskSource.syncHistoryStatus', '状态')" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'COMPLETED' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'" size="small">
-              {{ row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('taskSource.syncHistoryViewAnalysis', '查看分析')" width="100">
-          <template #default="{ row }">
-            <el-button v-if="row.mode === 'ai'" link type="primary" size="small" @click="viewAnalysis(row.sessionId)">
-              {{ $t('taskSource.syncHistoryViewAnalysis', '查看分析') }}
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-pagination
-        v-if="taskSourceStore.syncHistoryPagination.total > taskSourceStore.syncHistoryPagination.pageSize"
-        class="sync-history-pagination"
-        v-model:current-page="taskSourceStore.syncHistoryPagination.page"
-        v-model:page-size="taskSourceStore.syncHistoryPagination.pageSize"
-        :total="taskSourceStore.syncHistoryPagination.total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, prev, pager, next, sizes"
-        size="small"
-        @current-change="handleSyncHistoryPageChange"
-        @size-change="handleSyncHistoryPageSizeChange"
-      />
-      <template #footer>
-        <el-button @click="syncHistoryDialogVisible = false">{{ $t('common.close', '关闭') }}</el-button>
-      </template>
-    </BaseDialog>
+    <SyncHistoryDialog
+      v-model:visible="syncHistoryDialogVisible"
+      :loading="taskSourceStore.syncHistoryLoading"
+      :history="taskSourceStore.syncHistory"
+      :pagination="taskSourceStore.syncHistoryPagination"
+      @view-analysis="viewAnalysis"
+      @page-change="handleSyncHistoryPageChange"
+      @size-change="handleSyncHistoryPageSizeChange"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTaskSourceStore } from '../../stores/taskSourceStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useAgentStore } from '../../stores/agentStore'
 import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore'
-import BaseDialog from '../BaseDialog.vue'
 import { ElMessageBox } from 'element-plus'
-import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { useToast } from '../../composables/ui/useToast'
-import { formatDateTime } from '../../utils/dateFormat'
+import TaskSourceCard from './TaskSourceCard.vue'
+import TaskSourceFormDialog from './TaskSourceFormDialog.vue'
+import SyncPreviewDialog from './SyncPreviewDialog.vue'
+import AiPreviewDialog from './AiPreviewDialog.vue'
+import SyncHistoryDialog from './SyncHistoryDialog.vue'
 
 const props = defineProps({
-  projectId: {
-    type: String,
-    default: ''
-  },
-  visible: {
-    type: Boolean,
-    default: false
-  }
+  projectId: { type: String, default: '' },
+  visible: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible', 'tasks-imported'])
@@ -559,14 +140,11 @@ const toast = useToast()
 const dialogVisible = ref(false)
 const isEditMode = ref(false)
 const submitting = ref(false)
-const formRef = ref(null)
 
 const syncHistoryDialogVisible = ref(false)
 const currentSourceId = ref(null)
 
 const expandedPreviewDescriptions = ref(new Set())
-const descriptionOverflowState = ref({})
-const descriptionRefs = ref({})
 
 const availableLabels = ref({})
 
@@ -586,11 +164,6 @@ const formRules = {
   name: [{ required: true, message: '请输入任务源名称', trigger: 'blur' }],
   type: [{ required: true, message: '请选择任务源类型', trigger: 'change' }]
 }
-
-const selectedTypeConfig = computed(() => {
-  if (!formData.value.type) return null
-  return taskSourceStore.availableTypes.find(t => t.key === formData.value.type) || null
-})
 
 // --- Data loading ---
 const loadData = async () => {
@@ -638,121 +211,6 @@ watch(() => taskSourceStore.aiPreviewResults, (results) => {
 const handleCollapse = () => {
   taskSourceStore.closePreviewDialog()
   emit('update:visible', false)
-}
-
-// --- Helpers ---
-const formatDateTimeWithFallback = (dateStr) => formatDateTime(dateStr, { fallback: '-' })
-
-const scheduleLabels = {
-  '*/5 * * * *': '每5分钟',
-  '*/15 * * * *': '每15分钟',
-  '*/30 * * * *': '每30分钟',
-  '0 * * * *': '每小时',
-  '0 */6 * * *': '每6小时',
-  '0 0 * * *': '每天',
-}
-
-const formatScheduleLabel = (cronExpr) => {
-  return scheduleLabels[cronExpr] || cronExpr
-}
-
-const loadWorkflowTemplates = async () => {
-  try {
-    await workflowTemplateStore.fetchTemplates()
-  } catch (e) {
-    console.warn('Failed to load workflow templates:', e)
-  }
-}
-
-const getTypeLabel = (type) => {
-  const translated = t(`taskSource.types.${type}`)
-  return translated === `taskSource.types.${type}` ? type : translated
-}
-
-const getTypeIcon = (_type) => {
-  return ''
-}
-
-const getFieldLabel = (key, field) => {
-  const commonLabels = {
-    repo: '仓库',
-    token: '访问令牌',
-    state: 'Issue 状态',
-    labels: '标签筛选',
-    baseUrl: 'API 地址',
-    userId: '用户标识',
-    category: '分类',
-    status: '状态',
-    pageSize: '每页数量',
-    listPath: '列表路径',
-    detailPath: '详情路径',
-    detailIdField: '详情 ID 字段',
-    rejectUnauthorized: '接受自签名证书',
-    directoryPath: '目录路径',
-    fileExtensions: '文件扩展名',
-    descriptionMode: '描述模式',
-    descriptionTemplate: '描述模板',
-    agentId: '分析 Agent'
-  }
-
-  const internalApiLabels = {
-    baseUrl: 'API 基础地址',
-    listPath: '列表接口路径',
-    detailPath: '详情接口路径模板',
-    detailIdField: '详情ID字段'
-  }
-
-  if (formData.value.type === 'INTERNAL_API' && internalApiLabels[key]) {
-    return internalApiLabels[key]
-  }
-
-  return commonLabels[key] || field.description || key
-}
-
-const getFieldPlaceholder = (key, field) => {
-  const commonPlaceholders = {
-    repo: '例如: owner/repo',
-    token: 'ghp_xxx...',
-    state: '选择 Issue 状态',
-    labels: '选择标签',
-    baseUrl: 'https://codehub.huawei.com/api/v4',
-    userId: '输入用户标识',
-    category: '例如: 5',
-    pageSize: '例如: 10',
-    listPath: '/devops-workitem/api/v1/query/workitems',
-    detailPath: '/devops-workitem/api/v1/query/{number}/document_detail',
-    detailIdField: '例如: number',
-    rejectUnauthorized: '关闭后接受自签名证书',
-    directoryPath: '服务器本地目录的绝对路径',
-    fileExtensions: '如 txt,md,pdf',
-    descriptionTemplate: '支持 {filename} 等变量',
-    agentId: '选择 Agent'
-  }
-
-  const internalApiPlaceholders = {
-    baseUrl: '例如: https://internal.example.com',
-    token: '例如: Bearer xxx 或 ApiKey xxx',
-    listPath: '例如: /api/tasks',
-    detailPath: '例如: /api/tasks/{id}',
-    detailIdField: '例如: id 或 data.taskId'
-  }
-
-  if (field?.default !== undefined) {
-    return `默认: ${field.default}`
-  }
-
-  if (formData.value.type === 'INTERNAL_API' && internalApiPlaceholders[key]) {
-    return internalApiPlaceholders[key]
-  }
-
-  return commonPlaceholders[key] || field.description || ''
-}
-
-const isFieldHidden = (key) => {
-  const mode = formData.value.config?.descriptionMode
-  if (key === 'descriptionTemplate' && mode === 'ai') return true
-  if (key === 'agentId' && mode !== 'ai') return true
-  return false
 }
 
 // --- Form ---
@@ -823,7 +281,6 @@ const editSource = (source) => {
     config.token = '****'
   }
 
-  // Detect if schedule is a custom (non-preset) cron expression
   const presetCrons = ['*/5 * * * *', '*/15 * * * *', '*/30 * * * *', '0 * * * *', '0 */6 * * *', '0 0 * * *']
   let scheduleValue = source.sync_schedule || null
   let customCron = ''
@@ -875,16 +332,15 @@ const findCurrentSource = (sourceId) => {
   return taskSourceStore.taskSources.find(source => source.id === sourceId) || null
 }
 
-const submitForm = async () => {
-  if (!formRef.value) return
+const handleFormSubmit = async (formRef) => {
+  if (!formRef) return
 
   try {
-    await formRef.value.validate()
+    await formRef.validate()
     submitting.value = true
 
     const payload = { ...formData.value }
 
-    // Handle custom cron expression
     if (payload.sync_schedule === '__custom__') {
       payload.sync_schedule = customCronExpression.value || null
     }
@@ -1011,16 +467,6 @@ const handleSyncHistoryPageSizeChange = (pageSize) => {
   taskSourceStore.fetchSyncHistory(currentSourceId.value, 1)
 }
 
-const formatDate = (isoString) => {
-  const date = new Date(isoString)
-  const now = new Date()
-  const isToday = date.toDateString() === now.toDateString()
-  if (isToday) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  }
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
-
 const testSource = async (source) => {
   try {
     const result = await taskSourceStore.testTaskSource(source.id)
@@ -1037,21 +483,6 @@ const viewAnalysis = async (sessionId) => {
 }
 
 // --- Description expand/collapse ---
-const setDescriptionRef = (el, externalId) => {
-  if (el) {
-    descriptionRefs.value[externalId] = el
-    nextTick(() => {
-      if (el && el.scrollHeight > el.clientHeight + 2) {
-        descriptionOverflowState.value[externalId] = true
-      }
-    })
-  }
-}
-
-const descriptionOverflow = (externalId) => {
-  return !!descriptionOverflowState.value[externalId]
-}
-
 const toggleDescription = (externalId) => {
   const newSet = new Set(expandedPreviewDescriptions.value)
   if (newSet.has(externalId)) {
@@ -1062,16 +493,12 @@ const toggleDescription = (externalId) => {
   expandedPreviewDescriptions.value = newSet
 }
 
-const formatFileSize = (bytes) => {
-  if (!bytes) return '0 B'
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
-const formatExternalUrl = (url) => {
-  if (url.startsWith('file://')) return url.replace('file://', '')
-  return url
+const loadWorkflowTemplates = async () => {
+  try {
+    await workflowTemplateStore.fetchTemplates()
+  } catch (e) {
+    console.warn('Failed to load workflow templates:', e)
+  }
 }
 
 const executeAiPreviewAndSync = async () => {
@@ -1152,22 +579,6 @@ const deselectAllAiResults = () => {
   gap: 12px;
 }
 
-.source-card {
-  background: var(--bg-primary);
-  border-radius: var(--radius-md);
-  padding: 14px;
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.source-card:hover {
-  border-color: var(--accent-color);
-  box-shadow: 0 2px 8px rgba(37, 198, 201, 0.1);
-}
-
 .source-card-add {
   min-height: 180px;
   background: transparent;
@@ -1197,606 +608,5 @@ const deselectAllAiResults = () => {
 
 .source-card-add:hover svg {
   opacity: 1;
-}
-
-.source-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.source-title-wrap {
-  flex: 1;
-  min-width: 0;
-}
-
-.source-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-id {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--text-muted);
-  word-break: break-all;
-}
-
-.source-type-badge {
-  background: var(--accent-color-soft);
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--accent-color-strong);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.source-details {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  gap: 10px;
-}
-
-.detail-row .label {
-  color: var(--text-muted);
-}
-
-.detail-row .value {
-  color: var(--text-primary);
-  font-weight: 500;
-  text-align: right;
-}
-
-.detail-row .value-enabled {
-  color: var(--done-strong);
-}
-
-.source-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: auto;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-color);
-}
-
-.source-actions :deep(.el-button) {
-  min-height: 26px;
-  padding: 3px 10px;
-  font-size: 12px;
-  margin: 0;
-}
-
-.source-actions :deep(.el-button + .el-button) {
-  margin-left: 0;
-}
-
-/* Dialog styles */
-.dialog-content {
-  padding: 16px 20px;
-}
-
-.form-section {
-  margin-bottom: 16px;
-}
-
-.form-section:last-child {
-  margin-bottom: 0;
-}
-
-.section-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.type-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 0;
-}
-
-.type-icon {
-  font-size: 16px;
-}
-
-.type-name {
-  font-size: 13px;
-}
-
-:deep(.el-form-item) {
-  margin-bottom: 14px;
-}
-
-:deep(.el-form-item:last-child) {
-  margin-bottom: 0;
-}
-
-:deep(.el-form-item__label) {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  padding-bottom: 4px;
-}
-
-:deep(.el-input__inner) {
-  font-size: 13px;
-}
-
-:deep(.el-select) {
-  width: 100%;
-}
-
-/* Sync preview */
-.sync-preview-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px;
-  color: var(--text-secondary);
-}
-
-.sync-preview-error {
-  padding: 20px;
-  color: #f56c6c;
-  text-align: center;
-}
-
-.sync-preview-controls {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color-lightest, #eee);
-}
-
-.sync-preview-controls :deep(.el-button) {
-  min-height: 28px;
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 6px;
-}
-
-.selected-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-left: auto;
-}
-
-.sync-preview-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.sync-preview-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
-  border-bottom: 1px solid var(--border-color-lightest, #eee);
-}
-
-.sync-preview-item:hover {
-  background: var(--bg-secondary);
-}
-
-.sync-preview-item.selected {
-  background: #ecf5ff;
-}
-
-.sync-preview-item.imported {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.item-checkbox {
-  flex-shrink: 0;
-  padding-top: 2px;
-}
-
-.item-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.item-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.item-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.item-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.item-status {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.item-status.todo { background: #f4f4f5; color: #909399; }
-.item-status.in_progress { background: #fdf6ec; color: #e6a23c; }
-.item-status.done { background: #f0f9eb; color: #67c23a; }
-.item-status.blocked { background: #fef0f0; color: #f56c6c; }
-
-.imported-badge {
-  display: inline-block;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #f0f9eb;
-  color: #67c23a;
-  margin-bottom: 4px;
-}
-
-.item-description {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.item-description.expanded {
-  -webkit-line-clamp: unset;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.item-description-wrapper {
-  margin-bottom: 4px;
-  position: relative;
-}
-
-.description-toggle-btn {
-  font-size: 11px;
-  color: #409eff;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 0;
-  margin-top: 2px;
-}
-
-.item-labels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 4px;
-}
-
-.label-badge {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: #f2f6fc;
-  color: var(--text-secondary);
-}
-
-.item-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 11px;
-  color: #c0c4cc;
-}
-
-.item-id {
-  font-family: monospace;
-}
-
-.external-link {
-  color: #409eff;
-  text-decoration: none;
-}
-
-.external-link:hover {
-  text-decoration: underline;
-}
-
-.external-link.local-path {
-  color: #909399;
-  cursor: default;
-  font-family: monospace;
-  font-size: 12px;
-}
-
-.external-link.local-path:hover {
-  text-decoration: none;
-}
-
-.sync-preview-empty {
-  text-align: center;
-  padding: 40px;
-  color: #c0c4cc;
-}
-
-.source-schedule-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent-color-soft);
-  padding: 4px 8px;
-  border-radius: 4px;
-  align-self: flex-start;
-}
-
-.schedule-dot {
-  width: 6px;
-  height: 6px;
-  background: var(--accent-color);
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-.schedule-text {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--accent-color-strong);
-}
-
-.sync-history-loading {
-  text-align: center;
-  padding: 20px;
-  color: #909399;
-}
-
-.sync-history-empty {
-  text-align: center;
-  padding: 20px;
-  color: #909399;
-}
-
-.sync-history-pagination {
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px 0 0;
-}
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.4; }
-  100% { opacity: 1; }
-}
-
-/* AI Preview dialog */
-.ai-prompt-header {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.prompt-file-count {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ai-prompt-content {
-  max-height: 300px;
-  overflow-y: auto;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin-bottom: 12px;
-}
-
-.ai-prompt-text {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--text-primary);
-  font-family: var(--font-mono, monospace);
-}
-
-.ai-prompt-editor {
-  font-family: var(--font-mono, monospace);
-}
-.ai-prompt-editor :deep(.el-textarea__inner) {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.ai-prompt-files {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.ai-prompt-file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-}
-
-.file-icon {
-  font-size: 14px;
-}
-
-.file-name {
-  flex: 1;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.file-size {
-  color: var(--text-secondary);
-  font-size: 11px;
-}
-
-.ai-results-controls {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.selected-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-left: auto;
-}
-
-.ai-processing {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 0;
-  text-align: center;
-}
-
-.processing-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.ai-processing p {
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.ai-error {
-  padding: 24px 0;
-}
-
-.ai-fallback-warning {
-  padding: 12px 0;
-}
-
-.ai-results-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.ai-result-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.ai-result-item.selected {
-  background: var(--bg-secondary);
-}
-
-.ai-result-item input[type="checkbox"] {
-  margin-top: 4px;
-  flex-shrink: 0;
-}
-
-.result-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.result-filename {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-:deep(.result-title-input .el-input__inner) {
-  font-weight: 500;
-}
-
-.result-workflow-input {
-  width: 100%;
-}
-.result-workflow-input :deep(.el-input__wrapper) {
-  background: var(--bg-secondary);
-}
-
-.result-tag-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.result-scenario-tag {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.ai-preview-dialog :deep(.el-dialog__body) {
-  padding: 16px 20px;
 }
 </style>
