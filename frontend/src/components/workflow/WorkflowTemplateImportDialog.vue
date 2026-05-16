@@ -112,7 +112,8 @@
 import { ref, computed } from 'vue'
 import { Check, Right, Upload } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { previewImportWorkflowTemplates, confirmImportWorkflowTemplates } from '../../api/workflowTemplate.js'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
+const workflowTemplateStore = useWorkflowTemplateStore()
 import { useImportDialog } from '../../composables/useImportDialog'
 
 const props = defineProps({
@@ -140,7 +141,7 @@ const {
         setError(t('workflowTemplate.importInvalidFile'))
         return
       }
-      const response = await previewImportWorkflowTemplates(data)
+      const response = await workflowTemplateStore.previewImportWorkflowTemplates(data)
       if (!response?.success) {
         setError(response?.message || t('workflowTemplate.importPreviewFailed'))
         return
@@ -152,7 +153,7 @@ const {
     }
   },
   onConfirmImport: async ({ previewData, strategy }) => {
-    const response = await confirmImportWorkflowTemplates({
+    const response = await workflowTemplateStore.confirmImportWorkflowTemplates({
       templates: previewData.templates,
       strategy,
       agentMappings: { ...agentMappings.value }

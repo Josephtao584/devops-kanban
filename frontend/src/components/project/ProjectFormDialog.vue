@@ -117,7 +117,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Link, FolderOpened, Setting } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { getWorkflowTemplates } from '../../api/workflowTemplate.js'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const props = defineProps({
   modelValue: {
@@ -181,7 +182,7 @@ const loadTemplates = async () => {
   if (templatesLoading.value) return
   templatesLoading.value = true
   try {
-    const resp = await getWorkflowTemplates()
+    const resp = await workflowTemplateStore.fetchTemplates()
     if (resp?.success) {
       availableTemplates.value = Array.isArray(resp.data) ? resp.data : []
     }

@@ -37,7 +37,8 @@ vi.mock('element-plus', () => ({
 }))
 
 import { useWorktree } from '../src/composables/useWorktree'
-import { createTaskWorktree, deleteTaskWorktree } from '../src/api/taskWorktree'
+import * as taskWorktreeApi from '../src/api/taskWorktree'
+const { createTaskWorktree, deleteTaskWorktree } = taskWorktreeApi
 import { ElMessageBox } from 'element-plus'
 
 describe('useWorktree', () => {
@@ -45,7 +46,7 @@ describe('useWorktree', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    worktree = useWorktree()
+    worktree = useWorktree({ taskWorktreeApi })
   })
 
   describe('getWorktreeClass', () => {

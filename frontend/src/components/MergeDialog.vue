@@ -69,9 +69,11 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { mergeBranch, listBranches } from '../api/git'
+import { useGitStore } from '../stores/gitStore'
 import { useToast } from '../composables/ui/useToast'
 import BaseDialog from './BaseDialog.vue'
+
+const gitStore = useGitStore()
 
 const props = defineProps({
   projectId: {
@@ -105,7 +107,7 @@ onMounted(async () => {
 
 const loadBranches = async () => {
   try {
-    const response = await listBranches(props.projectId)
+    const response = await gitStore.listBranches(props.projectId)
     if (response.success) {
       // 显示所有本地分支
       mainBranches.value = response.data.filter(b => {
@@ -129,7 +131,7 @@ const handleMerge = async () => {
   mergeConflicts.files = []
 
   try {
-    const response = await mergeBranch(props.projectId, props.sourceBranch, selectedTargetBranch.value)
+    const response = await gitStore.mergeBranch(props.projectId, props.sourceBranch, selectedTargetBranch.value)
 
     if (response.success) {
       toast.success(t('git.mergeSuccess', '分支合并成功'))

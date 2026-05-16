@@ -101,6 +101,20 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function getTask(id) {
+    crud.loading.value = true
+    crud.error.value = null
+    try {
+      const response = await taskApi.getTask(id)
+      return response
+    } catch (err) {
+      crud.error.value = err.message
+      throw err
+    } finally {
+      crud.loading.value = false
+    }
+  }
+
   return {
     // State
     tasks: crud.items,
@@ -119,6 +133,7 @@ export const useTaskStore = defineStore('task', () => {
     deleteTask: crud.deleteItem,
     getTaskPipeline,
     startTask,
+    getTask,
     setCurrentTask: crud.setCurrentItem,
     clearTasks: crud.clearItems,
     clearError: crud.clearError

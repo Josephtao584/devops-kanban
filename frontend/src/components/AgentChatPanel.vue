@@ -131,8 +131,10 @@
 import { ref, watch, nextTick, computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SessionEventRenderer from './session/SessionEventRenderer.vue'
-import { createChatSession, deleteChatSession, getLatestChatSession, streamChatMessage } from '../api/agentChat.js'
+import { useAgentChatStore } from '../stores/agentChatStore.js'
 import { normalizeEvents } from '../composables/useSessionEvents.js'
+
+const agentChatStore = useAgentChatStore()
 
 const { t } = useI18n()
 
@@ -197,7 +199,7 @@ function startPolling() {
       return
     }
     try {
-      const res = await getLatestChatSession(currentAgentId)
+      const res = await agentChatStore.getLatestChatSession(currentAgentId)
       if (res?.success && res.data && res.data.id === chatId.value) {
         const session = res.data
         const normalized = normalizeEvents(session.messages || [])
@@ -260,7 +262,7 @@ function scrollToBottom() {
 async function doCreateSession(agentId) {
   isCreatingSession.value = true
   try {
-    const response = await createChatSession(agentId)
+    const response = await agentChatStore.createChatSession(agentId)
     if (!response?.success) {
       console.error('Failed to start chat session:', response?.message)
       return
@@ -332,7 +334,7 @@ async function startNewSession() {
     streamController = null
   }
   if (chatId.value && currentAgentId) {
-    try { await deleteChatSession(currentAgentId, chatId.value) } catch { /* noop */ }
+    try { await agentChatStore.deleteChatSession(currentAgentId, chatId.value) } catch { /* noop */ }
   }
   chatId.value = null
   sessionStatus.value = 'idle'
@@ -368,7 +370,7 @@ async function sendMessage() {
   startTimer()
   scrollToBottom()
 
-  streamController = streamChatMessage(
+  streamController = agentChatStore.streamChatMessage(
     props.agent.id,
     chatId.value,
     text,

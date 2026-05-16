@@ -4,11 +4,17 @@ import { defineComponent, h, nextTick } from 'vue'
 
 import i18n from '../src/locales'
 import WorkflowTemplateImportDialog from '../src/components/workflow/WorkflowTemplateImportDialog.vue'
-import { previewImportWorkflowTemplates, confirmImportWorkflowTemplates } from '../src/api/workflowTemplate.js'
 
-vi.mock('../src/api/workflowTemplate.js', () => ({
+const mockStore = vi.hoisted(() => ({
   previewImportWorkflowTemplates: vi.fn(),
-  confirmImportWorkflowTemplates: vi.fn()
+  confirmImportWorkflowTemplates: vi.fn(),
+  loading: { value: false },
+  error: { value: null }
+}))
+
+vi.mock('../src/stores/workflowTemplateStore', () => ({
+  useWorkflowTemplateStore: () => mockStore,
+  storeMethods: mockStore
 }))
 
 const BaseDialogStub = defineComponent({
@@ -81,7 +87,7 @@ describe('WorkflowTemplateImportDialog', () => {
         unmatchedAgentNames: []
       }
     }
-    previewImportWorkflowTemplates.mockResolvedValue(mockPreviewResult)
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue(mockPreviewResult)
 
     const wrapper = createWrapper()
     await simulateFileUpload(wrapper, {
@@ -90,7 +96,7 @@ describe('WorkflowTemplateImportDialog', () => {
       templates: [{ template_id: 'test', name: 'Test', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }]
     })
 
-    expect(previewImportWorkflowTemplates).toHaveBeenCalledWith(
+    expect(mockStore.previewImportWorkflowTemplates).toHaveBeenCalledWith(
       expect.objectContaining({
         version: '1.0',
         templates: expect.arrayContaining([
@@ -101,7 +107,7 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('shows preview table after successful preview', async () => {
-    previewImportWorkflowTemplates.mockResolvedValue({
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'test', name: 'Test', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }],
@@ -122,7 +128,7 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('shows conflict section when templates exist', async () => {
-    previewImportWorkflowTemplates.mockResolvedValue({
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'existing', name: 'Existing', steps: [] }],
@@ -144,7 +150,7 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('shows agent mapping section when agents are unmatched', async () => {
-    previewImportWorkflowTemplates.mockResolvedValue({
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'new', name: 'New', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Unknown Agent' }] }],
@@ -164,7 +170,7 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('calls confirmImport on confirm button click', async () => {
-    previewImportWorkflowTemplates.mockResolvedValue({
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'new', name: 'New', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }],
@@ -173,7 +179,7 @@ describe('WorkflowTemplateImportDialog', () => {
       }
     })
 
-    confirmImportWorkflowTemplates.mockResolvedValue({
+    mockStore.confirmImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         imported: [{ template_id: 'new', name: 'New', steps: [] }],
@@ -190,7 +196,7 @@ describe('WorkflowTemplateImportDialog', () => {
     await wrapper.vm.handleConfirmImport()
     await nextTick()
 
-    expect(confirmImportWorkflowTemplates).toHaveBeenCalledWith(
+    expect(mockStore.confirmImportWorkflowTemplates).toHaveBeenCalledWith(
       expect.objectContaining({
         strategy: 'copy',
         templates: expect.any(Array),
@@ -200,7 +206,7 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('emits imported event and shows result after successful import', async () => {
-    previewImportWorkflowTemplates.mockResolvedValue({
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'new', name: 'New', steps: [{ id: 's1', name: 'S1', instructionPrompt: 'Do', agentName: 'Agent A' }] }],
@@ -209,7 +215,7 @@ describe('WorkflowTemplateImportDialog', () => {
       }
     })
 
-    confirmImportWorkflowTemplates.mockResolvedValue({
+    mockStore.confirmImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         imported: [{ template_id: 'new', name: 'New', steps: [] }],
@@ -231,7 +237,7 @@ describe('WorkflowTemplateImportDialog', () => {
   })
 
   it('resets state on close', async () => {
-    previewImportWorkflowTemplates.mockResolvedValue({
+    mockStore.previewImportWorkflowTemplates.mockResolvedValue({
       success: true,
       data: {
         templates: [{ template_id: 'test', name: 'Test', steps: [] }],

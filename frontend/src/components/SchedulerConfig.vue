@@ -62,7 +62,9 @@
 import { ref, nextTick, onMounted, onBeforeUnmount, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElNotification } from 'element-plus'
-import { getSettings, updateSettings, getSchedulerStatus, triggerDispatch } from '../api/settings.js'
+import { useSettingsStore } from '../stores/settingsStore'
+
+const settingsStore = useSettingsStore()
 
 const props = defineProps({
   sidebarCollapsed: {
@@ -104,8 +106,8 @@ async function loadConfig() {
   if (loaded.value) return
   try {
     const [settingsRes, statusRes] = await Promise.all([
-      getSettings(),
-      getSchedulerStatus(),
+      settingsStore.getSettings(),
+      settingsStore.getSchedulerStatus(),
     ])
     if (settingsRes.success && settingsRes.data) {
       const data = settingsRes.data
@@ -130,7 +132,7 @@ async function loadConfig() {
 async function refreshStatus() {
   statusLoading.value = true
   try {
-    const res = await getSchedulerStatus()
+    const res = await settingsStore.getSchedulerStatus()
     if (res.success && res.data) {
       activeWorkflowCount.value = res.data.activeCount
     }
@@ -142,7 +144,7 @@ async function refreshStatus() {
 async function saveSchedulerConfig() {
   try {
     const cronVal = dispatchCronPreset.value === '__custom__' ? customCron.value : dispatchCronPreset.value
-    await updateSettings({
+    await settingsStore.updateSettings({
       'scheduler.workflow_dispatch_cron': cronVal,
       'scheduler.max_concurrent_workflows': String(schedulerConfig.value['scheduler.max_concurrent_workflows']),
       'scheduler.max_tasks_per_execution': String(schedulerConfig.value['scheduler.max_tasks_per_execution']),
@@ -153,7 +155,7 @@ async function saveSchedulerConfig() {
 async function handleTriggerDispatch() {
   triggerLoading.value = true
   try {
-    const res = await triggerDispatch()
+    const res = await settingsStore.triggerDispatch()
     await refreshStatus()
     if (res.success && res.data) {
       const { dispatched, skipped, eligibleTasks, errors } = res.data

@@ -69,7 +69,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Warning } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { getWorkflowTemplates } from '../../api/workflowTemplate'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const props = defineProps({
   modelValue: {
@@ -103,7 +104,7 @@ const loadTemplates = async () => {
   errorMessage.value = ''
 
   try {
-    const response = await getWorkflowTemplates()
+    const response = await workflowTemplateStore.fetchTemplates()
     if (!response?.success) {
       throw new Error(response?.message || t('workflowTemplate.loadFailed'))
     }

@@ -1,5 +1,4 @@
 import { ref } from 'vue'
-import { getSessionEvents } from '../api/session.js'
 import { usePolling } from './usePolling.js'
 
 function stringifyToolValue(value) {
@@ -184,7 +183,7 @@ function normalizeEvents(eventList) {
   return eventList.map((event) => normalizeEvent(event, toolCallMap))
 }
 
-export function useSessionEvents({ pollIntervalMs = 5000 } = {}) {
+export function useSessionEvents({ getSessionEventsFn, pollIntervalMs = 5000 } = {}) {
   const events = ref([])
   const lastSeq = ref(0)
   const isLoading = ref(false)
@@ -251,7 +250,7 @@ export function useSessionEvents({ pollIntervalMs = 5000 } = {}) {
       let nextLastSeq = 0
 
       do {
-        const response = await getSessionEvents(sessionId, { afterSeq, ...(limit != null ? { limit } : {}) })
+        const response = await getSessionEventsFn(sessionId, { afterSeq, ...(limit != null ? { limit } : {}) })
         const normalized = normalizeResponse(response)
 
         if (activeSessionId !== sessionId || currentToken !== loadToken) {
@@ -285,7 +284,7 @@ export function useSessionEvents({ pollIntervalMs = 5000 } = {}) {
       return { events: [], lastSeq: lastSeq.value, hasMore: false }
     }
 
-    const response = await getSessionEvents(sessionId, { afterSeq: lastSeq.value, ...(limit != null ? { limit } : {}) })
+    const response = await getSessionEventsFn(sessionId, { afterSeq: lastSeq.value, ...(limit != null ? { limit } : {}) })
     const normalized = normalizeResponse(response)
     if (activeSessionId === sessionId) {
       appendEvents(normalized.events)

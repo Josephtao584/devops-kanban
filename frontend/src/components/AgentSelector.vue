@@ -62,8 +62,10 @@ import {
   Monitor,
   User
 } from '@element-plus/icons-vue'
-import { getAgents } from '../api/agent'
+import { useAgentStore } from '../stores/agentStore'
 import BaseDialog from './BaseDialog.vue'
+
+const agentStore = useAgentStore()
 
 const { t } = useI18n()
 
@@ -115,7 +117,7 @@ const loadAgents = async () => {
 
   loading.value = true
   try {
-    const response = await getAgents()
+    const response = await agentStore.fetchAgents()
     const loadedAgents = getApiData(response, 'agent.loadFailed')
     agents.value = Array.isArray(loadedAgents) ? loadedAgents : []
     // Auto-select first agent if only one available

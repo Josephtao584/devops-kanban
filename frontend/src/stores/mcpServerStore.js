@@ -24,6 +24,16 @@ export const useMcpServerStore = defineStore('mcpServer', () => {
     return response
   }
 
+  const previewImportMcpServers = async (data) => {
+    const response = await mcpServerApi.previewImportMcpServers(data)
+    return response
+  }
+
+  const confirmImportMcpServers = async (data) => {
+    const response = await mcpServerApi.confirmImportMcpServers(data)
+    return response
+  }
+
   return {
     mcpServers: crud.items,
     currentMcpServer: crud.currentItem,
@@ -38,6 +48,8 @@ export const useMcpServerStore = defineStore('mcpServer', () => {
     clearMcpServers: crud.clearItems,
     clearError: crud.clearError,
     validateMcpServer,
-    exportMcpServers
+    exportMcpServers,
+    previewImportMcpServers,
+    confirmImportMcpServers
   }
 })

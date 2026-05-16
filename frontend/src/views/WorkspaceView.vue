@@ -462,6 +462,7 @@ import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore.js'
 import { useWorkflowStore } from '../stores/workflowStore.js'
 import { getRoleConfig } from '../constants/agent.js'
 import { useWorktree } from '../composables/useWorktree.js'
+import * as taskWorktreeApi from '../api/taskWorktree'
 import draggable from 'vuedraggable'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer.js'
 
@@ -472,7 +473,7 @@ const taskSourceStore = useTaskSourceStore()
 const taskStore = useTaskStore()
 const workflowTemplateStore = useWorkflowTemplateStore()
 const workflowStore = useWorkflowStore()
-const { handleWorktree } = useWorktree()
+const { handleWorktree } = useWorktree({ taskWorktreeApi })
 const { runningTasks } = useTaskTimer()
 const route = useRoute()
 const router = useRouter()

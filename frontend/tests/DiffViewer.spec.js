@@ -2,11 +2,16 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DiffViewer from '../src/components/DiffViewer.vue'
 
-vi.mock('../src/api/git', () => ({
-  getDiff: vi.fn()
+const mockStore = vi.hoisted(() => ({
+  getDiff: vi.fn(),
+  loading: { value: false },
+  error: { value: null }
 }))
 
-import { getDiff } from '../src/api/git'
+vi.mock('../src/stores/gitStore', () => ({
+  useGitStore: () => mockStore,
+  getDiff: mockStore.getDiff
+}))
 
 const flushPromises = async () => {
   await Promise.resolve()
@@ -17,28 +22,13 @@ describe('DiffViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    getDiff.mockResolvedValue({
+    mockStore.getDiff.mockResolvedValue({
       success: true,
       data: {
         files: [
-          {
-            path: 'docs/requirement_design.md',
-            status: 'modified',
-            additions: 68,
-            deletions: 44
-          },
-          {
-            path: 'main.py',
-            status: 'modified',
-            additions: 0,
-            deletions: 0
-          },
-          {
-            path: '__pycache__/main.cpython-312.pyc',
-            status: 'untracked',
-            additions: 0,
-            deletions: 0
-          }
+          { path: 'docs/requirement_design.md', status: 'modified', additions: 68, deletions: 44 },
+          { path: 'main.py', status: 'modified', additions: 0, deletions: 0 },
+          { path: '__pycache__/main.cpython-312.pyc', status: 'untracked', additions: 0, deletions: 0 }
         ],
         diffs: {
           'docs/requirement_design.md': '@@ -1,1 +1,1 @@\n-old\n+new'

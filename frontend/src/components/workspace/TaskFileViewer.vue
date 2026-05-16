@@ -110,9 +110,12 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getFileTree, readFileContent, getDiff } from '../../api/git.js'
-import { createTaskWorktree } from '../../api/taskWorktree.js'
+import { useGitStore } from '../../stores/gitStore.js'
+import { useTaskWorktreeStore } from '../../stores/taskWorktreeStore.js'
 import TreeNode from './TaskFileViewerTreeNode.vue'
+
+const gitStore = useGitStore()
+const taskWorktreeStore = useTaskWorktreeStore()
 
 const props = defineProps({
   taskId: { type: Number, default: null },
@@ -175,7 +178,7 @@ async function loadTree() {
   loading.value = true
   loadError.value = null
   try {
-    const resp = await withTimeout(getFileTree(props.projectId, props.taskId), LOAD_TIMEOUT)
+    const resp = await withTimeout(gitStore.getFileTree(props.projectId, props.taskId), LOAD_TIMEOUT)
     if (resp?.success) fileTree.value = resp.data || null
     else {
       fileTree.value = null
@@ -197,7 +200,7 @@ async function selectFile(file) {
   contentTab.value = 'current'
   fileLoading.value = true
   try {
-    const resp = await withTimeout(readFileContent(props.projectId, props.taskId, file.path), LOAD_TIMEOUT)
+    const resp = await withTimeout(gitStore.readFileContent(props.projectId, props.taskId, file.path), LOAD_TIMEOUT)
     if (resp?.success) currentContent.value = resp.data?.content || ''
     else currentContent.value = '读取失败: ' + (resp?.message || '未知错误')
   } catch (e) {
@@ -212,7 +215,7 @@ async function loadDiff() {
   diffLoading.value = true
   currentDiff.value = null
   try {
-    const resp = await withTimeout(getDiff(props.projectId, props.taskId), LOAD_TIMEOUT)
+    const resp = await withTimeout(gitStore.getDiff(props.projectId, props.taskId), LOAD_TIMEOUT)
     if (resp?.success) {
       const fileDiff = resp.data?.diffs?.[currentFile.value]
       if (fileDiff) currentDiff.value = parseUnifiedDiff(fileDiff)
@@ -243,7 +246,7 @@ async function handleCreateWorktree() {
   if (!props.taskId) return
   creating.value = true
   try {
-    const resp = await createTaskWorktree(props.taskId)
+    const resp = await taskWorktreeStore.createTaskWorktree(props.taskId)
     if (resp?.success) {
       ElMessage.success('Worktree 创建成功')
       emit('refresh')

@@ -21,6 +21,30 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
 
+  async function getWorkflowRun(runId) {
+    loading.value = true
+    try {
+      return await workflowApi.getWorkflowRun(runId)
+    } catch (err) {
+      error.value = apiError.handleError(err, '加载失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function cancelWorkflow(runId) {
+    loading.value = true
+    try {
+      return await workflowApi.cancelWorkflow(runId)
+    } catch (err) {
+      error.value = apiError.handleError(err, '取消失败')
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function resumeWorkflow(runId, data) {
     loading.value = true
     try {
@@ -34,5 +58,5 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
 
-  return { loading, error, retryWorkflow, resumeWorkflow }
+  return { loading, error, retryWorkflow, resumeWorkflow, getWorkflowRun, cancelWorkflow }
 })

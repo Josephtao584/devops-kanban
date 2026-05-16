@@ -93,7 +93,8 @@
 import { computed } from 'vue'
 import { Check, Upload } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { mcpServerApi } from '../../api/mcpServer.js'
+import { useMcpServerStore } from '../../stores/mcpServerStore.js'
+const mcpServerStore = useMcpServerStore()
 import { useImportDialog } from '../../composables/useImportDialog'
 
 const props = defineProps({
@@ -118,7 +119,7 @@ const {
         setError(t('mcpServer.importInvalidFile'))
         return
       }
-      const response = await mcpServerApi.previewImportMcpServers(data)
+      const response = await mcpServerStore.previewImportMcpServers(data)
       if (!response?.success) {
         setError(response?.message || t('mcpServer.importPreviewFailed'))
         return
@@ -129,7 +130,7 @@ const {
     }
   },
   onConfirmImport: async ({ previewData, strategy }) => {
-    const response = await mcpServerApi.confirmImportMcpServers({
+    const response = await mcpServerStore.confirmImportMcpServers({
       servers: previewData.servers,
       strategy,
       nameMappings: {},

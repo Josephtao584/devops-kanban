@@ -1,13 +1,12 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import * as taskWorktreeApi from '../api/taskWorktree'
 import { ElMessageBox } from 'element-plus'
 import { useToast } from './ui/useToast'
 import { useApiErrorHandler } from './useApiErrorHandler'
 
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-export function useWorktree() {
+export function useWorktree({ taskWorktreeApi } = {}) {
   const { t } = useI18n()
   const toast = useToast()
   const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'Worktree operation failed' })
