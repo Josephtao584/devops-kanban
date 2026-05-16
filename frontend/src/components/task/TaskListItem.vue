@@ -162,133 +162,36 @@
           />
         </div>
 
-        <div class="workflow-section quick-actions">
+        <TaskWorkflowActions
+          :can-start-task="canStartTask"
+          :worktree-not-created="task.worktree_status !== 'created'"
+          :has-workflow-run-id="!!task.workflow_run_id"
+          :refresh-loading="refreshLoading"
+          :cancel-loading="cancelLoading"
+          :retry-loading="retryLoading"
+          :resume-loading="resumeLoading"
+          :workflow-status="workflowStatus"
+          :is-ask-user-suspended="isAskUserSuspended"
+          :is-workflow-terminal="isWorkflowTerminal"
+          :polling-enabled="pollingEnabled"
+          @start="handleStartClick"
+          @configure="emit('workflow-action', { action: 'configure', task: props.task })"
+          @quick-edit="emit('quick-edit', task)"
+          @merge="emit('workflow-action', 'merge')"
+          @refresh="refreshWorkflowRun"
+          @cancel="handleCancelWorkflow"
+          @resume="handleResumeWorkflow"
+          @retry="handleRetryWorkflow"
+          @auto-refresh-change="handleAutoRefreshChange"
+        />
 
-          <button class="quick-action-btn" :disabled="!canStartTask" @click.stop="handleStartClick">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            启动
-          </button>
-          <button
-            class="quick-action-btn"
-            @click.stop="emit('workflow-action', { action: 'configure', task: props.task })"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-            模板
-          </button>
-          <button
-            class="quick-action-btn"
-            :disabled="task.worktree_status !== 'created'"
-            @click.stop="$emit('quick-edit', task)"
-            title="Quick Edit"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-            编辑
-          </button>
-          <button class="quick-action-btn" @click.stop="$emit('workflow-action', 'merge')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="18" r="3"></circle>
-              <circle cx="6" cy="6" r="3"></circle>
-              <circle cx="18" cy="6" r="3"></circle>
-              <path d="M6 9v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V9"></path>
-              <line x1="12" cy="15" x2="12" y2="15"></line>
-            </svg>
-            合入
-          </button>
-          <button
-            v-if="task.workflow_run_id"
-            class="quick-action-btn"
-            :disabled="refreshLoading"
-            @click.stop="refreshWorkflowRun"
-            title="刷新状态"
-          >
-            <span class="workflow-refresh-icon" :class="{ 'is-loading': refreshLoading }">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-              </svg>
-            </span>
-            刷新
-          </button>
-          <button
-            v-if="(workflowStatus === 'running' || workflowStatus === 'suspended') && task.workflow_run_id"
-            class="quick-action-btn quick-action-cancel"
-            :disabled="cancelLoading"
-            @click.stop="handleCancelWorkflow"
-            title="取消AgentTeam"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="15" y1="9" x2="9" y2="15"></line>
-              <line x1="9" y1="9" x2="15" y2="15"></line>
-            </svg>
-            取消
-          </button>
-          <button
-            v-if="workflowStatus === 'suspended' && task.workflow_run_id && !isAskUserSuspended"
-            class="quick-action-btn quick-action-resume"
-            :disabled="resumeLoading"
-            @click.stop="handleResumeWorkflow"
-            title="确认继续"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            确认继续
-          </button>
-          <button
-            v-if="(workflowStatus === 'failed' || workflowStatus === 'cancelled') && task.workflow_run_id"
-            class="quick-action-btn quick-action-retry"
-            :disabled="retryLoading"
-            @click.stop="handleRetryWorkflow"
-            title="重试AgentTeam"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-            </svg>
-            重试
-          </button>
-          <el-checkbox
-            v-if="task.workflow_run_id && !isWorkflowTerminal"
-            v-model="pollingEnabled"
-            class="auto-refresh-checkbox"
-            size="small"
-            @change="handleAutoRefreshChange"
-          >
-            自动刷新
-          </el-checkbox>
-        </div>
-
-        <div class="workflow-section worktree-summary">
-          <div class="worktree-summary-header">
-            <div class="worktree-summary-header-main">
-              <span class="worktree-summary-title">{{ $t('git.worktree', 'Git Worktree') }}</span>
-              <span class="worktree-summary-status" :class="worktreeClass">{{ workflowWorktreeStatusText }}</span>
-            </div>
-            <button
-              v-if="task.worktree_status === 'created'"
-              class="worktree-summary-delete-btn"
-              :disabled="worktreeLoading"
-              @click.stop="handleDeleteWorktree"
-            >
-              {{ $t('git.deleteWorktree', '删除工作树') }}
-            </button>
-          </div>
-          <div v-if="task.worktree_branch" class="worktree-summary-row">
-            <span class="worktree-summary-label">{{ $t('git.branch', 'Branch') }}</span>
-            <code class="worktree-summary-value worktree-summary-branch">{{ task.worktree_branch }}</code>
-          </div>
-          <div v-if="task.worktree_path" class="worktree-summary-row">
-            <span class="worktree-summary-label">{{ $t('git.path', 'Path') }}</span>
-            <span class="worktree-summary-value worktree-summary-path worktree-summary-path-wrap" :title="task.worktree_path">{{ task.worktree_path }}</span>
-          </div>
-        </div>
+        <TaskWorktreeSummary
+          :task="task"
+          :worktree-loading="worktreeLoading"
+          :worktree-class="worktreeClass"
+          :workflow-worktree-status-text="workflowWorktreeStatusText"
+          @delete-worktree="handleDeleteWorktree"
+        />
       </div>
     </div>
   </div>
@@ -302,6 +205,7 @@ import { ElMessage } from 'element-plus'
 import { formatTaskDescription } from '../../utils/taskDescriptionFormatter'
 import { formatDateTime } from '../../utils/dateFormat'
 import { useWorktree } from '../../composables/useWorktree'
+import * as taskWorktreeApi from '../../api/taskWorktree'
 import { useStatusStyle } from '../../composables/useStatusStyle'
 import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPolling'
 import { useWorkflowStore } from '../../stores/workflowStore'
@@ -314,6 +218,8 @@ import {
 } from '../../utils/workflowRunViewModel'
 import InlineWorkflowPanel from '../workflow/InlineWorkflowPanel.vue'
 import PriorityBadge from '../common/PriorityBadge.vue'
+import TaskWorkflowActions from './TaskWorkflowActions.vue'
+import TaskWorktreeSummary from './TaskWorktreeSummary.vue'
 
 const workflowStore = useWorkflowStore()
 const workflowTemplateStore = useWorkflowTemplateStore()
@@ -382,7 +288,7 @@ const emit = defineEmits(['click', 'edit', 'delete', 'worktree-update', 'toggle-
 const { t } = useI18n()
 
 // Use composables
-const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, getWorktreeStatusText, createWorktree, deleteWorktree } = useWorktree()
+const { isWorktreeLoading, getWorktreeClass, getWorktreeTooltip, getWorktreeStatusText, createWorktree, deleteWorktree } = useWorktree({ taskWorktreeApi })
 const { getStatusClass } = useStatusStyle()
 
 // Auto-execute controls
