@@ -229,9 +229,11 @@ export function buildWorkflowFromInstance(
             // Prepend loop context when this SPLIT_TASK step is the loop
             // entry point. Same convention as the standard step path so the
             // agent sees failure summary + prior outputs before the split
-            // instruction.
+            // instruction. The preamble is escaped the same way splitPrompt
+            // is (`.replaceAll('\n', '\\n')`) so the persisted prompt is
+            // uniformly single-line escaped.
             const finalSplitPrompt = options.loopContext && options.loopContext.fromStepId === templateStep.id
-              ? `${options.loopContext.text}\n${splitPrompt}`
+              ? `${options.loopContext.text.replaceAll('\n', '\\n')}\\n${splitPrompt}`
               : splitPrompt;
 
             // Persist the assembled prompt so the UI can show what was sent.

@@ -116,8 +116,11 @@ export async function executeWorkflowStep({
   // Prepend loop context (when this run is a loop entry point) so the failure
   // summary + prior-step summaries are visible to the agent before the regular
   // step instructions. Persisted via onAssembledPrompt so the UI can render
-  // exactly what was sent to the model.
-  const prompt = loopContextText ? `${loopContextText}\n${basePrompt}` : basePrompt;
+  // exactly what was sent to the model. The loop preamble must be escaped
+  // the same way assembleWorkflowPrompt escapes its output, otherwise the
+  // persisted prompt would mix real newlines with two-character `\n` escapes.
+  const escapedLoopText = loopContextText ? loopContextText.replaceAll('\n', '\\n') : null;
+  const prompt = escapedLoopText ? `${escapedLoopText}\\n${basePrompt}` : basePrompt;
 
   if (onAssembledPrompt) {
     await onAssembledPrompt(prompt);
