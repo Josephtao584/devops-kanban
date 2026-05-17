@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import { withRetry } from '../db/retry.js';
+import type { Client } from '@libsql/client';
 import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts';
 import { logger } from '../utils/logger.js';
 
@@ -8,8 +9,12 @@ type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'na
 class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   private mutationQueue: Promise<unknown> = Promise.resolve();
 
-  constructor() {
+  constructor(client?: Client) {
     super('workflow_runs');
+    if (client) {
+      // Override the default singleton client (used in tests).
+      this.client = client;
+    }
   }
 
   private async serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
@@ -26,10 +31,21 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   }
 
   protected override parseRow(row: Record<string, unknown>): WorkflowRunEntity {
+    return this.mapRowToEntity(row);
+  }
+
+  private mapRowToEntity(row: Record<string, unknown>): WorkflowRunEntity {
+    const loopFailureContextRaw = row.loop_failure_context;
     return {
       ...row,
       steps: row.steps ? JSON.parse(row.steps as string) : [],
       context: row.context ? JSON.parse(row.context as string) : {},
+      parent_run_id: row.parent_run_id == null ? null : Number(row.parent_run_id),
+      iteration: Number(row.iteration ?? 1),
+      looped_from_step_id: row.looped_from_step_id ? String(row.looped_from_step_id) : null,
+      loop_failure_context: loopFailureContextRaw
+        ? JSON.parse(String(loopFailureContextRaw))
+        : null,
     } as WorkflowRunEntity;
   }
 
@@ -76,6 +92,11 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     if (entity.context !== undefined) {
       result.context = JSON.stringify(entity.context);
     }
+    if (entity.loop_failure_context !== undefined) {
+      result.loop_failure_context = entity.loop_failure_context === null
+        ? null
+        : JSON.stringify(entity.loop_failure_context);
+    }
     return result;
   }
 
@@ -113,6 +134,26 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
   }
 
+  async findAllByTaskIdOrdered(taskId: number): Promise<WorkflowRunEntity[]> {
+    const result = await this.client.execute({
+      sql: 'SELECT * FROM workflow_runs WHERE task_id = ? ORDER BY iteration ASC, id ASC',
+      args: [taskId],
+    });
+    return result.rows.map(row => this.mapRowToEntity(row as Record<string, unknown>));
+  }
+
+  async findInFlightChild(parentRunId: number): Promise<WorkflowRunEntity | null> {
+    const result = await this.client.execute({
+      sql: `SELECT * FROM workflow_runs
+            WHERE parent_run_id = ? AND status IN ('PENDING', 'RUNNING', 'SUSPENDED')
+            ORDER BY id DESC LIMIT 1`,
+      args: [parentRunId],
+    });
+    return result.rows.length > 0
+      ? this.mapRowToEntity(result.rows[0] as Record<string, unknown>)
+      : null;
+  }
+
   /**
    * Atomically check for active runs and create a new one if none exist.
    * Uses the serialization queue to prevent race conditions where two
@@ -121,13 +162,17 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   async createIfNoActiveRun(payload: {
     task_id: number;
     workflow_instance_id: string;
-    mastra_run_id: string | null;
+    mastra_run_id?: string | null;
     status: string;
     current_step: string | null;
     steps: unknown;
     worktree_path: string;
     branch: string;
     context: Record<string, unknown>;
+    parent_run_id?: number | null;
+    iteration?: number;
+    looped_from_step_id?: string | null;
+    loop_failure_context?: { failed_step_id: string; error: string; summary: string | null } | null;
   }): Promise<{ created: WorkflowRunEntity; existing: null } | { created: null; existing: WorkflowRunEntity }> {
     return this.serializeMutation(async () => {
       const activeResult = await this.client.execute({
@@ -143,20 +188,32 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
       const now = new Date().toISOString();
       const serializedSteps = JSON.stringify(payload.steps);
       const serializedContext = JSON.stringify(payload.context);
+      const serializedLoopContext = payload.loop_failure_context
+        ? JSON.stringify(payload.loop_failure_context)
+        : null;
 
       const insertResult = await this.client.execute({
-        sql: `INSERT INTO workflow_runs (task_id, workflow_instance_id, mastra_run_id, status, current_step, steps, worktree_path, branch, context, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO workflow_runs (
+                task_id, workflow_instance_id, mastra_run_id, status, current_step, steps,
+                worktree_path, branch, context,
+                parent_run_id, iteration, looped_from_step_id, loop_failure_context,
+                created_at, updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           payload.task_id,
           payload.workflow_instance_id,
-          payload.mastra_run_id,
+          payload.mastra_run_id ?? null,
           payload.status,
-          payload.current_step,
+          payload.current_step ?? null,
           serializedSteps,
           payload.worktree_path,
           payload.branch,
           serializedContext,
+          payload.parent_run_id ?? null,
+          payload.iteration ?? 1,
+          payload.looped_from_step_id ?? null,
+          serializedLoopContext,
           now,
           now,
         ],
@@ -170,7 +227,21 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     });
   }
 
-  override async update(runId: number, entityData: { status?: string; current_step?: string | null; context?: Record<string, unknown>; mastra_run_id?: string }): Promise<WorkflowRunEntity | null> {
+  override async update(
+    runId: number,
+    entityData: {
+      status?: string;
+      current_step?: string | null;
+      context?: Record<string, unknown>;
+      mastra_run_id?: string;
+      parent_run_id?: number | null;
+      iteration?: number;
+      looped_from_step_id?: string | null;
+      loop_failure_context?:
+        | { failed_step_id: string; error: string; summary: string | null }
+        | null;
+    },
+  ): Promise<WorkflowRunEntity | null> {
     return this.serializeMutation(async () => {
       return super.update(runId, entityData);
     });
