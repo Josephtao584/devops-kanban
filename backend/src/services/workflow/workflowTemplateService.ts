@@ -156,12 +156,11 @@ class WorkflowTemplateService {
     return normalizeTemplate(template);
   }
 
-  cleanupReferences(template: WorkflowTemplateEntity): WorkflowTemplateEntity {
-    const validIds = new Set(template.steps.map((s) => s.id));
+  cleanupReferences(template: WorkflowTemplateEntity, removedStepIds: Set<string>): WorkflowTemplateEntity {
     return {
       ...template,
       steps: template.steps.map((s) =>
-        s.onFailureLoopTo && !validIds.has(s.onFailureLoopTo)
+        s.onFailureLoopTo && removedStepIds.has(s.onFailureLoopTo)
           ? { ...s, onFailureLoopTo: null }
           : s,
       ),
@@ -216,14 +215,20 @@ class WorkflowTemplateService {
     // When steps or maxLoops are updated, run full cross-step validation.
     // cleanupReferences nullifies onFailureLoopTo references that point to
     // steps removed by the update so they don't trip the "unknown step" check.
+    // Typos that reference ids that never existed are left intact so
+    // normalizeTemplate's unknown-step check still surfaces them as errors.
     if (input.steps !== undefined || input.maxLoops !== undefined) {
       const candidateSteps = input.steps !== undefined
         ? input.steps.map((step) => normalizeStep(step))
         : existing.steps;
+      const newStepIds = new Set(candidateSteps.map((s) => s.id));
+      const removedStepIds = new Set(
+        existing.steps.map((s) => s.id).filter((id) => !newStepIds.has(id)),
+      );
       const cleaned = this.cleanupReferences({
         ...existing,
         steps: candidateSteps,
-      });
+      }, removedStepIds);
       const validated = normalizeTemplate({
         template_id: existing.template_id,
         name: input.name ?? existing.name,

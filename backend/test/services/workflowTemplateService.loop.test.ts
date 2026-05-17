@@ -69,7 +69,7 @@ test.test('onFailureLoopTo accepts a valid earlier step', () => {
       baseStep('s3', { onFailureLoopTo: 's1' }),
     ],
   });
-  assert.equal(t.steps[2].onFailureLoopTo, 's1');
+  assert.equal(t.steps[2]!.onFailureLoopTo, 's1');
 });
 
 test.test('onFailureLoopTo cannot point to itself', () => {
@@ -104,12 +104,31 @@ test.test('removing a step auto-nullifies references to it', () => {
       baseStep('s3', { onFailureLoopTo: 's2' }),
     ],
   });
-  const after = svc.cleanupReferences({
-    ...before,
-    id: 0,
-    created_at: '',
-    updated_at: '',
-    steps: [before.steps[0], before.steps[2]],
-  });
-  assert.equal(after.steps[1].onFailureLoopTo, null);
+  const removedIds = new Set(['s2']);
+  const after = svc.cleanupReferences(
+    {
+      ...before,
+      id: 0,
+      created_at: '',
+      updated_at: '',
+      steps: [before.steps[0]!, before.steps[2]!],
+    },
+    removedIds,
+  );
+  assert.equal(after.steps[1]!.onFailureLoopTo, null);
+});
+
+test.test('cleanupReferences does not null references to ids that were never in the template', () => {
+  const svc = makeService();
+  const tpl = {
+    template_id: 't1',
+    name: 'T',
+    steps: [
+      { id: 's1', name: 's1', instructionPrompt: 'p', agentId: 1, onFailureLoopTo: 'tpyo' },
+    ],
+  } as any;
+  const removedIds = new Set<string>();  // nothing removed
+  const after = svc.cleanupReferences(tpl, removedIds);
+  // 'tpyo' was never in the template, so cleanupReferences should leave the typo alone
+  assert.equal(after.steps[0]!.onFailureLoopTo, 'tpyo');
 });
