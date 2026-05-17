@@ -136,7 +136,7 @@ const workflowRoutes: FastifyPluginAsync<WorkflowRouteOptions> = async (
         );
       } catch (error) {
         logError(error, request);
-        reply.code(getStatusCode(error, 400));
+        reply.code(getStatusCode(error));
         return errorResponse(getErrorMessage(error, 'Failed to create loop run'));
       }
     },
