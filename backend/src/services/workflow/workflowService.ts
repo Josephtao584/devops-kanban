@@ -4,10 +4,11 @@ import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { WorkflowInstanceService } from '../workflowInstanceService.js';
+import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
-import { WorkflowInstanceEntity, WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
+import { WorkflowInstanceEntity, WorkflowRunEntity, WorkflowStepEntity, WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
@@ -43,6 +44,7 @@ class WorkflowService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
   instanceService: WorkflowInstanceService;
+  templateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
 
@@ -50,11 +52,12 @@ class WorkflowService {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, agentRepo, lifecycle }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, templateService, agentRepo, lifecycle }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     instanceService?: WorkflowInstanceService;
+    templateService?: WorkflowTemplateService;
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
   } = {}) {
@@ -62,6 +65,7 @@ class WorkflowService {
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
     this.instanceService = instanceService || new WorkflowInstanceService();
+    this.templateService = templateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
     const notificationService = new NotificationService({
       filePath: path.join(STORAGE_PATH, 'notification-config.json'),
@@ -606,6 +610,181 @@ class WorkflowService {
     });
 
     return await this.workflowRunRepo.findById(runId);
+  }
+
+  /**
+   * Create a new "loop" workflow run that re-executes a portion of a failed
+   * parent run. Steps before `fromStepId` are inherited from the parent as
+   * SKIPPED; steps from `fromStepId` onward are reset to PENDING. The new
+   * run reuses the parent's worktree and branch, increments iteration, and
+   * carries forward the failure context for prompt augmentation.
+   */
+  async createLoopRun(
+    parentRunId: number,
+    fromStepId: string,
+    failureContext?: { failed_step_id: string; error: string; summary: string | null },
+    override = false,
+  ): Promise<WorkflowRunEntity> {
+    logger.info('WorkflowService', `createLoopRun called for parentRunId: ${parentRunId}, fromStepId: ${fromStepId}, override: ${override}`);
+
+    const parent = await this.workflowRunRepo.findById(parentRunId);
+    if (!parent) {
+      throw new NotFoundError('未找到父工作流运行', `Parent workflow run ${parentRunId} not found`, { parentRunId });
+    }
+    if (parent.status !== 'FAILED') {
+      throw new BusinessError(
+        `父运行 ${parentRunId} 不在 FAILED 状态（当前: ${parent.status}）`,
+        `Parent run ${parentRunId} is not in FAILED state (got ${parent.status})`,
+        { parentRunId, status: parent.status },
+      );
+    }
+
+    // Resolve template for maxLoops via the workflow instance.
+    const instance = await this.instanceService.getByInstanceId(parent.workflow_instance_id);
+    if (!instance) {
+      throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId: parent.workflow_instance_id });
+    }
+    const template = await this.templateService.getTemplateById(instance.template_id);
+    const maxLoops = template?.maxLoops ?? 0;
+
+    // Validate fromStepId is in instance and strictly earlier than the failed step.
+    const fromIdx = instance.steps.findIndex((s) => s.id === fromStepId);
+    if (fromIdx === -1) {
+      throw new ValidationError(
+        `fromStepId "${fromStepId}" 不在工作流实例中`,
+        `fromStepId "${fromStepId}" not found in workflow instance`,
+        { fromStepId },
+      );
+    }
+    const failedStepId = parent.current_step
+      ?? parent.steps.find((s) => s.status === 'FAILED')?.step_id
+      ?? null;
+    const failedIdx = failedStepId ? instance.steps.findIndex((s) => s.id === failedStepId) : -1;
+    if (failedIdx !== -1 && fromIdx >= failedIdx) {
+      throw new ValidationError(
+        `fromStepId "${fromStepId}" 必须早于失败步骤 "${failedStepId}"`,
+        `fromStepId "${fromStepId}" must be earlier than the failed step "${failedStepId}"`,
+        { fromStepId, failedStepId },
+      );
+    }
+
+    // Validate iteration vs maxLoops.
+    const newIteration = parent.iteration + 1;
+    if (!override && newIteration > maxLoops) {
+      throw new BusinessError(
+        `无法循环：迭代将达到 ${newIteration}，超过 maxLoops=${maxLoops}`,
+        `Cannot loop: would reach iteration ${newIteration}, exceeds maxLoops=${maxLoops}`,
+        { newIteration, maxLoops },
+      );
+    }
+
+    // Validate no in-flight child run.
+    const inflight = await this.workflowRunRepo.findInFlightChild(parentRunId);
+    if (inflight) {
+      throw new ConflictError(
+        `父运行 ${parentRunId} 已有进行中的子运行 (${inflight.id})`,
+        `Parent run ${parentRunId} already has an in-flight child run (${inflight.id})`,
+        { parentRunId, childRunId: inflight.id },
+      );
+    }
+
+    // Validate worktree path still exists on disk.
+    if (!existsSync(parent.worktree_path)) {
+      throw new ValidationError(
+        `工作树路径 ${parent.worktree_path} 已不存在，无法循环`,
+        `Worktree path ${parent.worktree_path} no longer exists; cannot loop`,
+        { worktreePath: parent.worktree_path },
+      );
+    }
+
+    // Resolve loop_failure_context: prefer caller-supplied, otherwise derive
+    // from the failed step.
+    const failedStep = failedStepId ? parent.steps.find((s) => s.step_id === failedStepId) : undefined;
+    const resolvedFailureContext: { failed_step_id: string; error: string; summary: string | null } | null =
+      failureContext
+        ?? (failedStep && failedStep.error
+          ? { failed_step_id: failedStep.step_id, error: failedStep.error, summary: failedStep.summary ?? null }
+          : null);
+
+    // Build new steps array: SKIPPED+inherited for prefix, PENDING+reset for suffix.
+    const newSteps: WorkflowStepEntity[] = parent.steps.map((step, idx) => {
+      if (idx < fromIdx) {
+        return {
+          ...step,
+          status: 'SKIPPED',
+          inherited_from_run_id: parent.id,
+        };
+      }
+      return {
+        ...step,
+        status: 'PENDING',
+        started_at: null,
+        completed_at: null,
+        retry_count: 0,
+        error: null,
+        session_id: null,
+        provider_session_id: null,
+        summary: null,
+        assembled_prompt: null,
+        suspend_reason: null,
+        confirmation_note: null,
+        confirmed_at: null,
+        ask_user_question: null,
+        ask_user_answer: null,
+        early_exit: null,
+        early_exit_reason: null,
+        inherited_from_run_id: null,
+      };
+    });
+
+    const result = await this.workflowRunRepo.createIfNoActiveRun({
+      task_id: parent.task_id,
+      workflow_instance_id: parent.workflow_instance_id,
+      mastra_run_id: null,
+      status: 'PENDING',
+      current_step: fromStepId,
+      steps: newSteps,
+      worktree_path: parent.worktree_path,
+      branch: parent.branch,
+      context: parent.context,
+      parent_run_id: parent.id,
+      iteration: newIteration,
+      looped_from_step_id: fromStepId,
+      loop_failure_context: resolvedFailureContext,
+    });
+
+    if (!result.created) {
+      throw new ConflictError(
+        '无法创建循环运行：任务已有活跃运行',
+        'Failed to create loop run: task already has an active run',
+        { parentRunId, existingRunId: result.existing?.id },
+      );
+    }
+
+    const newRun = result.created;
+    await this.taskRepo.update(parent.task_id, { workflow_run_id: newRun.id }).catch(() => {});
+
+    // Fire-and-forget execution, mirroring startWorkflow.
+    const task = await this.taskRepo.findById(parent.task_id);
+    if (task) {
+      const project = await this.projectRepo.findById(task.project_id);
+      const projectEnv = project?.env || {};
+      this.executeWorkflow(
+        newRun.id,
+        { ...task, execution_path: parent.worktree_path, project_env: projectEnv },
+        instance,
+      ).catch((err) => {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error('WorkflowService', `Fatal error in loop run #${newRun.id}: ${errorMessage}`);
+        this.workflowRunRepo.update(newRun.id, {
+          status: 'FAILED',
+          current_step: null,
+          context: { error: errorMessage },
+        }).catch(() => {});
+      });
+    }
+
+    return newRun;
   }
 
   private async executeRetry(
