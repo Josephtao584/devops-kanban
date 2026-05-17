@@ -115,7 +115,7 @@ export interface WorkflowStepEntity {
   early_exit?: boolean | null;
   early_exit_reason?: string | null;
   // Loop inheritance
-  inherited_from_run_id: number | null;
+  inherited_from_run_id?: number | null;
 }
 
 export interface WorkflowTemplateStepEntity {
