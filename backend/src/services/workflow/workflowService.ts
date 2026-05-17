@@ -6,7 +6,7 @@ import { AgentRepository } from '../../repositories/agentRepository.js';
 import { WorkflowInstanceService } from '../workflowInstanceService.js';
 import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
-import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
+import { buildWorkflowFromInstance, getWorkflowFromWorkflowId, cropInstanceForLoop, formatLoopContext, collectPriorSummaries } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { WorkflowInstanceEntity, WorkflowRunEntity, WorkflowStepEntity, WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
@@ -298,10 +298,31 @@ class WorkflowService {
 
   private async executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string; project_env: Record<string, string> }, instance: WorkflowInstanceEntity) {
     try {
-      const workflow = buildWorkflowFromInstance(instance, {
+      // For loop runs, crop the instance to start at the looped_from_step_id
+      // and pre-render the loop-context preamble that gets injected into the
+      // start step's prompt. Plain (non-loop) runs use the full instance and
+      // no loopContext.
+      const run = await this.workflowRunRepo.findById(runId);
+      let workflowInstance = instance;
+      let loopContext: { fromStepId: string; text: string } | undefined;
+      if (run?.looped_from_step_id) {
+        workflowInstance = cropInstanceForLoop(instance, run.looped_from_step_id);
+        const priors = await collectPriorSummaries(this.workflowRunRepo, run.id, run.looped_from_step_id);
+        loopContext = {
+          fromStepId: run.looped_from_step_id,
+          text: formatLoopContext({
+            fromStepId: run.looped_from_step_id,
+            failureContext: run.loop_failure_context,
+            priorSummaries: priors,
+          }),
+        };
+      }
+
+      const workflow = buildWorkflowFromInstance(workflowInstance, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
-        lifecycle: this.lifecycle
+        lifecycle: this.lifecycle,
+        ...(loopContext ? { loopContext } : {}),
       });
 
       // Let Mastra generate its own runId
