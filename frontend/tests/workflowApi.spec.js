@@ -48,4 +48,16 @@ describe('workflow API', () => {
       data: { stepId: 's1', input: 'ok' }
     })
   })
+
+  it('loopWorkflow sends POST with data payload', async () => {
+    const { seen, cleanup } = captureRequest()
+    try {
+      await expect(workflowApi.loopWorkflow(7, { fromStepId: 's2', override: true })).rejects.toThrow('stop')
+    } finally { cleanup() }
+    expect(seen[0]).toEqual({
+      url: '/workflows/runs/7/loop',
+      method: 'post',
+      data: { fromStepId: 's2', override: true }
+    })
+  })
 })
