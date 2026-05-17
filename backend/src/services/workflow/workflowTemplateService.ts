@@ -80,12 +80,39 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw new ValidationError('工作流模板步骤 ID 必须唯一', 'Workflow template step ids must be unique');
   }
 
+  let normalizedMaxLoops = 0;
+  if (maxLoops !== undefined && maxLoops !== null) {
+    const coerced = Number(maxLoops);
+    if (!Number.isInteger(coerced) || coerced < 0) {
+      throw new ValidationError('maxLoops 必须为非负整数', 'maxLoops must be a non-negative integer');
+    }
+    normalizedMaxLoops = coerced;
+  }
+
+  const stepIds = new Set(normalizedSteps.map((s) => s.id));
+  normalizedSteps.forEach((step, idx) => {
+    if (step.onFailureLoopTo === null) return;
+    if (!stepIds.has(step.onFailureLoopTo)) {
+      throw new ValidationError(
+        `步骤 "${step.id}" 的 onFailureLoopTo 引用了不存在的步骤 "${step.onFailureLoopTo}"`,
+        `onFailureLoopTo on step "${step.id}" references unknown step "${step.onFailureLoopTo}"`,
+      );
+    }
+    const targetIdx = normalizedSteps.findIndex((s) => s.id === step.onFailureLoopTo);
+    if (targetIdx >= idx) {
+      throw new ValidationError(
+        `步骤 "${step.id}" 的 onFailureLoopTo 必须指向更早的步骤（实际为 "${step.onFailureLoopTo}"）`,
+        `onFailureLoopTo on step "${step.id}" must reference an earlier step (got "${step.onFailureLoopTo}")`,
+      );
+    }
+  });
+
   return {
     template_id: template_id.trim(),
     name: name.trim(),
     steps: normalizedSteps,
     tags: Array.isArray(tags) ? tags : [],
-    maxLoops: typeof maxLoops === 'number' && Number.isInteger(maxLoops) && maxLoops >= 0 ? maxLoops : 0,
+    maxLoops: normalizedMaxLoops,
   };
 }
 
@@ -123,6 +150,22 @@ class WorkflowTemplateService {
   constructor({ workflowTemplateRepo, agentRepo }: { workflowTemplateRepo?: WorkflowTemplateRepository; agentRepo?: AgentRepository } = {}) {
     this.workflowTemplateRepo = workflowTemplateRepo || new WorkflowTemplateRepository();
     this.agentRepo = agentRepo || new AgentRepository();
+  }
+
+  normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'> {
+    return normalizeTemplate(template);
+  }
+
+  cleanupReferences(template: WorkflowTemplateEntity): WorkflowTemplateEntity {
+    const validIds = new Set(template.steps.map((s) => s.id));
+    return {
+      ...template,
+      steps: template.steps.map((s) =>
+        s.onFailureLoopTo && !validIds.has(s.onFailureLoopTo)
+          ? { ...s, onFailureLoopTo: null }
+          : s,
+      ),
+    };
   }
 
   async getTemplates(): Promise<WorkflowTemplateEntity[]> {
@@ -166,14 +209,34 @@ class WorkflowTemplateService {
     if (input.name !== undefined) {
       updateData.name = input.name;
     }
-    if (input.steps !== undefined) {
-      updateData.steps = input.steps.map((step) => normalizeStep(step));
-    }
     if (input.tags !== undefined) {
       updateData.tags = Array.isArray(input.tags) ? input.tags : [];
     }
-    if (input.maxLoops !== undefined) {
-      updateData.maxLoops = typeof input.maxLoops === 'number' && Number.isInteger(input.maxLoops) && input.maxLoops >= 0 ? input.maxLoops : 0;
+
+    // When steps or maxLoops are updated, run full cross-step validation.
+    // cleanupReferences nullifies onFailureLoopTo references that point to
+    // steps removed by the update so they don't trip the "unknown step" check.
+    if (input.steps !== undefined || input.maxLoops !== undefined) {
+      const candidateSteps = input.steps !== undefined
+        ? input.steps.map((step) => normalizeStep(step))
+        : existing.steps;
+      const cleaned = this.cleanupReferences({
+        ...existing,
+        steps: candidateSteps,
+      });
+      const validated = normalizeTemplate({
+        template_id: existing.template_id,
+        name: input.name ?? existing.name,
+        steps: cleaned.steps,
+        tags: input.tags ?? existing.tags,
+        maxLoops: input.maxLoops ?? existing.maxLoops,
+      });
+      if (input.steps !== undefined) {
+        updateData.steps = validated.steps;
+      }
+      if (input.maxLoops !== undefined) {
+        updateData.maxLoops = validated.maxLoops;
+      }
     }
 
     return await this.workflowTemplateRepo.update(existing.id, updateData);
