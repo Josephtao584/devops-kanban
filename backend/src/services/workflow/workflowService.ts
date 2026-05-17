@@ -369,44 +369,86 @@ class WorkflowService {
   }
 
 
-  async getWorkflowRun(runId: number) {
-    const run = await this.workflowRunRepo.findById(runId);
-    if (!run) return null;
+  /**
+   * Enrich a workflow run with `workflow_template_snapshot` so the frontend
+   * can render template-derived fields (steps, maxLoops, onFailureLoopTo)
+   * without a separate fetch. Both `getWorkflowRun` and `getAllRunsByTask`
+   * call through this helper so the shape stays consistent across endpoints.
+   *
+   * The optional caches let bulk callers (i.e. `getAllRunsByTask`) avoid
+   * re-fetching the same instance/template once per run.
+   */
+  private async _enrichWithTemplateSnapshot(
+    run: WorkflowRunEntity,
+    caches?: {
+      instances?: Map<string, WorkflowInstanceEntity | null>;
+      templates?: Map<string, WorkflowTemplateEntity | null>;
+    },
+  ): Promise<WorkflowRunEntity> {
+    if (!run.workflow_instance_id) return run;
 
-    // Enrich with workflow_template_snapshot from the instance
-    if (run.workflow_instance_id) {
-      const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
-      if (instance) {
-        run.workflow_template_snapshot = {
-          id: instance.id,
-          template_id: instance.template_id,
-          name: instance.name,
-          steps: instance.steps.map(s => {
-            const step: WorkflowTemplateStepEntity = {
-              id: s.id,
-              name: s.name,
-              instructionPrompt: s.instructionPrompt,
-              agentId: s.agentId,
-              maxRetries: s.maxRetries ?? 0,
-              onFailureLoopTo: s.onFailureLoopTo ?? null,
-            };
-            if (s.requiresConfirmation !== undefined) step.requiresConfirmation = s.requiresConfirmation;
-            if (s.canEarlyExit !== undefined) step.canEarlyExit = s.canEarlyExit;
-            if (s.type !== undefined) step.type = s.type;
-            return step;
-          }),
-          maxLoops: 0,
-          created_at: instance.created_at,
-          updated_at: instance.updated_at,
-        };
-      }
+    const instanceCache = caches?.instances;
+    const templateCache = caches?.templates;
+
+    let instance: WorkflowInstanceEntity | null;
+    if (instanceCache?.has(run.workflow_instance_id)) {
+      instance = instanceCache.get(run.workflow_instance_id)!;
+    } else {
+      instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
+      instanceCache?.set(run.workflow_instance_id, instance);
     }
+    if (!instance) return run;
+
+    let template: WorkflowTemplateEntity | null;
+    if (templateCache?.has(instance.template_id)) {
+      template = templateCache.get(instance.template_id)!;
+    } else {
+      template = await this.templateService.getTemplateById(instance.template_id);
+      templateCache?.set(instance.template_id, template);
+    }
+
+    run.workflow_template_snapshot = {
+      id: instance.id,
+      template_id: instance.template_id,
+      name: instance.name,
+      steps: instance.steps.map(s => {
+        const step: WorkflowTemplateStepEntity = {
+          id: s.id,
+          name: s.name,
+          instructionPrompt: s.instructionPrompt,
+          agentId: s.agentId,
+          maxRetries: s.maxRetries ?? 0,
+          onFailureLoopTo: s.onFailureLoopTo ?? null,
+        };
+        if (s.requiresConfirmation !== undefined) step.requiresConfirmation = s.requiresConfirmation;
+        if (s.canEarlyExit !== undefined) step.canEarlyExit = s.canEarlyExit;
+        if (s.type !== undefined) step.type = s.type;
+        return step;
+      }),
+      maxLoops: template?.maxLoops ?? 0,
+      created_at: instance.created_at,
+      updated_at: instance.updated_at,
+    };
 
     return run;
   }
 
+  async getWorkflowRun(runId: number) {
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) return null;
+    return this._enrichWithTemplateSnapshot(run);
+  }
+
   async getAllRunsByTask(taskId: number) {
-    return this.workflowRunRepo.findAllByTaskIdOrdered(taskId);
+    const runs = await this.workflowRunRepo.findAllByTaskIdOrdered(taskId);
+    // Cache instance + template lookups across runs so a 5-iteration loop
+    // doesn't issue 10+ DB reads when one would do.
+    const instances = new Map<string, WorkflowInstanceEntity | null>();
+    const templates = new Map<string, WorkflowTemplateEntity | null>();
+    for (const run of runs) {
+      await this._enrichWithTemplateSnapshot(run, { instances, templates });
+    }
+    return runs;
   }
 
   async cancelWorkflow(runId: number) {

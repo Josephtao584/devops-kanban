@@ -67,6 +67,7 @@ import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPo
 import WorkflowQuickActions from './WorkflowQuickActions.vue'
 import WorkflowStepCards from './WorkflowStepCards.vue'
 import WorkflowLoopBackDialog from './WorkflowLoopBackDialog.vue'
+import { canLoopAgain as computeCanLoopAgain, canLoopBack as computeCanLoopBack } from '../../utils/loopActionVisibility.js'
 
 const taskStore = useTaskStore()
 const workflowStore = useWorkflowStore()
@@ -291,32 +292,12 @@ const confirmTooltip = computed(() => {
   return '仅暂停状态的AgentTeam可确认'
 })
 
-// `canLoopBack`: show "回退到…" when the latest run failed and no auto-loop is
-// configured for the failed step. We approximate using template snapshot fields
-// already embedded in the run; if unavailable, default to allowing manual loop
-// (the backend will validate the request).
-const canLoopBack = computed(() => {
-  if (!run.value) return false
-  if (run.value.status !== 'FAILED') return false
-  const failedStepId = (run.value.steps || []).find(s => s?.status === 'FAILED')?.step_id
-    || run.value.current_step
-  if (!failedStepId) return true
-  const templateSteps = run.value.workflow_template_snapshot?.steps || []
-  const tplStep = templateSteps.find(s => (s.id || s.step_id) === failedStepId)
-  // No auto-loop wired ⇒ manual loop-back makes sense.
-  return !tplStep?.onFailureLoopTo
-})
+// `canLoopBack` / `canLoopAgain`: see utils/loopActionVisibility.js for the
+// boundary rules and rationale. Both predicates are derived from the latest
+// run, so they need to recompute whenever `run.value` updates.
+const canLoopBack = computed(() => computeCanLoopBack(run.value))
 
-// `canLoopAgain`: show "再循环一轮" override when the latest run failed and the
-// auto-loop budget has been exhausted (iteration >= maxLoops + 1, i.e. there
-// have been at least maxLoops auto-loops already).
-const canLoopAgain = computed(() => {
-  if (!run.value) return false
-  if (run.value.status !== 'FAILED') return false
-  const maxLoops = Number(run.value.workflow_template_snapshot?.maxLoops ?? 0)
-  if (maxLoops <= 0) return false
-  return Number(run.value.iteration ?? 1) > maxLoops
-})
+const canLoopAgain = computed(() => computeCanLoopAgain(run.value))
 
 const failedStepId = computed(() => {
   if (!run.value) return null
@@ -524,13 +505,14 @@ async function openLoopAgainDialog() {
 async function handleLoopConfirm(fromStepId) {
   if (!run.value || !fromStepId) return
   const runId = run.value.id
+  const isOverride = loopDialogMode.value === 'again'
   actionLoading.value = true
   try {
     await workflowStore.loopWorkflow(runId, {
       fromStepId,
-      override: loopDialogMode.value === 'again',
+      override: isOverride,
     })
-    ElMessage.success('已发起回退')
+    ElMessage.success(isOverride ? '已突破最大循环次数限制，已发起循环' : '已发起回退')
     await load()
     emit('refresh')
   } catch (e) {
