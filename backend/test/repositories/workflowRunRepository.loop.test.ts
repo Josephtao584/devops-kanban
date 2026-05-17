@@ -3,8 +3,8 @@ import * as assert from 'node:assert/strict';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import { createClient } from '@libsql/client';
-import { migrateSchema } from '../src/db/migrate.js';
-import { WorkflowRunRepository } from '../src/repositories/workflowRunRepository.js';
+import { migrateSchema } from '../../src/db/migrate.js';
+import { WorkflowRunRepository } from '../../src/repositories/workflowRunRepository.js';
 
 function extractCreateTableSql(sql: string): string {
   const matches = sql.match(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+[\s\S]*?\);/gi);
@@ -13,7 +13,7 @@ function extractCreateTableSql(sql: string): string {
 
 async function makeRepo() {
   const client = createClient({ url: ':memory:' });
-  const schemaPath = path.join(import.meta.dirname, '../src/db/schema.sql');
+  const schemaPath = path.join(import.meta.dirname, '../../src/db/schema.sql');
   const schemaSql = await fsPromises.readFile(schemaPath, 'utf-8');
   const tableSql = extractCreateTableSql(schemaSql);
   if (tableSql) {
