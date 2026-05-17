@@ -335,8 +335,9 @@ class BundleService {
         instructionPrompt: step.instructionPrompt,
         agentId: agentIdMap.get(step.agentName) || 0,
         requiresConfirmation: step.requiresConfirmation || false,
-        onFailureLoopTo: null,
+        onFailureLoopTo: step.onFailureLoopTo ?? null,
       }));
+      const importedMaxLoops = tpl.maxLoops ?? 0;
 
       const allTemplates = await this.templateRepo.findAll();
       const existing = allTemplates.find(t => t.template_id === tpl.template_id);
@@ -344,17 +345,17 @@ class BundleService {
       if (existing) {
         if (input.strategy === 'skip') { skipped.templates++; continue; }
         if (input.strategy === 'overwrite') {
-          await this.templateRepo.update(existing.id, { name: tpl.name, steps });
+          await this.templateRepo.update(existing.id, { name: tpl.name, steps, maxLoops: importedMaxLoops });
           imported.templates++;
           continue;
         }
         if (input.strategy === 'copy') {
-          await this.createUniqueTemplate(tpl.template_id, tpl.name, steps);
+          await this.createUniqueTemplate(tpl.template_id, tpl.name, steps, importedMaxLoops);
           imported.templates++;
           continue;
         }
       }
-      await this.templateRepo.create({ template_id: tpl.template_id, name: tpl.name, steps, maxLoops: 0 });
+      await this.templateRepo.create({ template_id: tpl.template_id, name: tpl.name, steps, maxLoops: importedMaxLoops });
       imported.templates++;
     }
 
@@ -507,12 +508,14 @@ class BundleService {
     return {
       template_id: template.template_id,
       name: template.name,
+      maxLoops: template.maxLoops,
       steps: template.steps.map((step): ExportedWorkflowTemplate['steps'][number] => ({
         id: step.id,
         name: step.name,
         instructionPrompt: step.instructionPrompt,
         agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
         requiresConfirmation: step.requiresConfirmation || false,
+        onFailureLoopTo: step.onFailureLoopTo ?? null,
       })),
     };
   }
@@ -572,7 +575,7 @@ class BundleService {
     return created.id;
   }
 
-  private async createUniqueTemplate(baseId: string, name: string, steps: WorkflowTemplateEntity['steps']): Promise<string> {
+  private async createUniqueTemplate(baseId: string, name: string, steps: WorkflowTemplateEntity['steps'], maxLoops: number = 0): Promise<string> {
     let suffix = 1;
     let candidate = `${baseId}-copy`;
     const existing = await this.templateRepo.findAll();
@@ -580,7 +583,7 @@ class BundleService {
       suffix++;
       candidate = `${baseId}-copy-${suffix}`;
     }
-    await this.templateRepo.create({ template_id: candidate, name: `${name} (副本)`, steps, maxLoops: 0 });
+    await this.templateRepo.create({ template_id: candidate, name: `${name} (副本)`, steps, maxLoops });
     return candidate;
   }
 }

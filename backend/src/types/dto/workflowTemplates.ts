@@ -40,6 +40,8 @@ export interface ExportedWorkflowStep {
   canEarlyExit?: boolean;
   type?: string;
   maxRetries?: number;
+  // Loop-back target. Optional so older bundles without the field still import cleanly.
+  onFailureLoopTo?: string | null;
 }
 
 export interface ExportedWorkflowTemplate {
@@ -47,6 +49,8 @@ export interface ExportedWorkflowTemplate {
   name: string;
   tags?: string[];
   steps: ExportedWorkflowStep[];
+  // Maximum loop iterations. Optional so older bundles without the field still import cleanly.
+  maxLoops?: number;
 }
 
 export interface ExportFile {

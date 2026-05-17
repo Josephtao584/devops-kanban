@@ -2,7 +2,7 @@ import { WorkflowTemplateRepository } from '../../repositories/workflowTemplateR
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { ValidationError, NotFoundError, ConflictError } from '../../utils/errors.js';
 import type { WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
-import type { ExportFile, ExportedWorkflowTemplate, ExportedWorkflowStep, ImportPreview, ImportConfirmInput } from '../../types/dto/workflowTemplates.js';
+import type { ExportFile, ExportedWorkflowTemplate, ExportedWorkflowStep, ImportPreview, ImportConfirmInput, UpdateWorkflowTemplateInput } from '../../types/dto/workflowTemplates.js';
 import { DEFAULT_SPLIT_PROMPT } from './defaultSplitPrompt.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -151,21 +151,29 @@ class WorkflowTemplateService {
     return await this.workflowTemplateRepo.create(normalizedTemplate);
   }
 
-  async updateTemplate(templateId: string, template: Partial<Omit<WorkflowTemplateEntity, 'id' | 'template_id' | 'created_at' | 'updated_at'>>): Promise<WorkflowTemplateEntity | null> {
+  async updateTemplate(templateId: string, input: UpdateWorkflowTemplateInput): Promise<WorkflowTemplateEntity | null> {
     const existing = await this.workflowTemplateRepo.findByTemplateId(templateId);
     if (!existing) {
       throw new NotFoundError(`未找到工作流模板: ${templateId}`, `Workflow template not found: ${templateId}`, { templateId });
     }
 
-    const updateData: Partial<Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>> = {};
-    if (template.name !== undefined) {
-      updateData.name = template.name;
+    const updateData: {
+      name?: string;
+      steps?: WorkflowTemplateStepEntity[];
+      tags?: string[];
+      maxLoops?: number;
+    } = {};
+    if (input.name !== undefined) {
+      updateData.name = input.name;
     }
-    if (template.steps !== undefined) {
-      updateData.steps = template.steps.map((step) => normalizeStep(step));
+    if (input.steps !== undefined) {
+      updateData.steps = input.steps.map((step) => normalizeStep(step));
     }
-    if (template.tags !== undefined) {
-      updateData.tags = Array.isArray(template.tags) ? template.tags : [];
+    if (input.tags !== undefined) {
+      updateData.tags = Array.isArray(input.tags) ? input.tags : [];
+    }
+    if (input.maxLoops !== undefined) {
+      updateData.maxLoops = typeof input.maxLoops === 'number' && Number.isInteger(input.maxLoops) && input.maxLoops >= 0 ? input.maxLoops : 0;
     }
 
     return await this.workflowTemplateRepo.update(existing.id, updateData);
@@ -222,6 +230,7 @@ class WorkflowTemplateService {
     const exportedTemplates: ExportedWorkflowTemplate[] = templates.map(t => ({
       template_id: t.template_id,
       name: t.name,
+      maxLoops: t.maxLoops,
       steps: t.steps.map((step): ExportedWorkflowStep => {
         const exported: ExportedWorkflowStep = {
           id: step.id,
@@ -230,6 +239,7 @@ class WorkflowTemplateService {
           agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
           requiresConfirmation: step.requiresConfirmation || false,
           canEarlyExit: step.canEarlyExit || false,
+          onFailureLoopTo: step.onFailureLoopTo ?? null,
         };
         if (step.type) exported.type = step.type;
         if (step.maxRetries !== undefined) exported.maxRetries = step.maxRetries;
@@ -310,11 +320,14 @@ class WorkflowTemplateService {
           canEarlyExit: step.canEarlyExit,
           type: step.type,
           maxRetries: step.maxRetries,
+          onFailureLoopTo: step.onFailureLoopTo ?? null,
         });
       });
 
+      const importedMaxLoops = tpl.maxLoops ?? 0;
+
       // Validate template structure
-      normalizeTemplate({ template_id: tpl.template_id, name: tpl.name, steps });
+      normalizeTemplate({ template_id: tpl.template_id, name: tpl.name, steps, maxLoops: importedMaxLoops });
 
       let finalTemplateId = tpl.template_id;
       if (existing && input.strategy === 'copy') {
@@ -331,6 +344,7 @@ class WorkflowTemplateService {
         const updated = await this.workflowTemplateRepo.update(existing.id, {
           name: tpl.name,
           steps,
+          maxLoops: importedMaxLoops,
         });
         if (updated) imported.push(updated);
       } else if (!existing || input.strategy === 'copy') {
@@ -338,7 +352,7 @@ class WorkflowTemplateService {
           template_id: finalTemplateId,
           name: input.strategy === 'copy' && existing ? `${tpl.name} (副本)` : tpl.name,
           steps,
-          maxLoops: 0,
+          maxLoops: importedMaxLoops,
         });
         imported.push(created);
       }

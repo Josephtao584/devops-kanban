@@ -120,6 +120,8 @@ test.test('updateTemplate rejects step name exceeding 200 characters', async () 
 
     await assert.rejects(
       async () => service.updateTemplate('test-template', {
+        template_id: 'test-template',
+        name: 'Valid Template',
         steps: [longStepName],
       }),
       /step name must not exceed 200 characters/
