@@ -406,7 +406,7 @@ class WorkflowService {
   }
 
   async getAllRunsByTask(taskId: number) {
-    return this.workflowRunRepo.findAllByTaskId(taskId);
+    return this.workflowRunRepo.findAllByTaskIdOrdered(taskId);
   }
 
   async cancelWorkflow(runId: number) {

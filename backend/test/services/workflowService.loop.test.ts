@@ -6,9 +6,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as path from 'node:path';
 
+import Fastify from 'fastify';
 import { createClient } from '@libsql/client';
 import { WorkflowRunRepository } from '../../src/repositories/workflowRunRepository.js';
 import { WorkflowService } from '../../src/services/workflow/workflowService.js';
+import { workflowRoutes } from '../../src/routes/workflows.js';
 
 // Tracks every temp dir created by makeTempWorktree so we can clean them up
 // once the test file finishes. Prevents /tmp leaks across runs.
@@ -226,4 +228,45 @@ test.test('createLoopRun rejects if FAILED parent has no identifiable failed ste
     service.createLoopRun(parent.id, 'step2'),
     /no identifiable failed step/,
   );
+});
+
+test.test('POST /runs/:runId/loop returns 200 on happy path', async () => {
+  const { service, runRepo } = await makeService();
+  const parent = (await makeFailedParent(runRepo, {})).created!;
+  const app = Fastify();
+  await app.register(workflowRoutes, { prefix: '/api/workflows', service });
+  try {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/workflows/runs/${parent.id}/loop`,
+      payload: { fromStepId: 'step2' },
+    });
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.success, true);
+    assert.equal(body.data.iteration, 2);
+    assert.ok(typeof body.data.newRunId === 'number' && body.data.newRunId > 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test.test('POST /runs/:runId/loop returns 4xx when validation fails', async () => {
+  const { service, runRepo } = await makeService();
+  const parent = (await makeFailedParent(runRepo, {})).created!;
+  const app = Fastify();
+  await app.register(workflowRoutes, { prefix: '/api/workflows', service });
+  try {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/workflows/runs/${parent.id}/loop`,
+      payload: { fromStepId: 'step3' }, // not strictly earlier than failed step3
+    });
+    assert.equal(res.statusCode, 400);
+    const body = JSON.parse(res.body);
+    assert.equal(body.success, false);
+    assert.match(body.message, /must be earlier|fromStepId/);
+  } finally {
+    await app.close();
+  }
 });
