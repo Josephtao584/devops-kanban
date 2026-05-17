@@ -337,6 +337,31 @@ function mountView() {
         'el-tooltip': ElTooltipStub,
         'el-icon': ElIconStub,
         'el-input': ElInputStub,
+        'el-input-number': defineComponent({
+          name: 'ElInputNumberStub',
+          inheritAttrs: false,
+          props: {
+            modelValue: { type: Number, default: 0 },
+            min: { type: Number, default: 0 },
+            max: { type: Number, default: 20 }
+          },
+          emits: ['update:modelValue'],
+          setup(props, { attrs, emit }) {
+            const onInput = (event) => {
+              const next = Number(event.target.value)
+              emit('update:modelValue', Number.isFinite(next) ? next : 0)
+            }
+            return () => h('input', {
+              ...attrs,
+              type: 'number',
+              class: ['el-input-number-stub', attrs.class],
+              value: props.modelValue,
+              min: props.min,
+              max: props.max,
+              onInput
+            })
+          }
+        }),
         'el-select': ElSelectStub,
         'el-option': ElOptionStub,
         'el-tag': ElTagStub,
@@ -398,7 +423,7 @@ const getStepCards = (wrapper) => wrapper.findAll('.workflow-step-card')
 const getSelectedStepCard = (wrapper) => wrapper.find('.workflow-step-card.is-selected')
 const getConnectors = (wrapper) => wrapper.findAll('.workflow-connector--insert')
 const getDeleteStepButtons = (wrapper) => wrapper.findAll('.workflow-step-card__delete')
-const getInlineStepNameInput = (wrapper) => wrapper.findAll('input').find((input) => input.attributes('data-testid') !== 'template-name-input' && input.attributes('type') !== 'checkbox')
+const getInlineStepNameInput = (wrapper) => wrapper.findAll('input').find((input) => input.attributes('data-testid') !== 'template-name-input' && input.attributes('type') !== 'checkbox' && input.attributes('type') !== 'number')
 
 const focusInlineEditor = async (wrapper, index = 0) => {
   await getStepCards(wrapper)[index].trigger('click')

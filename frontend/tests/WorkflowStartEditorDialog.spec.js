@@ -381,6 +381,7 @@ describe('WorkflowStartEditorDialog', () => {
         template_id: 'workflow-v1',
         name: '通用复杂任务工作流',
         tags: [],
+        maxLoops: 0,
         steps: [
           {
             id: 'requirement-design',
@@ -391,6 +392,7 @@ describe('WorkflowStartEditorDialog', () => {
             canEarlyExit: false,
             type: 'DEFAULT',
             maxRetries: 0,
+            onFailureLoopTo: null,
           },
           {
             id: 'code-development',
@@ -401,6 +403,7 @@ describe('WorkflowStartEditorDialog', () => {
             canEarlyExit: false,
             type: 'DEFAULT',
             maxRetries: 0,
+            onFailureLoopTo: null,
           }
         ]
       },

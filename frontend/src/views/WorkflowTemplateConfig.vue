@@ -160,6 +160,18 @@
                 </div>
                 <p class="meta-field__hint">{{ $t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）') }}</p>
               </div>
+              <div class="meta-field">
+                <label class="meta-field__label">{{ $t('workflowTemplate.maxLoops') }}</label>
+                <el-input-number
+                  v-model="template.maxLoops"
+                  :min="0"
+                  :max="20"
+                  size="small"
+                  data-test="template-max-loops"
+                  class="meta-field__control"
+                />
+                <p class="meta-field__hint">{{ $t('workflowTemplate.maxLoopsHint') }}</p>
+              </div>
             </div>
           </div>
 
@@ -276,6 +288,7 @@
               :agents="agents"
               :agents-loaded="agentsLoaded"
               :agents-load-failed="agentsLoadFailed"
+              :prior-steps="priorStepsForSelected"
               @preview-prompt="handlePreviewPrompt"
             />
           </section>
@@ -445,6 +458,15 @@ const canDeleteStep = computed(() => {
 
 const selectedStep = computed(() => {
   return template.value?.steps?.[selectedStepIndex.value] || null
+})
+
+const priorStepsForSelected = computed(() => {
+  const steps = template.value?.steps || []
+  const idx = selectedStepIndex.value
+  if (idx <= 0) return []
+  return steps.slice(0, idx)
+    .map((step) => ({ id: (step?.id || '').trim(), name: step?.name || '' }))
+    .filter((step) => step.id)
 })
 
 const stepValidationHint = computed(() => {
@@ -903,6 +925,24 @@ const saveTemplate = async () => {
   if (validationMessage) {
     ElMessage.warning(validationMessage)
     return
+  }
+
+  const steps = template.value.steps || []
+  const hasLoopTarget = steps.some((s) => typeof s?.onFailureLoopTo === 'string' && s.onFailureLoopTo.trim())
+  if (hasLoopTarget && Number(template.value.maxLoops ?? 0) === 0) {
+    try {
+      await ElMessageBox.confirm(
+        t('workflowTemplate.noLoopWarning'),
+        t('common.warning', '警告'),
+        {
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning'
+        }
+      )
+    } catch {
+      return
+    }
   }
 
   saving.value = true
