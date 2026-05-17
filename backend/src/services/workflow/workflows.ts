@@ -84,6 +84,18 @@ export function cropInstanceForLoop(
   return { ...instance, steps: instance.steps.slice(idx) };
 }
 
+/**
+ * Renders the loop preamble injected into the next iteration's prompt.
+ *
+ * SECURITY NOTE: failureContext.error and priorSummaries[].summary are
+ * interpolated as raw Markdown. They originate from previous step outputs
+ * (executor stderr, error messages, AI summaries) which can contain
+ * user-controlled text. A malicious task could produce error output that
+ * attempts prompt injection on the next iteration. This is a known dual-use
+ * surface in AI orchestration; mitigations include input sanitization at
+ * the executor boundary, or treating the loop preamble as untrusted in the
+ * agent's system prompt.
+ */
 export function formatLoopContext(args: {
   fromStepId: string;
   failureContext: { failed_step_id: string; error: string; summary: string | null } | null;
