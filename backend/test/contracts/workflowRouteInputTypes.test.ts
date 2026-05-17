@@ -24,6 +24,7 @@ test.test('workflow and related route body types accept expected assignments', (
     error: null,
     early_exit: null,
     early_exit_reason: null,
+    inherited_from_run_id: null,
   };
 
   assert.equal(workflowBody.task_id, 1);

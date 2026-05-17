@@ -36,6 +36,7 @@ function buildInstance(instanceId: string, stepIds: string[], agentIds: number[]
       name: `Step ${index + 1}`,
       instructionPrompt: `Prompt ${index + 1}`,
       agentId: agentIds[index] ?? agentIds[agentIds.length - 1] ?? 11,
+      onFailureLoopTo: null,
     })),
     created_at: '2026-03-22T00:00:00.000Z',
     updated_at: '2026-03-22T00:00:00.000Z',

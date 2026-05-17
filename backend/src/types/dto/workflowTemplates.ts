@@ -5,6 +5,8 @@ export interface WorkflowTemplateStepInput {
   agentId: number;
   // Suspend/resume configuration
   requiresConfirmation?: boolean;
+  // Loop-back configuration
+  onFailureLoopTo?: string | null;
 }
 
 export interface CreateWorkflowTemplateInput {
@@ -12,6 +14,7 @@ export interface CreateWorkflowTemplateInput {
   name: string;
   steps: WorkflowTemplateStepInput[];
   tags?: string[];
+  maxLoops?: number;
 }
 
 export interface UpdateWorkflowTemplateInput {
@@ -19,6 +22,7 @@ export interface UpdateWorkflowTemplateInput {
   name: string;
   steps: WorkflowTemplateStepInput[];
   tags?: string[];
+  maxLoops?: number;
 }
 
 export interface ReorderWorkflowTemplatesInput {

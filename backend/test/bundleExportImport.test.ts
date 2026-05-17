@@ -153,18 +153,18 @@ const agentNoDeps: AgentEntity = {
 const template1: WorkflowTemplateEntity = {
   id: 1, template_id: 'cve-fix', name: 'CVE 漏洞修复',
   steps: [
-    { id: 's1', name: '分析', instructionPrompt: 'Analyze', agentId: 1, requiresConfirmation: false },
-    { id: 's2', name: '修复', instructionPrompt: 'Fix', agentId: 2, requiresConfirmation: false },
+    { id: 's1', name: '分析', instructionPrompt: 'Analyze', agentId: 1, requiresConfirmation: false, onFailureLoopTo: null },
+    { id: 's2', name: '修复', instructionPrompt: 'Fix', agentId: 2, requiresConfirmation: false, onFailureLoopTo: null },
   ],
-  order: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  order: 1, maxLoops: 0, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 const template2: WorkflowTemplateEntity = {
   id: 2, template_id: 'code-review', name: '代码审查',
   steps: [
-    { id: 's1', name: '审查', instructionPrompt: 'Review', agentId: 1, requiresConfirmation: false },
+    { id: 's1', name: '审查', instructionPrompt: 'Review', agentId: 1, requiresConfirmation: false, onFailureLoopTo: null },
   ],
-  order: 2, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  order: 2, maxLoops: 0, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 // Helper to create a service with all mocks
@@ -243,8 +243,8 @@ describe('BundleService - resolve', () => {
   it('should handle agents with no skills or MCP servers', async () => {
     const templateNoDeps: WorkflowTemplateEntity = {
       id: 3, template_id: 'simple', name: 'Simple',
-      steps: [{ id: 's1', name: 'Run', instructionPrompt: 'Go', agentId: 3, requiresConfirmation: false }],
-      order: 3, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      steps: [{ id: 's1', name: 'Run', instructionPrompt: 'Go', agentId: 3, requiresConfirmation: false, onFailureLoopTo: null }],
+      order: 3, maxLoops: 0, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     };
 
     const { service } = createService([templateNoDeps], [agentNoDeps], [], []);

@@ -19,14 +19,17 @@ function buildWorkflowTemplateSnapshot(): WorkflowTemplateEntity {
         name: '问题定位',
         instructionPrompt: '先确认问题范围。',
         agentId: 11,
+        onFailureLoopTo: null,
       },
       {
         id: 'fix',
         name: '实施修复',
         instructionPrompt: '完成最小修复。',
         agentId: 12,
+        onFailureLoopTo: null,
       },
     ],
+    maxLoops: 0,
     created_at: '2026-03-22T00:00:00.000Z',
     updated_at: '2026-03-22T00:00:00.000Z',
   };

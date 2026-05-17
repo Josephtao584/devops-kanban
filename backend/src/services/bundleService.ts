@@ -335,6 +335,7 @@ class BundleService {
         instructionPrompt: step.instructionPrompt,
         agentId: agentIdMap.get(step.agentName) || 0,
         requiresConfirmation: step.requiresConfirmation || false,
+        onFailureLoopTo: null,
       }));
 
       const allTemplates = await this.templateRepo.findAll();
@@ -353,7 +354,7 @@ class BundleService {
           continue;
         }
       }
-      await this.templateRepo.create({ template_id: tpl.template_id, name: tpl.name, steps });
+      await this.templateRepo.create({ template_id: tpl.template_id, name: tpl.name, steps, maxLoops: 0 });
       imported.templates++;
     }
 
@@ -579,7 +580,7 @@ class BundleService {
       suffix++;
       candidate = `${baseId}-copy-${suffix}`;
     }
-    await this.templateRepo.create({ template_id: candidate, name: `${name} (副本)`, steps });
+    await this.templateRepo.create({ template_id: candidate, name: `${name} (副本)`, steps, maxLoops: 0 });
     return candidate;
   }
 }

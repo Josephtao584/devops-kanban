@@ -7,7 +7,7 @@ import { WorkflowInstanceService } from '../workflowInstanceService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
 import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
-import { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../../types/entities.js';
+import { WorkflowInstanceEntity, WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
@@ -345,18 +345,26 @@ class WorkflowService {
       const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
       if (instance) {
         run.workflow_template_snapshot = {
+          id: instance.id,
           template_id: instance.template_id,
           name: instance.name,
-          steps: instance.steps.map(s => ({
-            id: s.id,
-            name: s.name,
-            instructionPrompt: s.instructionPrompt,
-            agentId: s.agentId,
-            requiresConfirmation: s.requiresConfirmation,
-            canEarlyExit: s.canEarlyExit,
-            type: s.type,
-            maxRetries: s.maxRetries ?? 0,
-          })),
+          steps: instance.steps.map(s => {
+            const step: WorkflowTemplateStepEntity = {
+              id: s.id,
+              name: s.name,
+              instructionPrompt: s.instructionPrompt,
+              agentId: s.agentId,
+              maxRetries: s.maxRetries ?? 0,
+              onFailureLoopTo: s.onFailureLoopTo ?? null,
+            };
+            if (s.requiresConfirmation !== undefined) step.requiresConfirmation = s.requiresConfirmation;
+            if (s.canEarlyExit !== undefined) step.canEarlyExit = s.canEarlyExit;
+            if (s.type !== undefined) step.type = s.type;
+            return step;
+          }),
+          maxLoops: 0,
+          created_at: instance.created_at,
+          updated_at: instance.updated_at,
         };
       }
     }

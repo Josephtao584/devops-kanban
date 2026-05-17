@@ -14,7 +14,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     throw new ValidationError('无效的工作流模板步骤', 'Invalid workflow template steps');
   }
 
-  const { id, name, instructionPrompt, agentId, requiresConfirmation, canEarlyExit, type, maxRetries } = step;
+  const { id, name, instructionPrompt, agentId, requiresConfirmation, canEarlyExit, type, maxRetries, onFailureLoopTo } = step;
 
   if (typeof id !== 'string' || !id.trim()) {
     throw new ValidationError('步骤 ID 必须为非空字符串', 'step id must be a non-empty string');
@@ -50,6 +50,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     agentId,
     requiresConfirmation: normalizedRequiresConfirmation,
     canEarlyExit: normalizedCanEarlyExit,
+    onFailureLoopTo: typeof onFailureLoopTo === 'string' && onFailureLoopTo.trim() ? onFailureLoopTo.trim() : null,
     ...(typeof type === 'string' && type.trim() ? { type: type.trim() } : {}),
     ...(typeof maxRetries === 'number' && Number.isInteger(maxRetries) && maxRetries >= 0 ? { maxRetries } : {}),
   };
@@ -60,7 +61,7 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw new ValidationError('无效的工作流模板', 'Invalid workflow template');
   }
 
-  const { template_id, name, steps, tags } = template;
+  const { template_id, name, steps, tags, maxLoops } = template;
 
   if (typeof template_id !== 'string' || !template_id.trim()) {
     throw new ValidationError('无效的工作流模板 ID', 'Invalid workflow template id');
@@ -84,6 +85,7 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     name: name.trim(),
     steps: normalizedSteps,
     tags: Array.isArray(tags) ? tags : [],
+    maxLoops: typeof maxLoops === 'number' && Number.isInteger(maxLoops) && maxLoops >= 0 ? maxLoops : 0,
   };
 }
 
@@ -106,9 +108,11 @@ const BUILTIN_TEMPLATES: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'upd
 最终输出格式化的 Markdown 报告，保存到 KANBAN_COMPASS.md 文件中。该文件将作为后续工作流执行的参考文档，其他工作流的 Agent 会读取此文件来了解项目结构。`,
         agentId: 1,
         requiresConfirmation: false,
+        onFailureLoopTo: null,
       },
     ],
     order: 3,
+    maxLoops: 0,
   },
 ];
 
@@ -334,6 +338,7 @@ class WorkflowTemplateService {
           template_id: finalTemplateId,
           name: input.strategy === 'copy' && existing ? `${tpl.name} (副本)` : tpl.name,
           steps,
+          maxLoops: 0,
         });
         imported.push(created);
       }

@@ -65,7 +65,7 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
   fastify.put<{ Body: UpdateWorkflowTemplateInput }>('/', async (request, reply) => {
     try {
       const { template_id, ...updateData } = request.body;
-      const template = await service.updateTemplate(template_id, updateData);
+      const template = await service.updateTemplate(template_id, updateData as Partial<Omit<WorkflowTemplateEntity, 'id' | 'template_id' | 'created_at' | 'updated_at'>>);
       return successResponse(template, 'Workflow template updated');
     } catch (error) {
       logError(error, request);

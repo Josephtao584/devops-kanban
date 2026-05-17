@@ -18,6 +18,7 @@ function buildInstance(instanceId: string) {
         name: 'Step 1',
         instructionPrompt: 'Do the work',
         agentId: 11,
+        onFailureLoopTo: null,
       },
     ],
   };
@@ -146,6 +147,7 @@ test.test('requiresConfirmation step re-suspends for confirmation after AskUserQ
         instructionPrompt: 'Ask a question then wait for confirmation.',
         agentId: 11,
         requiresConfirmation: true,
+        onFailureLoopTo: null,
       },
     ],
   }, {

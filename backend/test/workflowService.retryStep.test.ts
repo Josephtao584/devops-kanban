@@ -17,6 +17,7 @@ function buildStep(stepId: string, status: string): WorkflowStepEntity {
     error: null,
     provider_session_id: `prov-${stepId}`,
     assembled_prompt: `prompt for ${stepId}`,
+    inherited_from_run_id: null,
   };
 }
 
@@ -34,6 +35,10 @@ function buildRun(steps: WorkflowStepEntity[], overrides: Partial<WorkflowRunEnt
     context: {},
     created_at: '2026-05-10T00:00:00.000Z',
     updated_at: '2026-05-10T00:10:00.000Z',
+    parent_run_id: null,
+    iteration: 0,
+    looped_from_step_id: null,
+    loop_failure_context: null,
     ...overrides,
   };
 }
