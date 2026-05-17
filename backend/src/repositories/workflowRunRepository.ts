@@ -175,6 +175,25 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     loop_failure_context?: { failed_step_id: string; error: string; summary: string | null } | null;
   }): Promise<{ created: WorkflowRunEntity; existing: null } | { created: null; existing: WorkflowRunEntity }> {
     return this.serializeMutation(async () => {
+      // For loop runs, check in-flight children of the same parent first,
+      // inside the mutation queue, so two concurrent loop attempts cannot
+      // both pass a soft pre-check and race past each other. The task_id
+      // check below also catches this (since loop children share the
+      // parent's task_id), but checking parent_run_id lets the caller emit
+      // a loop-specific error message instead of a generic one.
+      if (payload.parent_run_id != null) {
+        const childResult = await this.client.execute({
+          sql: `SELECT * FROM workflow_runs
+                WHERE parent_run_id = ? AND status IN ('PENDING', 'RUNNING', 'SUSPENDED')
+                ORDER BY id DESC LIMIT 1`,
+          args: [payload.parent_run_id],
+        });
+        if (childResult.rows.length > 0) {
+          const existing = this.parseRow(childResult.rows[0] as Record<string, unknown>);
+          return { created: null, existing };
+        }
+      }
+
       const activeResult = await this.client.execute({
         sql: "SELECT * FROM workflow_runs WHERE task_id = ? AND status IN ('RUNNING', 'PENDING', 'SUSPENDED') ORDER BY created_at DESC, id DESC LIMIT 1",
         args: [payload.task_id],

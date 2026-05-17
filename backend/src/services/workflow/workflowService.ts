@@ -854,10 +854,22 @@ class WorkflowService {
     });
 
     if (!result.created) {
+      // The repo's atomic check returns the conflicting row. If it shares our
+      // parent_run_id, the conflict is a concurrent loop attempt; otherwise
+      // the task already has some other active run. Distinguish so the
+      // user-facing message matches the actual collision.
+      const existing = result.existing;
+      if (existing && existing.parent_run_id === parentRunId) {
+        throw new ConflictError(
+          `父运行 ${parentRunId} 已有进行中的子运行 (${existing.id})`,
+          `Parent run ${parentRunId} already has an in-flight child run (${existing.id})`,
+          { parentRunId, childRunId: existing.id },
+        );
+      }
       throw new ConflictError(
         '无法创建循环运行：任务已有活跃运行',
         'Failed to create loop run: task already has an active run',
-        { parentRunId, existingRunId: result.existing?.id },
+        { parentRunId, existingRunId: existing?.id },
       );
     }
 
