@@ -677,10 +677,21 @@ class WorkflowLifecycle {
     } catch (err) {
       // Do not bubble — the parent's FAILED state must remain untouched if
       // auto-loop creation fails (e.g. the template was edited mid-run).
+      // Persist the error message so the UI can surface that auto-loop was
+      // attempted but failed.
+      const message = err instanceof Error ? err.message : String(err);
       logger.warn(
         'WorkflowLifecycle',
-        `auto-loop trigger failed for run ${run.id}: ${err instanceof Error ? err.message : String(err)}`,
+        `auto-loop trigger failed for run ${run.id}: ${message}`,
       );
+      await this.workflowRunRepo
+        .update(run.id, { loop_trigger_error: message })
+        .catch((updateErr) => {
+          logger.warn(
+            'WorkflowLifecycle',
+            `failed to persist loop_trigger_error for run ${run.id}: ${updateErr instanceof Error ? updateErr.message : String(updateErr)}`,
+          );
+        });
     }
   }
 

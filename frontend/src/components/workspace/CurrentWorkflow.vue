@@ -11,13 +11,27 @@
       <div v-else-if="loading" class="workflow-empty">加载中...</div>
       <div v-else-if="error" class="workflow-empty">{{ error }}</div>
       <div v-else-if="!hasAnyTimelineStep" class="workflow-empty">暂无AgentTeam运行</div>
-      <WorkflowStepCards
-        v-else
-        :runs="runs"
-        :selected-step-id="selectedStepId"
-        :timeline-meta="timelineMeta"
-        @step-select="handleStepClick"
-      />
+      <template v-else>
+        <div
+          v-if="loopTriggerError"
+          class="loop-trigger-error-notice"
+          data-test="loop-trigger-error"
+          role="alert"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span>{{ $t('workflow.loopTriggerErrorPrefix') }}{{ loopTriggerError }}</span>
+        </div>
+        <WorkflowStepCards
+          :runs="runs"
+          :selected-step-id="selectedStepId"
+          :timeline-meta="timelineMeta"
+          @step-select="handleStepClick"
+        />
+      </template>
     </div>
 
     <WorkflowQuickActions
@@ -298,6 +312,15 @@ const confirmTooltip = computed(() => {
 const canLoopBack = computed(() => computeCanLoopBack(run.value))
 
 const canLoopAgain = computed(() => computeCanLoopAgain(run.value))
+
+// Auto-loop trigger failures are persisted on the latest run so the UI can
+// surface "auto-rollback was attempted but failed" without the user having to
+// inspect logs. Only the most recent run carries actionable feedback.
+const loopTriggerError = computed(() => {
+  const latest = runs.value?.length ? runs.value[runs.value.length - 1] : null
+  const message = latest?.loop_trigger_error
+  return typeof message === 'string' && message.length > 0 ? message : null
+})
 
 const failedStepId = computed(() => {
   if (!run.value) return null
@@ -592,5 +615,23 @@ defineExpose({ workflowName })
   color: var(--text-muted);
   font-size: 12px;
   text-align: center;
+}
+
+.loop-trigger-error-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.loop-trigger-error-notice svg {
+  flex-shrink: 0;
 }
 </style>

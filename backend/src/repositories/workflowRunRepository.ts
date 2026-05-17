@@ -46,6 +46,7 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
       loop_failure_context: loopFailureContextRaw
         ? JSON.parse(String(loopFailureContextRaw))
         : null,
+      loop_trigger_error: row.loop_trigger_error == null ? null : String(row.loop_trigger_error),
     } as WorkflowRunEntity;
   }
 
@@ -215,10 +216,10 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
         sql: `INSERT INTO workflow_runs (
                 task_id, workflow_instance_id, mastra_run_id, status, current_step, steps,
                 worktree_path, branch, context,
-                parent_run_id, iteration, looped_from_step_id, loop_failure_context,
+                parent_run_id, iteration, looped_from_step_id, loop_failure_context, loop_trigger_error,
                 created_at, updated_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           payload.task_id,
           payload.workflow_instance_id,
@@ -233,6 +234,7 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
           payload.iteration ?? 1,
           payload.looped_from_step_id ?? null,
           serializedLoopContext,
+          null,
           now,
           now,
         ],
@@ -259,6 +261,7 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
       loop_failure_context?:
         | { failed_step_id: string; error: string; summary: string | null }
         | null;
+      loop_trigger_error?: string | null;
     },
   ): Promise<WorkflowRunEntity | null> {
     return this.serializeMutation(async () => {

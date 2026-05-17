@@ -725,7 +725,8 @@ export default {
     loopBackPickStep: '选择回退目标',
     loopBackConfirm: '回退',
     loopSeparator: '⬅ 回退到 {fromStep}，因 {failedStep} 失败',
-    loopSeparatorUnknownStep: '未知步骤'
+    loopSeparatorUnknownStep: '未知步骤',
+    loopTriggerErrorPrefix: '自动回退触发失败：'
   },
   skill: {
     title: 'Skill管理',

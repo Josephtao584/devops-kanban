@@ -164,3 +164,40 @@ test.test('does not trigger when an in-flight child already exists', async () =>
   await lifecycle.onStepError(1, 'step2', 'boom');
   assert.equal(calls.length, 0);
 });
+
+test.test('persists loop_trigger_error when createLoopRun throws', async () => {
+  const { lifecycle, updateCalls } = setupHarness({
+    step: { onFailureLoopTo: 'step1' },
+  });
+  // Override createLoopRun to throw a known error.
+  (lifecycle as any).workflowService.createLoopRun = async () => {
+    throw new Error('template missing');
+  };
+
+  await lifecycle.onStepError(1, 'step2', 'boom');
+
+  // Find the update call that recorded the loop_trigger_error.
+  const triggerErrorCall = updateCalls.find(
+    (args) => args[1] && Object.prototype.hasOwnProperty.call(args[1], 'loop_trigger_error'),
+  );
+  assert.ok(triggerErrorCall, 'expected workflowRunRepo.update to be called with loop_trigger_error');
+  assert.equal(triggerErrorCall[0], 1);
+  assert.equal(triggerErrorCall[1].loop_trigger_error, 'template missing');
+});
+
+test.test('persists loop_trigger_error with String coercion when non-Error thrown', async () => {
+  const { lifecycle, updateCalls } = setupHarness({
+    step: { onFailureLoopTo: 'step1' },
+  });
+  (lifecycle as any).workflowService.createLoopRun = async () => {
+    throw 'string-error';
+  };
+
+  await lifecycle.onStepError(1, 'step2', 'boom');
+
+  const triggerErrorCall = updateCalls.find(
+    (args) => args[1] && Object.prototype.hasOwnProperty.call(args[1], 'loop_trigger_error'),
+  );
+  assert.ok(triggerErrorCall, 'expected loop_trigger_error update');
+  assert.equal(triggerErrorCall[1].loop_trigger_error, 'string-error');
+});

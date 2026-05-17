@@ -39,6 +39,7 @@ function buildRun(steps: WorkflowStepEntity[], overrides: Partial<WorkflowRunEnt
     iteration: 0,
     looped_from_step_id: null,
     loop_failure_context: null,
+    loop_trigger_error: null,
     ...overrides,
   };
 }

@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   iteration INTEGER NOT NULL DEFAULT 1,
   looped_from_step_id TEXT DEFAULT NULL,
   loop_failure_context TEXT DEFAULT NULL,
+  loop_trigger_error TEXT DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -156,6 +156,7 @@ export interface WorkflowRunEntity {
     error: string;
     summary: string | null;
   } | null;
+  loop_trigger_error: string | null;
   // Enrichment field populated by getWorkflowRun (not persisted to DB)
   workflow_template_snapshot?: WorkflowTemplateEntity;
 }
