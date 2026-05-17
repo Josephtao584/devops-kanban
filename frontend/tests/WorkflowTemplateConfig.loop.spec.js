@@ -73,11 +73,13 @@ vi.mock('../src/stores/workflowTemplateStore', () => {
 
 vi.mock('../src/stores/agentStore', () => {
   const agentsRef = ref([])
+  const loadingRef = ref(false)
+  const errorRef = ref(null)
   const fetchAgentsFn = vi.fn().mockImplementation(async () => ({ success: true, data: [] }))
   const storeMethods = {
     get agents() { return agentsRef.value },
-    loading: { value: false },
-    error: { value: null },
+    get loading() { return loadingRef.value },
+    get error() { return errorRef.value },
     fetchAgents: fetchAgentsFn,
     createAgent: vi.fn(),
     updateAgent: vi.fn(),

@@ -710,7 +710,6 @@ class WorkflowService {
       );
     }
 
-    // Resolve template for maxLoops via the workflow instance.
     const instance = await this.instanceService.getByInstanceId(parent.workflow_instance_id);
     if (!instance) {
       throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId: parent.workflow_instance_id });
@@ -718,7 +717,6 @@ class WorkflowService {
     const template = await this.templateService.getTemplateById(instance.template_id);
     const maxLoops = template?.maxLoops ?? 0;
 
-    // Validate fromStepId is in instance and strictly earlier than the failed step.
     const fromIdx = instance.steps.findIndex((s) => s.id === fromStepId);
     if (fromIdx === -1) {
       throw new ValidationError(
@@ -757,7 +755,6 @@ class WorkflowService {
       );
     }
 
-    // Validate iteration vs maxLoops.
     const newIteration = parent.iteration + 1;
     if (!override && newIteration > maxLoops) {
       throw new BusinessError(
@@ -767,7 +764,6 @@ class WorkflowService {
       );
     }
 
-    // Validate no in-flight child run.
     const inflight = await this.workflowRunRepo.findInFlightChild(parentRunId);
     if (inflight) {
       throw new ConflictError(
@@ -777,7 +773,6 @@ class WorkflowService {
       );
     }
 
-    // Validate worktree path still exists on disk.
     if (!existsSync(parent.worktree_path)) {
       throw new ValidationError(
         `工作树路径 ${parent.worktree_path} 已不存在，无法循环`,
