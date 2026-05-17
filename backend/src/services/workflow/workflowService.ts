@@ -145,6 +145,14 @@ class WorkflowService {
         });
       },
     });
+
+    // Inject self into the lifecycle so onStepError can auto-trigger loops via
+    // createLoopRun. Done as a setter (not constructor arg) to break the
+    // workflowLifecycle ↔ workflowService cycle. Guarded so that test stubs
+    // injecting a partial lifecycle remain valid.
+    if (typeof this.lifecycle.setWorkflowService === 'function') {
+      this.lifecycle.setWorkflowService(this);
+    }
   }
 
   async startWorkflow(taskId: number, options: StartWorkflowOptions) {

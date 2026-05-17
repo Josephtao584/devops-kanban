@@ -27,6 +27,19 @@ import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEve
 
 type TaskStatusChangeHandler = (taskId: number, status: string) => void | Promise<void>;
 
+// Minimal contract used by the loop-trigger hook. Declared as an interface to
+// avoid a static `import type { WorkflowService }` (which would create the
+// workflowLifecycle ↔ workflowService cycle the comment above already warns
+// about).
+interface LoopTriggerService {
+  templateService: { getTemplateById: (templateId: string) => Promise<{ maxLoops?: number | null } | null> };
+  createLoopRun: (
+    parentRunId: number,
+    fromStepId: string,
+    failureContext?: { failed_step_id: string; error: string; summary: string | null },
+  ) => Promise<unknown>;
+}
+
 class WorkflowLifecycle {
   workflowRunRepo: WorkflowRunRepository;
   taskRepo: TaskRepository;
@@ -38,6 +51,7 @@ class WorkflowLifecycle {
   _stepAttemptSegmentIds: Map<string, number | null>;
   private onWorkflowNotification?: (event: WorkflowNotificationEvent) => void;
   private onTaskStatusChange?: TaskStatusChangeHandler;
+  private workflowService?: LoopTriggerService;
 
   constructor({
     workflowRunRepo,
@@ -78,6 +92,16 @@ class WorkflowLifecycle {
 
   setOnTaskStatusChange(handler: TaskStatusChangeHandler) {
     this.onTaskStatusChange = handler;
+  }
+
+  /**
+   * Inject the WorkflowService after construction. Required so that the
+   * onStepError lifecycle hook can auto-trigger a loop run via
+   * `workflowService.createLoopRun(...)` without forming a static
+   * workflowLifecycle ↔ workflowService import cycle.
+   */
+  setWorkflowService(svc: LoopTriggerService) {
+    this.workflowService = svc;
   }
 
   private async _notifyTaskStatusChange(taskId: number, status: string) {
@@ -615,6 +639,52 @@ class WorkflowLifecycle {
   }
 
   async onStepError(runId: number, stepId: string, errorMessage: string) {
+    // Existing FAILED finalization runs first so that the parent's status is
+    // already FAILED by the time createLoopRun reads it below.
+    await this._finalizeStepError(runId, stepId, errorMessage);
+
+    // Loop trigger evaluation. Any rejection short-circuits silently — failure
+    // to auto-loop must leave the parent run in its FAILED state cleanly.
+    if (!this.workflowService) return;
+
+    const run = await this.workflowRunRepo.findById(runId);
+    if (!run) return;
+    if (run.status === 'CANCELLED') return;
+
+    const failedStep = run.steps.find((s) => s.step_id === stepId);
+    if (!failedStep) return;
+    if (failedStep.early_exit && failedStep.early_exit_reason === 'FAIL_EXIT') return;
+
+    const instance = await this.instanceRepo.findByInstanceId(run.workflow_instance_id);
+    if (!instance) return;
+    const templateStep = instance.steps.find((s) => s.id === stepId);
+    const fromStepId = templateStep?.onFailureLoopTo;
+    if (!fromStepId) return;
+
+    const template = await this.workflowService.templateService.getTemplateById(instance.template_id);
+    const maxLoops = template?.maxLoops ?? 0;
+    if (run.iteration + 1 > maxLoops) return;
+
+    const inflight = await this.workflowRunRepo.findInFlightChild(run.id);
+    if (inflight) return;
+
+    try {
+      await this.workflowService.createLoopRun(run.id, fromStepId, {
+        failed_step_id: stepId,
+        error: failedStep.error ?? errorMessage,
+        summary: failedStep.summary ?? null,
+      });
+    } catch (err) {
+      // Do not bubble — the parent's FAILED state must remain untouched if
+      // auto-loop creation fails (e.g. the template was edited mid-run).
+      logger.warn(
+        'WorkflowLifecycle',
+        `auto-loop trigger failed for run ${run.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  private async _finalizeStepError(runId: number, stepId: string, errorMessage: string) {
     await this._finalizeStepArtifacts(runId, stepId, 'FAILED', {
       error: errorMessage || 'Step failed',
     });
