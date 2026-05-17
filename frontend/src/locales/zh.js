@@ -718,7 +718,18 @@ export default {
     startWorkflow: '启动AgentTeam',
     noWorkflow: '暂无AgentTeam',
     progress: '进度',
-    stages: '阶段'
+    stages: '阶段',
+    loopBackButton: '回退到…',
+    loopAgainButton: '再循环一轮',
+    loopBackDialogTitle: '回退到指定步骤',
+    loopBackPickStep: '选择回退目标',
+    loopBackConfirm: '回退',
+    loopSeparator: '⬅ 回退到 {fromStep}，因 {failedStep} 失败',
+    loopSeparatorUnknownStep: '未知步骤',
+    loopContextTitle: '本步骤继承了上一轮的产出与失败信息',
+    loopContextFailureLine: '上一轮在步骤 {step} 失败：{error}',
+    summaryUnavailable: '摘要不可用',
+    iterationLabel: '第 {n} 轮'
   },
   skill: {
     title: 'Skill管理',

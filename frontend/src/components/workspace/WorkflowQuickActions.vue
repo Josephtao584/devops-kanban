@@ -59,6 +59,34 @@
         确认
       </button>
     </el-tooltip>
+    <button
+      v-if="canLoopBack"
+      class="quick-action-btn quick-action-loop-back"
+      data-test="loop-back-btn"
+      :disabled="actionLoading"
+      @click="emit('loop-back')"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 14l-4-4 4-4"></path>
+        <path d="M5 10h11a4 4 0 0 1 0 8h-1"></path>
+      </svg>
+      {{ t('workflow.loopBackButton') }}
+    </button>
+    <button
+      v-if="canLoopAgain"
+      class="quick-action-btn quick-action-loop-again"
+      data-test="loop-again-btn"
+      :disabled="actionLoading"
+      @click="emit('loop-again')"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+        <path d="M21 3v5h-5"></path>
+        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+        <path d="M3 21v-5h5"></path>
+      </svg>
+      {{ t('workflow.loopAgainButton') }}
+    </button>
     <el-tooltip v-if="hasSplitStep" :content="splitButtonTooltip" placement="top">
       <button class="quick-action-btn quick-action-split" :disabled="actionLoading" @click="emit('show-split-suggestions')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -88,6 +116,8 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 const props = defineProps({
   taskId: { type: Number, default: null },
   actionLoading: { type: Boolean, default: false },
@@ -102,12 +132,15 @@ const props = defineProps({
   hasSplitStep: { type: Boolean, default: false },
   splitButtonTooltip: { type: String, default: '' },
   pendingSplitCount: { type: Number, default: 0 },
-  autoRetry: { type: Boolean, default: false }
+  autoRetry: { type: Boolean, default: false },
+  canLoopBack: { type: Boolean, default: false },
+  canLoopAgain: { type: Boolean, default: false }
 })
 
 const emit = defineEmits([
   'start', 'template', 'retry', 'cancel', 'confirm',
-  'refresh', 'show-split-suggestions', 'auto-retry-change'
+  'refresh', 'show-split-suggestions', 'auto-retry-change',
+  'loop-back', 'loop-again'
 ])
 
 const autoRetryModel = ref(false)
@@ -217,6 +250,30 @@ watch(autoRetryModel, (v) => { if (v !== props.autoRetry) emit('auto-retry-chang
 .quick-action-btn.quick-action-confirm:hover:not(:disabled) {
   background: #d97706;
   border-color: #d97706;
+  color: #fff;
+}
+
+.quick-action-btn.quick-action-loop-back {
+  color: #6366f1;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.quick-action-btn.quick-action-loop-back:hover:not(:disabled) {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.quick-action-btn.quick-action-loop-again {
+  color: #b45309;
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.quick-action-btn.quick-action-loop-again:hover:not(:disabled) {
+  background: #b45309;
+  border-color: #b45309;
   color: #fff;
 }
 
