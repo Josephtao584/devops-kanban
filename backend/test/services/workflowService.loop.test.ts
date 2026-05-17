@@ -7,24 +7,34 @@ import { join } from 'node:path';
 import * as path from 'node:path';
 
 import { createClient } from '@libsql/client';
-import { migrateSchema } from '../../src/db/migrate.js';
 import { WorkflowRunRepository } from '../../src/repositories/workflowRunRepository.js';
 import { WorkflowService } from '../../src/services/workflow/workflowService.js';
 
-function extractCreateTableSql(sql: string): string {
-  const matches = sql.match(/CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+[\s\S]*?\);/gi);
-  return matches ? matches.join('\n\n') : '';
+// Tracks every temp dir created by makeTempWorktree so we can clean them up
+// once the test file finishes. Prevents /tmp leaks across runs.
+const tempDirs: string[] = [];
+
+test.after(() => {
+  for (const dir of tempDirs) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup
+    }
+  }
+});
+
+function makeTempWorktree(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'loop-test-'));
+  tempDirs.push(dir);
+  return dir;
 }
 
 async function makeRepo(): Promise<WorkflowRunRepository> {
   const client = createClient({ url: ':memory:' });
   const schemaPath = path.join(import.meta.dirname, '../../src/db/schema.sql');
   const schemaSql = await fsPromises.readFile(schemaPath, 'utf-8');
-  const tableSql = extractCreateTableSql(schemaSql);
-  if (tableSql) {
-    await client.executeMultiple(tableSql);
-  }
-  await migrateSchema(client, schemaSql);
+  await client.executeMultiple(schemaSql);
   return new WorkflowRunRepository(client);
 }
 
@@ -36,7 +46,7 @@ interface MakeFailedParentOpts {
 }
 
 function makeFailedParent(repo: WorkflowRunRepository, opts: MakeFailedParentOpts) {
-  const wt = opts.worktree ?? mkdtempSync(join(tmpdir(), 'loop-test-'));
+  const wt = opts.worktree ?? makeTempWorktree();
   const failedStepId = opts.failedStepId ?? 'step3';
   return repo.createIfNoActiveRun({
     task_id: opts.taskId ?? 1,
@@ -131,7 +141,7 @@ test.test('createLoopRun rejects if parent is not FAILED', async () => {
   const { service, runRepo } = await makeService();
   const parent = (await runRepo.createIfNoActiveRun({
     task_id: 1, workflow_instance_id: 'inst-1', status: 'RUNNING',
-    current_step: null, steps: [], worktree_path: mkdtempSync(join(tmpdir(), 'wt-')),
+    current_step: null, steps: [], worktree_path: makeTempWorktree(),
     branch: 'master', context: {},
   })).created!;
   await assert.rejects(
@@ -189,5 +199,31 @@ test.test('createLoopRun rejects if worktree path is missing on disk', async () 
   await assert.rejects(
     service.createLoopRun(parent.id, 'step2'),
     /worktree/i,
+  );
+});
+
+test.test('createLoopRun rejects if FAILED parent has no identifiable failed step', async () => {
+  // Inconsistent state: parent is FAILED but neither current_step nor any
+  // step.status === 'FAILED' identifies which step failed. We should reject
+  // loudly rather than silently skip the order check.
+  const { service, runRepo } = await makeService();
+  const parent = (await runRepo.createIfNoActiveRun({
+    task_id: 1,
+    workflow_instance_id: 'inst-1',
+    status: 'FAILED',
+    current_step: null,
+    steps: [
+      { step_id: 'step1', name: 'S1', status: 'COMPLETED' },
+      { step_id: 'step2', name: 'S2', status: 'COMPLETED' },
+      { step_id: 'step3', name: 'S3', status: 'COMPLETED' },
+    ],
+    worktree_path: makeTempWorktree(),
+    branch: 'master',
+    context: {},
+    iteration: 1,
+  })).created!;
+  await assert.rejects(
+    service.createLoopRun(parent.id, 'step2'),
+    /no identifiable failed step/,
   );
 });

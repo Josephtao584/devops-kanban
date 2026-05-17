@@ -659,8 +659,26 @@ class WorkflowService {
     const failedStepId = parent.current_step
       ?? parent.steps.find((s) => s.status === 'FAILED')?.step_id
       ?? null;
-    const failedIdx = failedStepId ? instance.steps.findIndex((s) => s.id === failedStepId) : -1;
-    if (failedIdx !== -1 && fromIdx >= failedIdx) {
+    if (failedStepId == null) {
+      // A FAILED parent run should always have an identifiable failed step
+      // (either current_step or a step with status='FAILED'). If neither
+      // exists the run is in an inconsistent state — reject loudly rather
+      // than silently skipping the order check below.
+      throw new BusinessError(
+        `父运行 ${parentRunId} 处于 FAILED 状态但找不到失败步骤`,
+        `Parent run ${parentRunId} is FAILED but has no identifiable failed step`,
+        { parentRunId },
+      );
+    }
+    const failedIdx = instance.steps.findIndex((s) => s.id === failedStepId);
+    if (failedIdx === -1) {
+      throw new BusinessError(
+        `失败步骤 "${failedStepId}" 不在工作流实例中`,
+        `Failed step "${failedStepId}" not found in workflow instance`,
+        { failedStepId },
+      );
+    }
+    if (fromIdx >= failedIdx) {
       throw new ValidationError(
         `fromStepId "${fromStepId}" 必须早于失败步骤 "${failedStepId}"`,
         `fromStepId "${fromStepId}" must be earlier than the failed step "${failedStepId}"`,
@@ -699,12 +717,23 @@ class WorkflowService {
 
     // Resolve loop_failure_context: prefer caller-supplied, otherwise derive
     // from the failed step.
-    const failedStep = failedStepId ? parent.steps.find((s) => s.step_id === failedStepId) : undefined;
+    const failedStep = parent.steps.find((s) => s.step_id === failedStepId);
     const resolvedFailureContext: { failed_step_id: string; error: string; summary: string | null } | null =
       failureContext
         ?? (failedStep && failedStep.error
           ? { failed_step_id: failedStep.step_id, error: failedStep.error, summary: failedStep.summary ?? null }
           : null);
+
+    // Load the task up front so we never create an orphan PENDING run if
+    // the parent task was deleted between the failure and the loop attempt.
+    const task = await this.taskRepo.findById(parent.task_id);
+    if (!task) {
+      throw new NotFoundError(
+        `任务 ${parent.task_id} 不存在`,
+        `Task ${parent.task_id} not found`,
+        { taskId: parent.task_id },
+      );
+    }
 
     // Build new steps array: SKIPPED+inherited for prefix, PENDING+reset for suffix.
     const newSteps: WorkflowStepEntity[] = parent.steps.map((step, idx) => {
@@ -765,24 +794,21 @@ class WorkflowService {
     await this.taskRepo.update(parent.task_id, { workflow_run_id: newRun.id }).catch(() => {});
 
     // Fire-and-forget execution, mirroring startWorkflow.
-    const task = await this.taskRepo.findById(parent.task_id);
-    if (task) {
-      const project = await this.projectRepo.findById(task.project_id);
-      const projectEnv = project?.env || {};
-      this.executeWorkflow(
-        newRun.id,
-        { ...task, execution_path: parent.worktree_path, project_env: projectEnv },
-        instance,
-      ).catch((err) => {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error('WorkflowService', `Fatal error in loop run #${newRun.id}: ${errorMessage}`);
-        this.workflowRunRepo.update(newRun.id, {
-          status: 'FAILED',
-          current_step: null,
-          context: { error: errorMessage },
-        }).catch(() => {});
-      });
-    }
+    const project = await this.projectRepo.findById(task.project_id);
+    const projectEnv = project?.env || {};
+    this.executeWorkflow(
+      newRun.id,
+      { ...task, execution_path: parent.worktree_path, project_env: projectEnv },
+      instance,
+    ).catch((err) => {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('WorkflowService', `Fatal error in loop run #${newRun.id}: ${errorMessage}`);
+      this.workflowRunRepo.update(newRun.id, {
+        status: 'FAILED',
+        current_step: null,
+        context: { error: errorMessage },
+      }).catch(() => {});
+    });
 
     return newRun;
   }
