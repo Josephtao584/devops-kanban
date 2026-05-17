@@ -249,7 +249,6 @@ import { ref, onMounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { useMcpServerStore } from '../stores/mcpServerStore'
-import { mcpServerApi } from '../api/mcpServer'
 import BaseDialog from '../components/BaseDialog.vue'
 import McpServerImportDialog from '../components/mcp/McpServerImportDialog.vue'
 
@@ -436,7 +435,7 @@ const testConnection = async () => {
   if (!selectedServer.value) return
   validating.value = true
   try {
-    const res = await mcpServerApi.validate({
+    const res = await mcpServerStore.validateMcpServer({
       server_type: selectedServer.value.server_type,
       config: selectedServer.value.config,
     })
@@ -583,7 +582,7 @@ const downloadJson = (data, filename) => {
 const handleBatchExport = async () => {
   if (selectedForExport.value.length === 0) return
   try {
-    const res = await mcpServerApi.exportMcpServers(selectedForExport.value)
+    const res = await mcpServerStore.exportMcpServers(selectedForExport.value)
     // Backend returns raw export file (not wrapped in success/data)
     downloadJson(res, `mcp-servers-${Date.now()}.json`)
     ElMessage.success(t('mcpServer.exportSuccess'))

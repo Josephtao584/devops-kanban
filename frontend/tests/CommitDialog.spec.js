@@ -4,13 +4,20 @@ import CommitDialog from '../src/components/CommitDialog.vue'
 import GitDiffViewer from '../src/components/GitDiffViewer.vue'
 import i18n from '../src/locales'
 
-vi.mock('../src/api/git', () => ({
+const mockStore = vi.hoisted(() => ({
   getUncommittedChanges: vi.fn(),
   getDiff: vi.fn(),
-  commit: vi.fn()
+  commit: vi.fn(),
+  loading: { value: false },
+  error: { value: null }
 }))
 
-import { getUncommittedChanges, getDiff, commit } from '../src/api/git'
+vi.mock('../src/stores/gitStore', () => ({
+  useGitStore: () => mockStore,
+  getUncommittedChanges: mockStore.getUncommittedChanges,
+  getDiff: mockStore.getDiff,
+  commit: mockStore.commit
+}))
 
 const flushPromises = async () => {
   await Promise.resolve()
@@ -32,36 +39,20 @@ describe('CommitDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    getUncommittedChanges.mockResolvedValue({
+    mockStore.getUncommittedChanges.mockResolvedValue({
       success: true,
       data: [
-        {
-          path: '__pycache__/main.cpython-312.pyc',
-          status: 'untracked'
-        },
-        {
-          path: 'main.py',
-          status: 'modified'
-        }
+        { path: '__pycache__/main.cpython-312.pyc', status: 'untracked' },
+        { path: 'main.py', status: 'modified' }
       ]
     })
 
-    getDiff.mockResolvedValue({
+    mockStore.getDiff.mockResolvedValue({
       success: true,
       data: {
         files: [
-          {
-            path: '__pycache__/main.cpython-312.pyc',
-            status: 'untracked',
-            additions: 0,
-            deletions: 0
-          },
-          {
-            path: 'main.py',
-            status: 'modified',
-            additions: 1,
-            deletions: 0
-          }
+          { path: '__pycache__/main.cpython-312.pyc', status: 'untracked', additions: 0, deletions: 0 },
+          { path: 'main.py', status: 'modified', additions: 1, deletions: 0 }
         ],
         diffs: {
           '__pycache__/main.cpython-312.pyc': 'diff --git a/__pycache__/main.cpython-312.pyc b/__pycache__/main.cpython-312.pyc',
@@ -70,10 +61,7 @@ describe('CommitDialog', () => {
       }
     })
 
-    commit.mockResolvedValue({
-      success: true,
-      data: {}
-    })
+    mockStore.commit.mockResolvedValue({ success: true, data: {} })
   })
 
   it('renders the shared diff viewer with commit controls still visible', async () => {
@@ -95,7 +83,7 @@ describe('CommitDialog', () => {
     await submitButton.trigger('click')
     await flushPromises()
 
-    expect(commit).toHaveBeenCalledWith(4, 1, {
+    expect(mockStore.commit).toHaveBeenCalledWith(4, 1, {
       message: 'test commit message',
       addAll: false,
       files: ['__pycache__/main.cpython-312.pyc', 'main.py']
@@ -106,32 +94,24 @@ describe('CommitDialog', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    expect(getDiff).toHaveBeenCalledTimes(1)
+    expect(mockStore.getDiff).toHaveBeenCalledTimes(1)
 
     const fileItems = wrapper.findAll('.file-item')
     await fileItems[1].trigger('click')
     await flushPromises()
 
-    expect(getDiff).toHaveBeenCalledTimes(1)
+    expect(mockStore.getDiff).toHaveBeenCalledTimes(1)
   })
 
   it('renders a non-empty filename label for directory-like change paths', async () => {
-    getUncommittedChanges.mockResolvedValueOnce({
+    mockStore.getUncommittedChanges.mockResolvedValueOnce({
       success: true,
-      data: [
-        {
-          path: '__pycache__/',
-          status: 'untracked'
-        }
-      ]
+      data: [{ path: '__pycache__/', status: 'untracked' }]
     })
 
-    getDiff.mockResolvedValueOnce({
+    mockStore.getDiff.mockResolvedValueOnce({
       success: true,
-      data: {
-        files: [],
-        diffs: {}
-      }
+      data: { files: [], diffs: {} }
     })
 
     const wrapper = mountDialog()

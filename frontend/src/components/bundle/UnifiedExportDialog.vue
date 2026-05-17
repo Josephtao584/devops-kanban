@@ -120,10 +120,10 @@
         <el-button
           v-if="step === 'confirm'"
           type="primary"
-          :disabled="exporting"
+          :disabled="bundleStore.exporting"
           @click="handleExport"
         >
-          {{ exporting ? $t('common.saving') : $t('bundle.confirmExport') }}
+          {{ bundleStore.exporting ? $t('common.saving') : $t('bundle.confirmExport') }}
         </el-button>
       </div>
     </template>
@@ -135,8 +135,8 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import BaseDialog from '../BaseDialog.vue'
-import { resolveBundle, exportBundleZip, exportBundle } from '../../api/bundle.js'
-import { exportWorkflowTemplates } from '../../api/workflowTemplate.js'
+import { useBundleStore } from '../../stores/bundleStore.js'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -146,6 +146,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'exported'])
 
 const { t } = useI18n()
+const bundleStore = useBundleStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const step = ref('select')
 const selectedTemplateIds = ref([])
@@ -154,7 +156,6 @@ const resolveResult = ref({ templates: [], agents: [], skills: [], mcpServers: [
 const selectedAgents = ref([])
 const selectedSkills = ref([])
 const selectedMcpServers = ref([])
-const exporting = ref(false)
 
 const toggleTemplate = (id) => {
   const idx = selectedTemplateIds.value.indexOf(id)
@@ -191,7 +192,7 @@ const handleNext = async () => {
 
   // Bundle mode: resolve dependencies first
   try {
-    const res = await resolveBundle(selectedTemplateIds.value)
+    const res = await bundleStore.resolveBundle(selectedTemplateIds.value)
     if (!res?.success) {
       ElMessage.error(res?.message || t('bundle.resolveFailed'))
       return
@@ -207,17 +208,15 @@ const handleNext = async () => {
 }
 
 const handleSimpleExport = async () => {
-  exporting.value = true
   try {
-    const data = await exportWorkflowTemplates(selectedTemplateIds.value)
+    const response = await workflowTemplateStore.exportWorkflowTemplates(selectedTemplateIds.value)
+    const data = response.data
     downloadJson(data, `workflow-templates-${Date.now()}.json`)
     ElMessage.success(t('bundle.exportSuccess'))
     emit('exported')
     handleClose()
   } catch (e) {
     ElMessage.error(e?.message || t('bundle.exportFailed'))
-  } finally {
-    exporting.value = false
   }
 }
 
@@ -241,9 +240,8 @@ const downloadBlob = (blob, filename) => {
 }
 
 const handleExport = async () => {
-  exporting.value = true
   try {
-    const blob = await exportBundleZip({
+    const blob = await bundleStore.exportBundleZip({
       templateIds: selectedTemplateIds.value,
       agentNames: selectedAgents.value,
       skillIdentifiers: selectedSkills.value,
@@ -267,8 +265,6 @@ const handleExport = async () => {
       message = e.message
     }
     ElMessage.error(message)
-  } finally {
-    exporting.value = false
   }
 }
 
@@ -280,7 +276,6 @@ const handleClose = () => {
   selectedAgents.value = []
   selectedSkills.value = []
   selectedMcpServers.value = []
-  exporting.value = false
   emit('update:modelValue', false)
 }
 </script>

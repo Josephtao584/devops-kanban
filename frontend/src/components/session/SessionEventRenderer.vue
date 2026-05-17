@@ -4,115 +4,45 @@
     class="session-event-renderer"
     :class="[`kind-${event.kind}`, `role-${event.role}`, toneClass]"
   >
-    <div
+    <ChatMessageEvent
       v-if="event.kind === 'message' && !event.isThinking"
-      class="event-row event-chat-message"
-      :class="messageAlignmentClass"
-    >
-      <div class="event-message-wrapper" :class="messageAlignmentClass">
-        <div v-if="messageTime" class="event-time">{{ messageTime }}</div>
-        <div class="event-role-label" :class="messageAlignmentClass">{{ roleLabel }}</div>
-        <div class="event-message" :class="messageBubbleClass">
-          <div class="event-content" v-html="formattedMessageContent"></div>
-        </div>
-      </div>
-    </div>
-
-    <div
+      :event="event"
+    />
+    <ThinkingMessageEvent
       v-else-if="event.kind === 'message' && event.isThinking"
-      class="event-system event-system-card event-thinking"
-    >
-      <div class="event-thinking-header" @click="toggleThinkingExpanded">
-        <span class="event-thinking-label">思考过程</span>
-        <span class="event-thinking-toggle">{{ thinkingToggleLabel }}</span>
-      </div>
-      <pre v-if="isThinkingExpanded" class="event-thinking-content">{{ event.content }}</pre>
-    </div>
-
-    <div v-else-if="event.kind === 'tool_call'" class="event-system event-system-card event-tool">
-      <div class="event-system-label">工具调用</div>
-      <div class="event-system-content event-tool-name">{{ toolName }}</div>
-      <pre v-if="displayedToolCallText" class="event-tool-detail">{{ displayedToolCallText }}</pre>
-      <button
-        v-if="shouldShowToolCallToggle"
-        type="button"
-        class="event-tool-toggle"
-        @click="toggleToolCallExpanded"
-      >
-        {{ toolCallToggleLabel }}
-      </button>
-    </div>
-
-    <div v-else-if="event.kind === 'tool_result'" class="event-system event-system-card" :class="toolResultClass">
-      <div class="event-system-label">{{ toolResultLabel }}</div>
-      <pre v-if="displayedToolResultText" class="event-tool-detail event-tool-result-text">{{ displayedToolResultText }}</pre>
-      <div v-else-if="isToolResultExpanded" class="event-system-content">无输出</div>
-      <button
-        v-if="shouldShowToolResultToggle"
-        type="button"
-        class="event-tool-toggle"
-        @click="toggleToolResultExpanded"
-      >
-        {{ toolResultToggleLabel }}
-      </button>
-    </div>
-
-    <div v-else-if="event.kind === 'status'" class="event-system event-system-card event-status">
-      <div class="event-system-label">状态更新</div>
-      <div class="event-system-content">{{ eventText }}</div>
-    </div>
-    <div v-else-if="event.kind === 'error'" class="event-system event-system-card event-error">
-      <div class="event-system-label">错误</div>
-      <div class="event-system-content">{{ event.content }}</div>
-    </div>
-    <div v-else-if="event.kind === 'artifact'" class="event-system event-system-card event-artifact">
-      <div class="event-system-label">产物</div>
-      <div class="event-system-content">{{ event.content }}</div>
-    </div>
-    <div v-else-if="event.kind === 'stream_chunk'" class="event-system event-system-card event-stream-shell">
-      <div class="event-system-label">执行输出</div>
-      <pre class="event-stream">{{ event.content }}</pre>
-    </div>
-    <div v-else-if="event.kind === 'ask_user'" class="event-system event-system-card event-ask-user">
-      <div class="event-system-label">AI 提问</div>
-      <div class="event-ask-question">{{ askQuestionText }}</div>
-      <div v-if="askQuestionOptions.length" class="event-ask-options">
-        <span v-for="opt in askQuestionOptions" :key="opt.value" class="event-ask-option">{{ opt.label }}</span>
-      </div>
-    </div>
-    <div v-else class="event-system event-system-card event-fallback">
-      <div class="event-system-label">{{ fallbackLabel }}</div>
-      <div class="event-system-content">{{ fallbackContent }}</div>
-    </div>
+      :event="event"
+    />
+    <ToolCallEvent
+      v-else-if="event.kind === 'tool_call'"
+      :event="event"
+    />
+    <ToolResultEvent
+      v-else-if="event.kind === 'tool_result'"
+      :event="event"
+    />
+    <StatusEvent
+      v-else-if="event.kind === 'status'"
+      :event="event"
+    />
+    <SystemEvent
+      v-else
+      :event="event"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { marked } from 'marked'
+import { computed } from 'vue'
+import ChatMessageEvent from './events/ChatMessageEvent.vue'
+import ThinkingMessageEvent from './events/ThinkingMessageEvent.vue'
+import ToolCallEvent from './events/ToolCallEvent.vue'
+import ToolResultEvent from './events/ToolResultEvent.vue'
+import StatusEvent from './events/StatusEvent.vue'
+import SystemEvent from './events/SystemEvent.vue'
 
 const props = defineProps({
-  event: {
-    type: Object,
-    required: true
-  }
+  event: { type: Object, required: true }
 })
-
-const isToolResultExpanded = ref(false)
-const isToolCallExpanded = ref(false)
-const isThinkingExpanded = ref(false)
-
-function toggleToolResultExpanded() {
-  isToolResultExpanded.value = !isToolResultExpanded.value
-}
-
-function toggleToolCallExpanded() {
-  isToolCallExpanded.value = !isToolCallExpanded.value
-}
-
-function toggleThinkingExpanded() {
-  isThinkingExpanded.value = !isThinkingExpanded.value
-}
 
 const isDebuggerOutput = computed(() => {
   const content = props.event?.content || ''
@@ -132,161 +62,16 @@ const shouldDisplay = computed(() => {
   return !isDebuggerOutput.value && !isSystemInit.value
 })
 
-const STATUS_START_PATTERNS = ['开始', '启动', '进行中', 'running', 'started']
-const STATUS_COMPLETED_PATTERNS = ['完成', '结束', 'success', 'completed', 'done']
-const STATUS_FAILED_PATTERNS = ['失败', 'error', 'failed']
-
-const toolName = computed(() => {
-  if (typeof props.event?.toolName === 'string' && props.event.toolName) {
-    return props.event.toolName
-  }
-
-  try {
-    const payload = props.event?.payload
-    if (payload && typeof payload === 'object') {
-      if (payload.tool_name) {
-        return payload.tool_name
-      }
-      if (payload.name) {
-        return payload.name
-      }
-    }
-  } catch {}
-
-  if (typeof props.event?.content === 'string' && props.event.content) {
-    return props.event.content
-  }
-
-  return '工具'
-})
-
-const toolInputPreview = computed(() => {
-  if (typeof props.event?.toolInputPreview === 'string') {
-    return props.event.toolInputPreview
-  }
-  return ''
-})
-
-const shouldShowToolCallToggle = computed(() => {
-  return props.event?.toolCallCollapsedByDefault === true && toolInputPreview.value !== ''
-})
-
-const displayedToolCallText = computed(() => {
-  if (!toolInputPreview.value) {
-    return ''
-  }
-
-  if (shouldShowToolCallToggle.value && !isToolCallExpanded.value) {
-    return ''
-  }
-
-  return toolInputPreview.value
-})
-
-const toolCallToggleLabel = computed(() => {
-  return isToolCallExpanded.value ? '收起' : '展开'
-})
-
-const thinkingToggleLabel = computed(() => {
-  return isThinkingExpanded.value ? '收起' : '展开'
-})
-
-const toolResultText = computed(() => {
-  if (typeof props.event?.toolResultText === 'string') {
-    return props.event.toolResultText
-  }
-  return typeof props.event?.content === 'string' ? props.event.content : ''
-})
-
-const toolResultSummary = computed(() => {
-  if (typeof props.event?.toolResultSummary === 'string' && props.event.toolResultSummary) {
-    return props.event.toolResultSummary
-  }
-  return toolResultText.value
-})
-
-const shouldShowToolResultToggle = computed(() => {
-  return props.event?.toolResultCollapsedByDefault === true
-})
-
-const displayedToolResultText = computed(() => {
-  if (!toolResultText.value) {
-    return ''
-  }
-
-  if (shouldShowToolResultToggle.value && !isToolResultExpanded.value) {
-    return ''
-  }
-
-  return toolResultText.value
-})
-
-const toolResultToggleLabel = computed(() => {
-  return isToolResultExpanded.value ? '收起' : '展开'
-})
-
-const toolResultLabel = computed(() => {
-  const relatedToolName = typeof props.event?.relatedToolName === 'string' && props.event.relatedToolName
-    ? props.event.relatedToolName
-    : toolName.value
-
-  if (props.event?.toolIsError) {
-    return relatedToolName ? `${relatedToolName} 执行失败` : '工具执行失败'
-  }
-
-  return relatedToolName ? `${relatedToolName} 结果` : '工具结果'
-})
-
-const toolResultClass = computed(() => {
-  return props.event?.toolIsError ? 'event-tool-result event-tool-result-error' : 'event-tool-result'
-})
-
 const statusTone = computed(() => {
   if (props.event?.kind !== 'status') return 'neutral'
-
   const content = String(props.event?.content || '').toLowerCase()
-
-  if (STATUS_FAILED_PATTERNS.some(pattern => content.includes(pattern.toLowerCase()))) {
-    return 'failed'
-  }
-  if (STATUS_COMPLETED_PATTERNS.some(pattern => content.includes(pattern.toLowerCase()))) {
-    return 'completed'
-  }
-  if (STATUS_START_PATTERNS.some(pattern => content.includes(pattern.toLowerCase()))) {
-    return 'start'
-  }
-
+  const STATUS_FAILED_PATTERNS = ['失败', 'error', 'failed']
+  const STATUS_COMPLETED_PATTERNS = ['完成', '结束', 'success', 'completed', 'done']
+  const STATUS_START_PATTERNS = ['开始', '启动', '进行中', 'running', 'started']
+  if (STATUS_FAILED_PATTERNS.some(p => content.includes(p.toLowerCase()))) return 'failed'
+  if (STATUS_COMPLETED_PATTERNS.some(p => content.includes(p.toLowerCase()))) return 'completed'
+  if (STATUS_START_PATTERNS.some(p => content.includes(p.toLowerCase()))) return 'start'
   return 'neutral'
-})
-
-const statusText = computed(() => {
-  if (props.event?.kind !== 'status') return props.event?.content || ''
-
-  if (statusTone.value === 'completed') return '已完成'
-  if (statusTone.value === 'start') return '进行中'
-  if (statusTone.value === 'failed') return '执行失败'
-
-  return props.event?.content || ''
-})
-
-const eventText = computed(() => {
-  if (props.event?.kind === 'status') return statusText.value
-  return props.event?.content || ''
-})
-
-const fallbackLabel = computed(() => {
-  const labels = {
-    tool_result: '工具结果',
-    completed: '已完成'
-  }
-  return labels[props.event?.kind] || '事件'
-})
-
-const fallbackContent = computed(() => {
-  if (props.event?.kind === 'completed') {
-    return props.event?.content || '已完成'
-  }
-  return props.event?.content || ''
 })
 
 const toneClass = computed(() => {
@@ -294,59 +79,6 @@ const toneClass = computed(() => {
   if (props.event?.kind === 'status') return `tone-status-${statusTone.value}`
   if (props.event?.kind === 'message' && props.event?.isThinking) return 'tone-thinking'
   return ''
-})
-
-const messageAlignmentClass = computed(() => {
-  return props.event?.role === 'user' ? 'align-right' : 'align-left'
-})
-
-const messageBubbleClass = computed(() => {
-  return props.event?.role === 'user' ? 'bubble-user' : 'bubble-assistant'
-})
-
-const roleLabel = computed(() => {
-  return props.event?.role === 'user' ? '用户' : 'Agent'
-})
-
-const messageTime = computed(() => {
-  if (props.event?.kind !== 'message' || !props.event?.created_at) return ''
-  return new Date(props.event.created_at).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-})
-
-const formattedMessageContent = computed(() => {
-  const content = props.event?.content || ''
-  if (props.event?.kind !== 'message' || !content) return content
-
-  const safeContent = content
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
-  const rendered = marked.parse(safeContent, {
-    gfm: true,
-    breaks: true
-  })
-
-  return typeof rendered === 'string' ? rendered : ''
-})
-
-const askQuestionText = computed(() => {
-  const questions = props.event?.payload?.ask_user_question?.questions
-  if (Array.isArray(questions) && questions.length > 0) {
-    return questions.map(q => q.question).join('\n')
-  }
-  return props.event?.content || ''
-})
-
-const askQuestionOptions = computed(() => {
-  const questions = props.event?.payload?.ask_user_question?.questions
-  if (Array.isArray(questions) && questions.length > 0 && questions[0]?.options) {
-    return questions[0].options
-  }
-  return []
 })
 </script>
 
@@ -551,7 +283,6 @@ const askQuestionOptions = computed(() => {
   content: '· ';
 }
 
-.event-tool-result .event-system-content,
 .event-tool-result .event-tool-detail {
   padding-left: 2px;
 }
@@ -1714,4 +1445,3 @@ const askQuestionOptions = computed(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
 }
 </style>
-

@@ -54,7 +54,9 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import BaseDialog from './BaseDialog.vue'
 import GitDiffViewer from './GitDiffViewer.vue'
-import { commit, stageFiles, getUncommittedChanges, getDiff } from '../api/git'
+import { useGitStore } from '../stores/gitStore'
+
+const gitStore = useGitStore()
 
 const props = defineProps({
   projectId: {
@@ -134,7 +136,7 @@ const handleViewerFileSelect = async (path) => {
 const loadDiff = async () => {
   diffLoading.value = true
   try {
-    const response = await getDiff(props.projectId, props.taskId)
+    const response = await gitStore.getDiff(props.projectId, props.taskId)
     if (response.success) {
       diffData.value = response.data
     }
@@ -148,7 +150,7 @@ const loadDiff = async () => {
 
 const loadChanges = async () => {
   try {
-    const response = await getUncommittedChanges(props.projectId, props.taskId)
+    const response = await gitStore.getUncommittedChanges(props.projectId, props.taskId)
     if (response.success) {
       // Backend returns either { changes, isWorktree, ... } object or legacy array
       const raw = Array.isArray(response.data)
@@ -187,7 +189,7 @@ const handleCommit = async () => {
 
   committing.value = true
   try {
-    const response = await commit(props.projectId, props.taskId, {
+    const response = await gitStore.commit(props.projectId, props.taskId, {
       message: form.message,
       addAll: false,
       files: selectedFiles
@@ -210,7 +212,7 @@ const handleCommit = async () => {
 
 const handleStageFile = async (path) => {
   try {
-    const response = await stageFiles(props.projectId, props.taskId, [path])
+    const response = await gitStore.stageFiles(props.projectId, props.taskId, [path])
     if (response.success) {
       ElMessage.success(`已添加: ${path}`)
       // Reload changes to reflect the staged state

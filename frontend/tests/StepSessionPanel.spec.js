@@ -17,6 +17,7 @@ const startPolling = vi.fn()
 const stopPolling = vi.fn()
 const getSessionMock = vi.fn()
 const continueSessionMock = vi.fn()
+const getSessionEventsMock = vi.fn()
 const eventsRef = ref([])
 const isLoadingRef = ref(false)
 const errorRef = ref(null)
@@ -38,7 +39,17 @@ vi.mock('../src/composables/useSessionEvents.js', () => ({
 
 vi.mock('../src/api/session.js', () => ({
   getSession: (...args) => getSessionMock(...args),
-  continueSession: (...args) => continueSessionMock(...args)
+  continueSession: (...args) => continueSessionMock(...args),
+  getSessionEvents: (...args) => getSessionEventsMock(...args)
+}))
+
+vi.mock('../src/stores/sessionStore.js', () => ({
+  useSessionStore: () => ({
+    getSession: getSessionMock,
+    continueSession: continueSessionMock,
+    loading: { value: false },
+    error: { value: null }
+  })
 }))
 
 const SessionEventRendererStub = defineComponent({

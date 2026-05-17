@@ -3,23 +3,23 @@
     <div class="preset-dialog">
       <div class="preset-description">{{ $t('preset.description') }}</div>
 
-      <div v-if="loading" class="preset-loading">
+      <div v-if="presetStore.loading" class="preset-loading">
         <el-icon class="is-loading" :size="24"><Loading /></el-icon>
         <span>{{ $t('common.loading') }}</span>
       </div>
 
-      <div v-else-if="loadError" class="preset-error">
-        <span>{{ loadError }}</span>
+      <div v-else-if="presetStore.error" class="preset-error">
+        <span>{{ presetStore.error }}</span>
         <el-button size="small" @click="loadPresets">{{ $t('workflowTemplate.retry') }}</el-button>
       </div>
 
-      <div v-else-if="presets.length === 0" class="preset-empty">
+      <div v-else-if="presetStore.presets.length === 0" class="preset-empty">
         {{ $t('preset.noPresets') }}
       </div>
 
       <div v-else class="preset-grid">
         <div
-          v-for="preset in presets"
+          v-for="preset in presetStore.presets"
           :key="preset.name"
           class="preset-card"
         >
@@ -84,7 +84,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { getPresets, importPreset } from '../../api/presets.js'
+import { usePresetStore } from '../../stores/presetStore.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -93,45 +93,28 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'imported'])
 
 const { t } = useI18n()
+const presetStore = usePresetStore()
 
-const loading = ref(false)
-const loadError = ref('')
-const presets = ref([])
-const installedNames = ref(new Set())
 const installingPreset = ref('')
 
 const loadPresets = async () => {
-  loading.value = true
-  loadError.value = ''
   try {
-    const res = await getPresets()
-    if (!res?.success) {
-      loadError.value = res?.message || t('preset.loadFailed')
-      return
-    }
-    const data = res.data || []
-    presets.value = Array.isArray(data) ? data : []
-    installedNames.value = new Set(
-      presets.value.filter(p => p.installed).map(p => p.name)
-    )
-  } catch (e) {
-    loadError.value = e?.message || t('preset.loadFailed')
-  } finally {
-    loading.value = false
+    await presetStore.fetchPresets()
+  } catch {
+    // error handled by store
   }
 }
 
-const isInstalled = (preset) => installedNames.value.has(preset.name)
+const isInstalled = (preset) => presetStore.isInstalled(preset.name)
 
 const handleInstall = async (name, strategy) => {
   installingPreset.value = name
   try {
-    const res = await importPreset(name, strategy)
+    const res = await presetStore.importPreset(name, strategy)
     if (!res?.success) {
       ElMessage.error(res?.message || t('preset.installFailed'))
       return
     }
-    installedNames.value.add(name)
     ElMessage.success(t('preset.installSuccess'))
     emit('imported')
   } catch (e) {
@@ -146,7 +129,7 @@ const handleClose = () => {
 }
 
 watch(() => props.modelValue, (val) => {
-  if (val && presets.value.length === 0) {
+  if (val && presetStore.presets.length === 0) {
     loadPresets()
   }
 })

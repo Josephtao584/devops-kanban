@@ -62,8 +62,10 @@ import {
   Monitor,
   User
 } from '@element-plus/icons-vue'
-import { getAgents } from '../api/agent'
+import { useAgentStore } from '../stores/agentStore'
 import BaseDialog from './BaseDialog.vue'
+
+const agentStore = useAgentStore()
 
 const { t } = useI18n()
 
@@ -108,20 +110,16 @@ const loading = ref(false)
 const starting = ref(false)
 
 const loadAgents = async () => {
-  console.log('[AgentSelector] loadAgents called, projectId:', props.projectId, 'type:', typeof props.projectId)
   // Check for null or undefined specifically, allow 0 and non-empty strings
   if (props.projectId == null || props.projectId === '') {
-    console.log('[AgentSelector] projectId is null/undefined/empty, returning early')
     return
   }
 
   loading.value = true
   try {
-    const response = await getAgents()
-    console.log('[AgentSelector] getAgents response:', response)
+    const response = await agentStore.fetchAgents()
     const loadedAgents = getApiData(response, 'agent.loadFailed')
     agents.value = Array.isArray(loadedAgents) ? loadedAgents : []
-    console.log('[AgentSelector] agents.value:', agents.value)
     // Auto-select first agent if only one available
     if (agents.value.length === 1) {
       selectedAgentId.value = agents.value[0].id
@@ -169,7 +167,6 @@ watch(dialogVisible, (val) => {
   if (val) {
     selectedAgentId.value = null
     starting.value = false
-    console.log('Dialog opened, projectId:', props.projectId, 'type:', typeof props.projectId)
     loadAgents()
   }
 })

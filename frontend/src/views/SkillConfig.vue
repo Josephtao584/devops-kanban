@@ -19,194 +19,49 @@
     <!-- 主内容区：左右分栏 -->
     <div class="main-content-wrapper">
       <!-- 左侧：技能列表 -->
-      <div class="skill-list-panel">
-        <div class="panel-header">
-          <h3>{{ $t('skill.skillList') }}</h3>
-          <span class="skill-count">{{ filteredSkills.length }}</span>
-        </div>
-        <div class="skill-filter-bar">
-          <el-select
-            v-model="selectedTemplateId"
-            :placeholder="$t('skill.filterAllTemplates')"
-            clearable
-            class="skill-filter-select"
-            size="small"
-          >
-            <el-option
-              v-for="tpl in workflowTemplates"
-              :key="tpl.template_id"
-              :label="tpl.name"
-              :value="tpl.template_id"
-            />
-          </el-select>
-          <span v-if="selectedTemplateId" class="skill-filter-badge">
-            <span class="badge-dot"></span>
-            {{ $t('skill.filteringByTemplate') }}
-          </span>
-        </div>
-        <div class="skill-list" v-if="!skillStore.loading">
-          <div
-            class="skill-list-item"
-            v-for="skill in filteredSkills"
-            :key="skill.id"
-            :class="{ 'active': selectedSkill?.id === skill.id }"
-            @click="selectSkill(skill)"
-          >
-            <span class="skill-list-item__name">{{ skill.name }}</span>
-          </div>
-          <div v-if="filteredSkills.length === 0" class="empty-list">
-            {{ $t('skill.noSkills') }}
-          </div>
-        </div>
-        <div v-else class="loading-state">
-          {{ $t('common.loading') }}
-        </div>
-      </div>
+      <SkillListSidebar
+        :skills="filteredSkills"
+        :selected-id="selectedSkill?.id"
+        :loading="skillStore.loading"
+        :selected-template-id="selectedTemplateId"
+        :templates="workflowTemplates"
+        @select="selectSkill"
+        @update:selected-template-id="selectedTemplateId = $event"
+      />
 
       <!-- 右侧：技能详情面板 -->
-      <div class="skill-detail-panel">
-        <!-- 空状态：未选中技能 -->
-        <div v-if="!selectedSkill" class="empty-detail">
-          <p>{{ $t('skill.selectSkillHint') }}</p>
-        </div>
+      <SkillDetailPanel
+        v-if="selectedSkill"
+        ref="detailPanelRef"
+        :skill="selectedSkill"
+        :file-tree-data="fileTreeData"
+        :selected-file="selectedFile"
+        :preview-content="previewContent"
+        :loading-preview="loadingPreview"
+        @edit="openEditForm"
+        @delete="confirmDelete"
+        @refresh-files="refreshFiles"
+        @upload-zip="triggerFileUpload"
+        @handle-zip-upload="handleZipUpload"
+        @select-file="selectFile"
+      />
 
-        <!-- 详情内容 -->
-        <div v-else class="detail-content">
-          <!-- 技能头部信息 -->
-          <div class="detail-header">
-            <div class="skill-title-row">
-              <div class="title-left">
-                <h2>{{ selectedSkill.name }}</h2>
-                <span v-if="selectedSkill.created_at" class="meta-chip" :title="$t('skill.createdAt')">
-                  <span class="meta-chip__label">{{ $t('skill.createdAt') }}</span>
-                  <span class="meta-chip__value">{{ formatDateWithFallback(selectedSkill.created_at) }}</span>
-                </span>
-                <span v-if="selectedSkill.updated_at" class="meta-chip" :title="$t('skill.updatedAt')">
-                  <span class="meta-chip__label">{{ $t('skill.updatedAt') }}</span>
-                  <span class="meta-chip__value">{{ formatDateWithFallback(selectedSkill.updated_at) }}</span>
-                </span>
-              </div>
-              <div class="header-actions">
-                <button class="btn btn-secondary btn-sm" @click="openEditForm">
-                  {{ $t('common.edit') }}
-                </button>
-                <button class="btn btn-danger btn-sm" @click="confirmDelete">
-                  {{ $t('common.delete') }}
-                </button>
-              </div>
-            </div>
-            <div class="skill-description-block">
-              <span class="section-label">{{ $t('skill.description') }}</span>
-              <p class="skill-description" :class="{ 'skill-description--empty': !selectedSkill.description }">
-                {{ selectedSkill.description || $t('skill.noDescription', '暂无描述') }}
-              </p>
-            </div>
-          </div>
-
-          <!-- 文件管理区域 -->
-          <div class="files-section">
-            <div class="section-header">
-              <span class="section-label">{{ $t('skill.files') }}</span>
-              <div class="section-actions">
-                <button class="btn btn-secondary btn-sm" @click="refreshFiles">
-                  {{ $t('common.refresh') }}
-                </button>
-                <button class="btn btn-primary btn-sm" @click="triggerFileUpload">
-                  {{ $t('skill.uploadZip') }}
-                </button>
-                <input
-                  ref="fileInputRef"
-                  type="file"
-                  accept=".zip"
-                  style="display: none"
-                  @change="handleZipUpload"
-                />
-              </div>
-            </div>
-
-            <!-- 文件浏览器 -->
-            <div class="file-browser">
-              <div class="file-tree-container">
-                <el-tree
-                  ref="fileTreeRef"
-                  :data="fileTreeData"
-                  :props="treeProps"
-                  node-key="id"
-                  :expand-on-click-node="false"
-                  :default-expand-all="false"
-                  highlight-current
-                  @node-click="handleTreeNodeClick"
-                >
-                  <template #default="{ node, data }">
-                    <span class="tree-node">
-                      <span class="node-icon" :class="{ 'is-file': data.isLeaf, 'is-folder': !data.isLeaf }">{{ data.isLeaf ? getFileIcon(node.label) : '' }}</span>
-                      <span class="node-label">{{ node.label }}</span>
-                    </span>
-                  </template>
-                </el-tree>
-                <div v-if="fileTreeData.length === 0" class="empty-files">
-                  {{ $t('skill.noFiles') }}
-                </div>
-              </div>
-
-              <!-- 文件预览 -->
-              <div class="file-preview">
-                <div v-if="selectedFile" class="preview-content">
-                  <div class="preview-header">
-                    <span class="preview-filename">{{ selectedFile.label }}</span>
-                  </div>
-                  <pre class="preview-code" v-if="previewContent">{{ previewContent }}</pre>
-                  <div v-else-if="loadingPreview" class="loading-preview">
-                    {{ $t('common.loading') }}
-                  </div>
-                  <div v-else class="empty-preview">
-                    {{ $t('skill.cannotPreview') }}
-                  </div>
-                </div>
-                <div v-else class="empty-preview-hint">
-                  <p>{{ $t('skill.selectFileToPreview') }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <!-- 空状态：未选中技能 -->
+      <div v-else class="empty-detail">
+        <p>{{ $t('skill.selectSkillHint') }}</p>
       </div>
     </div>
 
-    <!-- Add/Edit Form Modal -->
-    <BaseDialog
-      v-model="showForm"
-      :title="editingSkill ? $t('skill.editSkill') : $t('skill.createSkill')"
-      width="500px"
-    >
-      <el-form data-testid="skill-form" label-position="top" @submit.prevent="saveSkill">
-        <el-form-item :label="$t('skill.skillName')">
-          <el-input
-            v-model="form.name"
-            data-testid="skill-name-input"
-            :placeholder="$t('skill.namePlaceholder')"
-            maxlength="200"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item :label="$t('skill.description')">
-          <el-input
-            v-model="form.description"
-            data-testid="skill-description-input"
-            type="textarea"
-            :rows="6"
-            resize="vertical"
-            :placeholder="$t('skill.descriptionPlaceholder')"
-            maxlength="5000"
-            show-word-limit
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="closeForm">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :disabled="saving" @click="saveSkill">{{ saving ? $t('common.loading') : $t('common.save') }}</el-button>
-      </template>
-    </BaseDialog>
+    <!-- Add/Edit Form Dialog -->
+    <SkillFormDialog
+      :visible="showForm"
+      :is-edit="!!editingSkill"
+      :form="form"
+      :saving="saving"
+      @update:visible="showForm = $event"
+      @save="saveSkill"
+      @close="closeForm"
+    />
 
     <!-- Create Skill from ZIP Modal -->
     <BaseDialog
@@ -240,17 +95,20 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSkillStore } from '../stores/skillStore'
 import { useAgentStore } from '../stores/agentStore'
-import { getWorkflowTemplates } from '../api/workflowTemplate'
+import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore'
 import { filterSkillsByTemplate } from '../utils/skillWorkflowFilter'
-import { formatDate } from '../utils/dateFormat'
 import BaseDialog from '../components/BaseDialog.vue'
+import SkillListSidebar from '../components/skill/SkillListSidebar.vue'
+import SkillDetailPanel from '../components/skill/SkillDetailPanel.vue'
+import SkillFormDialog from '../components/skill/SkillFormDialog.vue'
 
 const { t } = useI18n()
 const skillStore = useSkillStore()
 const agentStore = useAgentStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const selectedTemplateId = ref('')
-const workflowTemplates = ref([])
+const workflowTemplates = computed(() => workflowTemplateStore.templates)
 
 const filteredSkills = computed(() =>
   filterSkillsByTemplate(
@@ -272,9 +130,8 @@ const selectedFile = ref(null)
 const previewContent = ref('')
 const loadingPreview = ref(false)
 
-const fileInputRef = ref(null)
 const createZipInputRef = ref(null)
-const fileTreeRef = ref(null)
+const detailPanelRef = ref(null)
 
 const form = ref({
   name: '',
@@ -302,9 +159,7 @@ const loadSkills = async () => {
       selectSkill(skillStore.skills[0])
     }
     agentStore.fetchAgents().catch(() => {})
-    getWorkflowTemplates().then(res => {
-      workflowTemplates.value = res?.success ? (res.data || []) : []
-    }).catch(() => {})
+    workflowTemplateStore.fetchTemplates().catch(() => {})
   } catch (e) {
     console.error('Failed to load skills:', e)
     showToast(t('skill.loadFailed'), 'error')
@@ -316,14 +171,6 @@ const selectSkill = async (skill) => {
   selectedFile.value = null
   previewContent.value = ''
   await loadSkillFiles()
-}
-
-const getFileType = (filename) => {
-  if (filename.endsWith('.md')) return 'markdown'
-  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'script'
-  if (filename.endsWith('.sh')) return 'shell'
-  if (filename.endsWith('.html')) return 'html'
-  return 'other'
 }
 
 /**
@@ -369,7 +216,6 @@ const buildFileTree = (files) => {
     })
   })
 
-  // 排序：文件夹在前，文件在后
   const sortChildren = (node) => {
     if (node.children) {
       node.children.sort((a, b) => {
@@ -384,16 +230,12 @@ const buildFileTree = (files) => {
   return root.children
 }
 
-const treeProps = {
-  children: 'children',
-  label: 'label',
-  isLeaf: 'isLeaf'
-}
-
-const handleTreeNodeClick = (data) => {
-  if (data.isLeaf) {
-    selectFile(data)
-  }
+const getFileType = (filename) => {
+  if (filename.endsWith('.md')) return 'markdown'
+  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'script'
+  if (filename.endsWith('.sh')) return 'shell'
+  if (filename.endsWith('.html')) return 'html'
+  return 'other'
 }
 
 const loadSkillFiles = async () => {
@@ -407,14 +249,6 @@ const loadSkillFiles = async () => {
     showToast(t('skill.loadFilesFailed'), 'error')
     fileTreeData.value = []
   }
-}
-
-const getFileIcon = (filename) => {
-  if (filename.endsWith('.md')) return 'md'
-  if (filename.endsWith('.js') || filename.endsWith('.cjs')) return 'js'
-  if (filename.endsWith('.sh')) return 'sh'
-  if (filename.endsWith('.html')) return 'html'
-  return 'file'
 }
 
 const selectFile = async (file) => {
@@ -443,14 +277,15 @@ const refreshFiles = async () => {
 }
 
 const triggerFileUpload = () => {
-  fileInputRef.value?.click()
+  if (detailPanelRef.value) {
+    detailPanelRef.value.fileInputRef?.click()
+  }
 }
 
 const handleZipUpload = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
 
-  // Check if it's a zip file
   if (!file.name.endsWith('.zip')) {
     showToast(t('skill.invalidFileType'), 'error')
     event.target.value = ''
@@ -468,7 +303,6 @@ const handleZipUpload = async (event) => {
     showToast(t('skill.zipUploadFailed'), 'error')
   }
 
-  // Reset the input
   event.target.value = ''
 }
 
@@ -484,8 +318,6 @@ const arrayBufferToBase64 = (arrayBuffer) => {
 
   return btoa(binary)
 }
-
-const formatDateWithFallback = (dateStr) => formatDate(dateStr, { fallback: '-' })
 
 const openAddForm = () => {
   editingSkill.value = null
@@ -564,10 +396,8 @@ const saveSkill = async () => {
       return
     }
 
-    // Refresh skills list
     await skillStore.fetchSkills()
 
-    // Select the created/updated skill
     const skillName = editingSkill.value ? data.name : form.value.name
     const updatedSkill = skillStore.skills.find(s => s.name === skillName)
     if (updatedSkill) {
@@ -595,7 +425,6 @@ const confirmDelete = async () => {
       return
     }
 
-    // Select next available skill or clear
     if (skillStore.skills.length > 0) {
       selectSkill(skillStore.skills[0])
     } else {
@@ -624,424 +453,22 @@ onMounted(loadSkills)
   padding: 0;
 }
 
-/* Left panel - Skill list */
-.skill-list-panel {
-  width: 300px;
-  flex-shrink: 0;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.skill-count {
-  background: var(--accent-color-soft);
-  color: var(--accent-color-strong, var(--accent-color));
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  min-width: 22px;
-  text-align: center;
-}
-
-.skill-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--panel-bg);
-  flex-shrink: 0;
-}
-
-.skill-filter-select {
-  flex: 1;
-  min-width: 0;
-}
-
-.skill-filter-select :deep(.el-input__wrapper) {
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--border-color) inset;
-  border-radius: 8px;
-  transition: box-shadow 0.18s ease;
-}
-
-.skill-filter-select :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
-}
-
-.skill-filter-select :deep(.el-input.is-focus .el-input__wrapper),
-.skill-filter-select :deep(.el-input__wrapper.is-focus) {
-  box-shadow:
-    0 0 0 1px var(--accent-color) inset,
-    0 0 0 3px rgba(37, 198, 201, 0.12);
-}
-
-.skill-filter-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--accent-color-soft, rgba(37, 198, 201, 0.12));
-  color: var(--accent-color-strong, var(--accent-color));
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.badge-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-color);
-  animation: badge-pulse 2s ease-in-out infinite;
-}
-
-@keyframes badge-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.skill-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
-  background: var(--panel-bg);
-}
-
-.skill-list-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-  margin-bottom: 8px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  text-align: left;
-}
-
-.skill-list-item:hover {
-  background: var(--bg-secondary);
-  border-color: rgba(37, 198, 201, 0.24);
-}
-
-.skill-list-item.active {
-  background: rgba(37, 198, 201, 0.05);
-  border-color: var(--accent-color);
-  box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.12);
-}
-
-.skill-list-item__name {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  letter-spacing: 0.01em;
-  flex: 1;
-  min-width: 0;
-}
-
-/* Right panel - Skill detail */
-.skill-detail-panel {
-  flex: 1;
-  background: var(--panel-bg);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-}
-
-.skill-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.skill-title-row .title-left {
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.skill-title-row h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.meta-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  background: var(--bg-tertiary, rgba(31, 41, 55, 0.04));
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-}
-
-.meta-chip__label {
-  color: var(--text-muted, var(--text-secondary));
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.meta-chip__value {
-  color: var(--text-primary);
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-  font-weight: 500;
-}
-
-.skill-description-block {
-  margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary, #fafbfc);
-}
-
-.skill-description-block .section-label {
-  margin-bottom: 6px;
-}
-
-.skill-description {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-primary);
-  line-height: 1.65;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.skill-description--empty {
-  color: var(--text-muted, var(--text-secondary));
-  font-style: italic;
-}
-
-/* Files section */
-.files-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 20px;
-  overflow: hidden;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.section-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.file-browser {
-  flex: 1;
-  display: flex;
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-}
-
-.file-tree-container {
-  width: 240px;
-  min-width: 240px;
-  overflow-y: auto;
-  padding: 6px;
-  background: var(--bg-secondary, #fafbfc);
-  border-right: 1px solid var(--border-color);
-}
-
-.tree-node {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.node-icon {
-  font-size: 11px;
-  min-width: 22px;
-  text-align: center;
-}
-
-.node-icon.is-file {
-  color: var(--accent-color-strong, var(--accent-color));
-  background: var(--accent-color-soft, rgba(37, 198, 201, 0.1));
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 9px;
-  font-weight: 700;
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.node-icon.is-folder {
-  min-width: 0;
-}
-
-.node-label {
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-:deep(.el-tree-node__content) {
-  height: 28px;
-  border-radius: 6px;
-  margin: 1px 0;
-  transition: background-color 0.15s ease;
-}
-
-:deep(.el-tree-node__content:hover) {
-  background-color: rgba(37, 198, 201, 0.06);
-}
-
-:deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background-color: rgba(37, 198, 201, 0.12);
-}
-
-:deep(.el-tree-node.is-current > .el-tree-node__content) .node-label {
-  color: var(--accent-color-strong, var(--accent-color));
-  font-weight: 600;
-}
-
-.empty-files {
-  text-align: center;
-  padding: 1rem;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.file-preview {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-primary);
-}
-
-.preview-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary, #fafbfc);
-}
-
-.preview-filename {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-  letter-spacing: 0;
-}
-
-.preview-code {
-  flex: 1;
-  margin: 0;
-  padding: 14px 16px;
-  font-size: 12px;
-  line-height: 1.65;
-  overflow: auto;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-}
-
-.loading-preview,
-.empty-preview,
-.empty-preview-hint {
+.empty-detail {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--panel-bg);
 }
 
-.empty-preview-hint p {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-/* Form dialog refinements */
 .modal-hint {
   margin: 0 0 8px;
   font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.5;
 }
-
-:deep(.el-form-item__label) {
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  color: var(--text-secondary) !important;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding-bottom: 6px !important;
-  line-height: 1.4 !important;
-}
-
-:deep(.el-form-item .el-input__wrapper),
-:deep(.el-form-item .el-textarea__inner) {
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--border-color) inset;
-  border-radius: 8px;
-  transition: box-shadow 0.18s ease;
-}
-
-:deep(.el-form-item .el-input__wrapper:hover),
-:deep(.el-form-item .el-textarea__inner:hover) {
-  box-shadow: 0 0 0 1px var(--accent-color-soft, rgba(37, 198, 201, 0.5)) inset;
-}
-
-:deep(.el-form-item .el-input.is-focus .el-input__wrapper),
-:deep(.el-form-item .el-input__wrapper.is-focus),
-:deep(.el-form-item .el-textarea__inner:focus) {
-  box-shadow:
-    0 0 0 1px var(--accent-color) inset,
-    0 0 0 3px rgba(37, 198, 201, 0.12);
-}
-
-:deep(.el-form-item .el-input__inner) {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
 </style>

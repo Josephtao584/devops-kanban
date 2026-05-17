@@ -452,16 +452,17 @@ import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplat
 import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
-import { getWorkflowTemplateById } from '../api/workflowTemplate.js'
-import { resumeWorkflow, retryWorkflow } from '../api/workflow.js'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useProjectStore } from '../stores/projectStore.js'
 import { useAgentStore } from '../stores/agentStore.js'
 import { useSplitSuggestionsStore } from '../stores/splitSuggestions.js'
 import { useTaskSourceStore } from '../stores/taskSourceStore.js'
+import { useTaskStore } from '../stores/taskStore.js'
+import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore.js'
+import { useWorkflowStore } from '../stores/workflowStore.js'
 import { getRoleConfig } from '../constants/agent.js'
-import { listTasks, getTaskPipeline, createTask, updateTask, deleteTask as deleteTaskApi, startTask } from '../api/task.js'
 import { useWorktree } from '../composables/useWorktree.js'
+import * as taskWorktreeApi from '../api/taskWorktree'
 import draggable from 'vuedraggable'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer.js'
 
@@ -469,7 +470,10 @@ const projectStore = useProjectStore()
 const agentStore = useAgentStore()
 const splitStore = useSplitSuggestionsStore()
 const taskSourceStore = useTaskSourceStore()
-const { handleWorktree } = useWorktree()
+const taskStore = useTaskStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
+const workflowStore = useWorkflowStore()
+const { handleWorktree } = useWorktree({ taskWorktreeApi })
 const { runningTasks } = useTaskTimer()
 const route = useRoute()
 const router = useRouter()
@@ -506,7 +510,7 @@ async function autoRetryRun() {
 
   try {
     ElMessage.info(`AgentTeam失败，正在自动重试 (${count + 1}/${MAX_AUTO_RETRIES})...`)
-    const resp = await retryWorkflow(runId)
+    const resp = await workflowStore.retryWorkflow(runId)
     if (resp?.success) {
       ElMessage.success('已自动重新执行')
       await onWorkflowRefresh()
@@ -564,7 +568,7 @@ async function handleSaveTask() {
   savingTask.value = true
   try {
     if (isEditingTask.value) {
-      const resp = await updateTask(taskForm.id, {
+      const resp = await taskStore.updateTask(taskForm.id, {
         title: taskForm.title,
         description: taskForm.description,
         status: taskForm.status,
@@ -575,7 +579,7 @@ async function handleSaveTask() {
         await loadTasks()
       }
     } else {
-      const resp = await createTask({
+      const resp = await taskStore.createTask({
         title: taskForm.title,
         description: taskForm.description,
         status: taskForm.status,
@@ -612,7 +616,7 @@ async function handleDeleteTask(task) {
     return
   }
   try {
-    const resp = await deleteTaskApi(task.id)
+    const resp = await taskStore.deleteTask(task.id)
     if (resp?.success) {
       ElMessage.success('任务已删除')
       if (selectedTask.value?.id === task.id) selectedTask.value = null
@@ -639,7 +643,7 @@ async function onKanbanDragEnd(event) {
     || event.from?.getAttribute?.('data-status')
   if (oldStatus === newStatus) return
   try {
-    const resp = await updateTask(numericId, { status: newStatus })
+    const resp = await taskStore.updateTask(numericId, { status: newStatus })
     if (resp?.success) {
       await loadTasks()
       ElMessage.success('任务状态已更新')
@@ -699,7 +703,7 @@ function onOpenTemplateDialog(intent = 'switch') {
 
 async function openStartEditorForConfiguredTemplate(templateId) {
   try {
-    const tplResp = await getWorkflowTemplateById(templateId)
+    const tplResp = await workflowTemplateStore.getWorkflowTemplateById(templateId)
     if (!tplResp?.success) {
       ElMessage.error(tplResp?.message || '加载AgentTeam模板失败')
       return
@@ -721,7 +725,7 @@ async function handleWorkflowTemplateConfirm({ templateId }) {
   if (templateDialogIntent.value === 'switch') {
     // Switch mode: persist template on task and close
     try {
-      const resp = await updateTask(selectedTask.value.id, {
+      const resp = await taskStore.updateTask(selectedTask.value.id, {
         auto_execute: 1,
         auto_execute_template_id: templateId,
       })
@@ -741,12 +745,12 @@ async function handleWorkflowTemplateConfirm({ templateId }) {
 
   // Start mode: load template, save on task, then open editor for review
   try {
-    const tplResp = await getWorkflowTemplateById(templateId)
+    const tplResp = await workflowTemplateStore.getWorkflowTemplateById(templateId)
     if (!tplResp?.success) {
       ElMessage.error(tplResp?.message || '加载AgentTeam模板失败')
       return
     }
-    await updateTask(selectedTask.value.id, {
+    await taskStore.updateTask(selectedTask.value.id, {
       auto_execute: 1,
       auto_execute_template_id: templateId,
     })
@@ -782,7 +786,7 @@ async function handleWorkflowStartEditorConfirm(draftTemplate, autoCreateWorktre
   }
 
   try {
-    const resp = await startTask(selectedTask.value.id, {
+    const resp = await taskStore.startTask(selectedTask.value.id, {
       workflow_template_id: selectedWorkflowTemplateId.value,
       workflow_template_snapshot: normalizeWorkflowTemplate(draftTemplate)
     })
@@ -868,8 +872,8 @@ function startColumnResize(e, status) {
 async function loadTasks() {
   try {
     const resp = selectedProjectId.value
-      ? await listTasks({ project_id: selectedProjectId.value })
-      : await listTasks()
+      ? await taskStore.listTasks({ project_id: selectedProjectId.value })
+      : await taskStore.listTasks()
     if (resp?.success) realTasks.value = resp.data || []
   } catch (e) {
     console.error('Failed to load tasks:', e)
@@ -894,7 +898,7 @@ async function handleProjectChange() {
 
 async function loadPipeline(taskId) {
   try {
-    const resp = await getTaskPipeline(taskId)
+    const resp = await taskStore.getTaskPipeline(taskId)
     if (resp?.success) {
       const data = resp.data || { root: null, nodes: [] }
       const projectMap = new Map(projects.value.map(p => [p.id, p.name]))
@@ -1036,7 +1040,7 @@ async function onPipelineRefresh() {
 
 async function onWorkflowConfirm({ workflowRunId, taskId }) {
   try {
-    const resp = await resumeWorkflow(workflowRunId, { approved: true })
+    const resp = await workflowStore.resumeWorkflow(workflowRunId, { approved: true })
     if (resp?.success) {
       ElMessage.success('已确认通过')
       await onWorkflowRefresh()

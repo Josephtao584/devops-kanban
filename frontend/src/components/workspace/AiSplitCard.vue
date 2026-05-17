@@ -105,7 +105,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { getWorkflowTemplates } from '../../api/workflowTemplate.js'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
+const workflowTemplateStore = useWorkflowTemplateStore()
 import { useProjectStore } from '../../stores/projectStore.js'
 
 const projectStore = useProjectStore()
@@ -129,7 +130,7 @@ const templates = ref([])
 
 onMounted(async () => {
   try {
-    const resp = await getWorkflowTemplates()
+    const resp = await workflowTemplateStore.fetchTemplates()
     if (resp?.success) templates.value = resp.data || []
   } catch (e) {
     // silent — dropdown just stays empty

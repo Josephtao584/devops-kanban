@@ -71,13 +71,14 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, FolderOpened } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
-import { createTask } from '../api/task.js'
+import { useTaskStore } from '../stores/taskStore'
 import ProjectCard from '../components/project/ProjectCard.vue'
 import ProjectFormDialog from '../components/project/ProjectFormDialog.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const projectStore = useProjectStore()
+const taskStore = useTaskStore()
 
 const loading = computed(() => projectStore.loading)
 const projects = computed(() => projectStore.projects)
@@ -112,7 +113,7 @@ const handleSubmit = async (formData) => {
 
       if (formData.createExplorationTask && project?.data?.id) {
         try {
-          await createTask({
+          await taskStore.createTask({
             projectId: project.data.id,
             title: t('project.explorationTaskTitle'),
             description: t('project.explorationTaskDescription')

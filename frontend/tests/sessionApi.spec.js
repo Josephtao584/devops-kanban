@@ -112,7 +112,7 @@ describe('useSessionEvents', () => {
       })
 
     const { useSessionEvents } = await import('../src/composables/useSessionEvents.js')
-    const sessionEvents = useSessionEvents({ pollIntervalMs: 1000 })
+    const sessionEvents = useSessionEvents({ getSessionEventsFn: getSessionEventsSpy, pollIntervalMs: 1000 })
 
     await sessionEvents.loadInitial(7)
     sessionEvents.startPolling(7, () => false)
@@ -144,7 +144,7 @@ describe('useSessionEvents', () => {
       })
 
     const { useSessionEvents } = await import('../src/composables/useSessionEvents.js')
-    const sessionEvents = useSessionEvents({ pollIntervalMs: 1000 })
+    const sessionEvents = useSessionEvents({ getSessionEventsFn: getSessionEventsSpy, pollIntervalMs: 1000 })
 
     await sessionEvents.loadInitial(7)
 
@@ -172,7 +172,7 @@ describe('useSessionEvents', () => {
       })
 
     const { useSessionEvents } = await import('../src/composables/useSessionEvents.js')
-    const sessionEvents = useSessionEvents({ pollIntervalMs: 1000 })
+    const sessionEvents = useSessionEvents({ getSessionEventsFn: getSessionEventsSpy, pollIntervalMs: 1000 })
 
     const firstLoad = sessionEvents.loadInitial(101)
     const secondLoad = sessionEvents.loadInitial(102)
@@ -212,7 +212,7 @@ describe('useSessionEvents', () => {
       })
 
     const { useSessionEvents } = await import('../src/composables/useSessionEvents.js')
-    const sessionEvents = useSessionEvents({ pollIntervalMs: 1000 })
+    const sessionEvents = useSessionEvents({ getSessionEventsFn: getSessionEventsSpy, pollIntervalMs: 1000 })
     let terminal = false
 
     await sessionEvents.loadInitial(7)

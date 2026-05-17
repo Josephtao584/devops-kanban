@@ -37,6 +37,16 @@ vi.mock('../src/stores/mcpServerStore', () => ({
   useMcpServerStore: () => mockMcpServerStore
 }))
 
+const mockAgentChatStore = vi.hoisted(() => ({
+  createChatSession: vi.fn(),
+  deleteChatSession: vi.fn(),
+  getLatestChatSession: vi.fn(),
+  streamChatMessage: vi.fn()
+}))
+
+vi.mock('../src/stores/agentChatStore', () => ({
+  useAgentChatStore: () => mockAgentChatStore
+}))
 
 const flushPromises = async () => {
   await Promise.resolve()
@@ -49,6 +59,10 @@ describe('AgentConfig', () => {
     vi.clearAllMocks()
     mockAgentStore.loading = false
     mockAgentStore.error = null
+    mockAgentChatStore.createChatSession.mockResolvedValue({ success: true, data: { id: 'chat-1' } })
+    mockAgentChatStore.deleteChatSession.mockResolvedValue({ success: true })
+    mockAgentChatStore.getLatestChatSession.mockResolvedValue({ success: true, data: null })
+    mockAgentChatStore.streamChatMessage.mockReturnValue({ abort: vi.fn() })
     mockAgentStore.agents = [
       {
         id: 1,
@@ -111,9 +125,8 @@ describe('AgentConfig', () => {
     await flushPromises()
     await openEditModal(wrapper)
 
-    // Directly set selectedSkillToAdd and call addSelectedSkill (simulates el-select @change)
-    wrapper.vm.selectedSkillToAdd = 2
-    wrapper.vm.addSelectedSkill()
+    // Simulate adding a skill via the form dialog
+    wrapper.vm.handleAddSkill(2)
     await flushPromises()
 
     // Trigger save via the form submit

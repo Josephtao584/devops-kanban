@@ -47,6 +47,19 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  // listTasks — accepts optional params object (supports project_id filter)
+  async function listTasks(params) {
+    crud.loading.value = true
+    crud.error.value = null
+    try {
+      const response = params ? await taskApi.listTasks(params) : await taskApi.listTasks()
+      crud.items.value = crud.unwrap(response, 'Failed to fetch tasks') || []
+      return response
+    } finally {
+      crud.loading.value = false
+    }
+  }
+
   async function updateTaskStatus(id, status) {
     crud.loading.value = true
     crud.error.value = null
@@ -66,6 +79,42 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function getTaskPipeline(taskId) {
+    crud.loading.value = true
+    crud.error.value = null
+    try {
+      const response = await taskApi.getTaskPipeline(taskId)
+      return response
+    } finally {
+      crud.loading.value = false
+    }
+  }
+
+  async function startTask(id, data) {
+    crud.loading.value = true
+    crud.error.value = null
+    try {
+      const response = await taskApi.startTask(id, data)
+      return response
+    } finally {
+      crud.loading.value = false
+    }
+  }
+
+  async function getTask(id) {
+    crud.loading.value = true
+    crud.error.value = null
+    try {
+      const response = await taskApi.getTask(id)
+      return response
+    } catch (err) {
+      crud.error.value = err.message
+      throw err
+    } finally {
+      crud.loading.value = false
+    }
+  }
+
   return {
     // State
     tasks: crud.items,
@@ -76,11 +125,15 @@ export const useTaskStore = defineStore('task', () => {
     tasksByStatus,
     // Actions
     fetchTasks,
+    listTasks,
     fetchTask: crud.fetchById,
     createTask: crud.create,
     updateTask: crud.update,
     updateTaskStatus,
     deleteTask: crud.deleteItem,
+    getTaskPipeline,
+    startTask,
+    getTask,
     setCurrentTask: crud.setCurrentItem,
     clearTasks: crud.clearItems,
     clearError: crud.clearError

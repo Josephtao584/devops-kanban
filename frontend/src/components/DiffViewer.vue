@@ -105,7 +105,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { Right } from '@element-plus/icons-vue'
 import BaseDialog from './BaseDialog.vue'
-import { getDiff } from '../api/git'
+import { useGitStore } from '../stores/gitStore'
+
+const gitStore = useGitStore()
 
 const props = defineProps({
   projectId: {
@@ -245,7 +247,7 @@ onMounted(async () => {
 const loadDiff = async () => {
   loading.value = true
   try {
-    const response = await getDiff(props.projectId, props.taskId)
+    const response = await gitStore.getDiff(props.projectId, props.taskId)
     if (response.success) {
       diffData.value = response.data
       if (diffData.value.files?.length > 0) {

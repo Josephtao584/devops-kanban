@@ -149,8 +149,10 @@
 import { ref, computed } from 'vue'
 import { Upload } from '@element-plus/icons-vue'
 import BaseDialog from '../BaseDialog.vue'
-import { previewImportBundle, confirmImportBundle, previewImportBundleZip, confirmImportBundleZip } from '../../api/bundle.js'
-import { previewImportWorkflowTemplates, confirmImportWorkflowTemplates } from '../../api/workflowTemplate.js'
+import { useBundleStore } from '../../stores/bundleStore.js'
+const bundleStore = useBundleStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
 import { useImportDialog } from '../../composables/useImportDialog'
 
 const props = defineProps({
@@ -184,12 +186,12 @@ const {
   onConfirmImport: async ({ previewData, strategy }) => {
     let response
     if (storedZipBase64.value) {
-      response = await confirmImportBundleZip({ zip: storedZipBase64.value, strategy })
+      response = await bundleStore.confirmImportBundleZip({ zip: storedZipBase64.value, strategy })
       if (!response?.success) throw new Error(response?.message || 'Import failed')
       return response.data
     }
     if (importVersion.value === '1.0') {
-      response = await confirmImportWorkflowTemplates({
+      response = await workflowTemplateStore.confirmImportWorkflowTemplates({
         templates: previewData.templates,
         strategy,
         agentMappings: {},
@@ -201,7 +203,7 @@ const {
         skipped: { templates: legacyResult.skipped?.length || 0, agents: 0, skills: 0, mcpServers: 0 },
       }
     }
-    response = await confirmImportBundle({
+    response = await bundleStore.confirmImportBundle({
       templates: previewData.templates,
       agents: previewData.agents,
       skills: previewData.skills,
@@ -230,7 +232,7 @@ async function parseJsonFile(file, setPreview, setError, t) {
         setError(t('bundle.importInvalidFile'))
         return
       }
-      const response = await previewImportBundle(data)
+      const response = await bundleStore.previewImportBundle(data)
       if (!response?.success) {
         setError(response?.message || t('bundle.importPreviewFailed'))
         return
@@ -241,7 +243,7 @@ async function parseJsonFile(file, setPreview, setError, t) {
         setError(t('bundle.importInvalidFile'))
         return
       }
-      const res = await previewImportWorkflowTemplates(data)
+      const res = await workflowTemplateStore.previewImportWorkflowTemplates(data)
       if (!res?.success) {
         setError(res?.message || t('bundle.importPreviewFailed'))
         return
@@ -278,7 +280,7 @@ async function parseZipFile(file, setPreview, setError, t) {
     storedZipBase64.value = btoa(chunks.join(''))
     importVersion.value = '2.1'
 
-    const res = await previewImportBundleZip({ zip: storedZipBase64.value })
+    const res = await bundleStore.previewImportBundleZip({ zip: storedZipBase64.value })
     if (!res?.success) {
       setError(res?.message || t('bundle.importPreviewFailed'))
       return

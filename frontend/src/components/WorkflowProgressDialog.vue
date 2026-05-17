@@ -176,7 +176,8 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import BaseDialog from './BaseDialog.vue'
-import { getWorkflowRun, cancelWorkflow, resumeWorkflow } from '../api/workflow.js'
+import { useWorkflowStore } from '../stores/workflowStore.js'
+const workflowStore = useWorkflowStore()
 import StepSessionPanel from './workflow/StepSessionPanel.vue'
 import { ElMessage } from 'element-plus'
 
@@ -308,7 +309,7 @@ function isResumableRun(runData) {
 async function handleAnswerSubmit() {
   if (!askUserAnswer.value?.trim() || !props.workflowRunId) return
   try {
-    const response = await resumeWorkflow(props.workflowRunId, {
+    const response = await workflowStore.resumeWorkflow(props.workflowRunId, {
       approved: true,
       ask_user_answer: askUserAnswer.value.trim(),
     })
@@ -331,7 +332,7 @@ async function handleResume(approved) {
   try {
     const comment = confirmComment.value.trim()
 
-    const latest = await getWorkflowRun(props.workflowRunId)
+    const latest = await workflowStore.getWorkflowRun(props.workflowRunId)
     if (!latest.success) {
       ElMessage.error(latest.message || '获取AgentTeam状态失败')
       return
@@ -346,7 +347,7 @@ async function handleResume(approved) {
     }
 
     const resumeData = { approved, comment: comment || undefined }
-    const response = await resumeWorkflow(props.workflowRunId, resumeData)
+    const response = await workflowStore.resumeWorkflow(props.workflowRunId, resumeData)
 
     if (response.success) {
       ElMessage.success(approved ? 'AgentTeam已继续执行' : 'AgentTeam已取消')
@@ -368,7 +369,7 @@ async function fetchRun() {
   loading.value = true
   error.value = null
   try {
-    const response = await getWorkflowRun(props.workflowRunId)
+    const response = await workflowStore.getWorkflowRun(props.workflowRunId)
     if (response.success) {
       const prevStatus = run.value?.status
       run.value = response.data
@@ -393,7 +394,7 @@ async function handleCancel() {
   if (!props.workflowRunId) return
   cancelling.value = true
   try {
-    await cancelWorkflow(props.workflowRunId)
+    await workflowStore.cancelWorkflow(props.workflowRunId)
     await fetchRun()
   } finally {
     cancelling.value = false

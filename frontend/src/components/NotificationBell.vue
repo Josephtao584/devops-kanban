@@ -90,7 +90,9 @@
 import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useNotificationSettings } from '../composables/notifications/useNotificationSettings'
 import { useI18n } from 'vue-i18n'
-import { getNotificationConfig, saveNotificationConfig, sendNotification } from '../api/notification.js'
+import { useNotificationStore } from '../stores/notificationStore'
+
+const notificationStore = useNotificationStore()
 
 const props = defineProps({
   sidebarCollapsed: {
@@ -119,7 +121,7 @@ const events = ref({
 async function loadChatConfig() {
   if (chatConfigLoaded.value) return
   try {
-    const response = await getNotificationConfig()
+    const response = await notificationStore.getNotificationConfig()
     if (response.success && response.data) {
       chatConfig.value = {
         url: response.data.url || '',
@@ -139,7 +141,7 @@ async function loadChatConfig() {
 async function saveChatConfig() {
   if (!chatConfig.value.url) return
   try {
-    await saveNotificationConfig({ ...chatConfig.value, events: events.value })
+    await notificationStore.saveNotificationConfig({ ...chatConfig.value, events: events.value })
   } catch {
     // Silently fail
   }
@@ -154,7 +156,7 @@ async function handleTestSend() {
   if (!chatConfig.value.url) return
   chatLoading.value = true
   try {
-    await sendNotification('[Coplat] 通知测试 — 这是一条测试消息，用于验证消息通知通道是否正常工作')
+    await notificationStore.sendNotification('[Coplat] 通知测试 — 这是一条测试消息，用于验证消息通知通道是否正常工作')
   } finally {
     chatLoading.value = false
   }

@@ -4,12 +4,17 @@ import { defineComponent, h, nextTick } from 'vue'
 
 import WorkflowProgressDialog from '../src/components/WorkflowProgressDialog.vue'
 
-const getWorkflowRun = vi.fn()
-const cancelWorkflow = vi.fn()
+const mockWorkflowStore = vi.hoisted(() => ({
+  getWorkflowRun: vi.fn(),
+  cancelWorkflow: vi.fn(),
+  resumeWorkflow: vi.fn(),
+  retryWorkflow: vi.fn(),
+  loading: { value: false },
+  error: { value: null }
+}))
 
-vi.mock('../src/api/workflow.js', () => ({
-  getWorkflowRun: (...args) => getWorkflowRun(...args),
-  cancelWorkflow: (...args) => cancelWorkflow(...args)
+vi.mock('../src/stores/workflowStore', () => ({
+  useWorkflowStore: () => mockWorkflowStore
 }))
 
 const StepSessionPanelStub = defineComponent({
@@ -120,20 +125,20 @@ describe('WorkflowProgressDialog', () => {
   })
 
   it('defaults to the running step and renders its session panel', async () => {
-    getWorkflowRun.mockResolvedValue({ success: true, data: createRun() })
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({ success: true, data: createRun() })
 
     const wrapper = mountDialog()
     await wrapper.find('.dialog-opened').trigger('click')
     await flushPromises()
 
-    expect(getWorkflowRun).toHaveBeenCalledWith(9)
+    expect(mockWorkflowStore.getWorkflowRun).toHaveBeenCalledWith(9)
     expect(wrapper.find('.step-item.selected').attributes('data-step-id')).toBe('code-development')
     expect(wrapper.find('.step-session-panel-stub').attributes('data-session-id')).toBe('102')
     expect(wrapper.find('.step-session-panel-stub').attributes('data-step-name')).toBe('代码开发')
   })
 
   it('falls back to the last step with a session when no step is running', async () => {
-    getWorkflowRun.mockResolvedValue({
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({
       success: true,
       data: createRun({
         status: 'COMPLETED',
@@ -167,7 +172,7 @@ describe('WorkflowProgressDialog', () => {
   })
 
   it('switches the right panel when clicking another step with session history', async () => {
-    getWorkflowRun.mockResolvedValue({ success: true, data: createRun() })
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({ success: true, data: createRun() })
 
     const wrapper = mountDialog()
     await wrapper.find('.dialog-opened').trigger('click')
@@ -181,7 +186,7 @@ describe('WorkflowProgressDialog', () => {
   })
 
   it('re-selects the new running step before the user makes a manual selection', async () => {
-    getWorkflowRun
+    mockWorkflowStore.getWorkflowRun
       .mockResolvedValueOnce({
         success: true,
         data: createRun({
@@ -245,7 +250,7 @@ describe('WorkflowProgressDialog', () => {
   })
 
   it('keeps manual selection after later polling updates', async () => {
-    getWorkflowRun
+    mockWorkflowStore.getWorkflowRun
       .mockResolvedValue({ success: true, data: createRun() })
 
     const wrapper = mountDialog()
@@ -263,7 +268,7 @@ describe('WorkflowProgressDialog', () => {
   })
 
   it('preserves workflow result context in the new two-pane layout', async () => {
-    getWorkflowRun.mockResolvedValue({
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({
       success: true,
       data: createRun({
         status: 'COMPLETED',
@@ -283,7 +288,7 @@ describe('WorkflowProgressDialog', () => {
   })
 
   it('preserves workflow error context in the new two-pane layout', async () => {
-    getWorkflowRun.mockResolvedValue({
+    mockWorkflowStore.getWorkflowRun.mockResolvedValue({
       success: true,
       data: createRun({
         status: 'FAILED',

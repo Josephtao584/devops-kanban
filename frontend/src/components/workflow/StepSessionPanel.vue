@@ -130,8 +130,10 @@ import { computed, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SessionEventRenderer from '../session/SessionEventRenderer.vue'
 import { useSessionEvents } from '../../composables/useSessionEvents.js'
+import { getSessionEvents } from '../../api/session.js'
 import { SESSION_INPUT_STATUSES, SESSION_BUSY_STATUSES } from '../../constants/session.js'
-import { getSession, continueSession } from '../../api/session.js'
+import { useSessionStore } from '../../stores/sessionStore.js'
+const sessionStore = useSessionStore()
 import { ElMessage } from 'element-plus'
 
 const { t } = useI18n()
@@ -159,7 +161,7 @@ const props = defineProps({
   }
 })
 
-const { events, isLoading, error, loadInitial, startPolling, stopPolling } = useSessionEvents()
+const { events, isLoading, error, loadInitial, startPolling, stopPolling } = useSessionEvents({ getSessionEventsFn: getSessionEvents })
 const message = ref('')
 const isSending = ref(false)
 const sessionStatus = ref('')
@@ -231,7 +233,7 @@ async function fetchSessionStatus() {
     return
   }
   try {
-    const response = await getSession(props.sessionId)
+    const response = await sessionStore.getSession(props.sessionId)
     sessionStatus.value = response.data?.status || ''
   } catch (err) {
     console.error('Failed to fetch session status:', err)
@@ -245,7 +247,7 @@ async function sendMessage() {
   const text = message.value.trim()
   isSending.value = true
   try {
-    await continueSession(props.sessionId, text)
+    await sessionStore.continueSession(props.sessionId, text)
     message.value = ''
     await fetchSessionStatus()
     scrollToBottom()

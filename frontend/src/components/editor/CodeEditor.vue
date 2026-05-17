@@ -8,77 +8,24 @@
         </div>
 
         <div class="editor-body">
-          <div class="editor-sidebar">
-            <div class="sidebar-tabs">
-              <button :class="['sidebar-tab', { active: sidebarTab === 'changes' }]" @click="switchToChanges">
-                变更{{ changedFiles.length ? `(${changedFiles.length})` : '' }}
-              </button>
-              <button :class="['sidebar-tab', { active: sidebarTab === 'files' }]" @click="sidebarTab = 'files'">
-                文件
-              </button>
-            </div>
-
-            <!-- 文件 Tab -->
-            <div v-show="sidebarTab === 'files'" class="sidebar-content">
-              <div class="file-search-wrap">
-                <input v-model="searchQuery" placeholder="搜索文件..." class="file-search" />
-              </div>
-
-              <div v-if="recentFiles.length" class="sidebar-section">
-                <div class="section-header" @click="showRecent = !showRecent">
-                  <span>最近</span>
-                  <span class="section-toggle">{{ showRecent ? '▾' : '▸' }}</span>
-                </div>
-                <div v-show="showRecent" class="section-body">
-                  <div
-                    v-for="f in filteredRecentFiles"
-                    :key="f"
-                    class="file-item"
-                    :class="{ selected: currentFile === f }"
-                    :title="f"
-                    @click="openFile(f)"
-                  >
-                    <span class="file-name">{{ fileName(f) }}</span>
-                    <span class="file-dir">{{ fileDir(f) }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="sidebar-section">
-                <div class="section-header" @click="showFullTree = !showFullTree">
-                  <span>文件树</span>
-                  <span class="section-toggle">{{ showFullTree ? '▾' : '▸' }}</span>
-                </div>
-                <div v-show="showFullTree" class="section-body">
-                  <FileTree
-                    v-if="fileTree"
-                    :tree="fileTree"
-                    :selected-path="currentFile"
-                    @file-select="openFile"
-                  />
-                  <div v-else class="loading-tree">加载中...</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 变更 Tab -->
-            <div v-show="sidebarTab === 'changes'" class="sidebar-content">
-              <div v-if="changesLoading" class="sidebar-empty">加载中...</div>
-              <div v-else-if="changedFiles.length === 0" class="sidebar-empty">无未提交变更</div>
-              <div v-else class="changes-list">
-                <div
-                  v-for="f in changedFiles"
-                  :key="f.path"
-                  class="change-item"
-                  :class="{ selected: currentFile === f.path }"
-                >
-                  <span class="change-status" :class="statusClass(f.status)">{{ statusLabel(f.status) }}</span>
-                  <span class="change-path" :title="f.path" @click="openChangedFile(f)">{{ f.path }}</span>
-                  <button class="change-diff-btn" title="查看差异" @click="showChangeDiff(f)">差异</button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <EditorSidebar
+            :active-tab="sidebarTab"
+            :file-tree="fileTree"
+            :current-file="currentFile"
+            :recent-files="recentFiles"
+            :changed-files="changedFiles"
+            :loading="changesLoading"
+            :show-recent="showRecent"
+            :show-full-tree="showFullTree"
+            :search-query="searchQuery"
+            @tab-change="handleTabChange"
+            @toggle-recent="showRecent = !showRecent"
+            @toggle-tree="showFullTree = !showFullTree"
+            @open-file="openFile"
+            @open-changed-file="openChangedFile"
+            @show-diff="showChangeDiff"
+            @update:search-query="searchQuery = $event"
+          />
 
           <div class="editor-main">
             <!-- diff 预览模式 -->
@@ -166,8 +113,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watchEffect } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getFileTree, readFileContent, writeFileContent, getUncommittedChanges, commit } from '../../api/git'
+import { useGitStore } from '../../stores/gitStore.js'
+const gitStore = useGitStore()
 import FileTree from './FileTree.vue'
+import EditorSidebar from './EditorSidebar.vue'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { javascript } from '@codemirror/lang-javascript'
@@ -342,7 +291,7 @@ function createEditor(content = '') {
 // File operations
 async function loadFileTree() {
   try {
-    const res = await getFileTree(props.projectId, props.taskId)
+    const res = await gitStore.getFileTree(props.projectId, props.taskId)
     if (res.success) {
       fileTree.value = res.data
     }
@@ -359,7 +308,7 @@ async function openFile(filePath) {
   currentFile.value = filePath
   addToRecent(filePath)
   try {
-    const res = await readFileContent(props.projectId, props.taskId, filePath)
+    const res = await gitStore.readFileContent(props.projectId, props.taskId, filePath)
     if (seq !== openFileSeq) return
     if (res.success) {
       if (res.data.isBinary) {
@@ -382,7 +331,7 @@ async function saveFile() {
   saving.value = true
   try {
     const content = editorView.value.state.doc.toString()
-    const res = await writeFileContent(props.projectId, props.taskId, currentFile.value, content)
+    const res = await gitStore.writeFileContent(props.projectId, props.taskId, currentFile.value, content)
     if (res.success) {
       unsavedFileSet.delete(currentFile.value)
       ElMessage.success('保存成功')
@@ -402,7 +351,7 @@ async function saveFile() {
 async function loadChanges() {
   changesLoading.value = true
   try {
-    const res = await getUncommittedChanges(props.projectId, props.taskId)
+    const res = await gitStore.getUncommittedChanges(props.projectId, props.taskId)
     if (res.success) {
       // Backend returns either { changes, isWorktree, ... } object or legacy array
       const raw = Array.isArray(res.data)
@@ -417,9 +366,11 @@ async function loadChanges() {
   }
 }
 
-function switchToChanges() {
-  sidebarTab.value = 'changes'
-  loadChanges()
+function handleTabChange(tab) {
+  sidebarTab.value = tab
+  if (tab === 'changes') {
+    loadChanges()
+  }
 }
 
 // Click file path in changes tab → open for editing
@@ -436,8 +387,8 @@ async function showChangeDiff(file) {
 
   try {
     const [currentRes, headRes] = await Promise.all([
-      readFileContent(props.projectId, props.taskId, file.path),
-      readFileContent(props.projectId, props.taskId, file.path, { version: 'head' }),
+      gitStore.readFileContent(props.projectId, props.taskId, file.path),
+      gitStore.readFileContent(props.projectId, props.taskId, file.path, { version: 'head' }),
     ])
 
     const currentContent = currentRes.success ? currentRes.data.content : ''
@@ -496,7 +447,7 @@ async function handleCommit() {
   if (selectedFiles.length === 0) return
   committing.value = true
   try {
-    const res = await commit(props.projectId, props.taskId, {
+    const res = await gitStore.commit(props.projectId, props.taskId, {
       message: commitMessage.value.trim(),
       addAll: false,
       files: selectedFiles,

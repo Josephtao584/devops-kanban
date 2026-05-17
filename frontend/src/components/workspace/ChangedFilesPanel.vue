@@ -191,10 +191,13 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getUncommittedChanges, getDiff, pushWorktree, mergeWorktreeIntoCurrent } from '../../api/git.js'
-import { createTaskWorktree, deleteTaskWorktree } from '../../api/taskWorktree.js'
+import { useGitStore } from '../../stores/gitStore.js'
+import { useTaskWorktreeStore } from '../../stores/taskWorktreeStore.js'
 import CommitDialog from '../CommitDialog.vue'
 import MergeDialog from '../MergeDialog.vue'
+
+const gitStore = useGitStore()
+const taskWorktreeStore = useTaskWorktreeStore()
 
 const props = defineProps({
   taskId: { type: Number, default: null },
@@ -241,7 +244,7 @@ async function loadChanges() {
   loading.value = true
   loadError.value = null
   try {
-    const resp = await withTimeout(getUncommittedChanges(props.projectId, props.taskId), LOAD_TIMEOUT)
+    const resp = await withTimeout(gitStore.getUncommittedChanges(props.projectId, props.taskId), LOAD_TIMEOUT)
     if (resp?.success) {
       const data = resp.data
       if (typeof data === 'object' && data !== null) {
@@ -275,7 +278,7 @@ async function viewDiff(file) {
   diffLoading.value = '__dialog__'
   showDiffDialog.value = true
   try {
-    const resp = await getDiff(props.projectId, props.taskId)
+    const resp = await gitStore.getDiff(props.projectId, props.taskId)
     if (resp?.success) {
       const raw = resp.data?.diffs?.[file.path]
       if (raw) {
@@ -332,7 +335,7 @@ async function handleCreateWorktree() {
   if (!props.taskId) return
   creating.value = true
   try {
-    const resp = await createTaskWorktree(props.taskId)
+    const resp = await taskWorktreeStore.createTaskWorktree(props.taskId)
     if (resp?.success) {
       ElMessage.success('Worktree 创建成功')
       emit('refresh')
@@ -359,7 +362,7 @@ async function handleDeleteWorktree() {
   }
   deleting.value = true
   try {
-    const resp = await deleteTaskWorktree(props.taskId)
+    const resp = await taskWorktreeStore.deleteTaskWorktree(props.taskId)
     if (resp?.success) {
       ElMessage.success('Worktree 已删除')
       emit('refresh')
@@ -387,7 +390,7 @@ async function handlePush() {
   }
   pushing.value = true
   try {
-    const resp = await pushWorktree(props.task.project_id, props.taskId)
+    const resp = await gitStore.pushWorktree(props.task.project_id, props.taskId)
     if (resp?.success) {
       ElMessage.success('推送成功')
     } else {
@@ -424,7 +427,7 @@ async function handleMergeIntoCurrent() {
   }
   mergingToCurrent.value = true
   try {
-    const resp = await mergeWorktreeIntoCurrent(props.task.project_id, props.taskId)
+    const resp = await gitStore.mergeWorktreeIntoCurrent(props.task.project_id, props.taskId)
     if (resp?.success) {
       if (resp.data?.hasConflicts) {
         ElMessage.warning(`存在 ${resp.data.conflicts?.length || 0} 个冲突文件`)

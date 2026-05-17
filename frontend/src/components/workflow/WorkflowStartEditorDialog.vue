@@ -231,8 +231,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus, Warning } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import BaseDialog from '../BaseDialog.vue'
-import { getAgents } from '../../api/agent.js'
-import { useSkillStore } from '../../stores/skillStore'
+import { useAgentStore } from '../../stores/agentStore.js'
+import { useSkillStore } from '../../stores/skillStore.js'
+import { useWorkflowTemplateStore } from '../../stores/workflowTemplateStore.js'
 import {
   normalizeWorkflowStep,
   normalizeWorkflowTemplate,
@@ -250,7 +251,6 @@ import {
   isDisabledAgent as checkDisabledAgent,
   formatBoundAgentState as formatAgentBindingState,
 } from './templateEditorShared.js'
-import { previewPrompt } from '../../api/workflowTemplate'
 import { getRoleConfig } from '../../constants/agent.js'
 
 const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
@@ -269,6 +269,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'confirm'])
 const { t } = useI18n()
 const skillStore = useSkillStore()
+const agentStore = useAgentStore()
+const workflowTemplateStore = useWorkflowTemplateStore()
 
 const agents = ref([])
 const agentsLoaded = ref(false)
@@ -304,11 +306,11 @@ watch(() => props.modelValue, async (visible) => {
 async function loadAgents () {
   agentsLoaded.value = false
   try {
-    const [response] = await Promise.all([
-      getAgents(),
+    await Promise.all([
+      agentStore.fetchAgents(),
       skillStore.fetchSkills()
     ])
-    agents.value = response?.success && Array.isArray(response.data) ? response.data : []
+    agents.value = agentStore.agents
   } catch (error) {
     agents.value = []
     ElMessage.error(error?.response?.data?.message || error?.message || t('workflowTemplate.loadAgentsFailed'))

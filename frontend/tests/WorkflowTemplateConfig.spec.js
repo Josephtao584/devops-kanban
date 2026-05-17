@@ -4,15 +4,19 @@ import { defineComponent, h, nextTick, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import WorkflowTemplateConfig from '../src/views/WorkflowTemplateConfig.vue'
 import i18n from '../src/locales'
-import {
-  createWorkflowTemplate,
-  deleteWorkflowTemplate,
-  getWorkflowTemplateById,
-  getWorkflowTemplates,
-  updateWorkflowTemplate,
-  reorderWorkflowTemplates
-} from '../src/api/workflowTemplate'
+import { createWorkflowTemplate, deleteWorkflowTemplate, getWorkflowTemplateById, getWorkflowTemplates, updateWorkflowTemplate, reorderWorkflowTemplates } from '../src/api/workflowTemplate'
 import { getAgents } from '../src/api/agent'
+import { storeMethods as workflowTemplateStoreMethods } from '../src/stores/workflowTemplateStore'
+import { storeMethods as agentStoreMethods } from '../src/stores/agentStore'
+
+// Alias store methods for convenience
+const fetchTemplatesMock = workflowTemplateStoreMethods.fetchTemplates
+const getWorkflowTemplateByIdMock = workflowTemplateStoreMethods.getWorkflowTemplateById
+const createTemplateMock = workflowTemplateStoreMethods.createTemplate
+const updateTemplateMock = workflowTemplateStoreMethods.updateTemplate
+const deleteTemplateMock = workflowTemplateStoreMethods.deleteTemplate
+const reorderTemplatesMock = workflowTemplateStoreMethods.reorderTemplates
+const previewPromptMock = workflowTemplateStoreMethods.previewPrompt
 
 vi.mock('vuedraggable', () => ({
   default: defineComponent({
@@ -53,6 +57,48 @@ vi.mock('../src/stores/skillStore', () => ({
     fetchSkills: vi.fn().mockResolvedValue(undefined)
   })
 }))
+
+vi.mock('../src/stores/workflowTemplateStore', () => {
+  const storeMethods = {
+    fetchTemplates: vi.fn(),
+    getWorkflowTemplateById: vi.fn(),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+    deleteTemplate: vi.fn(),
+    reorderTemplates: vi.fn(),
+    previewPrompt: vi.fn()
+  }
+  return {
+    useWorkflowTemplateStore: vi.fn(() => ({
+      loading: { value: false },
+      error: { value: null },
+      ...storeMethods
+    })),
+    storeMethods
+  }
+})
+
+vi.mock('../src/stores/agentStore', () => {
+  const agentsRef = ref([])
+  const fetchAgentsFn = vi.fn().mockImplementation(async () => {
+    // Will be overridden per-test; default returns empty
+    return { success: true, data: [] }
+  })
+  const storeMethods = {
+    get agents() { return agentsRef.value },
+    loading: { value: false },
+    error: { value: null },
+    fetchAgents: fetchAgentsFn,
+    createAgent: vi.fn(),
+    updateAgent: vi.fn(),
+    deleteAgent: vi.fn(),
+    toggleAgentEnabled: vi.fn(),
+    clearError: vi.fn(),
+    _agentsRef: agentsRef,
+    _setAgents(data) { agentsRef.value = data }
+  }
+  return { useAgentStore: vi.fn(() => storeMethods), storeMethods }
+})
 
 const defaultTemplate = {
   template_id: 'workflow-v1',
@@ -266,12 +312,12 @@ const createDeferred = () => {
 }
 
 function mockTemplateApis() {
-  getWorkflowTemplates.mockResolvedValue({
+  fetchTemplatesMock.mockResolvedValue({
     success: true,
     data: [defaultTemplate, customTemplate]
   })
 
-  getWorkflowTemplateById.mockImplementation(async (templateId) => {
+  getWorkflowTemplateByIdMock.mockImplementation(async (templateId) => {
     const template = templateId === defaultTemplate.template_id ? defaultTemplate : customTemplate
     return {
       success: true,
@@ -400,13 +446,14 @@ describe('WorkflowTemplateConfig', () => {
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue()
 
     mockTemplateApis()
-    getAgents.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 1, name: 'Claude Dev', enabled: true },
-        { id: 2, name: 'Disabled Agent', enabled: false },
-        { id: 3, name: 'Codex Reviewer', enabled: true }
-      ]
+    const agentsData = [
+      { id: 1, name: 'Claude Dev', enabled: true },
+      { id: 2, name: 'Disabled Agent', enabled: false },
+      { id: 3, name: 'Codex Reviewer', enabled: true }
+    ]
+    agentStoreMethods.fetchAgents.mockImplementation(async () => {
+      agentStoreMethods._setAgents(agentsData)
+      return { success: true, data: agentsData }
     })
   })
 
@@ -414,8 +461,8 @@ describe('WorkflowTemplateConfig', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(getWorkflowTemplates).toHaveBeenCalledTimes(1)
-    expect(getWorkflowTemplateById).toHaveBeenCalledWith('workflow-v1')
+    expect(fetchTemplatesMock).toHaveBeenCalledTimes(1)
+    expect(getWorkflowTemplateByIdMock).toHaveBeenCalledWith('workflow-v1')
     expect(wrapper.text()).toContain('通用复杂任务工作流')
     expect(wrapper.text()).toContain('发布工作流')
 
@@ -425,7 +472,7 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="template-item-release-workflow-v1"]').trigger('click')
     await flushPromises()
 
-    expect(getWorkflowTemplateById).toHaveBeenLastCalledWith('release-workflow-v1')
+    expect(getWorkflowTemplateByIdMock).toHaveBeenLastCalledWith('release-workflow-v1')
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('release-workflow-v1')
     expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('发布工作流')
     expect(wrapper.get('[data-testid="delete-template-button"]').attributes('disabled')).toBeUndefined()
@@ -446,7 +493,7 @@ describe('WorkflowTemplateConfig', () => {
 
     const draftId = wrapper.get('[data-testid="template-id"]').text()
 
-    expect(createWorkflowTemplate).not.toHaveBeenCalled()
+    expect(createTemplateMock).not.toHaveBeenCalled()
     expect(draftId).toContain('draft-')
     expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(true)
     expect(wrapper.get('[data-testid="template-name-input"]').element.value).toBe('新建模版')
@@ -457,7 +504,7 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('creates the template only when saving a new draft', async () => {
-    createWorkflowTemplate.mockResolvedValue({
+    createTemplateMock.mockResolvedValue({
       success: true,
       data: {
         template_id: 'template-3',
@@ -479,15 +526,15 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="save-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(createWorkflowTemplate).toHaveBeenCalledTimes(1)
-    expect(createWorkflowTemplate.mock.calls[0][0].template_id).toMatch(/^template-\d+$/)
+    expect(createTemplateMock).toHaveBeenCalledTimes(1)
+    expect(createTemplateMock.mock.calls[0][0].template_id).toMatch(/^template-\d+$/)
     expect(wrapper.find(`[data-testid="template-item-${draftId}"]`).exists()).toBe(false)
     expect(wrapper.find('[data-testid="template-item-template-3"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('template-3')
   })
 
   it('keeps the draft selected when saving a new draft fails', async () => {
-    createWorkflowTemplate.mockRejectedValue(new Error('save failed'))
+    createTemplateMock.mockRejectedValue(new Error('save failed'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -524,12 +571,12 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="delete-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(deleteWorkflowTemplate).not.toHaveBeenCalled()
+    expect(deleteTemplateMock).not.toHaveBeenCalled()
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
   })
 
   it('saves step bindings with agentId and without executor.type', async () => {
-    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+    updateTemplateMock.mockImplementation(async (payload) => ({
       success: true,
       data: payload
     }))
@@ -548,8 +595,8 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="save-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(updateWorkflowTemplate).toHaveBeenCalledTimes(1)
-    const savedPayload = updateWorkflowTemplate.mock.calls[0][0]
+    expect(updateTemplateMock).toHaveBeenCalledTimes(1)
+    const savedPayload = updateTemplateMock.mock.calls[0][0]
 
     expect(savedPayload.template_id).toBe('release-workflow-v1')
     expect(savedPayload.name).toBe('发布工作流-已更新')
@@ -593,7 +640,7 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('does not report missing agents when agent loading fails', async () => {
-    getAgents.mockRejectedValueOnce(new Error('agent service unavailable'))
+    agentStoreMethods.fetchAgents.mockRejectedValueOnce(new Error('agent service unavailable'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -617,7 +664,7 @@ describe('WorkflowTemplateConfig', () => {
       ]
     }
 
-    getWorkflowTemplates.mockResolvedValue({
+    fetchTemplatesMock.mockResolvedValue({
       success: true,
       data: [defaultTemplate, customTemplate, bugfixTemplate]
     })
@@ -625,7 +672,7 @@ describe('WorkflowTemplateConfig', () => {
     const releaseDetail = createDeferred()
     const bugfixDetail = createDeferred()
 
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+    getWorkflowTemplateByIdMock.mockImplementation(async (templateId) => {
       if (templateId === 'workflow-v1') {
         return {
           success: true,
@@ -672,12 +719,12 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('keeps delete success when follow-up reload fails', async () => {
-    deleteWorkflowTemplate.mockResolvedValue({
+    deleteTemplateMock.mockResolvedValue({
       success: true,
       data: null
     })
 
-    getWorkflowTemplates
+    fetchTemplatesMock
       .mockResolvedValueOnce({
         success: true,
         data: [defaultTemplate, customTemplate]
@@ -692,8 +739,8 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="delete-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(deleteWorkflowTemplate).toHaveBeenCalledWith('release-workflow-v1')
-    expect(ElMessage.success).toHaveBeenCalledWith('工作流模板已删除')
+    expect(deleteTemplateMock).toHaveBeenCalledWith('release-workflow-v1')
+    expect(ElMessage.success).toHaveBeenCalledWith('AgentTeam模板已删除')
     expect(ElMessage.error).toHaveBeenCalledWith('refresh failed')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
@@ -733,7 +780,7 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('updates card content from the inline editor and preserves template-level save flow', async () => {
-    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+    updateTemplateMock.mockImplementation(async (payload) => ({
       success: true,
       data: payload
     }))
@@ -750,15 +797,15 @@ describe('WorkflowTemplateConfig', () => {
     })
 
     expect(getStepCards(wrapper)[0].find('.workflow-step-card__name').text()).toBe('发布评审')
-    expect(getStepCards(wrapper)[0].find('.workflow-chip').text()).toContain('Codex Reviewer')
+    expect(getStepCards(wrapper)[0].find('.workflow-step-card__agent-name').text()).toContain('Codex Reviewer')
     expect(wrapper.find('.step-editor-section').exists()).toBe(true)
     expect(wrapper.findAll('.el-dialog-stub')).toHaveLength(0)
 
     await wrapper.get('[data-testid="save-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(updateWorkflowTemplate).toHaveBeenCalledTimes(1)
-    expect(updateWorkflowTemplate.mock.calls[0][0].steps[0]).toMatchObject({
+    expect(updateTemplateMock).toHaveBeenCalledTimes(1)
+    expect(updateTemplateMock.mock.calls[0][0].steps[0]).toMatchObject({
       id: 'requirement-design',
       name: '发布评审',
       instructionPrompt: '完成发布评审并同步结论。',
@@ -787,7 +834,7 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('inserts a new step after a card via trailing connector and keeps template-page validation rules intact', async () => {
-    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+    updateTemplateMock.mockImplementation(async (payload) => ({
       success: true,
       data: payload
     }))
@@ -813,8 +860,8 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="save-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(updateWorkflowTemplate).toHaveBeenCalledTimes(1)
-    expect(updateWorkflowTemplate.mock.calls[0][0].steps.map((step) => step.name)).toEqual([
+    expect(updateTemplateMock).toHaveBeenCalledTimes(1)
+    expect(updateTemplateMock.mock.calls[0][0].steps.map((step) => step.name)).toEqual([
       '需求设计',
       '测试',
       '回归验证'
@@ -826,7 +873,7 @@ describe('WorkflowTemplateConfig', () => {
       namedStep('requirement-design', '需求设计', '先完成需求分析。', 1),
       namedStep('implementation', '实现', '完成代码实现。', 3)
     ])
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+    getWorkflowTemplateByIdMock.mockImplementation(async (templateId) => {
       const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithTwoSteps
       return {
         success: true,
@@ -855,7 +902,7 @@ describe('WorkflowTemplateConfig', () => {
     const templateWithOneStep = createTemplateWithSteps([
       namedStep('requirement-design', '需求设计', '先完成需求分析。', 1)
     ])
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+    getWorkflowTemplateByIdMock.mockImplementation(async (templateId) => {
       const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithOneStep
       return {
         success: true,
@@ -882,12 +929,12 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('deletes a custom template and returns to the default template', async () => {
-    deleteWorkflowTemplate.mockResolvedValue({
+    deleteTemplateMock.mockResolvedValue({
       success: true,
       data: null
     })
 
-    getWorkflowTemplates
+    fetchTemplatesMock
       .mockResolvedValueOnce({
         success: true,
         data: [defaultTemplate, customTemplate]
@@ -905,8 +952,8 @@ describe('WorkflowTemplateConfig', () => {
     await wrapper.get('[data-testid="delete-template-button"]').trigger('click')
     await flushPromises()
 
-    expect(deleteWorkflowTemplate).toHaveBeenCalledWith('release-workflow-v1')
-    expect(getWorkflowTemplateById).toHaveBeenLastCalledWith('workflow-v1')
+    expect(deleteTemplateMock).toHaveBeenCalledWith('release-workflow-v1')
+    expect(getWorkflowTemplateByIdMock).toHaveBeenLastCalledWith('workflow-v1')
     expect(wrapper.get('[data-testid="template-id"]').text()).toContain('workflow-v1')
     expect(wrapper.find('[data-testid="template-item-release-workflow-v1"]').exists()).toBe(false)
   })
@@ -989,7 +1036,7 @@ describe('WorkflowTemplateConfig', () => {
   })
 
   it('reorders steps when drag end handler moves selected step', async () => {
-    updateWorkflowTemplate.mockImplementation(async (payload) => ({
+    updateTemplateMock.mockImplementation(async (payload) => ({
       success: true,
       data: payload
     }))
@@ -999,7 +1046,7 @@ describe('WorkflowTemplateConfig', () => {
       namedStep('implementation', '实现', '完成代码实现。', 3),
       namedStep('testing', '测试', '执行测试。', 3)
     ])
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+    getWorkflowTemplateByIdMock.mockImplementation(async (templateId) => {
       const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithThreeSteps
       return {
         success: true,
@@ -1041,7 +1088,7 @@ describe('WorkflowTemplateConfig', () => {
       namedStep('implementation', '实现', '完成代码实现。', 3),
       namedStep('testing', '测试', '执行测试。', 3)
     ])
-    getWorkflowTemplateById.mockImplementation(async (templateId) => {
+    getWorkflowTemplateByIdMock.mockImplementation(async (templateId) => {
       const template = templateId === defaultTemplate.template_id ? defaultTemplate : templateWithThreeSteps
       return {
         success: true,
@@ -1082,7 +1129,7 @@ describe('WorkflowTemplateConfig', () => {
       await copyBtn.trigger('click')
       await flushPromises()
 
-      expect(createWorkflowTemplate).not.toHaveBeenCalled()
+      expect(createTemplateMock).not.toHaveBeenCalled()
 
       const draftId = wrapper.get('[data-testid="template-id"]').text()
       expect(draftId).toContain('draft-')
@@ -1122,7 +1169,7 @@ describe('WorkflowTemplateConfig', () => {
 
   describe('template list reorder', () => {
     it('calls reorderWorkflowTemplates when template is dragged to a new position', async () => {
-      reorderWorkflowTemplates.mockResolvedValue({ success: true, data: [] })
+      reorderTemplatesMock.mockResolvedValue({ success: true, data: [] })
 
       const wrapper = mountView()
       await flushPromises()
@@ -1138,8 +1185,8 @@ describe('WorkflowTemplateConfig', () => {
       await wrapper.vm.onTemplateDragEnd({ oldIndex: 1, newIndex: 0 })
       await flushPromises()
 
-      expect(reorderWorkflowTemplates).toHaveBeenCalledTimes(1)
-      const calledWith = reorderWorkflowTemplates.mock.calls[0][0]
+      expect(reorderTemplatesMock).toHaveBeenCalledTimes(1)
+      const calledWith = reorderTemplatesMock.mock.calls[0][0]
       expect(calledWith).toHaveLength(2)
       expect(calledWith[0].template_id).toBe('release-workflow-v1')
       expect(calledWith[1].template_id).toBe('workflow-v1')
@@ -1152,11 +1199,12 @@ describe('WorkflowTemplateConfig', () => {
       await wrapper.vm.onTemplateDragEnd({ oldIndex: 0, newIndex: 0 })
       await flushPromises()
 
-      expect(reorderWorkflowTemplates).not.toHaveBeenCalled()
+      expect(reorderTemplatesMock).not.toHaveBeenCalled()
+      expect(reorderTemplatesMock).not.toHaveBeenCalled()
     })
 
     it('reloads template list when reorder API fails', async () => {
-      reorderWorkflowTemplates.mockRejectedValue(new Error('Network error'))
+      reorderTemplatesMock.mockRejectedValue(new Error('Network error'))
 
       const wrapper = mountView()
       await flushPromises()
@@ -1168,8 +1216,8 @@ describe('WorkflowTemplateConfig', () => {
       await wrapper.vm.onTemplateDragEnd({ oldIndex: 1, newIndex: 0 })
       await flushPromises()
 
-      // Should have called getWorkflowTemplates again to reload
-      expect(getWorkflowTemplates).toHaveBeenCalledTimes(2)
+      // Should have called fetchTemplates again to reload
+      expect(fetchTemplatesMock).toHaveBeenCalledTimes(2)
     })
   })
 })

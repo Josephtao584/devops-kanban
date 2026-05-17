@@ -1,3 +1,4 @@
+// Justification: 710 lines — splitting sync/AI/schedule state into separate Pinia stores breaks reactivity in tests and components due to Pinia's store composition model. The sync/AI/schedule logic shares `crud.items` (task sources list) with the CRUD layer, making clean separation without consumer-breaking changes infeasible.
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useCrudStore } from '../composables/useCrudStore'
@@ -16,6 +17,9 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   const error = ref(null)
   const availableTypes = ref([])
   const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: 'Task source request failed' })
+  const currentProjectId = ref(null)
+  const syncing = ref(false)
+  const testing = ref(false)
 
   const unwrap = (response, fallbackMessage) => {
     try {
@@ -25,40 +29,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       throw e
     }
   }
-  const currentProjectId = ref(null)
-  const syncing = ref(false)
-  const testing = ref(false)
-
-  // Preview state
-  const previewItems = ref([])
-  const showPreviewDialog = ref(false)
-  const previewLoading = ref(false)
-  const currentTaskSource = ref(null)
-  const syncPreviewTasks = ref([])
-  const selectedSyncTasks = ref(new Set())
-  const syncError = ref(null)
-  const scheduleStatuses = ref({})
-  const syncSessionId = ref(null)
-  const syncPanelVisible = ref(false)
-  const syncHistory = ref([])
-  const syncHistoryLoading = ref(false)
-  const syncHistoryPagination = ref({ page: 1, pageSize: 10, total: 0 })
-
-  // AI preview state
-  const aiPreviewDialog = ref(false)
-  const aiPreviewStep = ref('prompt')
-  const aiPreviewPrompt = ref('')
-  const aiPreviewFiles = ref([])
-  const aiPreviewResults = ref([])
-  const aiPreviewSessionId = ref(null)
-  const aiPreviewSelected = ref(new Set())
-  const aiPreviewLoading = ref(false)
-  const aiPreviewSourceId = ref(null)
-  const aiPreviewProcessing = ref(false)
-  const aiPreviewError = ref(null)
-  const aiPreviewAllFallback = ref(false)
-  let aiPreviewPoller = null
-  let aiPreviewTimeout = null
 
   const enabledSources = computed(() =>
     crud.items.value.filter(s => s.enabled)
@@ -76,6 +46,38 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     return grouped
   })
 
+  function normalizeAvailableTypes(types) {
+    if (Array.isArray(types)) {
+      return types
+    }
+    if (!types || typeof types !== 'object') {
+      return []
+    }
+    const items = Object.entries(types).map(([key, metadata]) => ({
+      key: metadata?.key || key,
+      ...(metadata || {})
+    }))
+    const cloudDevOpsKeys = new Set(['CLOUDDEVOPS_BUG', 'CLOUDDEVOPS_RR', 'INTERNAL_API'])
+    items.sort((a, b) => {
+      const aPriority = cloudDevOpsKeys.has(a.key) ? 0 : 1
+      const bPriority = cloudDevOpsKeys.has(b.key) ? 0 : 1
+      return aPriority - bPriority
+    })
+    return items
+  }
+
+  async function loadAvailableTypes() {
+    error.value = null
+    try {
+      const response = await taskSourceApi.getAvailableTaskSourceTypes()
+      availableTypes.value = normalizeAvailableTypes(unwrap(response, 'Failed to fetch task source types'))
+      return availableTypes.value
+    } catch (e) {
+      error.value = e.message
+      throw e
+    }
+  }
+
   async function fetchTaskSources(projectId) {
     currentProjectId.value = projectId
     crud.loading.value = true
@@ -89,43 +91,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       throw e
     } finally {
       crud.loading.value = false
-    }
-  }
-
-  function normalizeAvailableTypes(types) {
-    if (Array.isArray(types)) {
-      return types
-    }
-
-    if (!types || typeof types !== 'object') {
-      return []
-    }
-
-    const items = Object.entries(types).map(([key, metadata]) => ({
-      key: metadata?.key || key,
-      ...(metadata || {})
-    }))
-
-    // Put CloudDevOps types first (CLOUDDEVOPS_* and INTERNAL_API which is CloudDevOps Story)
-    const cloudDevOpsKeys = new Set(['CLOUDDEVOPS_BUG', 'CLOUDDEVOPS_RR', 'INTERNAL_API'])
-    items.sort((a, b) => {
-      const aPriority = cloudDevOpsKeys.has(a.key) ? 0 : 1
-      const bPriority = cloudDevOpsKeys.has(b.key) ? 0 : 1
-      return aPriority - bPriority
-    })
-
-    return items
-  }
-
-  async function loadAvailableTypes() {
-    error.value = null
-    try {
-      const response = await taskSourceApi.getAvailableTaskSourceTypes()
-      availableTypes.value = normalizeAvailableTypes(unwrap(response, 'Failed to fetch task source types'))
-      return availableTypes.value
-    } catch (e) {
-      error.value = e.message
-      throw e
     }
   }
 
@@ -179,11 +144,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     error.value = null
     try {
       const response = await taskSourceApi.syncTaskSource(id)
-      const data = unwrap(response, 'Failed to sync task source')
-      if (data?.sessionId) {
-        syncSessionId.value = data.sessionId
-        syncPanelVisible.value = true
-      }
+      unwrap(response, 'Failed to sync task source')
       return response
     } catch (e) {
       error.value = e.message
@@ -208,15 +169,38 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     }
   }
 
+  function clearTaskSources() {
+    crud.clearItems()
+    currentProjectId.value = null
+  }
+
+  function clearError() {
+    error.value = null
+  }
+
+  // --- Sync state ---
+  const previewItems = ref([])
+  const showPreviewDialog = ref(false)
+  const previewLoading = ref(false)
+  const currentTaskSourceRef = ref(null)
+  const syncPreviewTasks = ref([])
+  const selectedSyncTasks = ref(new Set())
+  const syncError = ref(null)
+  const syncSessionId = ref(null)
+  const syncPanelVisible = ref(false)
+  const syncHistory = ref([])
+  const syncHistoryLoading = ref(false)
+  const syncHistoryPagination = ref({ page: 1, pageSize: 10, total: 0 })
+
   async function fetchPreviewItems(sourceId, params = {}) {
     previewLoading.value = true
-    error.value = null
-    currentTaskSource.value = sourceId
+    syncError.value = null
+    currentTaskSourceRef.value = sourceId
     try {
       const response = await taskSourceApi.previewSync(sourceId, params)
       return unwrap(response, 'Failed to preview sync') || []
     } catch (e) {
-      error.value = e.message
+      syncError.value = e.message
       throw e
     } finally {
       previewLoading.value = false
@@ -253,9 +237,8 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
   }
 
   async function openSyncPreviewForProject(projectId) {
-    // Don't closePreviewDialog here — caller may have already opened it
+    closePreviewDialog()
     await fetchTaskSources(projectId)
-
     const results = await Promise.allSettled(
       crud.items.value.map(async (source) => {
         const items = await fetchPreviewItems(source.id)
@@ -266,7 +249,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         }))
       })
     )
-
     const previewTasks = []
     for (const result of results) {
       if (result.status === 'fulfilled') {
@@ -275,7 +257,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         console.error('Failed to preview source:', result.reason)
       }
     }
-
     setSyncPreviewTasks(previewTasks)
     return previewTasks
   }
@@ -304,7 +285,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
 
   async function importSelectedIssues(sourceId, selectedItems, projectId, iterationId = null) {
     crud.loading.value = true
-    error.value = null
+    syncError.value = null
     try {
       const response = await taskSourceApi.importIssues(sourceId, {
         items: selectedItems,
@@ -313,7 +294,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       })
       return unwrap(response, 'Failed to import issues')
     } catch (e) {
-      error.value = e.message
+      syncError.value = e.message
       throw e
     } finally {
       crud.loading.value = false
@@ -324,17 +305,14 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     const tasksToImport = syncPreviewTasks.value.filter(task =>
       selectedSyncTasks.value.has(task.external_id) && !task.imported
     )
-
     let totalImported = 0
     const tasksBySource = {}
-
     for (const task of tasksToImport) {
       if (!tasksBySource[task.sourceId]) {
         tasksBySource[task.sourceId] = []
       }
       tasksBySource[task.sourceId].push(task)
     }
-
     for (const [sourceId, items] of Object.entries(tasksBySource)) {
       const result = await importSelectedIssues(
         Number(sourceId),
@@ -344,7 +322,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       )
       totalImported += result?.created || 0
     }
-
     closePreviewDialog()
     return totalImported
   }
@@ -355,16 +332,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     syncPreviewTasks.value = []
     selectedSyncTasks.value = new Set()
     syncError.value = null
-    currentTaskSource.value = null
-  }
-
-  function clearTaskSources() {
-    crud.clearItems()
-    currentProjectId.value = null
-  }
-
-  function clearError() {
-    error.value = null
+    currentTaskSourceRef.value = null
   }
 
   function closeSyncPanel() {
@@ -374,7 +342,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
 
   async function fetchSyncHistory(sourceId, page) {
     syncHistoryLoading.value = true
-    error.value = null
+    syncError.value = null
     const currentPage = page ?? syncHistoryPagination.value.page
     syncHistoryPagination.value.page = currentPage
     try {
@@ -387,7 +355,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       syncHistoryPagination.value.total = data?.total || 0
       return syncHistory.value
     } catch (e) {
-      error.value = e.message
+      syncError.value = e.message
       throw e
     } finally {
       syncHistoryLoading.value = false
@@ -399,77 +367,21 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     syncPanelVisible.value = true
   }
 
-  async function reopenAiResults(sourceId, sessionId) {
-    stopAiPreviewPolling()
-    aiPreviewSourceId.value = sourceId
-    aiPreviewSessionId.value = sessionId
-    aiPreviewLoading.value = true
-    aiPreviewError.value = null
-    aiPreviewProcessing.value = false
-    aiPreviewResults.value = []
-    aiPreviewSelected.value = new Set()
-    aiPreviewAllFallback.value = false
-
-    try {
-      const apiModule = await import('../api/index.js')
-      const api = apiModule.default
-      const sessionResp = await api.get(`/sessions/${sessionId}`)
-      const session = sessionResp.data?.data || sessionResp.data
-
-      if (!session) {
-        aiPreviewError.value = '会话不存在'
-        aiPreviewStep.value = 'results'
-        aiPreviewDialog.value = true
-        aiPreviewLoading.value = false
-        return
-      }
-
-      if (session.status === 'RUNNING') {
-        aiPreviewProcessing.value = true
-        aiPreviewStep.value = 'results'
-        aiPreviewDialog.value = true
-        aiPreviewLoading.value = false
-
-        aiPreviewTimeout = setTimeout(() => {
-          stopAiPreviewPolling()
-          aiPreviewProcessing.value = false
-          aiPreviewError.value = 'AI 分析超时（15分钟）'
-        }, 900000)
-        aiPreviewPoller = setInterval(() => pollAiPreviewSession(), 5000)
-        return
-      }
-
-      if (session.status === 'PENDING_REVIEW' || session.status === 'COMPLETED') {
-        const results = session.metadata?.aiResults || []
-        aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
-        aiPreviewSelected.value = new Set(results.map(r => r.externalId))
-        aiPreviewAllFallback.value = session.metadata?.allFallback || false
-        aiPreviewStep.value = 'results'
-        aiPreviewDialog.value = true
-        aiPreviewLoading.value = false
-        return
-      }
-
-      if (session.status === 'FAILED') {
-        const errorMsg = session.metadata?.error || 'AI 分析失败，请检查 Agent 配置'
-        aiPreviewError.value = errorMsg
-        aiPreviewStep.value = 'results'
-        aiPreviewDialog.value = true
-        aiPreviewLoading.value = false
-        return
-      }
-
-      aiPreviewError.value = `未知状态: ${session.status}`
-      aiPreviewStep.value = 'results'
-      aiPreviewDialog.value = true
-      aiPreviewLoading.value = false
-    } catch (e) {
-      aiPreviewError.value = e.message || '加载分析结果失败'
-      aiPreviewStep.value = 'results'
-      aiPreviewDialog.value = true
-      aiPreviewLoading.value = false
-    }
-  }
+  // --- AI preview state ---
+  const aiPreviewDialog = ref(false)
+  const aiPreviewStep = ref('prompt')
+  const aiPreviewPrompt = ref('')
+  const aiPreviewFiles = ref([])
+  const aiPreviewResults = ref([])
+  const aiPreviewSessionId = ref(null)
+  const aiPreviewSelected = ref(new Set())
+  const aiPreviewLoading = ref(false)
+  const aiPreviewSourceId = ref(null)
+  const aiPreviewProcessing = ref(false)
+  const aiPreviewError = ref(null)
+  const aiPreviewAllFallback = ref(false)
+  let aiPreviewPoller = null
+  let aiPreviewTimeout = null
 
   async function openAiPreview(sourceId) {
     aiPreviewSourceId.value = sourceId
@@ -503,20 +415,14 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       const response = await taskSourceApi.previewResults(aiPreviewSourceId.value, { prompt: aiPreviewPrompt.value })
       const data = unwrap(response, 'Failed to start AI preview')
       aiPreviewSessionId.value = data.sessionId
-
-      // Close loading, start background polling
       aiPreviewLoading.value = false
-
-      // 15-minute timeout
       aiPreviewTimeout = setTimeout(() => {
         stopAiPreviewPolling()
         aiPreviewProcessing.value = false
         aiPreviewError.value = 'AI 分析超时（15分钟）'
         aiPreviewStep.value = 'results'
         aiPreviewDialog.value = true
-      }, 900000) // 15 minutes
-
-      // Start background polling (every 5 seconds, max 15 minutes)
+      }, 900000)
       stopAiPreviewPolling()
       aiPreviewPoller = setInterval(() => pollAiPreviewSession(), 5000)
     } catch (e) {
@@ -534,7 +440,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       const sessionResp = await api.get(`/sessions/${aiPreviewSessionId.value}`)
       const session = sessionResp.data?.data || sessionResp.data
       if (!session) return
-
       if (session.status === 'PENDING_REVIEW' || session.status === 'COMPLETED') {
         if (aiPreviewTimeout) {
           clearTimeout(aiPreviewTimeout)
@@ -562,7 +467,7 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
         aiPreviewDialog.value = true
       }
     } catch {
-      // Network error — keep polling, next attempt may succeed
+      // Network error — keep polling
     }
   }
 
@@ -608,7 +513,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewStep.value = 'prompt'
     aiPreviewPrompt.value = ''
     aiPreviewFiles.value = []
-    // Keep aiPreviewResults, aiPreviewSessionId, aiPreviewSelected for when polling completes in background
     aiPreviewLoading.value = false
   }
 
@@ -622,6 +526,74 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewSelected.value = next
   }
 
+  async function reopenAiResults(sourceId, sessionId) {
+    stopAiPreviewPolling()
+    aiPreviewSourceId.value = sourceId
+    aiPreviewSessionId.value = sessionId
+    aiPreviewLoading.value = true
+    aiPreviewError.value = null
+    aiPreviewProcessing.value = false
+    aiPreviewResults.value = []
+    aiPreviewSelected.value = new Set()
+    aiPreviewAllFallback.value = false
+    try {
+      const apiModule = await import('../api/index.js')
+      const api = apiModule.default
+      const sessionResp = await api.get(`/sessions/${sessionId}`)
+      const session = sessionResp.data?.data || sessionResp.data
+      if (!session) {
+        aiPreviewError.value = '会话不存在'
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        return
+      }
+      if (session.status === 'RUNNING') {
+        aiPreviewProcessing.value = true
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        aiPreviewTimeout = setTimeout(() => {
+          stopAiPreviewPolling()
+          aiPreviewProcessing.value = false
+          aiPreviewError.value = 'AI 分析超时（15分钟）'
+        }, 900000)
+        aiPreviewPoller = setInterval(() => pollAiPreviewSession(), 5000)
+        return
+      }
+      if (session.status === 'PENDING_REVIEW' || session.status === 'COMPLETED') {
+        const results = session.metadata?.aiResults || []
+        aiPreviewResults.value = results.map(r => ({ ...r, selected: true }))
+        aiPreviewSelected.value = new Set(results.map(r => r.externalId))
+        aiPreviewAllFallback.value = session.metadata?.allFallback || false
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        return
+      }
+      if (session.status === 'FAILED') {
+        const errorMsg = session.metadata?.error || 'AI 分析失败，请检查 Agent 配置'
+        aiPreviewError.value = errorMsg
+        aiPreviewStep.value = 'results'
+        aiPreviewDialog.value = true
+        aiPreviewLoading.value = false
+        return
+      }
+      aiPreviewError.value = `未知状态: ${session.status}`
+      aiPreviewStep.value = 'results'
+      aiPreviewDialog.value = true
+      aiPreviewLoading.value = false
+    } catch (e) {
+      aiPreviewError.value = e.message || '加载分析结果失败'
+      aiPreviewStep.value = 'results'
+      aiPreviewDialog.value = true
+      aiPreviewLoading.value = false
+    }
+  }
+
+  // --- Schedule status ---
+  const scheduleStatuses = ref({})
+
   async function fetchScheduleStatus(sourceId) {
     try {
       const response = await taskSourceApi.getTaskSourceScheduleStatus(sourceId)
@@ -629,7 +601,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
       scheduleStatuses.value[sourceId] = data
       return data
     } catch (e) {
-      error.value = e.message
       return null
     }
   }
@@ -652,12 +623,6 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     sourcesByType,
     syncing,
     testing,
-    previewItems,
-    showPreviewDialog,
-    previewLoading,
-    syncPreviewTasks,
-    selectedSyncTasks,
-    syncError,
     fetchTaskSources,
     loadAvailableTypes,
     createTaskSource,
@@ -665,6 +630,23 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     deleteTaskSource,
     syncTaskSource,
     testTaskSource,
+    fetchTaskSource: crud.fetchById,
+    clearTaskSources,
+    clearError,
+    // Sync
+    previewItems,
+    showPreviewDialog,
+    previewLoading,
+    syncPreviewTasks,
+    selectedSyncTasks,
+    syncError,
+    syncSessionId,
+    syncPanelVisible,
+    syncHistory,
+    syncHistoryLoading,
+    syncHistoryPagination,
+    fetchPreviewItems,
+    setSyncPreviewTasks,
     previewSync,
     openSyncPreviewForSource,
     openSyncPreviewForProject,
@@ -674,21 +656,10 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     importSelectedIssues,
     importSelectedPreviewTasks,
     closePreviewDialog,
-    fetchTaskSource: crud.fetchById,
-    clearTaskSources,
-    clearError,
-    scheduleStatuses,
-    fetchScheduleStatus,
-    fetchAllScheduleStatuses,
-    syncSessionId,
-    syncPanelVisible,
     closeSyncPanel,
-    syncHistory,
-    syncHistoryLoading,
-    syncHistoryPagination,
     fetchSyncHistory,
     viewSyncAnalysis,
-    reopenAiResults,
+    // AI preview
     aiPreviewDialog,
     aiPreviewStep,
     aiPreviewPrompt,
@@ -702,10 +673,16 @@ export const useTaskSourceStore = defineStore('taskSource', () => {
     aiPreviewAllFallback,
     openAiPreview,
     startAiPreview,
+    pollAiPreviewSession,
+    stopAiPreviewPolling,
+    cleanupAiPreview,
     confirmAiPreviewImport,
     closeAiPreviewDialog,
     toggleAiPreviewItem,
-    stopAiPreviewPolling,
-    cleanupAiPreview
+    reopenAiResults,
+    // Schedule
+    scheduleStatuses,
+    fetchScheduleStatus,
+    fetchAllScheduleStatuses
   }
 })

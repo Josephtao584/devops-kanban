@@ -1,0 +1,5 @@
+{
+  "url": "https://new.example.com/api/send",
+  "receiver": "new-user",
+  "auth": "new-token"
+}

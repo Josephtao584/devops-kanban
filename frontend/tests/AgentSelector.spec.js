@@ -2,9 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const mockGetAgents = vi.hoisted(() => vi.fn())
-vi.mock('../src/api/agent', () => ({
-  getAgents: mockGetAgents
+const mockFetchAgents = vi.hoisted(() => vi.fn())
+const mockAgents = vi.hoisted(() => [])
+vi.mock('../src/stores/agentStore', () => ({
+  useAgentStore: () => ({
+    agents: mockAgents,
+    fetchAgents: mockFetchAgents
+  })
 }))
 
 const mockElMessage = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
@@ -63,7 +67,7 @@ describe('AgentSelector', () => {
   })
 
   it('loads agents when dialog is opened', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: true,
       data: [{ id: 1, name: 'Agent A', executorType: 'CLAUDE_CODE' }]
     })
@@ -72,11 +76,11 @@ describe('AgentSelector', () => {
     await nextTick()
     await nextTick()
 
-    expect(mockGetAgents).toHaveBeenCalled()
+    expect(mockFetchAgents).toHaveBeenCalled()
   })
 
   it('shows loading state while fetching', async () => {
-    mockGetAgents.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({
+    mockFetchAgents.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({
       success: true,
       data: []
     }), 100)))
@@ -91,7 +95,7 @@ describe('AgentSelector', () => {
   })
 
   it('shows empty state when no agents', async () => {
-    mockGetAgents.mockResolvedValue({ success: true, data: [] })
+    mockFetchAgents.mockResolvedValue({ success: true, data: [] })
 
     const wrapper = mountComponent()
     await nextTick()
@@ -102,7 +106,7 @@ describe('AgentSelector', () => {
   })
 
   it('auto-selects when only one agent', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: true,
       data: [{ id: 3, name: 'Only Agent', executorType: 'CLAUDE_CODE' }]
     })
@@ -116,7 +120,7 @@ describe('AgentSelector', () => {
   })
 
   it('does not auto-select with multiple agents', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: true,
       data: [
         { id: 1, name: 'Agent A', executorType: 'CLAUDE_CODE' },
@@ -133,7 +137,7 @@ describe('AgentSelector', () => {
   })
 
   it('emits select when confirmSelect is called', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: true,
       data: [
         { id: 1, name: 'Agent A', executorType: 'CLAUDE_CODE' },
@@ -161,7 +165,7 @@ describe('AgentSelector', () => {
   })
 
   it('confirmSelect does nothing without selection', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: true,
       data: [{ id: 1, name: 'Agent A', executorType: 'CLAUDE_CODE' }]
     })
@@ -178,7 +182,7 @@ describe('AgentSelector', () => {
   })
 
   it('handleClose resets state', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: true,
       data: [{ id: 1, name: 'Agent A', executorType: 'CLAUDE_CODE' }]
     })
@@ -197,7 +201,7 @@ describe('AgentSelector', () => {
   })
 
   it('handles API error gracefully', async () => {
-    mockGetAgents.mockResolvedValue({
+    mockFetchAgents.mockResolvedValue({
       success: false,
       message: 'Server error'
     })
@@ -211,12 +215,12 @@ describe('AgentSelector', () => {
   })
 
   it('skips loading when projectId is null', async () => {
-    mockGetAgents.mockResolvedValue({ success: true, data: [] })
+    mockFetchAgents.mockResolvedValue({ success: true, data: [] })
 
     const wrapper = mountComponent({ projectId: null })
     await nextTick()
     await nextTick()
 
-    expect(mockGetAgents).not.toHaveBeenCalled()
+    expect(mockFetchAgents).not.toHaveBeenCalled()
   })
 })
