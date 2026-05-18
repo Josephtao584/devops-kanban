@@ -16,11 +16,12 @@
                   <path d="M12 20 L4 8 L9 8 L9 2 L15 2 L15 8 L20 8 Z"></path>
                 </svg>
               </div>
+              <!-- Project name above the card -->
+              <span v-if="node.project_name" class="dag-node-project-label">{{ node.project_name }}</span>
               <div class="dag-node" @click="emit('select', node)">
                 <span class="dag-node-status">{{ statusIcon(node) }}</span>
                 <div class="dag-node-texts">
                   <span class="dag-node-title">{{ node.title }}</span>
-                  <span v-if="node.project_name" class="dag-node-project">{{ node.project_name }}</span>
                 </div>
               </div>
             </div>
@@ -194,7 +195,7 @@ const dagLayers = computed(() => {
   font-size: 13px;
 }
 
-.pipeline-inline .dag-node-project {
+.pipeline-inline .dag-node-project-label {
   font-size: 11px;
 }
 
@@ -313,9 +314,9 @@ const dagLayers = computed(() => {
 }
 
 .dag-node-wrapper.running .dag-node {
-  background: rgba(245, 158, 11, 0.14);
-  border-color: rgba(245, 158, 11, 0.55);
-  color: #b45309;
+  background: rgba(16, 185, 129, 0.10);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #059669;
 }
 
 .dag-node-wrapper.pending .dag-node,
@@ -353,7 +354,7 @@ const dagLayers = computed(() => {
   width: 100%;
 }
 
-.dag-node-project {
+.dag-node-project-label {
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 400;
@@ -361,6 +362,18 @@ const dagLayers = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: 100%;
+  text-align: center;
+  display: block;
+}
+
+.dag-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
   width: 100%;
 }
 </style>

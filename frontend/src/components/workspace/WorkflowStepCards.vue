@@ -42,12 +42,8 @@
             </svg>
           </div>
           <div class="run-separator-text">
-            {{
-              t('workflow.loopSeparator', {
-                fromStep: separatorFromStepName(item),
-                failedStep: separatorFailedStepName(item)
-              })
-            }}
+            <div class="run-separator-line">回退到 {{ separatorFromStepName(item) }}</div>
+            <div class="run-separator-line run-separator-reason">因 {{ separatorFailedStepName(item) }} 失败</div>
             <el-tooltip
               v-if="item.loopFailureContext?.error"
               :content="item.loopFailureContext.error"
@@ -161,6 +157,18 @@ function decorateStep(rawStep, index, run) {
   }
 }
 
+function cutoffAfterFailure(steps) {
+  const failedIdx = steps.findIndex(s => s?.status === 'FAILED')
+  return failedIdx === -1 ? Infinity : failedIdx
+}
+
+function shouldHideStepAfterFailure(step, index, steps) {
+  if (step?.status === 'SKIPPED') return true
+  const limit = cutoffAfterFailure(steps)
+  if (index > limit && step.status === 'PENDING') return true
+  return false
+}
+
 const timeline = computed(() => {
   const items = []
   if (Array.isArray(props.runs) && props.runs.length) {
@@ -197,7 +205,7 @@ const timeline = computed(() => {
       }
       const runSteps = Array.isArray(run.steps) ? run.steps : []
       runSteps.forEach((step, index) => {
-        if (step?.status === 'SKIPPED') return
+        if (shouldHideStepAfterFailure(step, index, runSteps)) return
         items.push({
           kind: 'step',
           runId: run.id,
@@ -213,6 +221,7 @@ const timeline = computed(() => {
   // Legacy single-run path: render the prepared `steps` array.
   const legacy = Array.isArray(props.steps) ? props.steps : []
   legacy.forEach((step, index) => {
+    if (shouldHideStepAfterFailure(step, index, legacy)) return
     items.push({
       kind: 'step',
       runId: null,
@@ -362,8 +371,18 @@ function handleStepClick(step) {
 
 .run-separator-text {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.run-separator-line {
+  line-height: 1.3;
+}
+
+.run-separator-reason {
+  font-weight: 400;
+  font-size: 10px;
+  opacity: 0.75;
 }
 
 .run-separator-info {

@@ -716,7 +716,7 @@ export default {
     noWorkflow: '暂无AgentTeam',
     progress: '进度',
     stages: '阶段',
-    loopBackButton: '回退到…',
+    loopBackButton: '回退',
     loopAgainButton: '再循环一轮',
     loopBackDialogTitle: '回退到指定步骤',
     loopBackPickStep: '选择回退目标',
