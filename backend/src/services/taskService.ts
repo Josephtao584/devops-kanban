@@ -22,6 +22,11 @@ interface WorktreeResult {
   worktree_status: string;
 }
 
+export interface BatchCreateResult {
+  task: TaskEntity;
+  suggestion: Suggestion;
+}
+
 class TaskService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
@@ -456,7 +461,7 @@ class TaskService {
     suggestions: Suggestion[];
     skip_indices?: number[];
     existing_task_id_by_index?: Record<number, number>;
-  }): Promise<{ task: TaskEntity; suggestion: Suggestion }[]> {
+  }): Promise<BatchCreateResult[]> {
     const skipIndices = new Set(input.skip_indices ?? []);
     const existingByIndex = input.existing_task_id_by_index ?? {};
 
@@ -494,7 +499,7 @@ class TaskService {
     const parent = await this.taskRepo.findById(input.parent_task_id);
     if (!parent) throw new Error(`parent task ${input.parent_task_id} not found`);
 
-    const created: { task: TaskEntity; suggestion: Suggestion }[] = [];
+    const created: BatchCreateResult[] = [];
     for (let i = 0; i < enabled.length; i++) {
       const { s } = enabled[i]!;
       const deps: number[] = [];

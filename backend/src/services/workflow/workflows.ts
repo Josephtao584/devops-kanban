@@ -5,7 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep, continueWorkflowStepWithAnswer } from './workflowStepExecutor.js';
-import type { WorkflowInstanceEntity, WorkflowRunEntity } from '../../types/entities.js';
+import type { Suggestion, WorkflowInstanceEntity, WorkflowRunEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
 import { logger } from '../../utils/logger.js';
 
@@ -368,6 +368,7 @@ export function buildWorkflowFromInstance(
                 target_repo_url: linkedId ? null : (raw.target_repo_url ?? null),
                 depends_on_indices: Array.isArray(raw.depends_on_indices) ? raw.depends_on_indices : [],
                 enabled: raw.enabled !== false,
+                // AI can't infer worktree/auto-start preferences — default to true and let the user override in the split-suggestion card.
                 create_worktree: true,
                 auto_start: true,
               };
@@ -383,17 +384,7 @@ export function buildWorkflowFromInstance(
               parent_task_id: number;
               workflow_run_id: number;
               status: 'PENDING';
-              suggestions: Array<{
-                title: string;
-                description: string;
-                template_id: string | null;
-                linked_project_id: number | null;
-                target_repo_url: string | null;
-                depends_on_indices: number[];
-                enabled: boolean;
-                create_worktree: boolean;
-                auto_start: boolean;
-              }>;
+              suggestions: Suggestion[];
               confirmed_at: string | null;
             };
             await splitSuggestionRepository.create(splitEntity);
