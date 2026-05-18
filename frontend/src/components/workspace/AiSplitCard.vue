@@ -299,6 +299,9 @@ function onConfirm() {
 function onDismiss() {
   emit('dismiss')
 }
+
+// Exposed for component tests
+defineExpose({ updateField, onAddTask, onWorkspaceSelect })
 </script>
 
 <style scoped>
