@@ -308,8 +308,10 @@ async function defaultSpawnImpl({
 
     if (abortSignal) {
       if (abortSignal.aborted) {
-        logger.info('OpenCodeStepRunner', 'Already aborted, killing process immediately');
-        killProcessTree(proc);
+        // Stale abort signal from a cancelled Mastra Run — Mastra reuses the cached
+        // Run instance whose AbortController was already aborted during cancel().
+        // Do NOT kill the process; let the retry execution proceed normally.
+        logger.warn('OpenCodeStepRunner', `Abort signal already set (stale from cancelled run), ignoring to allow retry. pid: ${proc.pid}`);
       } else {
         const abortHandler = () => {
           logger.info('OpenCodeStepRunner', `Abort event received, killing process. pid: ${proc.pid}`);

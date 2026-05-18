@@ -399,7 +399,7 @@ function handleStepClick(step) {
 /* Agent Card */
 .agent-card {
   position: relative;
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid var(--border-color);
@@ -411,6 +411,18 @@ function handleStepClick(step) {
   cursor: pointer;
   display: flex;
   flex-direction: column;
+}
+
+.agent-card.pending {
+  background: var(--bg-primary);
+}
+
+.agent-card.pending .agent-card-footer {
+  background: transparent;
+}
+
+.agent-card.pending .agent-card-footer::before {
+  background: var(--border-color);
 }
 
 .agent-card:hover {
@@ -468,7 +480,7 @@ function handleStepClick(step) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .agent-card-name {
@@ -486,6 +498,7 @@ function handleStepClick(step) {
   font-size: 11.5px;
   color: var(--text-muted);
   font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -534,18 +547,28 @@ function handleStepClick(step) {
 
 /* Card footer: step name + status */
 .agent-card-footer {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 8px 14px;
-  border-top: 1px solid var(--border-color);
   background: linear-gradient(180deg, rgba(37, 198, 201, 0.025), rgba(37, 198, 201, 0.06));
 }
 
+.agent-card-footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: #d1d5db;
+}
+
 .agent-step-name {
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
   flex: 1;
   min-width: 0;
@@ -555,7 +578,7 @@ function handleStepClick(step) {
 }
 
 .agent-step-status {
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;

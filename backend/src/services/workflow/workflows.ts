@@ -551,7 +551,7 @@ export function buildWorkflowFromInstance(
                 },
                 inputData,
                 workflowInstance,
-                abortSignal,
+                abortSignal: signalAlreadyAborted ? undefined : abortSignal,
                 upstreamStepIds: previousStepId ? [previousStepId] : [],
                 isFirstStep: isFirst,
                 ...(stepLoopContextText ? { loopContextText: stepLoopContextText } : {}),
