@@ -349,9 +349,9 @@ function handleStepClick(step) {
   gap: 8px;
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px dashed #c7d2fe;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02));
-  color: #4338ca;
+  border: 1px dashed #fde68a;
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.08), rgba(217, 119, 6, 0.02));
+  color: #1a1a1a;
   font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -363,7 +363,7 @@ function handleStepClick(step) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #6366f1;
+  color: #d97706;
   flex-shrink: 0;
 }
 
@@ -380,7 +380,7 @@ function handleStepClick(step) {
 .run-separator-reason {
   font-weight: 400;
   font-size: 10px;
-  opacity: 0.75;
+  color: #6b7280;
 }
 
 .run-separator-info {
@@ -390,7 +390,7 @@ function handleStepClick(step) {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #6366f1;
+  background: #d97706;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
