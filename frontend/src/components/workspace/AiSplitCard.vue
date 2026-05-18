@@ -69,13 +69,51 @@
               <el-button size="small" text type="danger" @click.stop="onDelete(index)">删除</el-button>
             </div>
           </div>
-          <div class="suggestion-meta">
-            <span class="meta-tag repo">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
-              </svg>
-              {{ repoLabel(item) }}
-            </span>
+          <div class="suggestion-meta-row">
+            <el-select
+              :model-value="workspaceSelectValue(item)"
+              size="small"
+              class="suggestion-workspace-select"
+              placeholder="选择工作空间"
+              @update:model-value="(val) => onWorkspaceSelect(index, val)"
+            >
+              <el-option label="当前项目" value="__current__" />
+              <el-option-group v-if="otherProjects.length" label="其他 Coplat 项目">
+                <el-option
+                  v-for="p in otherProjects"
+                  :key="p.id"
+                  :label="p.name"
+                  :value="`project:${p.id}`"
+                />
+              </el-option-group>
+              <el-option label="外部仓库 URL..." value="__external__" />
+            </el-select>
+            <el-input
+              v-if="item.target_repo_url != null"
+              :model-value="item.target_repo_url"
+              size="small"
+              class="suggestion-external-url"
+              placeholder="git@github.com:org/repo.git"
+              @update:model-value="(val) => updateField(index, 'target_repo_url', val || null)"
+            />
+            <label class="suggestion-toggle">
+              <input
+                type="checkbox"
+                :checked="item.create_worktree !== false"
+                @change="updateField(index, 'create_worktree', $event.target.checked)"
+              />
+              创建 worktree
+            </label>
+            <label class="suggestion-toggle" :class="{ disabled: !item.template_id }">
+              <input
+                type="checkbox"
+                :checked="(item.template_id != null) && (item.auto_start !== false)"
+                :disabled="!item.template_id"
+                @change="updateField(index, 'auto_start', $event.target.checked)"
+              />
+              自动启动
+              <span v-if="!item.template_id" class="suggestion-toggle-hint">先选 AgentTeam 模板</span>
+            </label>
             <span class="meta-tag dep" v-if="item.depends_on_indices && item.depends_on_indices.length">
               依赖: {{ dependencyLabel(item) }}
             </span>
@@ -114,7 +152,8 @@ const projectStore = useProjectStore()
 const props = defineProps({
   suggestion: { type: Object, default: null },
   taskId: { type: [String, Number], default: null },
-  embedded: { type: Boolean, default: false }
+  embedded: { type: Boolean, default: false },
+  parentProjectId: { type: [String, Number], default: null },
 })
 
 const emit = defineEmits(['update', 'confirm', 'dismiss'])
@@ -147,6 +186,10 @@ watch(() => props.suggestion, (val) => {
         .map((s, i) => (s?.enabled === false ? null : i))
         .filter((i) => i !== null)
     )
+    val.suggestions.forEach((s) => {
+      if (s.create_worktree === undefined) s.create_worktree = true
+      if (s.auto_start === undefined) s.auto_start = true
+    })
   } else {
     enabledIndices.value = new Set()
   }
@@ -172,9 +215,14 @@ function toggleEnabled(index) {
 
 function updateField(index, field, value) {
   if (!props.suggestion) return
-  const list = suggestions.value.map((s, i) =>
-    i === index ? { ...s, [field]: value } : s
-  )
+  const list = suggestions.value.map((s, i) => {
+    if (i !== index) return s
+    const next = { ...s, [field]: value }
+    if (field === 'template_id' && (value === null || value === '')) {
+      next.auto_start = false
+    }
+    return next
+  })
   emitSuggestions(list)
 }
 
@@ -204,18 +252,36 @@ function onAddTask() {
       target_repo_url: null,
       depends_on_indices: [],
       enabled: true,
+      create_worktree: true,
+      auto_start: true,
     },
   ]
   emitSuggestions(list)
 }
 
-function repoLabel(item) {
-  if (item.linked_project_id != null) {
-    const project = projectStore.projects.find(p => p.id === item.linked_project_id)
-    return project ? project.name : `项目 #${item.linked_project_id}`
-  }
-  if (item.target_repo_url) return item.target_repo_url
-  return '当前项目'
+const otherProjects = computed(() =>
+  projectStore.projects.filter((p) => p.id !== Number(props.parentProjectId))
+)
+
+function workspaceSelectValue(item) {
+  if (item.linked_project_id != null) return `project:${item.linked_project_id}`
+  if (item.target_repo_url != null) return '__external__'
+  return '__current__'
+}
+
+function onWorkspaceSelect(index, val) {
+  if (!props.suggestion) return
+  const list = suggestions.value.map((s, i) => {
+    if (i !== index) return s
+    if (val === '__current__') return { ...s, linked_project_id: null, target_repo_url: null }
+    if (val === '__external__') return { ...s, linked_project_id: null, target_repo_url: s.target_repo_url ?? '' }
+    if (typeof val === 'string' && val.startsWith('project:')) {
+      const projectId = Number(val.slice('project:'.length))
+      return { ...s, linked_project_id: projectId, target_repo_url: null }
+    }
+    return s
+  })
+  emitSuggestions(list)
 }
 
 function dependencyLabel(item) {
@@ -509,12 +575,6 @@ function onDismiss() {
   font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
 }
 
-.meta-tag.repo {
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-}
-
 .meta-tag.dep {
   color: var(--warning-strong);
   background: var(--warning-soft);
@@ -539,5 +599,49 @@ function onDismiss() {
 .split-footer-actions {
   display: flex;
   gap: 6px;
+}
+
+.suggestion-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding-left: 24px;
+  margin-top: 4px;
+}
+.suggestion-workspace-select {
+  width: 200px;
+  flex-shrink: 0;
+}
+.suggestion-external-url {
+  flex: 1;
+  min-width: 200px;
+}
+.suggestion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.suggestion-toggle input[type='checkbox'] {
+  accent-color: var(--accent-color);
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+.suggestion-toggle.disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+.suggestion-toggle.disabled input[type='checkbox'] {
+  cursor: not-allowed;
+}
+.suggestion-toggle-hint {
+  margin-left: 4px;
+  font-size: 10px;
+  font-style: italic;
 }
 </style>

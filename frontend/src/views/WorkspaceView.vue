@@ -422,6 +422,7 @@
       <AiSplitCard
         :suggestion="splitStore.pendingByTask.get(selectedTask?.id)"
         :task-id="selectedTask?.id"
+        :parent-project-id="selectedTask?.project_id"
         :embedded="true"
         @update="(suggestions) => selectedTask?.id && splitStore.updateSuggestions(selectedTask.id, suggestions)"
         @confirm="onConfirmSplitDialog"
