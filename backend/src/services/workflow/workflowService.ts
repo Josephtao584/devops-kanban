@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../../config/index.js';
 import { ensureExternalRepo } from '../../utils/git.js';
+import { writeErrorToFile } from './workflowSummaryWriter.js';
 import * as path from 'node:path';
 
 
@@ -316,12 +317,19 @@ class WorkflowService {
       let loopContext: { fromStepId: string; text: string } | undefined;
       if (run?.looped_from_step_id) {
         workflowInstance = cropInstanceForLoop(instance, run.looped_from_step_id);
+        let failureContext = run.loop_failure_context;
+        if (failureContext?.error && task.execution_path) {
+          const errorPath = await writeErrorToFile(task.execution_path, run.id, failureContext.failed_step_id, failureContext.error);
+          if (errorPath) {
+            failureContext = { ...failureContext, error: `错误内容已写入文件 ${errorPath}，请读取该文件获取完整错误信息。` };
+          }
+        }
         const priors = await collectPriorSummaries(this.workflowRunRepo, run.id, run.looped_from_step_id);
         loopContext = {
           fromStepId: run.looped_from_step_id,
           text: formatLoopContext({
             fromStepId: run.looped_from_step_id,
-            failureContext: run.loop_failure_context,
+            failureContext,
             priorSummaries: priors,
           }),
         };
