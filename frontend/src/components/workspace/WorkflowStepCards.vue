@@ -129,7 +129,7 @@ const STATUS_LABEL = {
   PENDING: '待执行'
 }
 
-function decorateStep(rawStep, index) {
+function decorateStep(rawStep, index, run) {
   // Steps coming from CurrentWorkflow.vue are already decorated; runs from the
   // /runs?task_id=X endpoint contain the raw entity shape, so we normalize here
   // to a unified rendering shape.
@@ -137,6 +137,15 @@ function decorateStep(rawStep, index) {
     return rawStep
   }
   const step = rawStep || {}
+  // Pre-assigned agent from the template snapshot. Lets us show the assigned
+  // agent on PENDING steps before any session exists, and on every iteration
+  // of a loop. Falls back to the runtime session-bound agent_id when the
+  // template snapshot isn't available (legacy runs).
+  const templateSteps = run?.workflow_template_snapshot?.steps || []
+  const templateStep = templateSteps.find(
+    (s) => s.id === step.step_id || s.step_id === step.step_id
+  )
+  const assignedAgentId = templateStep?.agentId ?? step.agent_id ?? null
   return {
     id: step.step_id || step.id || index,
     step_id: step.step_id || null,
@@ -147,7 +156,7 @@ function decorateStep(rawStep, index) {
     provider_session_id: step.provider_session_id || null,
     status: step.status,
     assembled_prompt: step.assembled_prompt || '',
-    agent_id: step.agent_id ?? null,
+    agent_id: assignedAgentId,
     raw: step
   }
 }
@@ -194,7 +203,7 @@ const timeline = computed(() => {
           runId: run.id,
           iteration: run.iteration,
           stepIndex: index,
-          step: decorateStep(step, index)
+          step: decorateStep(step, index, run)
         })
       })
     })
