@@ -35,7 +35,7 @@ async function setupFixture(suggestionTitle: string, suggestionFields: Suggestio
     git_url: undefined,
     local_path: undefined,
     env: {},
-  } as any);
+  });
   const parent = await taskRepository.create({
     title: 'parent',
     description: '',
@@ -45,14 +45,14 @@ async function setupFixture(suggestionTitle: string, suggestionFields: Suggestio
     source: 'internal',
     depends_on: [],
     labels: [],
-  } as any);
+  });
   const suggestion = await splitSuggestionRepository.create({
     parent_task_id: parent.id,
     workflow_run_id: null,
     status: 'PENDING',
     suggestions: [buildSuggestion({ title: suggestionTitle, ...suggestionFields })],
     confirmed_at: null,
-  } as any);
+  });
   return { project, parent, suggestion };
 }
 
