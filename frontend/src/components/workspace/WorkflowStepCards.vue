@@ -425,33 +425,6 @@ function handleStepClick(step) {
     linear-gradient(180deg, #ffffff 0%, #fcfdfd 100%);
 }
 
-.agent-card.running {
-  border-color: #f59e0b;
-  background:
-    linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(245, 158, 11, 0.02) 70%),
-    linear-gradient(180deg, #ffffff 0%, #fffdf7 100%);
-}
-
-.agent-card.suspended {
-  border-color: #f59e0b;
-  background:
-    linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(245, 158, 11, 0.02) 70%),
-    linear-gradient(180deg, #ffffff 0%, #fffdf7 100%);
-}
-
-.agent-card.failed {
-  border-color: rgba(239, 68, 68, 0.4);
-  background:
-    linear-gradient(135deg, rgba(239, 68, 68, 0.06) 0%, rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, #ffffff 0%, #fefcfc 100%);
-}
-
-.agent-card.done {
-  background:
-    linear-gradient(135deg, rgba(37, 198, 201, 0.05) 0%, rgba(255, 255, 255, 0) 70%),
-    linear-gradient(180deg, #fcfdfd 0%, #f7fafa 100%);
-}
-
 /* Card top: avatar + name/executor + status dot in one row */
 .agent-card-top {
   display: flex;
@@ -471,13 +444,6 @@ function handleStepClick(step) {
   background: var(--bg-secondary);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
-}
-
-.agent-card.running .agent-avatar,
-.agent-card.suspended .agent-avatar {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-  border-color: transparent;
 }
 
 .agent-card.selected .agent-avatar {
@@ -571,15 +537,6 @@ function handleStepClick(step) {
   padding: 8px 14px;
   border-top: 1px solid var(--border-color);
   background: linear-gradient(180deg, rgba(37, 198, 201, 0.025), rgba(37, 198, 201, 0.06));
-}
-
-.agent-card.running .agent-card-footer,
-.agent-card.suspended .agent-card-footer {
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.04), rgba(245, 158, 11, 0.10));
-}
-
-.agent-card.failed .agent-card-footer {
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03), rgba(239, 68, 68, 0.08));
 }
 
 .agent-step-name {
