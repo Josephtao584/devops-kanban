@@ -112,11 +112,23 @@ const selectedSkillToAdd = ref('')
 const selectedMcpServerToAdd = ref('')
 const availableSkills = computed(() => skillStore.skills.map(skill => skill.id))
 
-const formWithSelection = computed(() => ({
-  ...form.value,
-  _selectedSkill: selectedSkillToAdd.value,
-  _selectedMcp: selectedMcpServerToAdd.value
-}))
+const formWithSelection = computed(() => {
+  // Return a Proxy over form.value so writes to executorType / role / etc.
+  // from the dialog flow back into the source ref. Spreading into a new
+  // object would break two-way binding (writes hit a throwaway copy).
+  return new Proxy(form.value, {
+    get(target, key) {
+      if (key === '_selectedSkill') return selectedSkillToAdd.value
+      if (key === '_selectedMcp') return selectedMcpServerToAdd.value
+      return Reflect.get(target, key)
+    },
+    set(target, key, value) {
+      if (key === '_selectedSkill') { selectedSkillToAdd.value = value; return true }
+      if (key === '_selectedMcp') { selectedMcpServerToAdd.value = value; return true }
+      return Reflect.set(target, key, value)
+    }
+  })
+})
 
 const setFormState = (agent) => {
   const normalizedSkills = Array.isArray(agent?.skills)
