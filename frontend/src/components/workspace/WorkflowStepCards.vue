@@ -162,13 +162,6 @@ function cutoffAfterFailure(steps) {
   return failedIdx === -1 ? Infinity : failedIdx
 }
 
-function shouldHideStepAfterFailure(step, index, steps) {
-  if (step?.status === 'SKIPPED') return true
-  const limit = cutoffAfterFailure(steps)
-  if (index > limit && step.status === 'PENDING') return true
-  return false
-}
-
 const timeline = computed(() => {
   const items = []
   if (Array.isArray(props.runs) && props.runs.length) {
@@ -205,8 +198,10 @@ const timeline = computed(() => {
       }
       const runSteps = Array.isArray(run.steps) ? run.steps : []
       const isLatestRun = runIdx === chain.length - 1
+      const failLimit = cutoffAfterFailure(runSteps)
       runSteps.forEach((step, index) => {
-        if (!isLatestRun && shouldHideStepAfterFailure(step, index, runSteps)) return
+        if (step?.status === 'SKIPPED') return
+        if (!isLatestRun && index > failLimit && step.status === 'PENDING') return
         items.push({
           kind: 'step',
           runId: run.id,
@@ -221,8 +216,10 @@ const timeline = computed(() => {
 
   // Legacy single-run path: render the prepared `steps` array.
   const legacy = Array.isArray(props.steps) ? props.steps : []
+  const legacyLimit = cutoffAfterFailure(legacy)
   legacy.forEach((step, index) => {
-    if (shouldHideStepAfterFailure(step, index, legacy)) return
+    if (step?.status === 'SKIPPED') return
+    if (index > legacyLimit && step.status === 'PENDING') return
     items.push({
       kind: 'step',
       runId: null,
