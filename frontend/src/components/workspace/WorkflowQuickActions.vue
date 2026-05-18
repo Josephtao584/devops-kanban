@@ -70,10 +70,7 @@
         <path d="M9 14l-4-4 4-4"></path>
         <path d="M5 10h11a4 4 0 0 1 0 8h-1"></path>
       </svg>
-      <div class="loop-back-content">
-        <span>{{ t('workflow.loopBackButton') }}</span>
-        <span v-if="loopBackReason" class="loop-back-reason" :title="loopBackReason">{{ loopBackReason }}</span>
-      </div>
+      {{ t('workflow.loopBackButton') }}
     </button>
     <button
       v-if="canLoopAgain"
@@ -137,7 +134,6 @@ const props = defineProps({
   pendingSplitCount: { type: Number, default: 0 },
   autoRetry: { type: Boolean, default: false },
   canLoopBack: { type: Boolean, default: false },
-  loopBackReason: { type: String, default: '' },
   canLoopAgain: { type: Boolean, default: false }
 })
 
@@ -261,34 +257,11 @@ watch(autoRetryModel, (v) => { if (v !== props.autoRetry) emit('auto-retry-chang
   color: #d97706;
   border-color: #fde68a;
   background: #fffbeb;
-  align-items: flex-start;
 }
 
 .quick-action-btn.quick-action-loop-back:hover:not(:disabled) {
   background: #d97706;
   border-color: #d97706;
-  color: #fff;
-}
-
-.loop-back-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.2;
-}
-
-.loop-back-reason {
-  font-size: 10px;
-  font-weight: 400;
-  opacity: 0.75;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.quick-action-btn.quick-action-loop-back:hover:not(:disabled) .loop-back-reason {
-  opacity: 1;
   color: #fff;
 }
 

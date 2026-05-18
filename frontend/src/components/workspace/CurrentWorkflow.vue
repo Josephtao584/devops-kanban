@@ -50,7 +50,6 @@
       :pending-split-count="pendingSplitCount"
       :auto-retry="autoRetry"
       :can-loop-back="canLoopBack"
-      :loop-back-reason="loopBackReason"
       :can-loop-again="canLoopAgain"
       @start="handleStart"
       @template="handleTemplate"
@@ -313,19 +312,6 @@ const confirmTooltip = computed(() => {
 const canLoopBack = computed(() => computeCanLoopBack(run.value))
 
 const canLoopAgain = computed(() => computeCanLoopAgain(run.value))
-
-const loopBackReason = computed(() => {
-  const r = run.value
-  if (!r) return ''
-  const failedStepId = r.loop_failure_context?.failed_step_id
-  const loopedFromStepId = r.looped_from_step_id
-  if (!failedStepId || !loopedFromStepId) return ''
-  const failedStep = (r.steps || []).find(s => s.step_id === failedStepId)
-  const targetStep = (r.steps || []).find(s => s.step_id === loopedFromStepId)
-  const fromName = failedStep?.name || failedStepId
-  const toName = targetStep?.name || loopedFromStepId
-  return `${fromName} → ${toName}`
-})
 
 // Auto-loop trigger failures are persisted on the latest run so the UI can
 // surface "auto-rollback was attempted but failed" without the user having to
