@@ -45,12 +45,8 @@ const formattedMessageContent = computed(() => {
   const content = props.event?.content || ''
   if (props.event?.kind !== 'message' || !content) return content
 
-  const safeContent = content
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
-  const rendered = marked.parse(safeContent, {
+  // marked handles HTML escaping internally — don't pre-escape
+  const rendered = marked.parse(content, {
     gfm: true,
     breaks: true
   })
@@ -292,7 +288,7 @@ const formattedMessageContent = computed(() => {
 }
 
 .event-content :deep(p) {
-  margin: 0.4em 0;
+  margin: 0.6em 0;
 }
 
 .event-content :deep(p:first-child) {
@@ -303,20 +299,26 @@ const formattedMessageContent = computed(() => {
   margin-bottom: 0;
 }
 
+.event-content :deep(br) {
+  content: '';
+  display: table;
+  margin: 0.4em 0;
+}
+
 .event-content :deep(ul) {
   padding-left: 1.5em;
-  margin: 0.6em 0;
+  margin: 0.5em 0;
   list-style: disc outside;
 }
 
 .event-content :deep(ol) {
   padding-left: 1.5em;
-  margin: 0.6em 0;
+  margin: 0.5em 0;
   list-style: decimal outside;
 }
 
 .event-content :deep(li) {
-  margin: 0.35em 0;
+  margin: 0.4em 0;
   line-height: 1.7;
 }
 
@@ -332,21 +334,21 @@ const formattedMessageContent = computed(() => {
 .event-content :deep(h2),
 .event-content :deep(h3),
 .event-content :deep(h4) {
-  margin: 1em 0 0.5em;
-  font-weight: 600;
-  line-height: 1.4;
+  margin: 1.2em 0 0.6em;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .event-content :deep(h1) {
-  font-size: 1.25em;
+  font-size: 1.35em;
 }
 
 .event-content :deep(h2) {
-  font-size: 1.15em;
+  font-size: 1.2em;
 }
 
 .event-content :deep(h3) {
-  font-size: 1.05em;
+  font-size: 1.1em;
 }
 
 .event-content :deep(h4) {

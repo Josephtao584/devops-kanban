@@ -28,19 +28,38 @@ async function updateSuggestions(
 async function confirm(id: number): Promise<{ tasks: number[]; suggestion: SplitSuggestionEntity }> {
   const existing = await splitSuggestionRepository.findById(id);
   if (!existing) throw new Error(`split suggestion ${id} not found`);
-  if (existing.status !== 'PENDING') {
+  if (existing.status !== 'PENDING' && existing.status !== 'CONFIRMED') {
     throw new Error(`cannot confirm suggestion in status ${existing.status}`);
   }
 
-  // Guard against duplicate children if a previous confirm partially ran.
+  // Map already-created child tasks back to their original suggestion index
+  // (matched by title, case-insensitive). Suggestions whose title matches an
+  // existing child are skipped; remaining suggestions can still depend on
+  // those existing children by their original index.
   const existingChildren = await taskRepository.findChildren(existing.parent_task_id);
-  if (existingChildren.length > 0) {
-    throw new Error('cannot confirm: child tasks already exist');
+  const existingByTitle = new Map(existingChildren.map(c => [c.title.toLowerCase(), c.id]));
+
+  const skipIndices: number[] = [];
+  const existingTaskIdByIndex: Record<number, number> = {};
+  existing.suggestions.forEach((s, idx) => {
+    const matchedId = existingByTitle.get(s.title.toLowerCase());
+    if (matchedId !== undefined) {
+      skipIndices.push(idx);
+      existingTaskIdByIndex[idx] = matchedId;
+    }
+  });
+
+  if (skipIndices.length === existing.suggestions.length) {
+    // All suggestions already have children — nothing more to create.
+    const updated = (await splitSuggestionRepository.findById(id))!;
+    return { tasks: existingChildren.map(t => t.id), suggestion: updated };
   }
 
   const tasks = await taskService.batchCreate({
     parent_task_id: existing.parent_task_id,
     suggestions: existing.suggestions,
+    skip_indices: skipIndices,
+    existing_task_id_by_index: existingTaskIdByIndex,
   });
 
   try {
@@ -71,8 +90,9 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     }
   }
 
+  const allTasks = [...existingChildren, ...tasks];
   const updated = (await splitSuggestionRepository.findById(id))!;
-  return { tasks: tasks.map(t => t.id), suggestion: updated };
+  return { tasks: allTasks.map(t => t.id), suggestion: updated };
 }
 
 async function dismiss(id: number): Promise<SplitSuggestionEntity> {

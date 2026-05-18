@@ -454,21 +454,40 @@ class TaskService {
   async batchCreate(input: {
     parent_task_id: number;
     suggestions: Suggestion[];
+    skip_indices?: number[];
+    existing_task_id_by_index?: Record<number, number>;
   }): Promise<TaskEntity[]> {
+    const skipIndices = new Set(input.skip_indices ?? []);
+    const existingByIndex = input.existing_task_id_by_index ?? {};
+
     const enabled = input.suggestions
       .map((s, originalIdx) => ({ s, originalIdx }))
-      .filter(({ s }) => s.enabled);
+      .filter(({ s, originalIdx }) => s.enabled && !skipIndices.has(originalIdx));
 
     const indexMap = new Map<number, number>();
     enabled.forEach((e, i) => indexMap.set(e.originalIdx, i));
 
-    const remappedDeps = enabled.map(({ s }) =>
+    type RemappedDep = { batchPos: number } | { existingTaskId: number };
+    const remappedDeps: RemappedDep[][] = enabled.map(({ s }) =>
       s.depends_on_indices
-        .map(oi => indexMap.get(oi))
-        .filter((i): i is number => i !== undefined),
+        .map((oi): RemappedDep | undefined => {
+          // If the dependency points to a task in the new batch, use its position.
+          const batchPos = indexMap.get(oi);
+          if (batchPos !== undefined) return { batchPos };
+          // If the dependency points to an already-created task, link by id.
+          const existingTaskId = existingByIndex[oi];
+          if (existingTaskId !== undefined) return { existingTaskId };
+          return undefined;
+        })
+        .filter((d): d is RemappedDep => d !== undefined),
     );
 
-    if (hasCycle(remappedDeps.map(d => ({ depends_on_indices: d })))) {
+    const cycleNodes = remappedDeps.map(deps => ({
+      depends_on_indices: deps
+        .map(d => ('batchPos' in d ? d.batchPos : -1))
+        .filter(i => i >= 0),
+    }));
+    if (hasCycle(cycleNodes)) {
       throw new Error('suggestions contain a dependency cycle');
     }
 
@@ -478,7 +497,15 @@ class TaskService {
     const created: TaskEntity[] = [];
     for (let i = 0; i < enabled.length; i++) {
       const { s } = enabled[i]!;
-      const deps = remappedDeps[i]!.map(pos => created[pos]?.id).filter((id): id is number => id != null);
+      const deps: number[] = [];
+      for (const d of remappedDeps[i]!) {
+        if ('batchPos' in d) {
+          const upstream = created[d.batchPos];
+          if (upstream) deps.push(upstream.id);
+        } else {
+          deps.push(d.existingTaskId);
+        }
+      }
 
       const task = await this.taskRepo.create({
         title: s.title,
