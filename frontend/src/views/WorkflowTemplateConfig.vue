@@ -928,6 +928,7 @@ const saveTemplate = async () => {
 
     if (isDraftTemplate.value) {
       replaceDraftTemplate(originalTemplateId, savedTemplate)
+      selectedTemplateId.value = savedTemplate.template_id
     }
     finalizeTemplateSave(savedTemplate)
   } catch (error) {
