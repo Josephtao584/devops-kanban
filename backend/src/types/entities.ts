@@ -179,7 +179,6 @@ export interface WorkflowTemplateEntity {
   steps: WorkflowTemplateStepEntity[];
   tags?: string[];
   order?: number;
-  maxLoops: number;
   created_at: string;
   updated_at: string;
 }

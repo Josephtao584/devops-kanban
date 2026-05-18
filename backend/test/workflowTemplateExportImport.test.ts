@@ -69,7 +69,6 @@ const sampleTemplate: WorkflowTemplateEntity = {
     { id: 'step2', name: 'Step 2', instructionPrompt: 'Do more', agentId: 1, requiresConfirmation: true, onFailureLoopTo: null },
   ],
   order: 1,
-  maxLoops: 0,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };

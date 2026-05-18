@@ -7,12 +7,12 @@ import {
   WorkflowInstanceEntity,
   WorkflowRunEntity,
   WorkflowStepEntity,
-  WorkflowTemplateEntity,
   WorkflowTemplateStepEntity,
 } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
+import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
 
 /**
  * Result of phase-1 loop preparation: the new run is persisted and the
@@ -80,8 +80,6 @@ class WorkflowLoopService {
     if (!instance) {
       throw new NotFoundError('未找到工作流实例', 'Workflow instance not found', { instanceId: parent.workflow_instance_id });
     }
-    const template = await this.templateService.getTemplateById(instance.template_id);
-    const maxLoops = template?.maxLoops ?? 0;
 
     const fromIdx = instance.steps.findIndex((s) => s.id === fromStepId);
     if (fromIdx === -1) {
@@ -122,11 +120,11 @@ class WorkflowLoopService {
     }
 
     const newIteration = parent.iteration + 1;
-    if (!override && newIteration > maxLoops) {
+    if (!override && newIteration > DEFAULT_MAX_LOOPS) {
       throw new BusinessError(
-        `无法循环：迭代将达到 ${newIteration}，超过 maxLoops=${maxLoops}`,
-        `Cannot loop: would reach iteration ${newIteration}, exceeds maxLoops=${maxLoops}`,
-        { newIteration, maxLoops },
+        `无法循环：迭代将达到 ${newIteration}，超过 maxLoops=${DEFAULT_MAX_LOOPS}`,
+        `Cannot loop: would reach iteration ${newIteration}, exceeds maxLoops=${DEFAULT_MAX_LOOPS}`,
+        { newIteration, maxLoops: DEFAULT_MAX_LOOPS },
       );
     }
 
@@ -242,24 +240,22 @@ class WorkflowLoopService {
 
   /**
    * Enrich a workflow run with `workflow_template_snapshot` so the frontend
-   * can render template-derived fields (steps, maxLoops, onFailureLoopTo)
-   * without a separate fetch. Both `getWorkflowRun` and `getAllRunsByTask`
-   * call through this helper so the shape stays consistent across endpoints.
+   * can render template-derived fields (steps, onFailureLoopTo) without a
+   * separate fetch. Both `getWorkflowRun` and `getAllRunsByTask` call through
+   * this helper so the shape stays consistent across endpoints.
    *
    * The optional caches let bulk callers (i.e. `getAllRunsByTask`) avoid
-   * re-fetching the same instance/template once per run.
+   * re-fetching the same instance once per run.
    */
   async enrichWithTemplateSnapshot(
     run: WorkflowRunEntity,
     caches?: {
       instances?: Map<string, WorkflowInstanceEntity | null>;
-      templates?: Map<string, WorkflowTemplateEntity | null>;
     },
   ): Promise<WorkflowRunEntity> {
     if (!run.workflow_instance_id) return run;
 
     const instanceCache = caches?.instances;
-    const templateCache = caches?.templates;
 
     let instance: WorkflowInstanceEntity | null;
     if (instanceCache?.has(run.workflow_instance_id)) {
@@ -269,14 +265,6 @@ class WorkflowLoopService {
       instanceCache?.set(run.workflow_instance_id, instance);
     }
     if (!instance) return run;
-
-    let template: WorkflowTemplateEntity | null;
-    if (templateCache?.has(instance.template_id)) {
-      template = templateCache.get(instance.template_id)!;
-    } else {
-      template = await this.templateService.getTemplateById(instance.template_id);
-      templateCache?.set(instance.template_id, template);
-    }
 
     run.workflow_template_snapshot = {
       id: instance.id,
@@ -296,7 +284,6 @@ class WorkflowLoopService {
         if (s.type !== undefined) step.type = s.type;
         return step;
       }),
-      maxLoops: template?.maxLoops ?? 0,
       created_at: instance.created_at,
       updated_at: instance.updated_at,
     };

@@ -80,7 +80,7 @@ async function waitForRunStatus(
   );
 }
 
-test.test('end-to-end: auto-loops up to maxLoops then stops; override allowed', async () => {
+test.test('end-to-end: auto-loops up to DEFAULT_MAX_LOOPS then stops; override allowed', async () => {
   const runRepo = await makeRepo();
   const taskId = 1;
   const worktree = makeTempWorktree();
@@ -105,7 +105,6 @@ test.test('end-to-end: auto-loops up to maxLoops then stops; override allowed', 
     template_id: 't1',
     name: 'T1',
     steps: [],
-    maxLoops: 2,
     created_at: '',
     updated_at: '',
   };
@@ -231,36 +230,53 @@ test.test('end-to-end: auto-loops up to maxLoops then stops; override allowed', 
   assert.equal(run2Step1?.inherited_from_run_id, parent.id);
 
   // Wait for run2's simulated execution to complete (mark FAILED + onStepError).
-  // The second onStepError must NOT trigger a third loop since iteration+1 > maxLoops.
+  // The second onStepError SHOULD trigger a third loop since iteration+1=3 is
+  // not > DEFAULT_MAX_LOOPS=3.
   await waitForRunStatus(runRepo, run2.id, 'FAILED');
-  // Drain in case onStepError on run2 spawned anything (it shouldn't).
   while (pendingExecutions.size > 0) {
     await Promise.all([...pendingExecutions]);
   }
 
-  const runsAfterSettle = await runRepo.findAllByTaskIdOrdered(taskId);
+  const runsAfterRun2 = await runRepo.findAllByTaskIdOrdered(taskId);
   assert.equal(
-    runsAfterSettle.length,
-    2,
-    `iteration=2's failure must not auto-create iteration=3 (maxLoops=2); got ${runsAfterSettle.length} runs`,
+    runsAfterRun2.length,
+    3,
+    `iteration=2's failure should auto-create iteration=3 (DEFAULT_MAX_LOOPS=3); got ${runsAfterRun2.length} runs`,
   );
-
-  // Override path: explicitly create iteration=3 past maxLoops.
-  const run3 = await service.createLoopRun(run2.id, 'step2', undefined, true);
+  const run3 = runsAfterRun2[2]!;
   assert.equal(run3.iteration, 3);
-  assert.equal(run3.parent_run_id, run2.id);
-  assert.equal(run3.worktree_path, worktree);
 
-  // Wait for run3's simulated execution to settle. iteration=3, 3+1>maxLoops=2,
-  // so it should also stop.
+  // Wait for run3's simulated execution. iteration=3, 3+1>DEFAULT_MAX_LOOPS=3,
+  // so auto-loop should NOT trigger a fourth iteration.
   await waitForRunStatus(runRepo, run3.id, 'FAILED');
   while (pendingExecutions.size > 0) {
     await Promise.all([...pendingExecutions]);
   }
 
+  const runsAfterRun3 = await runRepo.findAllByTaskIdOrdered(taskId);
+  assert.equal(
+    runsAfterRun3.length,
+    3,
+    `iteration=3's failure must not auto-create iteration=4 (DEFAULT_MAX_LOOPS=3); got ${runsAfterRun3.length} runs`,
+  );
+
+  // Override path: explicitly create iteration=4 past DEFAULT_MAX_LOOPS.
+  const run4 = await service.createLoopRun(run3.id, 'step2', undefined, true);
+  assert.equal(run4.iteration, 4);
+  assert.equal(run4.parent_run_id, run3.id);
+  assert.equal(run4.worktree_path, worktree);
+
+  // Wait for run4's simulated execution to settle. iteration=4, 4+1>DEFAULT_MAX_LOOPS=3,
+  // so it should also stop.
+  await waitForRunStatus(runRepo, run4.id, 'FAILED');
+  while (pendingExecutions.size > 0) {
+    await Promise.all([...pendingExecutions]);
+  }
+
   const finalRuns = await runRepo.findAllByTaskIdOrdered(taskId);
-  assert.equal(finalRuns.length, 3, `expected 3 runs total after override, got ${finalRuns.length}`);
+  assert.equal(finalRuns.length, 4, `expected 4 runs total after override, got ${finalRuns.length}`);
   assert.equal(finalRuns[0]!.iteration, 1);
   assert.equal(finalRuns[1]!.iteration, 2);
   assert.equal(finalRuns[2]!.iteration, 3);
+  assert.equal(finalRuns[3]!.iteration, 4);
 });

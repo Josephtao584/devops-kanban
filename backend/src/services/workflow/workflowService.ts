@@ -387,7 +387,6 @@ class WorkflowService {
     run: WorkflowRunEntity,
     caches?: {
       instances?: Map<string, WorkflowInstanceEntity | null>;
-      templates?: Map<string, WorkflowTemplateEntity | null>;
     },
   ): Promise<WorkflowRunEntity> {
     return this.loopService.enrichWithTemplateSnapshot(run, caches);
@@ -401,12 +400,11 @@ class WorkflowService {
 
   async getAllRunsByTask(taskId: number) {
     const runs = await this.workflowRunRepo.findAllByTaskIdOrdered(taskId);
-    // Cache instance + template lookups across runs so a 5-iteration loop
-    // doesn't issue 10+ DB reads when one would do.
+    // Cache instance lookups across runs so a 5-iteration loop doesn't issue
+    // 5+ DB reads when one would do.
     const instances = new Map<string, WorkflowInstanceEntity | null>();
-    const templates = new Map<string, WorkflowTemplateEntity | null>();
     for (const run of runs) {
-      await this._enrichWithTemplateSnapshot(run, { instances, templates });
+      await this._enrichWithTemplateSnapshot(run, { instances });
     }
     return runs;
   }

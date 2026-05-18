@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canLoopAgain, canLoopBack } from '../src/utils/loopActionVisibility.js'
+import { canLoopAgain, canLoopBack, DEFAULT_MAX_LOOPS } from '../src/utils/loopActionVisibility.js'
 
 describe('canLoopAgain', () => {
   it('returns false when run is null', () => {
@@ -11,63 +11,40 @@ describe('canLoopAgain', () => {
     const run = {
       status: 'COMPLETED',
       iteration: 5,
-      workflow_template_snapshot: { maxLoops: 2 },
     }
     expect(canLoopAgain(run)).toBe(false)
   })
 
   // Regression: previously used iteration > maxLoops which left
-  // iteration === maxLoops as an unreachable state — backend rejects the
-  // next auto-loop (would be maxLoops+1) but the button stays hidden.
-  it('renders when iteration equals maxLoops on a FAILED run', () => {
+  // iteration === DEFAULT_MAX_LOOPS as an unreachable state — backend rejects
+  // the next auto-loop (would be DEFAULT_MAX_LOOPS+1) but the button stays hidden.
+  it('renders when iteration equals DEFAULT_MAX_LOOPS on a FAILED run', () => {
     const run = {
       status: 'FAILED',
-      iteration: 2,
-      workflow_template_snapshot: { maxLoops: 2 },
+      iteration: DEFAULT_MAX_LOOPS,
     }
     expect(canLoopAgain(run)).toBe(true)
   })
 
-  it('renders when iteration exceeds maxLoops', () => {
+  it('renders when iteration exceeds DEFAULT_MAX_LOOPS', () => {
     const run = {
       status: 'FAILED',
-      iteration: 5,
-      workflow_template_snapshot: { maxLoops: 2 },
+      iteration: DEFAULT_MAX_LOOPS + 3,
     }
     expect(canLoopAgain(run)).toBe(true)
   })
 
-  it('hides while iteration is below maxLoops (auto-loop budget remains)', () => {
+  it('hides while iteration is below DEFAULT_MAX_LOOPS (auto-loop budget remains)', () => {
     const run = {
       status: 'FAILED',
-      iteration: 1,
-      workflow_template_snapshot: { maxLoops: 2 },
+      iteration: DEFAULT_MAX_LOOPS - 1,
     }
     expect(canLoopAgain(run)).toBe(false)
   })
 
-  // Regression: maxLoops === 0 means auto-loop disabled. Every loop attempt
-  // is a manual override; the button must surface immediately.
-  it('renders when maxLoops is 0 (every loop is an override)', () => {
-    const run = {
-      status: 'FAILED',
-      iteration: 1,
-      workflow_template_snapshot: { maxLoops: 0 },
-    }
-    expect(canLoopAgain(run)).toBe(true)
-  })
-
-  it('renders when maxLoops snapshot is missing (treated as 0)', () => {
-    const run = { status: 'FAILED', iteration: 1 }
-    expect(canLoopAgain(run)).toBe(true)
-  })
-
-  it('defaults iteration to 1 when missing', () => {
-    const run = {
-      status: 'FAILED',
-      workflow_template_snapshot: { maxLoops: 1 },
-    }
-    expect(canLoopAgain(run)).toBe(true)
+  it('defaults iteration to 1 when missing (still below DEFAULT_MAX_LOOPS)', () => {
+    const run = { status: 'FAILED' }
+    expect(canLoopAgain(run)).toBe(false)
   })
 })
 

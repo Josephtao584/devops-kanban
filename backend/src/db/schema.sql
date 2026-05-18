@@ -78,7 +78,6 @@ CREATE TABLE IF NOT EXISTS workflow_templates (
   steps TEXT NOT NULL DEFAULT '[]',
   tags TEXT NOT NULL DEFAULT '[]',
   "order" INTEGER,
-  maxLoops INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

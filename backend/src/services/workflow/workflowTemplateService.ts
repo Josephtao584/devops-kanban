@@ -61,7 +61,7 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw new ValidationError('无效的工作流模板', 'Invalid workflow template');
   }
 
-  const { template_id, name, steps, tags, maxLoops } = template;
+  const { template_id, name, steps, tags } = template;
 
   if (typeof template_id !== 'string' || !template_id.trim()) {
     throw new ValidationError('无效的工作流模板 ID', 'Invalid workflow template id');
@@ -78,15 +78,6 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
   const normalizedSteps = steps.map((step) => normalizeStep(step));
   if (new Set(normalizedSteps.map((step) => step.id)).size !== normalizedSteps.length) {
     throw new ValidationError('工作流模板步骤 ID 必须唯一', 'Workflow template step ids must be unique');
-  }
-
-  let normalizedMaxLoops = 0;
-  if (maxLoops !== undefined && maxLoops !== null) {
-    const coerced = Number(maxLoops);
-    if (!Number.isInteger(coerced) || coerced < 0) {
-      throw new ValidationError('maxLoops 必须为非负整数', 'maxLoops must be a non-negative integer');
-    }
-    normalizedMaxLoops = coerced;
   }
 
   const stepIds = new Set(normalizedSteps.map((s) => s.id));
@@ -112,7 +103,6 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     name: name.trim(),
     steps: normalizedSteps,
     tags: Array.isArray(tags) ? tags : [],
-    maxLoops: normalizedMaxLoops,
   };
 }
 
@@ -139,7 +129,6 @@ const BUILTIN_TEMPLATES: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'upd
       },
     ],
     order: 3,
-    maxLoops: 0,
   },
 ];
 
@@ -203,7 +192,6 @@ class WorkflowTemplateService {
       name?: string;
       steps?: WorkflowTemplateStepEntity[];
       tags?: string[];
-      maxLoops?: number;
     } = {};
     if (input.name !== undefined) {
       updateData.name = input.name;
@@ -212,15 +200,13 @@ class WorkflowTemplateService {
       updateData.tags = Array.isArray(input.tags) ? input.tags : [];
     }
 
-    // When steps or maxLoops are updated, run full cross-step validation.
-    // cleanupReferences nullifies onFailureLoopTo references that point to
-    // steps removed by the update so they don't trip the "unknown step" check.
-    // Typos that reference ids that never existed are left intact so
-    // normalizeTemplate's unknown-step check still surfaces them as errors.
-    if (input.steps !== undefined || input.maxLoops !== undefined) {
-      const candidateSteps = input.steps !== undefined
-        ? input.steps.map((step) => normalizeStep(step))
-        : existing.steps;
+    // When steps are updated, run full cross-step validation. cleanupReferences
+    // nullifies onFailureLoopTo references that point to steps removed by the
+    // update so they don't trip the "unknown step" check. Typos that reference
+    // ids that never existed are left intact so normalizeTemplate's
+    // unknown-step check still surfaces them as errors.
+    if (input.steps !== undefined) {
+      const candidateSteps = input.steps.map((step) => normalizeStep(step));
       const newStepIds = new Set(candidateSteps.map((s) => s.id));
       const removedStepIds = new Set(
         existing.steps.map((s) => s.id).filter((id) => !newStepIds.has(id)),
@@ -234,14 +220,8 @@ class WorkflowTemplateService {
         name: input.name ?? existing.name,
         steps: cleaned.steps,
         tags: input.tags ?? existing.tags,
-        maxLoops: input.maxLoops ?? existing.maxLoops,
       });
-      if (input.steps !== undefined) {
-        updateData.steps = validated.steps;
-      }
-      if (input.maxLoops !== undefined) {
-        updateData.maxLoops = validated.maxLoops;
-      }
+      updateData.steps = validated.steps;
     }
 
     return await this.workflowTemplateRepo.update(existing.id, updateData);
@@ -298,7 +278,6 @@ class WorkflowTemplateService {
     const exportedTemplates: ExportedWorkflowTemplate[] = templates.map(t => ({
       template_id: t.template_id,
       name: t.name,
-      maxLoops: t.maxLoops,
       steps: t.steps.map((step): ExportedWorkflowStep => {
         const exported: ExportedWorkflowStep = {
           id: step.id,
@@ -392,10 +371,8 @@ class WorkflowTemplateService {
         });
       });
 
-      const importedMaxLoops = tpl.maxLoops ?? 0;
-
       // Validate template structure
-      normalizeTemplate({ template_id: tpl.template_id, name: tpl.name, steps, maxLoops: importedMaxLoops });
+      normalizeTemplate({ template_id: tpl.template_id, name: tpl.name, steps });
 
       let finalTemplateId = tpl.template_id;
       if (existing && input.strategy === 'copy') {
@@ -412,7 +389,6 @@ class WorkflowTemplateService {
         const updated = await this.workflowTemplateRepo.update(existing.id, {
           name: tpl.name,
           steps,
-          maxLoops: importedMaxLoops,
         });
         if (updated) imported.push(updated);
       } else if (!existing || input.strategy === 'copy') {
@@ -420,7 +396,6 @@ class WorkflowTemplateService {
           template_id: finalTemplateId,
           name: input.strategy === 'copy' && existing ? `${tpl.name} (副本)` : tpl.name,
           steps,
-          maxLoops: importedMaxLoops,
         });
         imported.push(created);
       }

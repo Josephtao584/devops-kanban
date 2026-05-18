@@ -461,11 +461,8 @@ export default {
     previewPromptTitle: 'Prompt 预览 — {stepName}',
     previewPromptLoading: '正在生成预览...',
     previewPromptFailed: '生成预览失败',
-    maxLoops: '最大循环次数',
-    maxLoopsHint: '失败回退的全局上限，0 表示不允许循环',
     failureLoopTo: '失败回退到',
-    failureLoopToHint: '选择更早的步骤',
-    noLoopWarning: '已配置回退目标，但最大循环次数为 0，自动回退不会触发，是否继续保存？'
+    failureLoopToHint: '选择更早的步骤'
   },
   bundle: {
     exportTitle: '导出AgentTeam模板',

@@ -7,7 +7,6 @@ interface HarnessOpts {
   runStatus?: string;
   failExit?: boolean;
   iteration?: number;
-  maxLoops?: number;
   inFlight?: boolean;
 }
 
@@ -99,7 +98,7 @@ function setupHarness(opts: HarnessOpts = {}) {
   });
 
   const templateService: any = {
-    getTemplateById: async () => ({ maxLoops: opts.maxLoops ?? 2 }),
+    getTemplateById: async () => ({}),
   };
 
   const workflowService: any = {
@@ -146,11 +145,10 @@ test.test('does not trigger on FAIL_EXIT', async () => {
   assert.equal(calls.length, 0);
 });
 
-test.test('does not trigger when iteration would exceed maxLoops', async () => {
+test.test('does not trigger when iteration would exceed DEFAULT_MAX_LOOPS', async () => {
   const { lifecycle, calls } = setupHarness({
     step: { onFailureLoopTo: 'step1' },
     iteration: 3,
-    maxLoops: 2,
   });
   await lifecycle.onStepError(1, 'step2', 'boom');
   assert.equal(calls.length, 0);

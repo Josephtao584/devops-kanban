@@ -89,7 +89,7 @@ async function makeService() {
   };
   const templateService = {
     async getTemplateById() {
-      return { id: 1, template_id: 't1', name: 'T1', steps: [], maxLoops: 2, created_at: '', updated_at: '' };
+      return { id: 1, template_id: 't1', name: 'T1', steps: [], created_at: '', updated_at: '' };
     },
   };
   const taskRepo = {
@@ -161,17 +161,17 @@ test.test('createLoopRun rejects if fromStepId is not strictly earlier than fail
   );
 });
 
-test.test('createLoopRun rejects when iteration > maxLoops without override', async () => {
+test.test('createLoopRun rejects when iteration > DEFAULT_MAX_LOOPS without override', async () => {
   const { service, runRepo } = await makeService();
-  const parent = (await makeFailedParent(runRepo, { iteration: 2 })).created!;
-  // iteration=2 → next would be 3, maxLoops=2 → reject
+  const parent = (await makeFailedParent(runRepo, { iteration: 3 })).created!;
+  // iteration=3 → next would be 4, DEFAULT_MAX_LOOPS=3 → reject
   await assert.rejects(
     service.createLoopRun(parent.id, 'step2'),
     /maxLoops/,
   );
 });
 
-test.test('createLoopRun allows override past maxLoops', async () => {
+test.test('createLoopRun allows override past DEFAULT_MAX_LOOPS', async () => {
   const { service, runRepo } = await makeService();
   const parent = (await makeFailedParent(runRepo, { iteration: 5 })).created!;
   const newRun = await service.createLoopRun(parent.id, 'step2', undefined, true);
@@ -271,7 +271,7 @@ test.test('POST /runs/:runId/loop returns 4xx when validation fails', async () =
   }
 });
 
-test.test('getAllRunsByTask enriches every run with workflow_template_snapshot.maxLoops from the template', async () => {
+test.test('getAllRunsByTask enriches every run with workflow_template_snapshot from the instance', async () => {
   // Regression test for the bug where the multi-run endpoint returned raw
   // runs without the snapshot, leaving the frontend's canLoopAgain /
   // canLoopBack computeds reading from undefined fields.
@@ -301,8 +301,6 @@ test.test('getAllRunsByTask enriches every run with workflow_template_snapshot.m
   assert.equal(runs.length, 2);
   for (const run of runs) {
     assert.ok(run.workflow_template_snapshot, 'snapshot should be populated');
-    // The stub templateService returns maxLoops=2; verify it propagates.
-    assert.equal(run.workflow_template_snapshot.maxLoops, 2);
     assert.equal(run.workflow_template_snapshot.steps.length, 3);
     // onFailureLoopTo for step3 must round-trip from the instance steps.
     const step3 = run.workflow_template_snapshot.steps.find(s => s.id === 'step3');
@@ -310,13 +308,11 @@ test.test('getAllRunsByTask enriches every run with workflow_template_snapshot.m
   }
 });
 
-test.test('getWorkflowRun snapshot.maxLoops reads from the template, not hardcoded 0', async () => {
-  // Regression test for the bug where getWorkflowRun set maxLoops: 0 inline
-  // even when the template specified a higher budget.
+test.test('getWorkflowRun returns enriched snapshot from the instance', async () => {
   const { service, runRepo } = await makeService();
   const parent = (await makeFailedParent(runRepo, {})).created!;
   const enriched = await service.getWorkflowRun(parent.id);
   assert.ok(enriched);
   assert.ok(enriched!.workflow_template_snapshot);
-  assert.equal(enriched!.workflow_template_snapshot.maxLoops, 2);
+  assert.equal(enriched!.workflow_template_snapshot.steps.length, 3);
 });

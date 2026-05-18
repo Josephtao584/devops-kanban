@@ -15,37 +15,6 @@ function makeService(): WorkflowTemplateService {
   return new WorkflowTemplateService({ workflowTemplateRepo: {} as any, agentRepo: {} as any });
 }
 
-test.test('normalizeTemplate accepts maxLoops >= 0', () => {
-  const svc = makeService();
-  const t = svc.normalizeTemplate({
-    template_id: 't1',
-    name: 'T',
-    steps: [baseStep('s1')],
-    maxLoops: 3,
-  });
-  assert.equal(t.maxLoops, 3);
-});
-
-test.test('normalizeTemplate rejects negative maxLoops', () => {
-  const svc = makeService();
-  assert.throws(() => svc.normalizeTemplate({
-    template_id: 't1',
-    name: 'T',
-    steps: [baseStep('s1')],
-    maxLoops: -1,
-  }), /maxLoops/);
-});
-
-test.test('normalizeTemplate defaults maxLoops to 0 when missing', () => {
-  const svc = makeService();
-  const t = svc.normalizeTemplate({
-    template_id: 't1',
-    name: 'T',
-    steps: [baseStep('s1')],
-  });
-  assert.equal(t.maxLoops, 0);
-});
-
 test.test('onFailureLoopTo must reference an earlier step in the template', () => {
   const svc = makeService();
   assert.throws(() => svc.normalizeTemplate({

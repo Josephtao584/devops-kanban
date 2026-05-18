@@ -14,7 +14,6 @@ export interface CreateWorkflowTemplateInput {
   name: string;
   steps: WorkflowTemplateStepInput[];
   tags?: string[];
-  maxLoops?: number;
 }
 
 export interface UpdateWorkflowTemplateInput {
@@ -22,7 +21,6 @@ export interface UpdateWorkflowTemplateInput {
   name: string;
   steps: WorkflowTemplateStepInput[];
   tags?: string[];
-  maxLoops?: number;
 }
 
 export interface ReorderWorkflowTemplatesInput {
@@ -49,8 +47,6 @@ export interface ExportedWorkflowTemplate {
   name: string;
   tags?: string[];
   steps: ExportedWorkflowStep[];
-  // Maximum loop iterations. Optional so older bundles without the field still import cleanly.
-  maxLoops?: number;
 }
 
 export interface ExportFile {

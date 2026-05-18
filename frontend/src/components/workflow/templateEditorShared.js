@@ -11,13 +11,6 @@ const normalizeOnFailureLoopTo = (raw) => {
   return trimmed ? trimmed : null
 }
 
-const normalizeMaxLoops = (raw) => {
-  if (raw === null || raw === undefined || raw === '') return 0
-  const value = Number(raw)
-  if (!Number.isFinite(value) || value < 0) return 0
-  return Math.min(Math.floor(value), 20)
-}
-
 export const normalizeWorkflowStep = (step = {}) => ({
   id: step.id ?? '',
   name: step.name ?? '',
@@ -35,7 +28,6 @@ export const normalizeWorkflowTemplate = (template, emptyValue = null) => {
 
   return {
     ...template,
-    maxLoops: normalizeMaxLoops(template.maxLoops),
     steps: Array.isArray(template.steps) ? template.steps.map(normalizeWorkflowStep) : []
   }
 }
@@ -148,7 +140,6 @@ export const buildWorkflowTemplatePayload = (currentTemplate) => ({
   template_id: currentTemplate?.template_id ?? '',
   name: currentTemplate?.name?.trim?.() || '',
   tags: Array.isArray(currentTemplate?.tags) ? currentTemplate.tags : [],
-  maxLoops: normalizeMaxLoops(currentTemplate?.maxLoops),
   steps: buildWorkflowStepsPayload(currentTemplate?.steps || [])
 })
 

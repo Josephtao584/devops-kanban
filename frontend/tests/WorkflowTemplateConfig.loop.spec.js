@@ -9,7 +9,6 @@ import { storeMethods as agentStoreMethods } from '../src/stores/agentStore'
 
 const fetchTemplatesMock = workflowTemplateStoreMethods.fetchTemplates
 const getWorkflowTemplateByIdMock = workflowTemplateStoreMethods.getWorkflowTemplateById
-const updateTemplateMock = workflowTemplateStoreMethods.updateTemplate
 
 vi.mock('vuedraggable', () => ({
   default: defineComponent({
@@ -260,7 +259,6 @@ const ElTagStub = defineComponent({
 const threeStepTemplate = {
   template_id: 'release-workflow-v1',
   name: '发布工作流',
-  maxLoops: 0,
   steps: [
     { id: 'step-a', name: '步骤A', instructionPrompt: 'A prompt', agentId: 1, onFailureLoopTo: null },
     { id: 'step-b', name: '步骤B', instructionPrompt: 'B prompt', agentId: 1, onFailureLoopTo: null },
@@ -272,7 +270,6 @@ const threeStepTemplate = {
 const defaultTemplate = {
   template_id: 'workflow-v1',
   name: '通用复杂任务工作流',
-  maxLoops: 0,
   steps: [
     { id: 'solution-design', name: '方案设计', instructionPrompt: '完成方案设计。', agentId: 1, onFailureLoopTo: null }
   ],
@@ -369,20 +366,6 @@ describe('WorkflowTemplateConfig loop fields', () => {
     })
   })
 
-  it('renders maxLoops input bound to template state', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-    await selectExtraTemplate(wrapper)
-
-    const maxLoopsInput = wrapper.find('[data-test="template-max-loops"]')
-    expect(maxLoopsInput.exists()).toBe(true)
-    expect(Number(maxLoopsInput.element.value)).toBe(0)
-
-    await maxLoopsInput.setValue('3')
-    await flushPromises()
-    expect(wrapper.vm.template.maxLoops).toBe(3)
-  })
-
   it('onFailureLoopTo dropdown lists only earlier steps for the selected step', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -401,33 +384,5 @@ describe('WorkflowTemplateConfig loop fields', () => {
       .map((opt) => opt.element.value)
       .filter((value) => value !== '')
     expect(optionValues).toEqual(['step-a', 'step-b'])
-  })
-
-  it('warns when onFailureLoopTo is set but maxLoops is 0 on save', async () => {
-    updateTemplateMock.mockImplementation(async (payload) => ({
-      success: true,
-      data: payload
-    }))
-
-    const wrapper = mountView()
-    await flushPromises()
-    await selectExtraTemplate(wrapper)
-
-    // Select step 3 (index 2) and set onFailureLoopTo to step-a
-    const stepCards = wrapper.findAll('.workflow-step-card')
-    await stepCards[2].trigger('click')
-    await flushPromises()
-
-    const loopSelect = wrapper.find('[data-test="step-on-failure-loop-to"]')
-    await loopSelect.setValue('step-a')
-    await flushPromises()
-
-    // maxLoops remains 0; click save → warning confirm dialog should appear
-    await wrapper.get('[data-testid="save-template-button"]').trigger('click')
-    await flushPromises()
-
-    expect(ElMessageBox.confirm).toHaveBeenCalled()
-    const lastCall = ElMessageBox.confirm.mock.calls[ElMessageBox.confirm.mock.calls.length - 1]
-    expect(String(lastCall[0])).toContain('最大循环次数')
   })
 })

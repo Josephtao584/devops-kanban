@@ -51,7 +51,6 @@ test.test('createTemplate rejects template name exceeding 200 characters', async
         template_id: 'test-template',
         name: longTemplateName,
         steps: [validStep],
-        maxLoops: 0,
       }),
       /Workflow template name exceeds maximum length of 200 characters/
     );
@@ -65,7 +64,6 @@ test.test('createTemplate accepts template name at exactly 200 characters', asyn
       template_id: 'test-template',
       name: exactTemplateName,
       steps: [validStep],
-      maxLoops: 0,
     });
     assert.equal(template.name, exactTemplateName);
   });
@@ -79,7 +77,6 @@ test.test('createTemplate rejects step name exceeding 200 characters', async () 
         template_id: 'test-template',
         name: 'Valid Template',
         steps: [longStepName],
-        maxLoops: 0,
       }),
       /step name must not exceed 200 characters/
     );
@@ -100,7 +97,6 @@ test.test('createTemplate accepts step name at exactly 200 characters', async ()
       template_id: 'test-template',
       name: 'Valid Template',
       steps: [validLongStep],
-      maxLoops: 0,
     });
     assert.equal(template.steps[0]!.name, 'a'.repeat(200));
   });
@@ -115,7 +111,6 @@ test.test('updateTemplate rejects step name exceeding 200 characters', async () 
       template_id: 'test-template',
       name: 'Valid Template',
       steps: [validStep],
-      maxLoops: 0,
     });
 
     await assert.rejects(

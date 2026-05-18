@@ -381,7 +381,6 @@ describe('WorkflowStartEditorDialog', () => {
         template_id: 'workflow-v1',
         name: '通用复杂任务工作流',
         tags: [],
-        maxLoops: 0,
         steps: [
           {
             id: 'requirement-design',

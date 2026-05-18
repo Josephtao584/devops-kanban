@@ -16,6 +16,7 @@ import { cleanupMcpJson, cleanupOpenCodeMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
+import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
 
 // NOTE: do not statically import `../taskService.js` here. The module graph
 // forms a cycle: workflowService → workflowLifecycle → taskService → workflowService,
@@ -32,7 +33,6 @@ type TaskStatusChangeHandler = (taskId: number, status: string) => void | Promis
 // workflowLifecycle ↔ workflowService cycle the comment above already warns
 // about).
 interface LoopTriggerService {
-  templateService: { getTemplateById: (templateId: string) => Promise<{ maxLoops?: number | null } | null> };
   createLoopRun: (
     parentRunId: number,
     fromStepId: string,
@@ -661,9 +661,7 @@ class WorkflowLifecycle {
     const fromStepId = templateStep?.onFailureLoopTo;
     if (!fromStepId) return;
 
-    const template = await this.workflowService.templateService.getTemplateById(instance.template_id);
-    const maxLoops = template?.maxLoops ?? 0;
-    if (run.iteration + 1 > maxLoops) return;
+    if (run.iteration + 1 > DEFAULT_MAX_LOOPS) return;
 
     const inflight = await this.workflowRunRepo.findInFlightChild(run.id);
     if (inflight) return;

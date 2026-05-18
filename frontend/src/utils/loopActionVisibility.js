@@ -2,8 +2,17 @@
 //
 // Extracted from CurrentWorkflow.vue so the boundary conditions can be unit-
 // tested without mounting the component. The backend's createLoopRun rejects
-// when `parent.iteration + 1 > maxLoops`, which is the source of truth — keep
-// these predicates aligned with that rule.
+// when `parent.iteration + 1 > DEFAULT_MAX_LOOPS`, which is the source of
+// truth — keep these predicates aligned with that rule.
+
+/**
+ * System-wide cap on auto-loop iterations. This MUST match
+ * `DEFAULT_MAX_LOOPS` in backend/src/services/workflow/loopConstants.ts.
+ * Duplicated here so the UI can compute "再循环一轮" visibility without an
+ * extra round-trip — the backend remains the source of truth for actual
+ * enforcement.
+ */
+export const DEFAULT_MAX_LOOPS = 3
 
 /**
  * Resolve the failed step id for a workflow run that ended in FAILED state.
@@ -41,19 +50,14 @@ export function canLoopBack(run) {
  * "再循环一轮" — override the auto-loop budget. Surfaces when the failed run
  * has hit the configured ceiling so the user can opt into one more iteration.
  *
- * Boundary: `iteration >= maxLoops` (not strictly greater). Backend rejects
- * when `parent.iteration + 1 > maxLoops`, so once iteration matches maxLoops
- * the next auto-loop would be rejected and override is the only path forward.
- *
- * Special case: maxLoops <= 0 means auto-loop is disabled entirely; every
- * loop attempt is by definition a manual override, so always show the button
- * on FAILED runs.
+ * Boundary: `iteration >= DEFAULT_MAX_LOOPS` (not strictly greater). Backend
+ * rejects when `parent.iteration + 1 > DEFAULT_MAX_LOOPS`, so once iteration
+ * matches the cap the next auto-loop would be rejected and override is the
+ * only path forward.
  */
 export function canLoopAgain(run) {
   if (!run) return false
   if (run.status !== 'FAILED') return false
-  const maxLoops = Number(run.workflow_template_snapshot?.maxLoops ?? 0)
   const iteration = Number(run.iteration ?? 1)
-  if (maxLoops <= 0) return true
-  return iteration >= maxLoops
+  return iteration >= DEFAULT_MAX_LOOPS
 }

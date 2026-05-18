@@ -122,7 +122,7 @@ const template1: WorkflowTemplateEntity = {
   steps: [
     { id: 's1', name: '分析', instructionPrompt: 'Analyze', agentId: 1, requiresConfirmation: false, onFailureLoopTo: null },
   ],
-  order: 1, maxLoops: 0, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  order: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };
 
 // --- Helpers ---
