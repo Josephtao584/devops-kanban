@@ -204,8 +204,9 @@ const timeline = computed(() => {
         })
       }
       const runSteps = Array.isArray(run.steps) ? run.steps : []
+      const isLatestRun = runIdx === chain.length - 1
       runSteps.forEach((step, index) => {
-        if (shouldHideStepAfterFailure(step, index, runSteps)) return
+        if (!isLatestRun && shouldHideStepAfterFailure(step, index, runSteps)) return
         items.push({
           kind: 'step',
           runId: run.id,
