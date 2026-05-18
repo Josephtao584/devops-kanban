@@ -454,32 +454,40 @@ class TaskService {
   async batchCreate(input: {
     parent_task_id: number;
     suggestions: Suggestion[];
-    existing_child_ids?: number[];
+    skip_indices?: number[];
+    existing_task_id_by_index?: Record<number, number>;
   }): Promise<TaskEntity[]> {
+    const skipIndices = new Set(input.skip_indices ?? []);
+    const existingByIndex = input.existing_task_id_by_index ?? {};
+
     const enabled = input.suggestions
       .map((s, originalIdx) => ({ s, originalIdx }))
-      .filter(({ s }) => s.enabled);
+      .filter(({ s, originalIdx }) => s.enabled && !skipIndices.has(originalIdx));
 
     const indexMap = new Map<number, number>();
     enabled.forEach((e, i) => indexMap.set(e.originalIdx, i));
 
-    const existingIds = new Set(input.existing_child_ids ?? []);
-
-    const remappedDeps = enabled.map(({ s }) =>
+    type RemappedDep = { batchPos: number } | { existingTaskId: number };
+    const remappedDeps: RemappedDep[][] = enabled.map(({ s }) =>
       s.depends_on_indices
-        .map(oi => {
+        .map((oi): RemappedDep | undefined => {
           // If the dependency points to a task in the new batch, use its position.
           const batchPos = indexMap.get(oi);
-          if (batchPos !== undefined) return batchPos;
-          // If the dependency points to an already-created task, mark it
-          // as an external dep (use -1 as a sentinel).
-          if (existingIds.size > 0) return -1;
+          if (batchPos !== undefined) return { batchPos };
+          // If the dependency points to an already-created task, link by id.
+          const existingTaskId = existingByIndex[oi];
+          if (existingTaskId !== undefined) return { existingTaskId };
           return undefined;
         })
-        .filter((i): i is number => i !== undefined),
+        .filter((d): d is RemappedDep => d !== undefined),
     );
 
-    if (hasCycle(remappedDeps.map(d => ({ depends_on_indices: d.filter(i => i >= 0) })))) {
+    const cycleNodes = remappedDeps.map(deps => ({
+      depends_on_indices: deps
+        .map(d => ('batchPos' in d ? d.batchPos : -1))
+        .filter(i => i >= 0),
+    }));
+    if (hasCycle(cycleNodes)) {
       throw new Error('suggestions contain a dependency cycle');
     }
 
@@ -489,21 +497,21 @@ class TaskService {
     const created: TaskEntity[] = [];
     for (let i = 0; i < enabled.length; i++) {
       const { s } = enabled[i]!;
-      const hasExistingDeps = remappedDeps[i]!.includes(-1);
-      const deps = remappedDeps[i]!
-        .filter(pos => pos >= 0)
-        .map(pos => created[pos]?.id)
-        .filter((id): id is number => id != null);
-
-      // If there are existing deps, the task should WAITING; otherwise
-      // only wait for in-batch deps.
-      const hasDeps = hasExistingDeps || deps.length > 0;
+      const deps: number[] = [];
+      for (const d of remappedDeps[i]!) {
+        if ('batchPos' in d) {
+          const upstream = created[d.batchPos];
+          if (upstream) deps.push(upstream.id);
+        } else {
+          deps.push(d.existingTaskId);
+        }
+      }
 
       const task = await this.taskRepo.create({
         title: s.title,
         description: s.description,
         project_id: s.linked_project_id ?? parent.project_id,
-        status: hasDeps ? 'WAITING' : 'TODO',
+        status: deps.length === 0 ? 'TODO' : 'WAITING',
         priority: 'MEDIUM',
         source: 'internal',
         parent_task_id: input.parent_task_id,

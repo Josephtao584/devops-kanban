@@ -32,17 +32,24 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     throw new Error(`cannot confirm suggestion in status ${existing.status}`);
   }
 
-  // Get already-created children (from a previous partial confirm).
+  // Map already-created child tasks back to their original suggestion index
+  // (matched by title, case-insensitive). Suggestions whose title matches an
+  // existing child are skipped; remaining suggestions can still depend on
+  // those existing children by their original index.
   const existingChildren = await taskRepository.findChildren(existing.parent_task_id);
-  const existingChildTitles = new Set(existingChildren.map(c => c.title.toLowerCase()));
+  const existingByTitle = new Map(existingChildren.map(c => [c.title.toLowerCase(), c.id]));
 
-  // Filter out suggestions that already have matching child tasks, so
-  // re-confirming after a partial confirm doesn't fail or create duplicates.
-  const newSuggestions = existing.suggestions.filter(
-    s => !existingChildTitles.has(s.title.toLowerCase()),
-  );
+  const skipIndices: number[] = [];
+  const existingTaskIdByIndex: Record<number, number> = {};
+  existing.suggestions.forEach((s, idx) => {
+    const matchedId = existingByTitle.get(s.title.toLowerCase());
+    if (matchedId !== undefined) {
+      skipIndices.push(idx);
+      existingTaskIdByIndex[idx] = matchedId;
+    }
+  });
 
-  if (newSuggestions.length === 0) {
+  if (skipIndices.length === existing.suggestions.length) {
     // All suggestions already have children — nothing more to create.
     const updated = (await splitSuggestionRepository.findById(id))!;
     return { tasks: existingChildren.map(t => t.id), suggestion: updated };
@@ -50,8 +57,9 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
 
   const tasks = await taskService.batchCreate({
     parent_task_id: existing.parent_task_id,
-    suggestions: newSuggestions,
-    existing_child_ids: existingChildren.map(t => t.id),
+    suggestions: existing.suggestions,
+    skip_indices: skipIndices,
+    existing_task_id_by_index: existingTaskIdByIndex,
   });
 
   try {
