@@ -111,6 +111,11 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
   worktree_path TEXT NOT NULL,
   branch TEXT NOT NULL,
   context TEXT NOT NULL DEFAULT '{}',
+  parent_run_id INTEGER DEFAULT NULL,
+  iteration INTEGER NOT NULL DEFAULT 1,
+  looped_from_step_id TEXT DEFAULT NULL,
+  loop_failure_context TEXT DEFAULT NULL,
+  loop_trigger_error TEXT DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -118,6 +123,7 @@ CREATE TABLE IF NOT EXISTS workflow_runs (
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_task_id ON workflow_runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
 CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_instance_id ON workflow_runs(workflow_instance_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_runs_parent_run_id ON workflow_runs(parent_run_id);
 
 -- tasks: 任务表
 CREATE TABLE IF NOT EXISTS tasks (

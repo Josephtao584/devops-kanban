@@ -27,6 +27,7 @@ const validStep = {
   name: 'Explore',
   instructionPrompt: 'Do something useful.',
   agentId: 1,
+  onFailureLoopTo: null,
 };
 
 const longStepName = {
@@ -34,6 +35,7 @@ const longStepName = {
   name: 'a'.repeat(201),
   instructionPrompt: 'Do something.',
   agentId: 1,
+  onFailureLoopTo: null,
 };
 
 const longTemplateName = 't'.repeat(201);
@@ -89,6 +91,7 @@ test.test('createTemplate accepts step name at exactly 200 characters', async ()
       name: 'a'.repeat(200),
       instructionPrompt: 'Do something useful.',
       agentId: 1,
+      onFailureLoopTo: null,
     };
     const template = await service.createTemplate({
       template_id: 'test-template',
@@ -112,6 +115,8 @@ test.test('updateTemplate rejects step name exceeding 200 characters', async () 
 
     await assert.rejects(
       async () => service.updateTemplate('test-template', {
+        template_id: 'test-template',
+        name: 'Valid Template',
         steps: [longStepName],
       }),
       /step name must not exceed 200 characters/

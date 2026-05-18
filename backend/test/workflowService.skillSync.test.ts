@@ -12,7 +12,7 @@ test.test('resolveWorkflowSkills extracts skills from workflow instance', async 
     template_version: '2026-03-22T00:00:00.000Z',
     name: 'Test Instance',
     steps: [
-      { id: 'step-1', name: 'Step 1', instructionPrompt: 'Do work', agentId: 1 },
+      { id: 'step-1', name: 'Step 1', instructionPrompt: 'Do work', agentId: 1, onFailureLoopTo: null },
     ],
     created_at: '2026-03-22T00:00:00.000Z',
     updated_at: '2026-03-22T00:00:00.000Z',

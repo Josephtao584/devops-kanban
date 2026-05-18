@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 
 import type { StartWorkflowBody, ResumeWorkflowBody } from '../types/dto/workflows.js';
 import { WorkflowService } from '../services/workflow/workflowService.js';
@@ -8,9 +9,19 @@ import { successResponse, errorResponse } from '../utils/response.js';
 import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
 import { withRetry } from '../db/retry.js';
 
-const workflowService = new WorkflowService();
+const defaultWorkflowService = new WorkflowService();
 
-const workflowRoutes: FastifyPluginAsync = async (fastify) => {
+type WorkflowRouteOptions = { service?: WorkflowService };
+
+const loopBodySchema = z.object({
+  fromStepId: z.string().min(1, 'fromStepId is required'),
+  override: z.boolean().optional(),
+});
+
+const workflowRoutes: FastifyPluginAsync<WorkflowRouteOptions> = async (
+  fastify,
+  { service = defaultWorkflowService } = {},
+) => {
   fastify.post<{ Body: StartWorkflowBody }>('/run', async (request, reply) => {
     try {
       const { task_id, workflow_template_id } = request.body || {};
@@ -19,7 +30,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('task_id is required');
       }
 
-      const run = await workflowService.startWorkflow(parseNumber(String(task_id)), {
+      const run = await service.startWorkflow(parseNumber(String(task_id)), {
         workflowTemplateId: workflow_template_id
       });
       return successResponse(run, 'Workflow started');
@@ -32,7 +43,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get<{ Params: IdParams }>('/runs/:id', async (request, reply) => {
     try {
-      const run = await workflowService.getWorkflowRun(parseNumber(request.params.id));
+      const run = await service.getWorkflowRun(parseNumber(request.params.id));
       if (!run) {
         reply.code(404);
         return errorResponse('Workflow run not found');
@@ -52,7 +63,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
         reply.code(400);
         return errorResponse('task_id query parameter is required');
       }
-      return successResponse(await workflowService.getAllRunsByTask(taskId));
+      return successResponse(await service.getAllRunsByTask(taskId));
     } catch (error) {
       logError(error, request);
       reply.code(500);
@@ -62,7 +73,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get<{ Params: IdParams }>('/runs/:id/steps', async (request, reply) => {
     try {
-      const run = await workflowService.getWorkflowRun(parseNumber(request.params.id));
+      const run = await service.getWorkflowRun(parseNumber(request.params.id));
       if (!run) {
         reply.code(404);
         return errorResponse('Workflow run not found');
@@ -77,7 +88,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Params: IdParams }>('/runs/:id/cancel', async (request, reply) => {
     try {
-      const run = await workflowService.cancelWorkflow(parseNumber(request.params.id));
+      const run = await service.cancelWorkflow(parseNumber(request.params.id));
       return successResponse(run, 'Workflow cancelled');
     } catch (error) {
       logError(error, request);
@@ -88,7 +99,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Params: IdParams }>('/runs/:id/retry', async (request, reply) => {
     try {
-      const run = await workflowService.retryWorkflow(parseNumber(request.params.id));
+      const run = await service.retryWorkflow(parseNumber(request.params.id));
       return successResponse(run, 'Workflow retry started');
     } catch (error) {
       logError(error, request);
@@ -96,6 +107,40 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
       return errorResponse(getErrorMessage(error, 'Failed to retry workflow'));
     }
   });
+
+  fastify.post<{ Params: { runId: string }; Body: { fromStepId: string; override?: boolean } }>(
+    '/runs/:runId/loop',
+    async (request, reply) => {
+      const runId = parseNumber(request.params.runId);
+      if (!Number.isFinite(runId) || runId <= 0) {
+        reply.code(400);
+        return errorResponse('Invalid runId');
+      }
+
+      const parsed = loopBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        reply.code(400);
+        return errorResponse(`Invalid loop request: ${parsed.error.message}`);
+      }
+
+      try {
+        const newRun = await service.createLoopRun(
+          runId,
+          parsed.data.fromStepId,
+          undefined,
+          parsed.data.override === true,
+        );
+        return successResponse(
+          { newRunId: newRun.id, iteration: newRun.iteration, run: newRun },
+          'Loop run created',
+        );
+      } catch (error) {
+        logError(error, request);
+        reply.code(getStatusCode(error));
+        return errorResponse(getErrorMessage(error, 'Failed to create loop run'));
+      }
+    },
+  );
 
   fastify.post<{ Params: IdParams; Body: ResumeWorkflowBody }>('/runs/:id/resume', async (request, reply) => {
     try {
@@ -113,7 +158,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
           }
           resumeData.ask_user_answer = trimmed;
         }
-        return workflowService.resumeWorkflow(
+        return service.resumeWorkflow(
           parseNumber(request.params.id),
           resumeData
         );
@@ -128,7 +173,7 @@ const workflowRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get<{ Params: IdParams }>('/runs/:id/suspend-info', async (request, reply) => {
     try {
-      const run = await workflowService.getWorkflowRun(parseNumber(request.params.id));
+      const run = await service.getWorkflowRun(parseNumber(request.params.id));
       if (!run) {
         reply.code(404);
         return errorResponse('Workflow run not found');

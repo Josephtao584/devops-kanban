@@ -36,6 +36,10 @@ interface ExecuteWorkflowStepInput {
   onAskUser?: (data: AskUserQuestionData) => void | Promise<void>;
   onAssembledPrompt?: (prompt: string) => void | Promise<void>;
   isFirstStep?: boolean;
+  // When set, this text is prepended to the assembled prompt. Used by loop
+  // runs to inject failure + prior-step context into the start step's prompt
+  // so the AI agent can see why the previous attempt failed.
+  loopContextText?: string;
 }
 
 function buildExecutorConfig(agent: AgentEntity): ExecutorConfig {
@@ -83,6 +87,7 @@ export async function executeWorkflowStep({
   onAskUser,
   onAssembledPrompt,
   isFirstStep = false,
+  loopContextText,
 }: ExecuteWorkflowStepInput) {
   // 1. Find step
   const step = workflowInstance.steps.find((item) => item.id === stepId);
@@ -96,7 +101,7 @@ export async function executeWorkflowStep({
 
   // 3. Build prompt
   const effectiveProjectEnv = projectEnv ?? state.projectEnv;
-  const prompt = await assembleWorkflowPrompt({
+  const basePrompt = await assembleWorkflowPrompt({
     step,
     state,
     inputData,
@@ -107,6 +112,15 @@ export async function executeWorkflowStep({
     isFirstStep,
     canEarlyExit: step.canEarlyExit ?? false,
   });
+
+  // Prepend loop context (when this run is a loop entry point) so the failure
+  // summary + prior-step summaries are visible to the agent before the regular
+  // step instructions. Persisted via onAssembledPrompt so the UI can render
+  // exactly what was sent to the model. The loop preamble must be escaped
+  // the same way assembleWorkflowPrompt escapes its output, otherwise the
+  // persisted prompt would mix real newlines with two-character `\n` escapes.
+  const escapedLoopText = loopContextText ? loopContextText.replaceAll('\n', '\\n') : null;
+  const prompt = escapedLoopText ? `${escapedLoopText}\\n${basePrompt}` : basePrompt;
 
   if (onAssembledPrompt) {
     await onAssembledPrompt(prompt);

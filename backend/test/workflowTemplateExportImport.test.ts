@@ -65,8 +65,8 @@ const sampleTemplate: WorkflowTemplateEntity = {
   template_id: 'test-workflow',
   name: 'Test Workflow',
   steps: [
-    { id: 'step1', name: 'Step 1', instructionPrompt: 'Do something', agentId: 1, requiresConfirmation: false },
-    { id: 'step2', name: 'Step 2', instructionPrompt: 'Do more', agentId: 1, requiresConfirmation: true },
+    { id: 'step1', name: 'Step 1', instructionPrompt: 'Do something', agentId: 1, requiresConfirmation: false, onFailureLoopTo: null },
+    { id: 'step2', name: 'Step 2', instructionPrompt: 'Do more', agentId: 1, requiresConfirmation: true, onFailureLoopTo: null },
   ],
   order: 1,
   created_at: '2026-01-01T00:00:00Z',

@@ -391,6 +391,7 @@ describe('WorkflowStartEditorDialog', () => {
             canEarlyExit: false,
             type: 'DEFAULT',
             maxRetries: 0,
+            onFailureLoopTo: null,
           },
           {
             id: 'code-development',
@@ -401,6 +402,7 @@ describe('WorkflowStartEditorDialog', () => {
             canEarlyExit: false,
             type: 'DEFAULT',
             maxRetries: 0,
+            onFailureLoopTo: null,
           }
         ]
       },

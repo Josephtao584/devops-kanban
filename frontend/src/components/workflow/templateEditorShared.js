@@ -5,6 +5,12 @@ const normalizeStepType = (raw) => {
   return value || 'DEFAULT'
 }
 
+const normalizeOnFailureLoopTo = (raw) => {
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  return trimmed ? trimmed : null
+}
+
 export const normalizeWorkflowStep = (step = {}) => ({
   id: step.id ?? '',
   name: step.name ?? '',
@@ -14,6 +20,7 @@ export const normalizeWorkflowStep = (step = {}) => ({
   canEarlyExit: step.canEarlyExit === true,
   type: normalizeStepType(step.type),
   maxRetries: typeof step.maxRetries === 'number' ? Math.min(Math.max(step.maxRetries, 0), 3) : 0,
+  onFailureLoopTo: normalizeOnFailureLoopTo(step.onFailureLoopTo),
 })
 
 export const normalizeWorkflowTemplate = (template, emptyValue = null) => {
@@ -34,6 +41,7 @@ export const sanitizeWorkflowStep = (step = {}) => ({
   canEarlyExit: step.canEarlyExit === true,
   type: normalizeStepType(step.type),
   maxRetries: typeof step.maxRetries === 'number' ? Math.min(Math.max(step.maxRetries, 0), 3) : 0,
+  onFailureLoopTo: normalizeOnFailureLoopTo(step.onFailureLoopTo),
 })
 
 export const createEmptyWorkflowStep = (defaultName = '') => ({
@@ -45,6 +53,7 @@ export const createEmptyWorkflowStep = (defaultName = '') => ({
   canEarlyExit: false,
   type: 'DEFAULT',
   maxRetries: 0,
+  onFailureLoopTo: null,
 })
 
 export const insertWorkflowStep = (steps = [], targetIndex, position = 'after', step = createEmptyWorkflowStep()) => {
@@ -122,6 +131,7 @@ const buildWorkflowStepsPayload = (steps = []) => {
       canEarlyExit: normalizedStep.canEarlyExit,
       type: normalizedStep.type,
       maxRetries: normalizedStep.maxRetries,
+      onFailureLoopTo: normalizedStep.onFailureLoopTo,
     }
   })
 }

@@ -5,7 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep, continueWorkflowStepWithAnswer } from './workflowStepExecutor.js';
-import type { WorkflowInstanceEntity } from '../../types/entities.js';
+import type { WorkflowInstanceEntity, WorkflowRunEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
 import { logger } from '../../utils/logger.js';
 
@@ -68,6 +68,79 @@ interface BuildWorkflowOptions {
   runId: number;
   task: { id: number; project_id: number; execution_path: string };
   lifecycle: WorkflowLifecycle;
+  loopContext?: {
+    fromStepId: string;
+    text: string;
+  };
+}
+
+export function cropInstanceForLoop(
+  instance: WorkflowInstanceEntity,
+  fromStepId: string | null,
+): WorkflowInstanceEntity {
+  if (fromStepId === null) return instance;
+  const idx = instance.steps.findIndex(s => s.id === fromStepId);
+  if (idx === -1) throw new Error(`Step "${fromStepId}" not found in instance`);
+  return { ...instance, steps: instance.steps.slice(idx) };
+}
+
+/**
+ * Renders the loop preamble injected into the next iteration's prompt.
+ *
+ * SECURITY NOTE: failureContext.error and priorSummaries[].summary are
+ * interpolated as raw Markdown. They originate from previous step outputs
+ * (executor stderr, error messages, AI summaries) which can contain
+ * user-controlled text. A malicious task could produce error output that
+ * attempts prompt injection on the next iteration. This is a known dual-use
+ * surface in AI orchestration; mitigations include input sanitization at
+ * the executor boundary, or treating the loop preamble as untrusted in the
+ * agent's system prompt.
+ */
+export function formatLoopContext(args: {
+  fromStepId: string;
+  failureContext: { failed_step_id: string; error: string; summary: string | null } | null;
+  priorSummaries: { stepId: string; name: string; summary: string | null }[];
+}): string {
+  const { failureContext, priorSummaries } = args;
+  const lines: string[] = [];
+  lines.push('## 循环上下文（来自上一轮失败回退）\n');
+  if (failureContext) {
+    lines.push(`- 上一轮在步骤 **${failureContext.failed_step_id}** 失败`);
+    lines.push(`- 错误：${failureContext.error}`);
+    if (failureContext.summary) {
+      lines.push(`- 失败步骤产出摘要：${failureContext.summary}`);
+    }
+  }
+  if (priorSummaries.length > 0) {
+    lines.push('\n### 前序步骤产出摘要');
+    for (const s of priorSummaries) {
+      lines.push(`- **${s.name}** (${s.stepId})：${s.summary ?? '_摘要不可用_'}`);
+    }
+  }
+  lines.push('\n请基于上述信息改进本步骤的产出。\n---\n');
+  return lines.join('\n');
+}
+
+export async function collectPriorSummaries(
+  runRepo: { findById(id: number): Promise<WorkflowRunEntity | null> },
+  runId: number,
+  fromStepId: string,
+): Promise<{ stepId: string; name: string; summary: string | null }[]> {
+  const out: { stepId: string; name: string; summary: string | null }[] = [];
+  let current = await runRepo.findById(runId);
+  while (current) {
+    for (const s of current.steps) {
+      if (s.step_id === fromStepId) break;
+      // Only include non-SKIPPED steps from the deepest run that actually executed them
+      if (s.status !== 'SKIPPED' && !out.find(o => o.stepId === s.step_id)) {
+        out.push({ stepId: s.step_id, name: s.name, summary: s.summary });
+      }
+    }
+    if (!current.parent_run_id) break;
+    current = await runRepo.findById(current.parent_run_id);
+  }
+  // Order by template position by reversing so earliest first
+  return out.reverse();
 }
 
 export function getWorkflowFromWorkflowId(workflowId: string) {
@@ -165,6 +238,21 @@ export function buildWorkflowFromInstance(
               last_step_output: lastStepOutput,
             }).replaceAll('\n', '\\n');
 
+            // Prepend loop context when this SPLIT_TASK step is the loop
+            // entry point. Same convention as the standard step path so the
+            // agent sees failure summary + prior outputs before the split
+            // instruction. The preamble is escaped the same way splitPrompt
+            // is (`.replaceAll('\n', '\\n')`) so the persisted prompt is
+            // uniformly single-line escaped.
+            const finalSplitPrompt = options.loopContext && options.loopContext.fromStepId === templateStep.id
+              ? `${options.loopContext.text.replaceAll('\n', '\\n')}\\n${splitPrompt}`
+              : splitPrompt;
+
+            // Persist the assembled prompt so the UI can show what was sent.
+            await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+              assembled_prompt: finalSplitPrompt,
+            }).catch(() => {});
+
             // Execute agent with split prompt
             const agentRepo = new AgentRepository();
             const { TASK_SPLITTER_AGENT_ROLE } = await import('./builtinTaskSplitAgent.js');
@@ -186,7 +274,7 @@ export function buildWorkflowFromInstance(
             }
 
             const executionResult = await executor.execute({
-              prompt: splitPrompt,
+              prompt: finalSplitPrompt,
               worktreePath: state.worktreePath,
               executorConfig: {
                 type: agent.executorType,
@@ -205,7 +293,7 @@ export function buildWorkflowFromInstance(
                 segment_id: sessionInfo.segmentId,
                 kind: 'message',
                 role: 'user',
-                content: splitPrompt,
+                content: finalSplitPrompt,
                 payload: {},
               }).catch(() => {});
               const adaptedPreview = adaptStepResult(agent.executorType, executionResult);
@@ -448,6 +536,9 @@ export function buildWorkflowFromInstance(
               });
             } else {
               // First execution: fresh prompt
+              const stepLoopContextText = options.loopContext && options.loopContext.fromStepId === templateStep.id
+                ? options.loopContext.text
+                : undefined;
               result = await executeWorkflowStep({
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
@@ -463,6 +554,7 @@ export function buildWorkflowFromInstance(
                 abortSignal,
                 upstreamStepIds: previousStepId ? [previousStepId] : [],
                 isFirstStep: isFirst,
+                ...(stepLoopContextText ? { loopContextText: stepLoopContextText } : {}),
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;

@@ -1,5 +1,5 @@
 <template>
-  <template v-if="steps.length">
+  <template v-if="timeline.length">
     <!-- Timeline meta row: start / end / duration -->
     <div class="timeline-meta">
       <span class="timeline-meta-item">
@@ -29,50 +29,190 @@
 
     <!-- Agent roster -->
     <div class="agent-roster">
-      <div
-        v-for="(step, si) in steps"
-        :key="step.id"
-        class="agent-card-wrapper"
-      >
-        <div class="agent-step-index">{{ String(si + 1).padStart(2, '0') }}</div>
+      <template v-for="(item, idx) in timeline" :key="item.kind === 'separator' ? `sep-${item.runId}` : `step-${item.runId}-${item.step.id}-${idx}`">
         <div
-          class="agent-card"
-          :class="[step.statusClass, { selected: selectedStepId === step.id }]"
-          @click="handleStepClick(step)"
+          v-if="item.kind === 'separator'"
+          class="run-separator"
+          data-test="run-separator"
         >
-          <div class="agent-card-top">
-            <div class="agent-avatar">
-              <span v-html="getStepRoleConfig(step).icon" class="agent-avatar-icon"></span>
-            </div>
-            <div class="agent-card-info">
-              <div class="agent-card-name">{{ getStepAgentName(step) }}</div>
-              <div v-if="getStepAgentLabel(step)" class="agent-card-executor">{{ getStepAgentLabel(step) }}</div>
-            </div>
-            <span class="agent-status-dot" :class="step.statusClass"></span>
+          <div class="run-separator-arrow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 14l-4-4 4-4"></path>
+              <path d="M5 10h11a4 4 0 0 1 0 8h-1"></path>
+            </svg>
           </div>
-          <div class="agent-card-footer">
-            <span class="agent-step-name" :title="step.name">{{ step.name }}</span>
-            <span class="agent-step-status" :class="step.statusClass">{{ step.statusLabel }}</span>
+          <div class="run-separator-text">
+            {{
+              t('workflow.loopSeparator', {
+                fromStep: separatorFromStepName(item),
+                failedStep: separatorFailedStepName(item)
+              })
+            }}
+            <el-tooltip
+              v-if="item.loopFailureContext?.error"
+              :content="item.loopFailureContext.error"
+              placement="top"
+            >
+              <span class="run-separator-info" aria-label="loop failure error">i</span>
+            </el-tooltip>
           </div>
         </div>
-      </div>
+        <div v-else class="agent-card-wrapper">
+          <div class="agent-step-index">{{ formatStepIndex(item) }}</div>
+          <div
+            class="agent-card"
+            :class="[item.step.statusClass, { selected: selectedStepId === item.step.id }]"
+            data-test="step-card"
+            @click="handleStepClick(item.step)"
+          >
+            <div class="agent-card-top">
+              <div class="agent-avatar">
+                <span v-html="getStepRoleConfig(item.step).icon" class="agent-avatar-icon"></span>
+              </div>
+              <div class="agent-card-info">
+                <div class="agent-card-name">{{ getStepAgentName(item.step) }}</div>
+                <div v-if="getStepAgentLabel(item.step)" class="agent-card-executor">{{ getStepAgentLabel(item.step) }}</div>
+              </div>
+              <span class="agent-status-dot" :class="item.step.statusClass"></span>
+            </div>
+            <div class="agent-card-footer">
+              <span class="agent-step-name" :title="item.step.name">{{ item.step.name }}</span>
+              <span class="agent-step-status" :class="item.step.statusClass">{{ item.step.statusLabel }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </template>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getRoleConfig } from '../../constants/agent.js'
+import { getExecutorLabel } from '../../constants/executor.js'
 import { useAgentStore } from '../../stores/agentStore.js'
 
+const { t } = useI18n()
 const agentStore = useAgentStore()
 
 const props = defineProps({
+  // Legacy single-run input (still supported for callers that haven't switched).
   steps: { type: Array, default: () => [] },
+  // New input: list of runs ordered chronologically.
+  runs: { type: Array, default: () => [] },
   selectedStepId: { type: [Number, String], default: null },
   timelineMeta: { type: Object, default: () => ({ startText: '', endText: '', durationText: '' }) }
 })
 
 const emit = defineEmits(['step-select'])
+
+const STATUS_CLASS = {
+  DONE: 'done',
+  COMPLETED: 'done',
+  IN_PROGRESS: 'running',
+  RUNNING: 'running',
+  FAILED: 'failed',
+  CANCELLED: 'failed',
+  SUSPENDED: 'suspended',
+  PENDING: 'pending'
+}
+
+const STATUS_LABEL = {
+  DONE: '已完成',
+  COMPLETED: '已完成',
+  IN_PROGRESS: '执行中',
+  RUNNING: '执行中',
+  FAILED: '失败',
+  CANCELLED: '已取消',
+  SUSPENDED: '暂停',
+  PENDING: '待执行'
+}
+
+function decorateStep(rawStep, index) {
+  // Steps coming from CurrentWorkflow.vue are already decorated; runs from the
+  // /runs?task_id=X endpoint contain the raw entity shape, so we normalize here
+  // to a unified rendering shape.
+  if (rawStep && typeof rawStep.statusClass === 'string') {
+    return rawStep
+  }
+  const step = rawStep || {}
+  return {
+    id: step.step_id || step.id || index,
+    step_id: step.step_id || null,
+    name: step.name || step.step_id || `步骤 ${index + 1}`,
+    statusClass: STATUS_CLASS[step.status] || 'pending',
+    statusLabel: STATUS_LABEL[step.status] || step.status || '待执行',
+    session_id: step.session_id || null,
+    provider_session_id: step.provider_session_id || null,
+    status: step.status,
+    assembled_prompt: step.assembled_prompt || '',
+    agent_id: step.agent_id ?? null,
+    raw: step
+  }
+}
+
+const timeline = computed(() => {
+  const items = []
+  if (Array.isArray(props.runs) && props.runs.length) {
+    props.runs.forEach((run, runIdx) => {
+      if (runIdx > 0 && run.parent_run_id != null) {
+        const parentRun = props.runs.find((r) => r.id === run.parent_run_id)
+        items.push({
+          kind: 'separator',
+          runId: run.id,
+          iteration: run.iteration,
+          loopedFromStepId: run.looped_from_step_id,
+          loopFailureContext: run.loop_failure_context,
+          prevRunId: run.parent_run_id,
+          prevSteps: Array.isArray(parentRun?.steps) ? parentRun.steps : []
+        })
+      }
+      const runSteps = Array.isArray(run.steps) ? run.steps : []
+      runSteps.forEach((step, index) => {
+        if (step?.status === 'SKIPPED') return
+        items.push({
+          kind: 'step',
+          runId: run.id,
+          iteration: run.iteration,
+          stepIndex: index,
+          step: decorateStep(step, index)
+        })
+      })
+    })
+    return items
+  }
+
+  // Legacy single-run path: render the prepared `steps` array.
+  const legacy = Array.isArray(props.steps) ? props.steps : []
+  legacy.forEach((step, index) => {
+    items.push({
+      kind: 'step',
+      runId: null,
+      iteration: 1,
+      stepIndex: index,
+      step: decorateStep(step, index)
+    })
+  })
+  return items
+})
+
+function formatStepIndex(item) {
+  return String((item.stepIndex ?? 0) + 1).padStart(2, '0')
+}
+
+function separatorFromStepName(item) {
+  if (!item.loopedFromStepId) return t('workflow.loopSeparatorUnknownStep')
+  const fromStep = item.prevSteps.find((s) => s.step_id === item.loopedFromStepId)
+  return fromStep?.name || item.loopedFromStepId
+}
+
+function separatorFailedStepName(item) {
+  const failedId = item.loopFailureContext?.failed_step_id
+  if (!failedId) return t('workflow.loopSeparatorUnknownStep')
+  const failedStep = item.prevSteps.find((s) => s.step_id === failedId)
+  return failedStep?.name || failedId
+}
 
 function resolveAgentInfo(agentId) {
   if (!agentId) return null
@@ -82,12 +222,10 @@ function resolveAgentInfo(agentId) {
   return { agent, roleConfig }
 }
 
-const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
-
 function getStepAgentLabel(step) {
   if (!step.agent_id) return ''
   const info = resolveAgentInfo(step.agent_id)
-  return info?.agent.executorType ? EXECUTOR_LABEL[info.agent.executorType] || info.agent.executorType : ''
+  return getExecutorLabel(info?.agent?.executorType)
 }
 
 function getStepAgentName(step) {
@@ -169,6 +307,51 @@ function handleStepClick(step) {
   width: 16px;
   height: 1px;
   background: var(--border-color);
+}
+
+.run-separator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px dashed #c7d2fe;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02));
+  color: #4338ca;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.run-separator-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.run-separator-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.run-separator-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: serif;
+  cursor: help;
 }
 
 .agent-step-index {

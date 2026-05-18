@@ -120,7 +120,7 @@ const agentAnalyst: AgentEntity = {
 const template1: WorkflowTemplateEntity = {
   id: 1, template_id: 'cve-fix', name: 'CVE 漏洞修复',
   steps: [
-    { id: 's1', name: '分析', instructionPrompt: 'Analyze', agentId: 1, requiresConfirmation: false },
+    { id: 's1', name: '分析', instructionPrompt: 'Analyze', agentId: 1, requiresConfirmation: false, onFailureLoopTo: null },
   ],
   order: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 };

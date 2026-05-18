@@ -12,7 +12,7 @@ type WorkflowTemplateRouteService = {
   getTemplates(): Promise<WorkflowTemplateEntity[]>;
   getTemplateById(templateId: string): Promise<WorkflowTemplateEntity | null>;
   createTemplate(template: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>): Promise<WorkflowTemplateEntity>;
-  updateTemplate(templateId: string, template: Partial<Omit<WorkflowTemplateEntity, 'id' | 'template_id' | 'created_at' | 'updated_at'>>): Promise<WorkflowTemplateEntity | null>;
+  updateTemplate(templateId: string, input: UpdateWorkflowTemplateInput): Promise<WorkflowTemplateEntity | null>;
   deleteTemplate(templateId: string): Promise<void>;
   reorderTemplates(updates: Array<{ id: number; order: number }>): Promise<WorkflowTemplateEntity[]>;
   exportTemplate(templateId: string): Promise<ExportFile>;
@@ -64,8 +64,7 @@ const workflowTemplateRoutes: FastifyPluginAsync<WorkflowTemplateRouteOptions> =
 
   fastify.put<{ Body: UpdateWorkflowTemplateInput }>('/', async (request, reply) => {
     try {
-      const { template_id, ...updateData } = request.body;
-      const template = await service.updateTemplate(template_id, updateData);
+      const template = await service.updateTemplate(request.body.template_id, request.body);
       return successResponse(template, 'Workflow template updated');
     } catch (error) {
       logError(error, request);

@@ -68,7 +68,7 @@ export interface SessionSegmentEntity {
   provider_session_id?: string | null;
   resume_token?: string | null;
   checkpoint_ref?: string | null;
-  trigger_type: 'START' | 'CONTINUE' | 'RESUME' | 'RETRY';
+  trigger_type: 'START' | 'CONTINUE' | 'RESUME' | 'RETRY' | 'LOOP_BACK';
   parent_segment_id?: number | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -114,6 +114,8 @@ export interface WorkflowStepEntity {
   // Early exit fields
   early_exit?: boolean | null;
   early_exit_reason?: string | null;
+  // Loop inheritance
+  inherited_from_run_id?: number | null;
 }
 
 export interface WorkflowTemplateStepEntity {
@@ -128,6 +130,8 @@ export interface WorkflowTemplateStepEntity {
   type?: string;
   // Auto-retry configuration
   maxRetries?: number;
+  // Loop-back configuration: when this step fails, loop back to the step with this id
+  onFailureLoopTo: string | null;
 }
 
 export interface WorkflowRunEntity {
@@ -143,6 +147,18 @@ export interface WorkflowRunEntity {
   context: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  // Loop run lineage
+  parent_run_id: number | null;
+  iteration: number;
+  looped_from_step_id: string | null;
+  loop_failure_context: {
+    failed_step_id: string;
+    error: string;
+    summary: string | null;
+  } | null;
+  loop_trigger_error: string | null;
+  // Enrichment field populated by getWorkflowRun (not persisted to DB)
+  workflow_template_snapshot?: WorkflowTemplateEntity;
 }
 
 export interface WorkflowInstanceEntity {

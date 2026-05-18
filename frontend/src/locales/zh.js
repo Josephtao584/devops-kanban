@@ -22,6 +22,7 @@ export default {
     refresh: '刷新',
     export: '导出',
     import: '导入',
+    warning: '警告',
   },
   nav: {
     groupWorkspace: '工作面板',
@@ -459,7 +460,9 @@ export default {
     previewPrompt: '预览 Prompt',
     previewPromptTitle: 'Prompt 预览 — {stepName}',
     previewPromptLoading: '正在生成预览...',
-    previewPromptFailed: '生成预览失败'
+    previewPromptFailed: '生成预览失败',
+    failureLoopTo: '失败回退到',
+    failureLoopToHint: '选择更早的步骤'
   },
   bundle: {
     exportTitle: '导出AgentTeam模板',
@@ -712,7 +715,15 @@ export default {
     startWorkflow: '启动AgentTeam',
     noWorkflow: '暂无AgentTeam',
     progress: '进度',
-    stages: '阶段'
+    stages: '阶段',
+    loopBackButton: '回退到…',
+    loopAgainButton: '再循环一轮',
+    loopBackDialogTitle: '回退到指定步骤',
+    loopBackPickStep: '选择回退目标',
+    loopBackConfirm: '回退',
+    loopSeparator: '⬅ 回退到 {fromStep}，因 {failedStep} 失败',
+    loopSeparatorUnknownStep: '未知步骤',
+    loopTriggerErrorPrefix: '自动回退触发失败：'
   },
   skill: {
     title: 'Skill管理',

@@ -4,10 +4,12 @@ import { TaskRepository } from '../../repositories/taskRepository.js';
 import { ProjectRepository } from '../../repositories/projectRepository.js';
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { WorkflowInstanceService } from '../workflowInstanceService.js';
+import { WorkflowTemplateService } from './workflowTemplateService.js';
 import { WorkflowLifecycle } from './workflowLifecycle.js';
-import { buildWorkflowFromInstance, getWorkflowFromWorkflowId } from './workflows.js';
+import { WorkflowLoopService } from './workflowLoopService.js';
+import { buildWorkflowFromInstance, getWorkflowFromWorkflowId, cropInstanceForLoop, formatLoopContext, collectPriorSummaries } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
-import { WorkflowInstanceEntity, WorkflowTemplateEntity } from '../../types/entities.js';
+import { WorkflowInstanceEntity, WorkflowRunEntity, WorkflowTemplateEntity } from '../../types/entities.js';
 import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
@@ -43,26 +45,37 @@ class WorkflowService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
   instanceService: WorkflowInstanceService;
+  templateService: WorkflowTemplateService;
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
+  loopService: WorkflowLoopService;
 
   private async resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, agentRepo, lifecycle }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, templateService, agentRepo, lifecycle, loopService }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
     instanceService?: WorkflowInstanceService;
+    templateService?: WorkflowTemplateService;
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
+    loopService?: WorkflowLoopService;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || sharedWorkflowRunRepo;
     this.taskRepo = taskRepo || new TaskRepository();
     this.projectRepo = projectRepo || new ProjectRepository();
     this.instanceService = instanceService || new WorkflowInstanceService();
+    this.templateService = templateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
+    this.loopService = loopService || new WorkflowLoopService({
+      workflowRunRepo: this.workflowRunRepo,
+      taskRepo: this.taskRepo,
+      instanceService: this.instanceService,
+      templateService: this.templateService,
+    });
     const notificationService = new NotificationService({
       filePath: path.join(STORAGE_PATH, 'notification-config.json'),
       defaultYamlPath: path.join(BACKEND_ROOT, 'notification-config.yaml'),
@@ -141,6 +154,14 @@ class WorkflowService {
         });
       },
     });
+
+    // Inject self into the lifecycle so onStepError can auto-trigger loops via
+    // createLoopRun. Done as a setter (not constructor arg) to break the
+    // workflowLifecycle ↔ workflowService cycle. Guarded so that test stubs
+    // injecting a partial lifecycle remain valid.
+    if (typeof this.lifecycle.setWorkflowService === 'function') {
+      this.lifecycle.setWorkflowService(this);
+    }
   }
 
   async startWorkflow(taskId: number, options: StartWorkflowOptions) {
@@ -286,10 +307,31 @@ class WorkflowService {
 
   private async executeWorkflow(runId: number, task: WorkflowTaskRecord & { execution_path: string; project_env: Record<string, string> }, instance: WorkflowInstanceEntity) {
     try {
-      const workflow = buildWorkflowFromInstance(instance, {
+      // For loop runs, crop the instance to start at the looped_from_step_id
+      // and pre-render the loop-context preamble that gets injected into the
+      // start step's prompt. Plain (non-loop) runs use the full instance and
+      // no loopContext.
+      const run = await this.workflowRunRepo.findById(runId);
+      let workflowInstance = instance;
+      let loopContext: { fromStepId: string; text: string } | undefined;
+      if (run?.looped_from_step_id) {
+        workflowInstance = cropInstanceForLoop(instance, run.looped_from_step_id);
+        const priors = await collectPriorSummaries(this.workflowRunRepo, run.id, run.looped_from_step_id);
+        loopContext = {
+          fromStepId: run.looped_from_step_id,
+          text: formatLoopContext({
+            fromStepId: run.looped_from_step_id,
+            failureContext: run.loop_failure_context,
+            priorSummaries: priors,
+          }),
+        };
+      }
+
+      const workflow = buildWorkflowFromInstance(workflowInstance, {
         runId,
         task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
-        lifecycle: this.lifecycle
+        lifecycle: this.lifecycle,
+        ...(loopContext ? { loopContext } : {}),
       });
 
       // Let Mastra generate its own runId
@@ -336,36 +378,35 @@ class WorkflowService {
   }
 
 
+  /**
+   * Delegates to WorkflowLoopService.enrichWithTemplateSnapshot. Kept on the
+   * service so its callers (and tests that rely on the public API surface)
+   * continue to work without changes.
+   */
+  private _enrichWithTemplateSnapshot(
+    run: WorkflowRunEntity,
+    caches?: {
+      instances?: Map<string, WorkflowInstanceEntity | null>;
+    },
+  ): Promise<WorkflowRunEntity> {
+    return this.loopService.enrichWithTemplateSnapshot(run, caches);
+  }
+
   async getWorkflowRun(runId: number) {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) return null;
-
-    // Enrich with workflow_template_snapshot from the instance
-    if (run.workflow_instance_id) {
-      const instance = await this.instanceService.getByInstanceId(run.workflow_instance_id);
-      if (instance) {
-        run.workflow_template_snapshot = {
-          template_id: instance.template_id,
-          name: instance.name,
-          steps: instance.steps.map(s => ({
-            id: s.id,
-            name: s.name,
-            instructionPrompt: s.instructionPrompt,
-            agentId: s.agentId,
-            requiresConfirmation: s.requiresConfirmation,
-            canEarlyExit: s.canEarlyExit,
-            type: s.type,
-            maxRetries: s.maxRetries ?? 0,
-          })),
-        };
-      }
-    }
-
-    return run;
+    return this._enrichWithTemplateSnapshot(run);
   }
 
   async getAllRunsByTask(taskId: number) {
-    return this.workflowRunRepo.findAllByTaskId(taskId);
+    const runs = await this.workflowRunRepo.findAllByTaskIdOrdered(taskId);
+    // Cache instance lookups across runs so a 5-iteration loop doesn't issue
+    // 5+ DB reads when one would do.
+    const instances = new Map<string, WorkflowInstanceEntity | null>();
+    for (const run of runs) {
+      await this._enrichWithTemplateSnapshot(run, { instances });
+    }
+    return runs;
   }
 
   async cancelWorkflow(runId: number) {
@@ -598,6 +639,46 @@ class WorkflowService {
     });
 
     return await this.workflowRunRepo.findById(runId);
+  }
+
+  /**
+   * Create a new "loop" workflow run that re-executes a portion of a failed
+   * parent run. Validation and record creation are delegated to
+   * WorkflowLoopService; this wrapper handles the fire-and-forget dispatch
+   * of executeWorkflow so the lifecycle hook and HTTP route surfaces stay
+   * unchanged.
+   */
+  async createLoopRun(
+    parentRunId: number,
+    fromStepId: string,
+    failureContext?: { failed_step_id: string; error: string; summary: string | null },
+    override = false,
+  ): Promise<WorkflowRunEntity> {
+    const { newRun, instance, task } = await this.loopService.createLoopRun(
+      parentRunId,
+      fromStepId,
+      failureContext,
+      override,
+    );
+
+    // Fire-and-forget execution, mirroring startWorkflow.
+    const project = await this.projectRepo.findById(task.project_id);
+    const projectEnv = project?.env || {};
+    this.executeWorkflow(
+      newRun.id,
+      { ...task, execution_path: newRun.worktree_path, project_env: projectEnv },
+      instance,
+    ).catch((err) => {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('WorkflowService', `Fatal error in loop run #${newRun.id}: ${errorMessage}`);
+      this.workflowRunRepo.update(newRun.id, {
+        status: 'FAILED',
+        current_step: null,
+        context: { error: errorMessage },
+      }).catch(() => {});
+    });
+
+    return newRun;
   }
 
   private async executeRetry(

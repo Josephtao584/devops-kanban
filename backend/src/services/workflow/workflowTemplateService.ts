@@ -2,7 +2,7 @@ import { WorkflowTemplateRepository } from '../../repositories/workflowTemplateR
 import { AgentRepository } from '../../repositories/agentRepository.js';
 import { ValidationError, NotFoundError, ConflictError } from '../../utils/errors.js';
 import type { WorkflowTemplateEntity, WorkflowTemplateStepEntity } from '../../types/entities.js';
-import type { ExportFile, ExportedWorkflowTemplate, ExportedWorkflowStep, ImportPreview, ImportConfirmInput } from '../../types/dto/workflowTemplates.js';
+import type { ExportFile, ExportedWorkflowTemplate, ExportedWorkflowStep, ImportPreview, ImportConfirmInput, UpdateWorkflowTemplateInput } from '../../types/dto/workflowTemplates.js';
 import { DEFAULT_SPLIT_PROMPT } from './defaultSplitPrompt.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -14,7 +14,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     throw new ValidationError('无效的工作流模板步骤', 'Invalid workflow template steps');
   }
 
-  const { id, name, instructionPrompt, agentId, requiresConfirmation, canEarlyExit, type, maxRetries } = step;
+  const { id, name, instructionPrompt, agentId, requiresConfirmation, canEarlyExit, type, maxRetries, onFailureLoopTo } = step;
 
   if (typeof id !== 'string' || !id.trim()) {
     throw new ValidationError('步骤 ID 必须为非空字符串', 'step id must be a non-empty string');
@@ -50,6 +50,7 @@ function normalizeStep(step: unknown): WorkflowTemplateStepEntity {
     agentId,
     requiresConfirmation: normalizedRequiresConfirmation,
     canEarlyExit: normalizedCanEarlyExit,
+    onFailureLoopTo: typeof onFailureLoopTo === 'string' && onFailureLoopTo.trim() ? onFailureLoopTo.trim() : null,
     ...(typeof type === 'string' && type.trim() ? { type: type.trim() } : {}),
     ...(typeof maxRetries === 'number' && Number.isInteger(maxRetries) && maxRetries >= 0 ? { maxRetries } : {}),
   };
@@ -79,6 +80,24 @@ function normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id'
     throw new ValidationError('工作流模板步骤 ID 必须唯一', 'Workflow template step ids must be unique');
   }
 
+  const stepIds = new Set(normalizedSteps.map((s) => s.id));
+  normalizedSteps.forEach((step, idx) => {
+    if (step.onFailureLoopTo === null) return;
+    if (!stepIds.has(step.onFailureLoopTo)) {
+      throw new ValidationError(
+        `步骤 "${step.id}" 的 onFailureLoopTo 引用了不存在的步骤 "${step.onFailureLoopTo}"`,
+        `onFailureLoopTo on step "${step.id}" references unknown step "${step.onFailureLoopTo}"`,
+      );
+    }
+    const targetIdx = normalizedSteps.findIndex((s) => s.id === step.onFailureLoopTo);
+    if (targetIdx >= idx) {
+      throw new ValidationError(
+        `步骤 "${step.id}" 的 onFailureLoopTo 必须指向更早的步骤（实际为 "${step.onFailureLoopTo}"）`,
+        `onFailureLoopTo on step "${step.id}" must reference an earlier step (got "${step.onFailureLoopTo}")`,
+      );
+    }
+  });
+
   return {
     template_id: template_id.trim(),
     name: name.trim(),
@@ -106,6 +125,7 @@ const BUILTIN_TEMPLATES: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'upd
 最终输出格式化的 Markdown 报告，保存到 KANBAN_COMPASS.md 文件中。该文件将作为后续工作流执行的参考文档，其他工作流的 Agent 会读取此文件来了解项目结构。`,
         agentId: 1,
         requiresConfirmation: false,
+        onFailureLoopTo: null,
       },
     ],
     order: 3,
@@ -119,6 +139,21 @@ class WorkflowTemplateService {
   constructor({ workflowTemplateRepo, agentRepo }: { workflowTemplateRepo?: WorkflowTemplateRepository; agentRepo?: AgentRepository } = {}) {
     this.workflowTemplateRepo = workflowTemplateRepo || new WorkflowTemplateRepository();
     this.agentRepo = agentRepo || new AgentRepository();
+  }
+
+  normalizeTemplate(template: unknown): Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'> {
+    return normalizeTemplate(template);
+  }
+
+  cleanupReferences(template: WorkflowTemplateEntity, removedStepIds: Set<string>): WorkflowTemplateEntity {
+    return {
+      ...template,
+      steps: template.steps.map((s) =>
+        s.onFailureLoopTo && removedStepIds.has(s.onFailureLoopTo)
+          ? { ...s, onFailureLoopTo: null }
+          : s,
+      ),
+    };
   }
 
   async getTemplates(): Promise<WorkflowTemplateEntity[]> {
@@ -147,21 +182,46 @@ class WorkflowTemplateService {
     return await this.workflowTemplateRepo.create(normalizedTemplate);
   }
 
-  async updateTemplate(templateId: string, template: Partial<Omit<WorkflowTemplateEntity, 'id' | 'template_id' | 'created_at' | 'updated_at'>>): Promise<WorkflowTemplateEntity | null> {
+  async updateTemplate(templateId: string, input: UpdateWorkflowTemplateInput): Promise<WorkflowTemplateEntity | null> {
     const existing = await this.workflowTemplateRepo.findByTemplateId(templateId);
     if (!existing) {
       throw new NotFoundError(`未找到工作流模板: ${templateId}`, `Workflow template not found: ${templateId}`, { templateId });
     }
 
-    const updateData: Partial<Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'updated_at'>> = {};
-    if (template.name !== undefined) {
-      updateData.name = template.name;
+    const updateData: {
+      name?: string;
+      steps?: WorkflowTemplateStepEntity[];
+      tags?: string[];
+    } = {};
+    if (input.name !== undefined) {
+      updateData.name = input.name;
     }
-    if (template.steps !== undefined) {
-      updateData.steps = template.steps.map((step) => normalizeStep(step));
+    if (input.tags !== undefined) {
+      updateData.tags = Array.isArray(input.tags) ? input.tags : [];
     }
-    if (template.tags !== undefined) {
-      updateData.tags = Array.isArray(template.tags) ? template.tags : [];
+
+    // When steps are updated, run full cross-step validation. cleanupReferences
+    // nullifies onFailureLoopTo references that point to steps removed by the
+    // update so they don't trip the "unknown step" check. Typos that reference
+    // ids that never existed are left intact so normalizeTemplate's
+    // unknown-step check still surfaces them as errors.
+    if (input.steps !== undefined) {
+      const candidateSteps = input.steps.map((step) => normalizeStep(step));
+      const newStepIds = new Set(candidateSteps.map((s) => s.id));
+      const removedStepIds = new Set(
+        existing.steps.map((s) => s.id).filter((id) => !newStepIds.has(id)),
+      );
+      const cleaned = this.cleanupReferences({
+        ...existing,
+        steps: candidateSteps,
+      }, removedStepIds);
+      const validated = normalizeTemplate({
+        template_id: existing.template_id,
+        name: input.name ?? existing.name,
+        steps: cleaned.steps,
+        tags: input.tags ?? existing.tags,
+      });
+      updateData.steps = validated.steps;
     }
 
     return await this.workflowTemplateRepo.update(existing.id, updateData);
@@ -226,6 +286,7 @@ class WorkflowTemplateService {
           agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
           requiresConfirmation: step.requiresConfirmation || false,
           canEarlyExit: step.canEarlyExit || false,
+          onFailureLoopTo: step.onFailureLoopTo ?? null,
         };
         if (step.type) exported.type = step.type;
         if (step.maxRetries !== undefined) exported.maxRetries = step.maxRetries;
@@ -306,6 +367,7 @@ class WorkflowTemplateService {
           canEarlyExit: step.canEarlyExit,
           type: step.type,
           maxRetries: step.maxRetries,
+          onFailureLoopTo: step.onFailureLoopTo ?? null,
         });
       });
 

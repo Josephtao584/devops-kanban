@@ -59,6 +59,23 @@
         </div>
       </div>
 
+      <div class="editor-field editor-field--full">
+        <label>{{ $t('workflowTemplate.failureLoopTo') }}</label>
+        <el-select
+          v-model="step.onFailureLoopTo"
+          clearable
+          :placeholder="$t('workflowTemplate.failureLoopToHint')"
+          data-test="step-on-failure-loop-to"
+        >
+          <el-option
+            v-for="prior in priorSteps"
+            :key="prior.id"
+            :value="prior.id"
+            :label="prior.name || prior.id"
+          />
+        </el-select>
+      </div>
+
       <div v-if="step.type === 'SPLIT_TASK'" class="editor-field editor-field--full step-type-field">
         <label>{{ $t('workflowTemplate.stepType') }}</label>
         <div class="editor-field__row">
@@ -112,7 +129,8 @@ const props = defineProps({
   step: { type: Object, default: null },
   agents: { type: Array, default: () => [] },
   agentsLoaded: { type: Boolean, default: false },
-  agentsLoadFailed: { type: Boolean, default: false }
+  agentsLoadFailed: { type: Boolean, default: false },
+  priorSteps: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['preview-prompt'])

@@ -276,6 +276,7 @@
               :agents="agents"
               :agents-loaded="agentsLoaded"
               :agents-load-failed="agentsLoadFailed"
+              :prior-steps="priorStepsForSelected"
               @preview-prompt="handlePreviewPrompt"
             />
           </section>
@@ -336,6 +337,7 @@ import { useSkillStore } from '../stores/skillStore'
 import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore'
 import { useAgentStore } from '../stores/agentStore'
 import { getRoleConfig } from '../constants/agent.js'
+import { getExecutorLabel } from '../constants/executor.js'
 import {
   MIN_WORKFLOW_TEMPLATE_STEPS,
   normalizeWorkflowStep,
@@ -447,6 +449,15 @@ const selectedStep = computed(() => {
   return template.value?.steps?.[selectedStepIndex.value] || null
 })
 
+const priorStepsForSelected = computed(() => {
+  const steps = template.value?.steps || []
+  const idx = selectedStepIndex.value
+  if (idx <= 0) return []
+  return steps.slice(0, idx)
+    .map((step) => ({ id: (step?.id || '').trim(), name: step?.name || '' }))
+    .filter((step) => step.id)
+})
+
 const stepValidationHint = computed(() => {
   if (!canDeleteStep.value) {
     return t('workflowTemplate.minimumStepsHint', { count: MIN_WORKFLOW_TEMPLATE_STEPS })
@@ -497,8 +508,6 @@ const createDraftTemplate = () => ({
   steps: (template.value?.steps || []).map(step => normalizeWorkflowStep(step))
 })
 
-const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
-
 const previewSteps = computed(() => {
   return (template.value?.steps || []).map((step, index) => {
     const sanitized = sanitizeWorkflowStep(step)
@@ -525,7 +534,7 @@ const previewSteps = computed(() => {
         const agent = getAgentById(sanitized.agentId)
         agentSummary = getAgentLabel(agent)
         agentName = agent?.name || agentSummary
-        executorLabel = EXECUTOR_LABEL[agent?.executorType] || agent?.executorType || ''
+        executorLabel = getExecutorLabel(agent?.executorType)
         roleConfig = getRoleConfig(agent?.role)
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {

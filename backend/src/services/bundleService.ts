@@ -335,6 +335,7 @@ class BundleService {
         instructionPrompt: step.instructionPrompt,
         agentId: agentIdMap.get(step.agentName) || 0,
         requiresConfirmation: step.requiresConfirmation || false,
+        onFailureLoopTo: step.onFailureLoopTo ?? null,
       }));
 
       const allTemplates = await this.templateRepo.findAll();
@@ -512,6 +513,7 @@ class BundleService {
         instructionPrompt: step.instructionPrompt,
         agentName: agentNameMap.get(step.agentId) || `Agent#${step.agentId}`,
         requiresConfirmation: step.requiresConfirmation || false,
+        onFailureLoopTo: step.onFailureLoopTo ?? null,
       })),
     };
   }
