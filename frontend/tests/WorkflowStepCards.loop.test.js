@@ -97,7 +97,94 @@ describe('WorkflowStepCards loop rendering', () => {
       }
     ]
     const wrapper = mountCards({ runs })
+    // Only the latest (orphan) run should render; the earlier orphan is unrelated.
+    const stepCards = wrapper.findAll('[data-test="step-card"]')
+    expect(stepCards).toHaveLength(1)
     expect(wrapper.findAll('[data-test="run-separator"]')).toHaveLength(0)
+  })
+
+  it('ignores runs that are not in the loop chain ending at the latest run', () => {
+    // 3 runs: run 1 cancelled (orphan), run 2 cancelled (orphan), run 3 active (orphan, latest).
+    // Only run 3 should render.
+    const runs = [
+      {
+        id: 1,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [
+          { step_id: 's1', name: 'S1', status: 'CANCELLED', inherited_from_run_id: null },
+          { step_id: 's2', name: 'S2', status: 'CANCELLED', inherited_from_run_id: null }
+        ]
+      },
+      {
+        id: 2,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [
+          { step_id: 's1', name: 'S1', status: 'CANCELLED', inherited_from_run_id: null },
+          { step_id: 's2', name: 'S2', status: 'CANCELLED', inherited_from_run_id: null }
+        ]
+      },
+      {
+        id: 3,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [
+          { step_id: 's1', name: 'S1', status: 'COMPLETED', inherited_from_run_id: null },
+          { step_id: 's2', name: 'S2', status: 'RUNNING', inherited_from_run_id: null }
+        ]
+      }
+    ]
+    const wrapper = mountCards({ runs })
+    expect(wrapper.findAll('[data-test="step-card"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-test="run-separator"]')).toHaveLength(0)
+  })
+
+  it('renders the full chain when latest run is a loop run', () => {
+    // run 1 (orphan, unrelated), run 2 (orphan), run 3 (loop child of run 2).
+    // Expected: render run 2 + separator + run 3, but NOT run 1.
+    const runs = [
+      {
+        id: 1,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [{ step_id: 's1', name: 'S1', status: 'CANCELLED', inherited_from_run_id: null }]
+      },
+      {
+        id: 2,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [
+          { step_id: 's1', name: 'S1', status: 'COMPLETED', inherited_from_run_id: null },
+          { step_id: 's2', name: 'S2', status: 'FAILED', inherited_from_run_id: null, error: 'boom' }
+        ]
+      },
+      {
+        id: 3,
+        iteration: 2,
+        parent_run_id: 2,
+        looped_from_step_id: 's1',
+        loop_failure_context: { failed_step_id: 's2', error: 'boom', summary: null },
+        steps: [
+          { step_id: 's1', name: 'S1', status: 'SKIPPED', inherited_from_run_id: 2 },
+          { step_id: 's2', name: 'S2', status: 'RUNNING', inherited_from_run_id: null }
+        ]
+      }
+    ]
+    const wrapper = mountCards({ runs })
+    // Run 1 ignored; run 2 contributes 2 cards; run 3 contributes 1 (s1 SKIPPED hidden).
+    expect(wrapper.findAll('[data-test="step-card"]')).toHaveLength(3)
+    expect(wrapper.findAll('[data-test="run-separator"]')).toHaveLength(1)
   })
 
   it('falls back to legacy steps prop when runs is empty', () => {

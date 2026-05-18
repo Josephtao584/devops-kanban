@@ -155,9 +155,27 @@ function decorateStep(rawStep, index) {
 const timeline = computed(() => {
   const items = []
   if (Array.isArray(props.runs) && props.runs.length) {
-    props.runs.forEach((run, runIdx) => {
+    // Build the loop chain: walk back from the latest run via parent_run_id.
+    // Only runs reachable from the latest run via parent_run_id are rendered.
+    // Unrelated runs (e.g. earlier cancelled or independently restarted runs)
+    // are excluded so the panel doesn't stack disconnected step lists.
+    const byId = new Map(props.runs.map((r) => [r.id, r]))
+    const latest = props.runs[props.runs.length - 1]
+    const chain = []
+    const seen = new Set()
+    let cursor = latest
+    while (cursor && !seen.has(cursor.id)) {
+      seen.add(cursor.id)
+      chain.unshift(cursor) // earliest first
+      if (cursor.parent_run_id == null) break
+      const parent = byId.get(cursor.parent_run_id)
+      if (!parent) break
+      cursor = parent
+    }
+
+    chain.forEach((run, runIdx) => {
       if (runIdx > 0 && run.parent_run_id != null) {
-        const parentRun = props.runs.find((r) => r.id === run.parent_run_id)
+        const parentRun = byId.get(run.parent_run_id)
         items.push({
           kind: 'separator',
           runId: run.id,
