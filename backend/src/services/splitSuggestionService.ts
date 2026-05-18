@@ -74,16 +74,26 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
 
   // Auto-start child tasks that are ready (status TODO). Failure to start
   // any single task must not abort the confirm — the task stays TODO for
-  // the user to start manually.
-  for (const { task } of created) {
+  // the user to start manually. Each child suggestion carries two switches:
+  //   - create_worktree: when not explicitly false, create a worktree first
+  //   - auto_start:      when not explicitly false, start the workflow
+  for (const { task, suggestion } of created) {
     if (task.status !== 'TODO') continue;
+
+    if (suggestion.create_worktree !== false && !task.worktree_path) {
+      try {
+        await taskService.createWorktree(task.id);
+      } catch (err) {
+        logger.warn('splitSuggestionService', `failed to create worktree for task ${task.id}: ${(err as Error).message}`);
+        continue;
+      }
+    }
+
+    if (suggestion.auto_start === false) continue;
     const templateId = task.auto_execute_template_id;
     if (!templateId) continue;
+
     try {
-      // Ensure worktree exists before starting (parity with manual start flow)
-      if (!task.worktree_path) {
-        await taskService.createWorktree(task.id);
-      }
       await taskService.startTask(task.id, { workflow_template_id: templateId });
     } catch (err) {
       logger.warn('splitSuggestionService', `failed to auto-start task ${task.id}: ${(err as Error).message}`);
