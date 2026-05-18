@@ -17,6 +17,7 @@ class ClaudeCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
     onAskUser,
+    validateResult,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     const result = await this.runner.runStep({
       prompt,
@@ -30,6 +31,7 @@ class ClaudeCodeExecutor implements Executor {
         await onEvent?.(event);
       }} : {}),
       ...(onAskUser ? { onAskUser } : {}),
+      ...(validateResult === undefined ? {} : { validateResult }),
     });
 
     if (result.stderr) {
@@ -54,6 +56,7 @@ class ClaudeCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
     onAskUser,
+    validateResult,
   }: ExecutorContinueInput): Promise<ExecutorExecutionResult> {
     const args = [];
     if (providerSessionId) {
@@ -72,6 +75,7 @@ class ClaudeCodeExecutor implements Executor {
         await onEvent?.(event);
       }} : {}),
       ...(onAskUser ? { onAskUser } : {}),
+      ...(validateResult === undefined ? {} : { validateResult }),
     });
 
     if (result.stderr) {

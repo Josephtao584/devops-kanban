@@ -139,6 +139,7 @@ class AgentChatService {
           executorConfig,
           onEvent: handleEvent,
           onProviderState: captureProviderState,
+          validateResult: false,
         });
       } else {
         await executor.execute({
@@ -147,6 +148,7 @@ class AgentChatService {
           executorConfig,
           onEvent: handleEvent,
           onProviderState: captureProviderState,
+          validateResult: false,
         });
       }
 

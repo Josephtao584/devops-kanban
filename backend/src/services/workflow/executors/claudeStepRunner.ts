@@ -335,6 +335,7 @@ class ClaudeStepRunner {
     abortSignal,
     onEvent,
     onAskUser,
+    validateResult = true,
   }: {
     prompt: string;
     worktreePath: string;
@@ -342,6 +343,7 @@ class ClaudeStepRunner {
     abortSignal?: AbortSignal;
     onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
     onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
+    validateResult?: boolean;
   }) {
     const execution = await this.spawnImpl({
       worktreePath,
@@ -366,9 +368,8 @@ class ClaudeStepRunner {
 
     let parsedResult;
     try {
-      parsedResult = validateStepResult(await parseStepResult({
-        stdout: execution.stdout,
-      }));
+      const parsed = await parseStepResult({ stdout: execution.stdout });
+      parsedResult = validateResult ? validateStepResult(parsed) : { summary: parsed.summary?.trim() ?? '' };
     } catch (error) {
       throw this._buildParseError(error as Error, execution);
     }

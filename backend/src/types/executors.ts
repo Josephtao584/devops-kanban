@@ -65,6 +65,7 @@ export interface ExecutorExecutionInput {
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
   abortSignal?: AbortSignal | undefined;
   onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
+  validateResult?: boolean | undefined;
 }
 
 export interface ExecutorContinueInput {
@@ -76,6 +77,7 @@ export interface ExecutorContinueInput {
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>);
   abortSignal?: AbortSignal;
   onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>) | undefined;
+  validateResult?: boolean | undefined;
 }
 
 export interface ExecutorExecutionResult {

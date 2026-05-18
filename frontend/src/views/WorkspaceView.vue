@@ -1172,7 +1172,7 @@ const workflowDisplayName = computed(() => {
 })
 
 const RUN_STATUS_LABEL = { COMPLETED: '已完成', RUNNING: '运行中', FAILED: '失败', CANCELLED: '已取消', PENDING: '待启动', SUSPENDED: '已暂停' }
-const RUN_STATUS_CLASS = { COMPLETED: 'done', RUNNING: 'running', FAILED: 'failed', CANCELLED: 'failed', PENDING: 'pending', SUSPENDED: 'running' }
+const RUN_STATUS_CLASS = { COMPLETED: 'done', RUNNING: 'running', FAILED: 'failed', CANCELLED: 'cancelled', PENDING: 'pending', SUSPENDED: 'running' }
 
 const runStatusLabel = computed(() => {
   const s = currentRun.value?.status
@@ -1853,6 +1853,11 @@ watch(taskListViewMode, (mode) => {
   color: var(--danger-strong);
   background: var(--danger-soft);
   border-color: rgba(239, 68, 68, 0.2);
+}
+.run-status-chip.cancelled {
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
 }
 .run-status-chip.pending {
   color: var(--text-muted);

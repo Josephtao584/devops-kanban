@@ -113,7 +113,7 @@ const STATUS_CLASS = {
   IN_PROGRESS: 'running',
   RUNNING: 'running',
   FAILED: 'failed',
-  CANCELLED: 'failed',
+  CANCELLED: 'cancelled',
   SUSPENDED: 'suspended',
   PENDING: 'pending'
 }
@@ -505,18 +505,22 @@ function handleStepClick(step) {
 }
 
 .agent-status-dot.running {
-  background: #f59e0b;
-  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
   animation: dot-running 1.6s ease-in-out infinite;
 }
 
 @keyframes dot-running {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
-  50% { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
+  50% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
 }
 
 .agent-status-dot.failed {
   background: var(--danger-strong);
+}
+
+.agent-status-dot.cancelled {
+  background: var(--text-muted);
 }
 
 .agent-status-dot.suspended {
@@ -559,7 +563,8 @@ function handleStepClick(step) {
 }
 
 .agent-step-status.done { color: var(--accent-color-strong); }
-.agent-step-status.running { color: #b45309; }
+.agent-step-status.running { color: #10b981; }
 .agent-step-status.failed { color: var(--danger-strong); }
+.agent-step-status.cancelled { color: var(--text-muted); }
 .agent-step-status.suspended { color: #b45309; }
 </style>

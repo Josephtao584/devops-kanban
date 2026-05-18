@@ -137,7 +137,7 @@ const STATUS_CLASS = {
   IN_PROGRESS: 'running',
   RUNNING: 'running',
   FAILED: 'failed',
-  CANCELLED: 'failed',
+  CANCELLED: 'cancelled',
   SUSPENDED: 'suspended',
   PENDING: 'pending'
 }

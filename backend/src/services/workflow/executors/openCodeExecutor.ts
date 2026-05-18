@@ -17,6 +17,7 @@ class OpenCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
     onAskUser,
+    validateResult,
   }: ExecutorExecutionInput): Promise<ExecutorExecutionResult> {
     const result = await this.runner.runStep({
       prompt,
@@ -33,6 +34,7 @@ class OpenCodeExecutor implements Executor {
         await onEvent?.(event);
       }} : {}),
       ...(onAskUser ? { onAskUser } : {}),
+      ...(validateResult === undefined ? {} : { validateResult }),
     });
 
     if (result.stderr) {
@@ -57,6 +59,7 @@ class OpenCodeExecutor implements Executor {
     onProviderState,
     abortSignal,
     onAskUser,
+    validateResult,
   }: ExecutorContinueInput): Promise<ExecutorExecutionResult> {
     const cliOptions: { session?: string } = {};
     if (providerSessionId) {
@@ -79,6 +82,7 @@ class OpenCodeExecutor implements Executor {
         await onEvent?.(event);
       }} : {}),
       ...(onAskUser ? { onAskUser } : {}),
+      ...(validateResult === undefined ? {} : { validateResult }),
     });
 
     if (result.stderr) {

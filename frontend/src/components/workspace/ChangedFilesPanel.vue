@@ -63,6 +63,20 @@
 
       <!-- Action buttons -->
       <div class="worktree-actions">
+        <el-tooltip content="刷新改动" placement="top">
+          <el-button
+            size="small"
+            :loading="loading"
+            @click="loadChanges"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+              <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+            </svg>
+          </el-button>
+        </el-tooltip>
         <el-button
           size="small"
           type="primary"
@@ -88,8 +102,9 @@
           推送
         </el-button>
         <el-button
+          v-if="!isWorktree"
           size="small"
-          :type="isWorktree ? 'success' : 'warning'"
+          type="warning"
           @click="handleMerge"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
@@ -586,10 +601,16 @@ watch(() => [props.taskId, props.projectId, props.task?.worktree_path], () => {
 
 .worktree-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   padding: 8px 12px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
+}
+
+.worktree-actions .el-button {
+  margin-left: 0;
 }
 
 .worktree-actions .el-button svg {
