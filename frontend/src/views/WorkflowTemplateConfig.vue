@@ -337,6 +337,7 @@ import { useSkillStore } from '../stores/skillStore'
 import { useWorkflowTemplateStore } from '../stores/workflowTemplateStore'
 import { useAgentStore } from '../stores/agentStore'
 import { getRoleConfig } from '../constants/agent.js'
+import { getExecutorLabel } from '../constants/executor.js'
 import {
   MIN_WORKFLOW_TEMPLATE_STEPS,
   normalizeWorkflowStep,
@@ -507,8 +508,6 @@ const createDraftTemplate = () => ({
   steps: (template.value?.steps || []).map(step => normalizeWorkflowStep(step))
 })
 
-const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
-
 const previewSteps = computed(() => {
   return (template.value?.steps || []).map((step, index) => {
     const sanitized = sanitizeWorkflowStep(step)
@@ -535,7 +534,7 @@ const previewSteps = computed(() => {
         const agent = getAgentById(sanitized.agentId)
         agentSummary = getAgentLabel(agent)
         agentName = agent?.name || agentSummary
-        executorLabel = EXECUTOR_LABEL[agent?.executorType] || agent?.executorType || ''
+        executorLabel = getExecutorLabel(agent?.executorType)
         roleConfig = getRoleConfig(agent?.role)
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {

@@ -252,8 +252,7 @@ import {
   formatBoundAgentState as formatAgentBindingState,
 } from './templateEditorShared.js'
 import { getRoleConfig } from '../../constants/agent.js'
-
-const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
+import { getExecutorLabel } from '../../constants/executor.js'
 
 const MIN_START_EDITOR_STEPS = 1
 
@@ -353,7 +352,7 @@ const previewSteps = computed(() => {
         const agent = getAgentById(sanitized.agentId)
         agentSummary = getAgentDisplayName(agent, t)
         agentName = agent?.name || agentSummary
-        executorLabel = EXECUTOR_LABEL[agent?.executorType] || agent?.executorType || ''
+        executorLabel = getExecutorLabel(agent?.executorType)
         roleConfig = getRoleConfig(agent?.role)
         agentStateClass = 'workflow-chip--neutral'
         skillNames = (agent?.skills || []).map(skillId => {

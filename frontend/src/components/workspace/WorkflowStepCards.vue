@@ -90,6 +90,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getRoleConfig } from '../../constants/agent.js'
+import { getExecutorLabel } from '../../constants/executor.js'
 import { useAgentStore } from '../../stores/agentStore.js'
 
 const { t } = useI18n()
@@ -221,12 +222,10 @@ function resolveAgentInfo(agentId) {
   return { agent, roleConfig }
 }
 
-const EXECUTOR_LABEL = { CLAUDE_CODE: 'Claude Code', OPEN_CODE: 'OpenCode' }
-
 function getStepAgentLabel(step) {
   if (!step.agent_id) return ''
   const info = resolveAgentInfo(step.agent_id)
-  return info?.agent.executorType ? EXECUTOR_LABEL[info.agent.executorType] || info.agent.executorType : ''
+  return getExecutorLabel(info?.agent?.executorType)
 }
 
 function getStepAgentName(step) {
