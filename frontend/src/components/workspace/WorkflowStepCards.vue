@@ -156,16 +156,16 @@ const timeline = computed(() => {
   const items = []
   if (Array.isArray(props.runs) && props.runs.length) {
     props.runs.forEach((run, runIdx) => {
-      if (runIdx > 0) {
-        const prevRun = props.runs[runIdx - 1]
+      if (runIdx > 0 && run.parent_run_id != null) {
+        const parentRun = props.runs.find((r) => r.id === run.parent_run_id)
         items.push({
           kind: 'separator',
           runId: run.id,
           iteration: run.iteration,
           loopedFromStepId: run.looped_from_step_id,
           loopFailureContext: run.loop_failure_context,
-          prevRunId: prevRun?.id ?? null,
-          prevSteps: Array.isArray(prevRun?.steps) ? prevRun.steps : []
+          prevRunId: run.parent_run_id,
+          prevSteps: Array.isArray(parentRun?.steps) ? parentRun.steps : []
         })
       }
       const runSteps = Array.isArray(run.steps) ? run.steps : []

@@ -77,6 +77,29 @@ describe('WorkflowStepCards loop rendering', () => {
     expect(wrapper.findAll('[data-test="step-card"]')).toHaveLength(2)
   })
 
+  it('does not render separator when next run lacks parent_run_id', () => {
+    const runs = [
+      {
+        id: 1,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [{ step_id: 's1', name: 'S1', status: 'CANCELLED', inherited_from_run_id: null }]
+      },
+      {
+        id: 2,
+        iteration: 1,
+        parent_run_id: null,
+        looped_from_step_id: null,
+        loop_failure_context: null,
+        steps: [{ step_id: 's1', name: 'S1', status: 'CANCELLED', inherited_from_run_id: null }]
+      }
+    ]
+    const wrapper = mountCards({ runs })
+    expect(wrapper.findAll('[data-test="run-separator"]')).toHaveLength(0)
+  })
+
   it('falls back to legacy steps prop when runs is empty', () => {
     const steps = [
       { id: 'a', step_id: 'a', name: 'A', statusClass: 'done', statusLabel: '已完成', status: 'COMPLETED' },
