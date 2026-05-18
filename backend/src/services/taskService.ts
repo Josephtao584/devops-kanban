@@ -456,7 +456,7 @@ class TaskService {
     suggestions: Suggestion[];
     skip_indices?: number[];
     existing_task_id_by_index?: Record<number, number>;
-  }): Promise<TaskEntity[]> {
+  }): Promise<{ task: TaskEntity; suggestion: Suggestion }[]> {
     const skipIndices = new Set(input.skip_indices ?? []);
     const existingByIndex = input.existing_task_id_by_index ?? {};
 
@@ -494,13 +494,13 @@ class TaskService {
     const parent = await this.taskRepo.findById(input.parent_task_id);
     if (!parent) throw new Error(`parent task ${input.parent_task_id} not found`);
 
-    const created: TaskEntity[] = [];
+    const created: { task: TaskEntity; suggestion: Suggestion }[] = [];
     for (let i = 0; i < enabled.length; i++) {
       const { s } = enabled[i]!;
       const deps: number[] = [];
       for (const d of remappedDeps[i]!) {
         if ('batchPos' in d) {
-          const upstream = created[d.batchPos];
+          const upstream = created[d.batchPos]?.task;
           if (upstream) deps.push(upstream.id);
         } else {
           deps.push(d.existingTaskId);
@@ -521,7 +521,7 @@ class TaskService {
         labels: [],
       });
 
-      created.push(task);
+      created.push({ task, suggestion: s });
     }
 
     return created;

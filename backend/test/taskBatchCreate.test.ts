@@ -13,18 +13,18 @@ test('batchCreate assigns depends_on from indices', async () => {
   const result = await taskService.batchCreate({
     parent_task_id: parent.id,
     suggestions: [
-      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true },
-      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0], enabled: true },
+      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true, create_worktree: true, auto_start: true },
+      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0], enabled: true, create_worktree: true, auto_start: true },
     ],
   });
 
   assert.equal(result.length, 2);
-  assert.deepEqual(result[0]!.depends_on, []);
-  assert.deepEqual(result[1]!.depends_on, [result[0]!.id]);
-  assert.equal(result[0]!.status, 'TODO');
-  assert.equal(result[1]!.status, 'WAITING');
+  assert.deepEqual(result[0]!.task.depends_on, []);
+  assert.deepEqual(result[1]!.task.depends_on, [result[0]!.task.id]);
+  assert.equal(result[0]!.task.status, 'TODO');
+  assert.equal(result[1]!.task.status, 'WAITING');
 
-  for (const t of result) await taskRepository.delete(t.id);
+  for (const t of result) await taskRepository.delete(t.task.id);
   await taskRepository.delete(parent.id);
   await projectRepository.delete(project.id);
 });
@@ -38,15 +38,15 @@ test('batchCreate rejects disabled suggestions', async () => {
   const result = await taskService.batchCreate({
     parent_task_id: parent.id,
     suggestions: [
-      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: false },
-      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true },
+      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: false, create_worktree: true, auto_start: true },
+      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true, create_worktree: true, auto_start: true },
     ],
   });
 
   assert.equal(result.length, 1);
-  assert.equal(result[0]!.title, 'B');
+  assert.equal(result[0]!.task.title, 'B');
 
-  for (const t of result) await taskRepository.delete(t.id);
+  for (const t of result) await taskRepository.delete(t.task.id);
   await taskRepository.delete(parent.id);
   await projectRepository.delete(project.id);
 });
@@ -61,8 +61,8 @@ test('batchCreate rejects cyclic dependencies', async () => {
     await taskService.batchCreate({
       parent_task_id: parent.id,
       suggestions: [
-        { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [1], enabled: true },
-        { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0], enabled: true },
+        { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [1], enabled: true, create_worktree: true, auto_start: true },
+        { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0], enabled: true, create_worktree: true, auto_start: true },
       ],
     });
   }, /cycle/i);
@@ -85,9 +85,9 @@ test('batchCreate links cross-batch deps to existing task ids by original index'
   const result = await taskService.batchCreate({
     parent_task_id: parent.id,
     suggestions: [
-      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true },
-      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true },
-      { title: 'C', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0, 1], enabled: true },
+      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true, create_worktree: true, auto_start: true },
+      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true, create_worktree: true, auto_start: true },
+      { title: 'C', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0, 1], enabled: true, create_worktree: true, auto_start: true },
     ],
     skip_indices: [0],
     existing_task_id_by_index: { 0: existingChild.id },
@@ -95,16 +95,16 @@ test('batchCreate links cross-batch deps to existing task ids by original index'
 
   assert.equal(result.length, 2);
   const [b, c] = result;
-  assert.equal(b!.title, 'B');
-  assert.equal(c!.title, 'C');
+  assert.equal(b!.task.title, 'B');
+  assert.equal(c!.task.title, 'C');
   // B has no deps -> TODO
-  assert.deepEqual(b!.depends_on, []);
-  assert.equal(b!.status, 'TODO');
+  assert.deepEqual(b!.task.depends_on, []);
+  assert.equal(b!.task.status, 'TODO');
   // C depends on existing A (real id) and freshly-created B (real id) -> WAITING
-  assert.deepEqual([...c!.depends_on!].sort(), [existingChild.id, b!.id].sort());
-  assert.equal(c!.status, 'WAITING');
+  assert.deepEqual([...c!.task.depends_on!].sort(), [existingChild.id, b!.task.id].sort());
+  assert.equal(c!.task.status, 'WAITING');
 
-  for (const t of result) await taskRepository.delete(t.id);
+  for (const t of result) await taskRepository.delete(t.task.id);
   await taskRepository.delete(existingChild.id);
   await taskRepository.delete(parent.id);
   await projectRepository.delete(project.id);
@@ -121,18 +121,18 @@ test('batchCreate drops dependency index that has neither in-batch nor existing 
   const result = await taskService.batchCreate({
     parent_task_id: parent.id,
     suggestions: [
-      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true },
-      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0], enabled: true },
+      { title: 'A', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [], enabled: true, create_worktree: true, auto_start: true },
+      { title: 'B', description: '', template_id: null, linked_project_id: project.id, target_repo_url: null, depends_on_indices: [0], enabled: true, create_worktree: true, auto_start: true },
     ],
     skip_indices: [0],
   });
 
   assert.equal(result.length, 1);
-  assert.equal(result[0]!.title, 'B');
-  assert.deepEqual(result[0]!.depends_on, []);
-  assert.equal(result[0]!.status, 'TODO');
+  assert.equal(result[0]!.task.title, 'B');
+  assert.deepEqual(result[0]!.task.depends_on, []);
+  assert.equal(result[0]!.task.status, 'TODO');
 
-  for (const t of result) await taskRepository.delete(t.id);
+  for (const t of result) await taskRepository.delete(t.task.id);
   await taskRepository.delete(parent.id);
   await projectRepository.delete(project.id);
 });

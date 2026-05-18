@@ -270,6 +270,8 @@ export interface Suggestion {
   target_repo_url: string | null;
   depends_on_indices: number[];
   enabled: boolean;
+  create_worktree: boolean;
+  auto_start: boolean;
 }
 
 export type SplitSuggestionStatus = 'PENDING' | 'CONFIRMED' | 'DISMISSED';

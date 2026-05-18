@@ -368,6 +368,8 @@ export function buildWorkflowFromInstance(
                 target_repo_url: linkedId ? null : (raw.target_repo_url ?? null),
                 depends_on_indices: Array.isArray(raw.depends_on_indices) ? raw.depends_on_indices : [],
                 enabled: raw.enabled !== false,
+                create_worktree: true,
+                auto_start: true,
               };
             });
 
@@ -389,6 +391,8 @@ export function buildWorkflowFromInstance(
                 target_repo_url: string | null;
                 depends_on_indices: number[];
                 enabled: boolean;
+                create_worktree: boolean;
+                auto_start: boolean;
               }>;
               confirmed_at: string | null;
             };

@@ -12,6 +12,8 @@ const suggestionSchema = z.object({
   target_repo_url: z.string().nullable(),
   depends_on_indices: z.array(z.number()),
   enabled: z.boolean(),
+  create_worktree: z.boolean().default(true),
+  auto_start: z.boolean().default(true),
 });
 
 const splitSuggestionsRoutes: FastifyPluginAsync = async (fastify) => {

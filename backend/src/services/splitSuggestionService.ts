@@ -55,7 +55,7 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     return { tasks: existingChildren.map(t => t.id), suggestion: updated };
   }
 
-  const tasks = await taskService.batchCreate({
+  const created = await taskService.batchCreate({
     parent_task_id: existing.parent_task_id,
     suggestions: existing.suggestions,
     skip_indices: skipIndices,
@@ -75,7 +75,7 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
   // Auto-start child tasks that are ready (status TODO). Failure to start
   // any single task must not abort the confirm — the task stays TODO for
   // the user to start manually.
-  for (const task of tasks) {
+  for (const { task } of created) {
     if (task.status !== 'TODO') continue;
     const templateId = task.auto_execute_template_id;
     if (!templateId) continue;
@@ -90,7 +90,7 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     }
   }
 
-  const allTasks = [...existingChildren, ...tasks];
+  const allTasks = [...existingChildren, ...created.map((c) => c.task)];
   const updated = (await splitSuggestionRepository.findById(id))!;
   return { tasks: allTasks.map(t => t.id), suggestion: updated };
 }

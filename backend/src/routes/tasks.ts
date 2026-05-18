@@ -186,8 +186,8 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     '/batch-create',
     async (req, reply) => {
       try {
-        const tasks = await taskService.batchCreate(req.body);
-        return successResponse(tasks);
+        const created = await taskService.batchCreate(req.body);
+        return successResponse(created.map((c) => c.task));
       } catch (e) {
         reply.code(400);
         return errorResponse(getErrorMessage(e, 'Failed to batch create tasks'));
