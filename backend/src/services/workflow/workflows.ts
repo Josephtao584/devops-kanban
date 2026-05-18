@@ -273,6 +273,18 @@ export function buildWorkflowFromInstance(
               throw new Error(`Agent ${agent.id} has invalid MCP servers configuration`);
             }
 
+            // Write the user prompt as the first event so it appears before streaming events
+            if (sessionInfo.sessionId && sessionInfo.segmentId) {
+              await options.lifecycle.sessionEventRepo.append({
+                session_id: sessionInfo.sessionId,
+                segment_id: sessionInfo.segmentId,
+                kind: 'message',
+                role: 'user',
+                content: finalSplitPrompt,
+                payload: {},
+              }).catch(() => {});
+            }
+
             const executionResult = await executor.execute({
               prompt: finalSplitPrompt,
               worktreePath: state.worktreePath,
@@ -284,18 +296,33 @@ export function buildWorkflowFromInstance(
                 settingsPath: agent.settingsPath || undefined,
               },
               abortSignal: signalAlreadyAborted ? undefined : abortSignal,
+              onEvent: async (event) => {
+                if (event.kind === 'ask_user') return;
+                if (sessionInfo.sessionId && sessionInfo.segmentId) {
+                  await options.lifecycle.sessionEventRepo.append({
+                    session_id: sessionInfo.sessionId,
+                    segment_id: sessionInfo.segmentId,
+                    kind: event.kind,
+                    role: event.role,
+                    content: event.content,
+                    payload: event.payload || {},
+                  }).catch(() => {});
+                }
+              },
+              onProviderState: async (providerState) => {
+                if (sessionInfo.segmentId && providerState.providerSessionId) {
+                  await options.lifecycle.sessionSegmentRepo?.update(sessionInfo.segmentId, {
+                    provider_session_id: providerState.providerSessionId,
+                  }).catch(() => {});
+                  await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                    provider_session_id: providerState.providerSessionId,
+                  }).catch(() => {});
+                }
+              },
             });
 
-            // Write split step events to session so they appear in the chat panel
+            // Write the final summary as the last event
             if (sessionInfo.sessionId && sessionInfo.segmentId) {
-              await options.lifecycle.sessionEventRepo.append({
-                session_id: sessionInfo.sessionId,
-                segment_id: sessionInfo.segmentId,
-                kind: 'message',
-                role: 'user',
-                content: finalSplitPrompt,
-                payload: {},
-              }).catch(() => {});
               const adaptedPreview = adaptStepResult(agent.executorType, executionResult);
               await options.lifecycle.sessionEventRepo.append({
                 session_id: sessionInfo.sessionId,
