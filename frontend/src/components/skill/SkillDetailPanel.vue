@@ -48,6 +48,7 @@
             <el-tree
               :data="fileTreeData"
               :props="treeProps"
+              :key="skill.id"
               node-key="id"
               :expand-on-click-node="false"
               :default-expand-all="false"

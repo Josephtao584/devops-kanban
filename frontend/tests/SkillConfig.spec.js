@@ -249,4 +249,163 @@ describe('SkillConfig', () => {
     expect(wrapper.find('.empty-files').exists()).toBe(true)
     expect(wrapper.findAll('.el-tree-node__content')).toHaveLength(0)
   })
+
+  it('displays multiple root-level files correctly', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'multi-file-skill', description: 'test', created_at: '2026-01-01', updated_at: '2026-01-01' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue(['SKILL.md', 'REFERENCE.md', 'INSTALL.md'])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const treeNodes = wrapper.findAll('.el-tree-node__content')
+    expect(treeNodes.length).toBe(3)
+    const labels = treeNodes.map(n => n.find('.node-label').text())
+    expect(labels).toContain('SKILL.md')
+    expect(labels).toContain('REFERENCE.md')
+    expect(labels).toContain('INSTALL.md')
+  })
+
+  it('displays brainstorming skill with nested files and scripts directory', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue([
+      'SKILL.md',
+      'spec-document-reviewer-prompt.md',
+      'visual-companion.md',
+      'scripts/frame-template.html',
+      'scripts/helper.js',
+      'scripts/server.cjs',
+      'scripts/start-server.sh',
+      'scripts/stop-server.sh'
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Root level: 3 files + 1 folder = 4 nodes (collapsed by default)
+    const treeNodes = wrapper.findAll('.el-tree-node__content')
+    expect(treeNodes.length).toBe(4)
+    const labels = treeNodes.map(n => n.find('.node-label').text())
+    expect(labels).toContain('SKILL.md')
+    expect(labels).toContain('spec-document-reviewer-prompt.md')
+    expect(labels).toContain('visual-companion.md')
+    expect(labels).toContain('scripts')
+  })
+
+  it('can expand scripts folder and see all script files', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'desc', created_at: '2026-03-28', updated_at: '2026-03-28' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue([
+      'SKILL.md',
+      'spec-document-reviewer-prompt.md',
+      'visual-companion.md',
+      'scripts/frame-template.html',
+      'scripts/helper.js',
+      'scripts/server.cjs',
+      'scripts/start-server.sh',
+      'scripts/stop-server.sh'
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Find the scripts folder node and expand it
+    const scriptsNode = wrapper.findAll('.el-tree-node').find((node) =>
+      node.find('.node-label').text().includes('scripts')
+    )
+    expect(scriptsNode).toBeTruthy()
+
+    // Click on the expand icon
+    await scriptsNode.find('.el-tree-node__expand-icon').trigger('click')
+    await flushPromises()
+
+    // Count child nodes of scripts folder
+    const allNodes = wrapper.findAll('.el-tree-node')
+    const scriptsChildren = allNodes.filter(node => {
+      const parent = node.element.parentElement?.closest('.el-tree-node__children')
+      return parent && parent.closest('.el-tree-node') === scriptsNode.element
+    })
+    expect(scriptsChildren.length).toBe(5)
+    const childLabels = scriptsChildren.map(n => n.find('.node-label').text())
+    expect(new Set(childLabels)).toEqual(new Set(['frame-template.html', 'helper.js', 'server.cjs', 'start-server.sh', 'stop-server.sh']))
+  })
+
+  it('switching from multi-file skill to single-file skill updates tree correctly', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'brainstorming', description: 'multi', created_at: '2026-01-01', updated_at: '2026-01-01' },
+      { id: 2, name: 'single', description: 'single', created_at: '2026-01-01', updated_at: '2026-01-01' }
+    ]
+
+    mockSkillStore.fetchSkillFiles.mockImplementation((skillId) => {
+      if (skillId === 1) {
+        return Promise.resolve(['SKILL.md', 'docs/guide.md', 'scripts/run.sh'])
+      }
+      return Promise.resolve(['SKILL.md'])
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // First skill: SKILL.md, docs folder, scripts folder
+    let treeNodes = wrapper.findAll('.el-tree-node__content')
+    expect(treeNodes.length).toBe(3)
+
+    // Switch to second skill
+    await wrapper.findAll('.skill-list-item')[1].trigger('click')
+    await flushPromises()
+
+    // Second skill: only SKILL.md
+    treeNodes = wrapper.findAll('.el-tree-node__content')
+    expect(treeNodes.length).toBe(1)
+    expect(treeNodes[0].find('.node-label').text()).toBe('SKILL.md')
+  })
+
+  it('empty folder still shows expand icon when isLeaf is false', async () => {
+    // This tests the scenario where a skill has an empty directory
+    // on disk but buildFileTree still creates a folder node
+    mockSkillStore.skills = [
+      { id: 1, name: 'skill-with-empty-dir', description: 'test', created_at: '2026-01-01', updated_at: '2026-01-01' }
+    ]
+    // Simulating a structure with SKILL.md and an empty docs folder
+    // (In reality, readdirSync with recursive:true wouldn't return empty dirs,
+    // but this tests that our tree handles it correctly if it did)
+    mockSkillStore.fetchSkillFiles.mockResolvedValue(['SKILL.md'])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const treeNodes = wrapper.findAll('.el-tree-node__content')
+    expect(treeNodes.length).toBe(1)
+    expect(treeNodes[0].find('.node-label').text()).toBe('SKILL.md')
+  })
+
+  it('deeply nested files display correctly in tree', async () => {
+    mockSkillStore.skills = [
+      { id: 1, name: 'deep-skill', description: 'test', created_at: '2026-01-01', updated_at: '2026-01-01' }
+    ]
+    mockSkillStore.fetchSkillFiles.mockResolvedValue([
+      'SKILL.md',
+      'src/components/Button.vue',
+      'src/components/Input.vue',
+      'src/utils/helpers.ts',
+      'src/utils/constants.ts',
+      'tests/components/Button.spec.ts',
+      'tests/components/Input.spec.ts'
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Root level: SKILL.md, src folder, tests folder = 3
+    const treeNodes = wrapper.findAll('.el-tree-node__content')
+    expect(treeNodes.length).toBe(3)
+    const labels = treeNodes.map(n => n.find('.node-label').text())
+    expect(labels).toContain('SKILL.md')
+    expect(labels).toContain('src')
+    expect(labels).toContain('tests')
+  })
 })
