@@ -409,6 +409,7 @@ class OpenCodeStepRunner {
     abortSignal,
     onEvent,
     onAskUser,
+    validateResult = true,
   }: {
     prompt: string;
     worktreePath: string;
@@ -417,6 +418,7 @@ class OpenCodeStepRunner {
     abortSignal?: AbortSignal;
     onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);
     onAskUser?: ((data: AskUserQuestionData) => void | Promise<void>);
+    validateResult?: boolean;
   }) {
     const spawnInput: Parameters<typeof defaultSpawnImpl>[0] = {
       worktreePath,
@@ -443,9 +445,8 @@ class OpenCodeStepRunner {
 
     let parsedResult;
     try {
-      parsedResult = validateStepResult(await parseStepResult({
-        stdout: execution.stdout,
-      }));
+      const parsed = await parseStepResult({ stdout: execution.stdout });
+      parsedResult = validateResult ? validateStepResult(parsed) : { summary: parsed.summary?.trim() ?? '' };
     } catch (error) {
       throw this._buildParseError(error as Error, execution);
     }
