@@ -373,7 +373,7 @@ const selectedTemplateId = ref('')
 const selectedStepIndex = ref(0)
 const template = ref(null)
 const templateSnapshot = ref(null)
-const agents = agentStore.agents
+const agents = computed(() => agentStore.agents)
 const agentsLoaded = ref(false)
 const agentsLoadFailed = ref(false)
 let templateDetailRequestToken = 0
@@ -490,7 +490,7 @@ const normalizeTemplate = (rawTemplate) => {
 
 const getAgentLabel = (agent) => getAgentDisplayName(agent, t)
 
-const getAgentById = (agentId) => createAgentLookup(agents)(agentId)
+const getAgentById = (agentId) => createAgentLookup(agents.value)(agentId)
 const isMissingAgent = (step) => {
   if (!agentsLoaded.value || agentsLoadFailed.value) return false
   return checkMissingAgent(step, getAgentById)
