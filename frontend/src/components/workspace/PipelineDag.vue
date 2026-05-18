@@ -72,12 +72,13 @@ const emit = defineEmits(['select', 'refresh'])
 // consult workflow_run_status first, then fall back to task status.
 function nodeStatusClass(node) {
   if (node.status === 'DONE') return 'is-done'
-  if (node.status === 'CANCELLED') return 'failed'
+  if (node.status === 'CANCELLED') return 'cancelled'
 
   const wf = node.workflow_run_status
   if (wf === 'COMPLETED' || wf === 'DONE') return 'is-done'
   if (wf === 'RUNNING' || wf === 'IN_PROGRESS' || wf === 'SUSPENDED') return 'running'
-  if (wf === 'FAILED' || wf === 'CANCELLED') return 'failed'
+  if (wf === 'FAILED') return 'failed'
+  if (wf === 'CANCELLED') return 'cancelled'
   if (wf === 'PENDING') return 'pending'
   if (!wf) {
     if (node.status === 'IN_PROGRESS') return 'running'
@@ -89,7 +90,7 @@ function nodeStatusClass(node) {
 
 function statusIcon(node) {
   const cls = nodeStatusClass(node)
-  const icons = { 'is-done': '✓', running: '▶', failed: '✗', pending: '○' }
+  const icons = { 'is-done': '✓', running: '▶', failed: '✗', cancelled: '⊘', pending: '○' }
   return icons[cls] || '○'
 }
 
@@ -328,6 +329,12 @@ const dagLayers = computed(() => {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.55);
   color: #b91c1c;
+}
+
+.dag-node-wrapper.cancelled .dag-node {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-muted);
 }
 
 .dag-node-status {
