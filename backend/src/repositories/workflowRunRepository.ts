@@ -140,7 +140,11 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
       sql: 'SELECT * FROM workflow_runs WHERE task_id = ? ORDER BY iteration ASC, id ASC',
       args: [taskId],
     });
-    return result.rows.map(row => this.mapRowToEntity(row as Record<string, unknown>));
+    const runs = result.rows.map(row => this.mapRowToEntity(row as Record<string, unknown>));
+    for (const run of runs) {
+      run.steps = await this.enrichStepsWithAgentId(run.steps);
+    }
+    return runs;
   }
 
   async findInFlightChild(parentRunId: number): Promise<WorkflowRunEntity | null> {

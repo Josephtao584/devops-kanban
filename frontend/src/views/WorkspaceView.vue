@@ -396,6 +396,7 @@
 
     <WorkflowTemplateSelectDialog
       v-model="showWorkflowTemplateDialog"
+      :recommended-template-id="selectedTask?.auto_execute_template_id || ''"
       @confirm="handleWorkflowTemplateConfirm"
     />
 
@@ -883,6 +884,9 @@ async function loadTasks() {
     selectedTask.value = tasks.value[0]
   } else if (!tasks.value.length) {
     selectedTask.value = null
+  } else if (selectedTask.value) {
+    const refreshed = realTasks.value.find(t => t.id === selectedTask.value.id)
+    if (refreshed) selectedTask.value = refreshed
   }
 }
 
@@ -1006,7 +1010,6 @@ function statusClass(status) {
 async function onConfirmSplit() {
   if (!selectedTask.value?.id) return
   await splitStore.doConfirm(selectedTask.value.id)
-  if (selectedTask.value.id) await splitStore.load(selectedTask.value.id)
   await loadTasks()
 }
 

@@ -28,19 +28,30 @@ async function updateSuggestions(
 async function confirm(id: number): Promise<{ tasks: number[]; suggestion: SplitSuggestionEntity }> {
   const existing = await splitSuggestionRepository.findById(id);
   if (!existing) throw new Error(`split suggestion ${id} not found`);
-  if (existing.status !== 'PENDING') {
+  if (existing.status !== 'PENDING' && existing.status !== 'CONFIRMED') {
     throw new Error(`cannot confirm suggestion in status ${existing.status}`);
   }
 
-  // Guard against duplicate children if a previous confirm partially ran.
+  // Get already-created children (from a previous partial confirm).
   const existingChildren = await taskRepository.findChildren(existing.parent_task_id);
-  if (existingChildren.length > 0) {
-    throw new Error('cannot confirm: child tasks already exist');
+  const existingChildTitles = new Set(existingChildren.map(c => c.title.toLowerCase()));
+
+  // Filter out suggestions that already have matching child tasks, so
+  // re-confirming after a partial confirm doesn't fail or create duplicates.
+  const newSuggestions = existing.suggestions.filter(
+    s => !existingChildTitles.has(s.title.toLowerCase()),
+  );
+
+  if (newSuggestions.length === 0) {
+    // All suggestions already have children — nothing more to create.
+    const updated = (await splitSuggestionRepository.findById(id))!;
+    return { tasks: existingChildren.map(t => t.id), suggestion: updated };
   }
 
   const tasks = await taskService.batchCreate({
     parent_task_id: existing.parent_task_id,
-    suggestions: existing.suggestions,
+    suggestions: newSuggestions,
+    existing_child_ids: existingChildren.map(t => t.id),
   });
 
   try {
@@ -71,8 +82,9 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     }
   }
 
+  const allTasks = [...existingChildren, ...tasks];
   const updated = (await splitSuggestionRepository.findById(id))!;
-  return { tasks: tasks.map(t => t.id), suggestion: updated };
+  return { tasks: allTasks.map(t => t.id), suggestion: updated };
 }
 
 async function dismiss(id: number): Promise<SplitSuggestionEntity> {

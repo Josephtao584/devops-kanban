@@ -454,6 +454,7 @@ class TaskService {
   async batchCreate(input: {
     parent_task_id: number;
     suggestions: Suggestion[];
+    existing_child_ids?: number[];
   }): Promise<TaskEntity[]> {
     const enabled = input.suggestions
       .map((s, originalIdx) => ({ s, originalIdx }))
@@ -462,13 +463,23 @@ class TaskService {
     const indexMap = new Map<number, number>();
     enabled.forEach((e, i) => indexMap.set(e.originalIdx, i));
 
+    const existingIds = new Set(input.existing_child_ids ?? []);
+
     const remappedDeps = enabled.map(({ s }) =>
       s.depends_on_indices
-        .map(oi => indexMap.get(oi))
+        .map(oi => {
+          // If the dependency points to a task in the new batch, use its position.
+          const batchPos = indexMap.get(oi);
+          if (batchPos !== undefined) return batchPos;
+          // If the dependency points to an already-created task, mark it
+          // as an external dep (use -1 as a sentinel).
+          if (existingIds.size > 0) return -1;
+          return undefined;
+        })
         .filter((i): i is number => i !== undefined),
     );
 
-    if (hasCycle(remappedDeps.map(d => ({ depends_on_indices: d })))) {
+    if (hasCycle(remappedDeps.map(d => ({ depends_on_indices: d.filter(i => i >= 0) })))) {
       throw new Error('suggestions contain a dependency cycle');
     }
 
@@ -478,13 +489,21 @@ class TaskService {
     const created: TaskEntity[] = [];
     for (let i = 0; i < enabled.length; i++) {
       const { s } = enabled[i]!;
-      const deps = remappedDeps[i]!.map(pos => created[pos]?.id).filter((id): id is number => id != null);
+      const hasExistingDeps = remappedDeps[i]!.includes(-1);
+      const deps = remappedDeps[i]!
+        .filter(pos => pos >= 0)
+        .map(pos => created[pos]?.id)
+        .filter((id): id is number => id != null);
+
+      // If there are existing deps, the task should WAITING; otherwise
+      // only wait for in-batch deps.
+      const hasDeps = hasExistingDeps || deps.length > 0;
 
       const task = await this.taskRepo.create({
         title: s.title,
         description: s.description,
         project_id: s.linked_project_id ?? parent.project_id,
-        status: deps.length === 0 ? 'TODO' : 'WAITING',
+        status: hasDeps ? 'WAITING' : 'TODO',
         priority: 'MEDIUM',
         source: 'internal',
         parent_task_id: input.parent_task_id,
