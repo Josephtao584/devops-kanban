@@ -374,6 +374,7 @@ export function buildWorkflowFromInstance(
                 // AI can't infer worktree/auto-start preferences — default to true and let the user override in the split-suggestion card.
                 create_worktree: true,
                 auto_start: true,
+                child_task_id: null,
               };
             });
 

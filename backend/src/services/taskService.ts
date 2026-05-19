@@ -429,11 +429,12 @@ class TaskService {
     if (newStatus === 'DONE') {
       const dependents = await this.taskRepo.findDependents(taskId);
       for (const dep of dependents) {
-        if (dep.status !== 'WAITING') continue;
+        // 子任务现在拆分时直接建为 TODO（不再用 WAITING）。这里只对仍在 TODO
+        // 且尚未启动过的依赖做自动 startTask，IN_PROGRESS/DONE/BLOCKED 跳过。
+        if (dep.status !== 'TODO') continue;
         const upstreams = await Promise.all((dep.depends_on ?? []).map(id => this.taskRepo.findById(id)));
         const allDone = upstreams.every(u => u?.status === 'DONE');
         if (allDone) {
-          await this.taskRepo.update(dep.id, { status: 'TODO' });
           await this.onTaskStatusChange(dep.id, 'TODO', visited);
 
           if (dep.source === 'internal' && dep.parent_task_id != null && dep.parent_task_id > 0 && dep.auto_execute_template_id) {
@@ -466,6 +467,7 @@ class TaskService {
     suggestions: Suggestion[];
     skip_indices?: number[];
     existing_task_id_by_index?: Record<number, number>;
+    onCreated?: (originalIndex: number, task: TaskEntity, suggestion: Suggestion) => Promise<void>;
   }): Promise<BatchCreateResult[]> {
     const skipIndices = new Set(input.skip_indices ?? []);
     const existingByIndex = input.existing_task_id_by_index ?? {};
@@ -506,7 +508,7 @@ class TaskService {
 
     const created: BatchCreateResult[] = [];
     for (let i = 0; i < enabled.length; i++) {
-      const { s } = enabled[i]!;
+      const { s, originalIdx } = enabled[i]!;
       const deps: number[] = [];
       for (const d of remappedDeps[i]!) {
         if ('batchPos' in d) {
@@ -521,7 +523,7 @@ class TaskService {
         title: s.title,
         description: s.description,
         project_id: s.linked_project_id ?? parent.project_id,
-        status: deps.length === 0 ? 'TODO' : 'WAITING',
+        status: 'TODO',
         priority: 'MEDIUM',
         source: 'internal',
         parent_task_id: input.parent_task_id,
@@ -533,6 +535,10 @@ class TaskService {
       });
 
       created.push({ task, suggestion: s });
+
+      if (input.onCreated) {
+        await input.onCreated(originalIdx, task, s);
+      }
     }
 
     return created;

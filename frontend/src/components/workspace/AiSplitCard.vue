@@ -28,7 +28,7 @@
           v-for="(item, index) in suggestions"
           :key="index"
           class="suggestion-card"
-          :class="{ 'is-disabled': !enabledIndices.has(index) }"
+          :class="{ 'is-disabled': !enabledIndices.has(index), 'is-locked': isLocked(item) }"
         >
           <!-- Top bar: index + dependency chip + delete -->
           <div class="card-topbar">
@@ -36,10 +36,12 @@
               <input
                 type="checkbox"
                 :checked="enabledIndices.has(index)"
+                :disabled="isLocked(item)"
                 @change="toggleEnabled(index)"
               />
               <span class="card-index">#{{ index + 1 }}</span>
             </label>
+            <el-tag v-if="isLocked(item)" type="success" size="small" class="locked-tag">已创建</el-tag>
             <span v-if="item.depends_on_indices && item.depends_on_indices.length" class="card-chip chip-dep" :title="`依赖: ${dependencyLabel(item)}`">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
@@ -49,6 +51,7 @@
             </span>
             <span class="card-spacer"></span>
             <el-popconfirm
+              v-if="!isLocked(item)"
               :title="`确认删除 #${index + 1} ${item.title || '此任务'}？`"
               confirm-button-text="删除"
               cancel-button-text="取消"
@@ -72,6 +75,7 @@
           <input
             class="card-title-input"
             :value="item.title"
+            :disabled="isLocked(item)"
             @input="updateField(index, 'title', $event.target.value)"
             placeholder="任务标题"
           />
@@ -80,6 +84,7 @@
           <textarea
             class="card-desc-input"
             :value="item.description"
+            :disabled="isLocked(item)"
             @input="updateField(index, 'description', $event.target.value)"
             placeholder="任务描述（可选）"
             rows="2"
@@ -94,6 +99,7 @@
                 size="small"
                 class="full-width"
                 placeholder="选择工作空间"
+                :disabled="isLocked(item)"
                 @update:model-value="(val) => onWorkspaceSelect(index, val)"
               >
                 <el-option :label="`当前项目（${currentProjectName}）`" value="__current__" />
@@ -125,6 +131,7 @@
                 size="small"
                 class="full-width"
                 placeholder="留空使用根目录，如 backend"
+                :disabled="isLocked(item)"
                 @update:model-value="(val) => updateField(index, 'work_dir', val || null)"
               />
             </div>
@@ -136,6 +143,7 @@
                 size="small"
                 class="full-width"
                 placeholder="git@github.com:org/repo.git"
+                :disabled="isLocked(item)"
                 @update:model-value="(val) => updateField(index, 'target_repo_url', val || null)"
               />
             </div>
@@ -148,6 +156,7 @@
                 class="full-width"
                 placeholder="不选则不自动启动"
                 clearable
+                :disabled="isLocked(item)"
                 @update:model-value="(val) => updateField(index, 'template_id', val || null)"
               >
                 <el-option
@@ -169,6 +178,7 @@
                 collapse-tags
                 collapse-tags-tooltip
                 placeholder="选择此任务依赖的其他任务（无依赖则可立即启动）"
+                :disabled="isLocked(item)"
                 @update:model-value="(val) => updateField(index, 'depends_on_indices', val)"
               >
                 <el-option
@@ -184,21 +194,22 @@
 
           <!-- Toggle switches -->
           <div class="card-switches">
-            <label class="switch-pill" :class="{ active: item.create_worktree !== false }">
+            <label class="switch-pill" :class="{ active: item.create_worktree !== false, disabled: isLocked(item) }">
               <input
                 type="checkbox"
                 :checked="item.create_worktree !== false"
+                :disabled="isLocked(item)"
                 @change="updateField(index, 'create_worktree', $event.target.checked)"
               />
               <span class="switch-knob"></span>
               <span class="switch-label">创建 worktree</span>
             </label>
             <el-tooltip :disabled="!!item.template_id" content="请先选择 AgentTeam 模板" placement="top">
-              <label class="switch-pill" :class="{ active: item.template_id != null && item.auto_start !== false, disabled: !item.template_id }">
+              <label class="switch-pill" :class="{ active: item.template_id != null && item.auto_start !== false, disabled: !item.template_id || isLocked(item) }">
                 <input
                   type="checkbox"
                   :checked="(item.template_id != null) && (item.auto_start !== false)"
-                  :disabled="!item.template_id"
+                  :disabled="!item.template_id || isLocked(item)"
                   @change="updateField(index, 'auto_start', $event.target.checked)"
                 />
                 <span class="switch-knob"></span>
@@ -237,10 +248,10 @@
     </div>
     <div v-else class="path-preview-content">
       <div class="path-preview-item">
-        <span class="path-preview-label">项目路径</span>
+        <span class="path-preview-label">{{ pathInfo.is_external_repo ? '外部仓库缓存' : '项目路径' }}</span>
         <span class="path-preview-value path-preview-mono">{{ pathInfo.project_local_path }}</span>
         <span class="path-preview-status" :class="pathInfo.project_exists ? 'status-ok' : 'status-bad'">
-          {{ pathInfo.project_exists ? '✅ 存在' : '❌ 不存在' }}
+          {{ pathInfo.project_exists ? '✅ 存在' : (pathInfo.is_external_repo ? '⏳ 首次使用时克隆' : '❌ 不存在') }}
         </span>
       </div>
       <div class="path-preview-item">
@@ -281,6 +292,10 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'confirm', 'dismiss'])
 
+function isLocked(item) {
+  return item?.child_task_id != null
+}
+
 const expanded = ref(true)
 const showPathDialog = ref(false)
 const pathInfo = ref(null)
@@ -314,6 +329,7 @@ watch(() => props.suggestion, (val) => {
     val.suggestions.forEach((s) => {
       if (s.create_worktree === undefined) s.create_worktree = true
       if (s.auto_start === undefined) s.auto_start = true
+      if (s.child_task_id === undefined) s.child_task_id = null
     })
   } else {
     enabledIndices.value = new Set()
@@ -380,6 +396,7 @@ function onAddTask() {
       create_worktree: true,
       auto_start: true,
       work_dir: null,
+      child_task_id: null,
     },
   ]
   emitSuggestions(list)
@@ -436,7 +453,12 @@ async function onPreviewPath(index) {
   const item = suggestions.value[index]
   if (!item || !props.suggestion?.id) return
   try {
-    const resp = await splitSuggestionsApi.previewPath(props.suggestion.id, item.title, item.work_dir)
+    const resp = await splitSuggestionsApi.previewPath(props.suggestion.id, {
+      title: item.title,
+      work_dir: item.work_dir,
+      linked_project_id: item.linked_project_id ?? null,
+      target_repo_url: item.target_repo_url ?? null,
+    })
     if (resp?.success) {
       pathInfo.value = {
         ...resp.data,
@@ -854,6 +876,20 @@ defineExpose({ updateField, onAddTask, onWorkspaceSelect })
 .split-footer-actions {
   display: flex;
   gap: 8px;
+}
+
+.suggestion-card.is-locked {
+  background: var(--el-fill-color-lighter, #fafafa);
+  border-color: var(--el-border-color-lighter, #e8e8e8);
+}
+.suggestion-card.is-locked .card-title-input,
+.suggestion-card.is-locked .card-desc-input {
+  color: var(--el-text-color-secondary, #888);
+  background: transparent;
+  cursor: not-allowed;
+}
+.locked-tag {
+  margin-left: 4px;
 }
 </style>
 

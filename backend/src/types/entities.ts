@@ -274,6 +274,7 @@ export interface Suggestion {
   create_worktree: boolean;
   auto_start: boolean;
   work_dir: string | null;
+  child_task_id: number | null;
 }
 
 export type SplitSuggestionStatus = 'PENDING' | 'CONFIRMED' | 'DISMISSED';

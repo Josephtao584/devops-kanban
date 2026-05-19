@@ -9,6 +9,7 @@ import { initWorkflows } from './services/workflow/workflows.js';
 import { initDatabase, seedSampleData } from './db/index.js';
 import { bootstrapBuiltinTemplates, migrateSplitTaskPrompts } from './services/workflow/workflowTemplateService.js';
 import { bootstrapBuiltinTaskSplitAgent } from './services/workflow/builtinTaskSplitAgent.js';
+import { logger } from './utils/logger.js';
 import {
   agentRoutes,
   agentChatRoutes,
@@ -55,6 +56,18 @@ export async function buildApp() {
 
   // Migrate existing SPLIT_TASK step prompts to use task-splitter skill
   await migrateSplitTaskPrompts();
+
+  // 一次性迁移：WAITING 状态已废弃，统一改 TODO，避免看板漏显示
+  {
+    const { getDbClient } = await import('./db/client.js');
+    const result = await getDbClient().execute({
+      sql: "UPDATE tasks SET status = 'TODO' WHERE status = 'WAITING'",
+      args: [],
+    });
+    if (result.rowsAffected > 0) {
+      logger.info('Migration', `Migrated ${result.rowsAffected} WAITING tasks to TODO`);
+    }
+  }
 
   // Bootstrap built-in task split agent and skill
   await bootstrapBuiltinTaskSplitAgent();
