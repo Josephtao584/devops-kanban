@@ -266,3 +266,37 @@ test.test('ClaudeStepRunner does not throw STEP_AWAITING_USER_INPUT when no AskU
   assert.equal(result.exitCode, 0);
   assert.equal(result.parsedResult.summary, '已完成任务');
 });
+
+test.test('default spawnImpl rejects when cwdSubdir does not exist', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+
+  const root = mkdtempSync(join(tmpdir(), 'claude-runner-'));
+  try {
+    const runner = new ClaudeStepRunner();
+    await assert.rejects(
+      runner.runStep({
+        prompt: 'prompt',
+        worktreePath: root,
+        cwdSubdir: 'does-not-exist',
+        executorConfig: {},
+      }),
+      (err: any) => /工作路径不存在/.test(err.message) && /does-not-exist/.test(err.message),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test.test('default spawnImpl rejects when worktreePath itself does not exist', async () => {
+  const runner = new ClaudeStepRunner();
+  await assert.rejects(
+    runner.runStep({
+      prompt: 'prompt',
+      worktreePath: '/definitely/not/a/real/path/should-fail',
+      executorConfig: {},
+    }),
+    (err: any) => /工作路径不存在/.test(err.message),
+  );
+});

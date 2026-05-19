@@ -309,9 +309,22 @@ class WorkflowLifecycle {
 
   /**
    * Resolve the work_dir-aware base path used to install skills/MCP for a run.
-   * Falls back to the worktree path if the task can't be loaded.
+   * Prefers the basePath persisted at install time on `run.context` so cleanup
+   * uses the same path even if the user edits `task.work_dir` mid-run.
+   * Falls back to re-deriving from the task, then to the worktree path.
    */
-  private async _resolveRunBasePath(worktreePath: string, taskId: number | null): Promise<string> {
+  private async _resolveRunBasePath(worktreePath: string, taskId: number | null, runId?: number): Promise<string> {
+    if (typeof runId === 'number') {
+      try {
+        const run = await this.workflowRunRepo.findById(runId);
+        const persisted = run?.context?.['install_base_path'];
+        if (typeof persisted === 'string' && persisted.length > 0) {
+          return persisted;
+        }
+      } catch {
+        // fall through to task lookup
+      }
+    }
     if (!taskId) return worktreePath;
     try {
       const task = await this.taskRepo.findById(taskId);
@@ -545,6 +558,21 @@ class WorkflowLifecycle {
     await this._cleanupPreviousStepSkills(basePath, runId);
     await this._prepareCurrentStepSkills(runId, stepId, basePath);
     await this._prepareCurrentStepMcp(runId, stepId, basePath);
+
+    // Persist the basePath used for this install on the run's context so
+    // end-of-run cleanup uses the same path even if `task.work_dir` is edited
+    // mid-run (otherwise install and cleanup would diverge and orphan files).
+    try {
+      const currentRun = await this.workflowRunRepo.findById(runId);
+      const currentContext = currentRun?.context ?? {};
+      if (currentContext['install_base_path'] !== basePath) {
+        await this.workflowRunRepo.update(runId, {
+          context: { ...currentContext, install_base_path: basePath },
+        });
+      }
+    } catch (err) {
+      logger.warn('WorkflowLifecycle', `Failed to persist install_base_path: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const startedAt = new Date().toISOString();
     const { step } = await this._getRunStep(runId, stepId);
@@ -958,7 +986,7 @@ class WorkflowLifecycle {
   async onStepCancel(runId: number, stepId: string) {
     const { run } = await this._getRunStep(runId, stepId);
     if (run.worktree_path) {
-      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null);
+      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null, runId);
       await cleanupMcpJson(basePath);
       await cleanupOpenCodeMcpJson(basePath);
     }
@@ -1003,7 +1031,7 @@ class WorkflowLifecycle {
 
     // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
     if (run.worktree_path) {
-      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null);
+      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null, runId);
       await this._cleanupPreviousStepSkills(basePath, runId);
     }
 
@@ -1032,7 +1060,7 @@ class WorkflowLifecycle {
 
     // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
     if (run.worktree_path) {
-      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null);
+      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null, runId);
       await this._cleanupPreviousStepSkills(basePath, runId);
     }
 
