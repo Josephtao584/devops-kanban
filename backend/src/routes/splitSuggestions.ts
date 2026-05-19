@@ -19,6 +19,7 @@ const suggestionSchema = z.object({
   create_worktree: z.boolean().default(true),
   auto_start: z.boolean().default(true),
   work_dir: z.string().nullable().default(null),
+  child_task_id: z.number().nullable().default(null),
 });
 
 const projectRepo = new ProjectRepository();

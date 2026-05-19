@@ -466,6 +466,7 @@ class TaskService {
     suggestions: Suggestion[];
     skip_indices?: number[];
     existing_task_id_by_index?: Record<number, number>;
+    onCreated?: (originalIndex: number, task: TaskEntity, suggestion: Suggestion) => Promise<void>;
   }): Promise<BatchCreateResult[]> {
     const skipIndices = new Set(input.skip_indices ?? []);
     const existingByIndex = input.existing_task_id_by_index ?? {};
@@ -506,7 +507,7 @@ class TaskService {
 
     const created: BatchCreateResult[] = [];
     for (let i = 0; i < enabled.length; i++) {
-      const { s } = enabled[i]!;
+      const { s, originalIdx } = enabled[i]!;
       const deps: number[] = [];
       for (const d of remappedDeps[i]!) {
         if ('batchPos' in d) {
@@ -533,6 +534,10 @@ class TaskService {
       });
 
       created.push({ task, suggestion: s });
+
+      if (input.onCreated) {
+        await input.onCreated(originalIdx, task, s);
+      }
     }
 
     return created;

@@ -1,5 +1,4 @@
 import { splitSuggestionRepository } from '../repositories/splitSuggestionRepository.js';
-import { taskRepository } from '../repositories/taskRepository.js';
 import { taskService } from './taskService.js';
 import { logger } from '../utils/logger.js';
 import type { Suggestion, SplitSuggestionEntity } from '../types/entities.ts';
@@ -18,65 +17,82 @@ async function updateSuggestions(
 ): Promise<SplitSuggestionEntity> {
   const existing = await splitSuggestionRepository.findById(id);
   if (!existing) throw new Error(`split suggestion ${id} not found`);
-  if (existing.status !== 'PENDING') {
+  if (existing.status !== 'PENDING' && existing.status !== 'CONFIRMED') {
     throw new Error(`cannot edit suggestion in status ${existing.status}`);
+  }
+  if (suggestions.length < existing.suggestions.length) {
+    throw new Error('cannot remove existing suggestion rows');
+  }
+  for (let i = 0; i < existing.suggestions.length; i++) {
+    const before = existing.suggestions[i]!;
+    const after = suggestions[i]!;
+    if (before.child_task_id != null) {
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        throw new Error(`row ${i} is locked (child_task_id=${before.child_task_id})`);
+      }
+    }
   }
   await splitSuggestionRepository.update(id, { suggestions });
   return (await splitSuggestionRepository.findById(id))!;
 }
 
-async function confirm(id: number): Promise<{ tasks: number[]; suggestion: SplitSuggestionEntity }> {
+async function confirm(id: number): Promise<{ tasks: number[]; suggestion: SplitSuggestionEntity; created_count: number }> {
   const existing = await splitSuggestionRepository.findById(id);
   if (!existing) throw new Error(`split suggestion ${id} not found`);
   if (existing.status !== 'PENDING' && existing.status !== 'CONFIRMED') {
     throw new Error(`cannot confirm suggestion in status ${existing.status}`);
   }
 
-  // Map already-created child tasks back to their original suggestion index
-  // (matched by title, case-insensitive). Suggestions whose title matches an
-  // existing child are skipped; remaining suggestions can still depend on
-  // those existing children by their original index.
-  const existingChildren = await taskRepository.findChildren(existing.parent_task_id);
-  const existingByTitle = new Map(existingChildren.map(c => [c.title.toLowerCase(), c.id]));
-
+  // child_task_id != null 的行视为已建，跳过
   const skipIndices: number[] = [];
   const existingTaskIdByIndex: Record<number, number> = {};
   existing.suggestions.forEach((s, idx) => {
-    const matchedId = existingByTitle.get(s.title.toLowerCase());
-    if (matchedId !== undefined) {
+    if (s.child_task_id != null) {
       skipIndices.push(idx);
-      existingTaskIdByIndex[idx] = matchedId;
+      existingTaskIdByIndex[idx] = s.child_task_id;
     }
   });
 
+  // 全部已建：no-op
   if (skipIndices.length === existing.suggestions.length) {
-    // All suggestions already have children — nothing more to create.
     const updated = (await splitSuggestionRepository.findById(id))!;
-    return { tasks: existingChildren.map(t => t.id), suggestion: updated };
+    return {
+      tasks: existing.suggestions
+        .map(s => s.child_task_id)
+        .filter((tid): tid is number => tid != null),
+      suggestion: updated,
+      created_count: 0,
+    };
   }
+
+  // 用 onCreated 回调逐任务回写 child_task_id
+  const newSuggestions = [...existing.suggestions];
 
   const created = await taskService.batchCreate({
     parent_task_id: existing.parent_task_id,
     suggestions: existing.suggestions,
     skip_indices: skipIndices,
     existing_task_id_by_index: existingTaskIdByIndex,
+    onCreated: async (originalIdx, task) => {
+      newSuggestions[originalIdx] = {
+        ...newSuggestions[originalIdx]!,
+        child_task_id: task.id,
+      };
+      await splitSuggestionRepository.update(id, { suggestions: newSuggestions });
+    },
   });
 
+  // 全部成功后翻状态
   try {
     await splitSuggestionRepository.update(id, {
       status: 'CONFIRMED',
-      confirmed_at: new Date().toISOString(),
+      confirmed_at: existing.confirmed_at ?? new Date().toISOString(),
     });
   } catch (err) {
-    // Child tasks are the source of truth; log and continue.
     logger.warn('splitSuggestionService', `failed to update suggestion status after batchCreate: ${(err as Error).message}`);
   }
 
-  // Auto-start child tasks that are ready (status TODO). Failure to start
-  // any single task must not abort the confirm — the task stays TODO for
-  // the user to start manually. Each child suggestion carries two switches:
-  //   - create_worktree: when not explicitly false, create a worktree first
-  //   - auto_start:      when not explicitly false, start the workflow
+  // Auto-start 循环：维持现状的 worktree/auto_start 矩阵
   for (const { task, suggestion } of created) {
     if (task.status !== 'TODO') continue;
 
@@ -100,9 +116,11 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     }
   }
 
-  const allTasks = [...existingChildren, ...created.map((c) => c.task)];
   const updated = (await splitSuggestionRepository.findById(id))!;
-  return { tasks: allTasks.map(t => t.id), suggestion: updated };
+  const allTaskIds = newSuggestions
+    .map(s => s.child_task_id)
+    .filter((tid): tid is number => tid != null);
+  return { tasks: allTaskIds, suggestion: updated, created_count: created.length };
 }
 
 async function dismiss(id: number): Promise<SplitSuggestionEntity> {
