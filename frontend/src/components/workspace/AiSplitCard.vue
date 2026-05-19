@@ -248,10 +248,10 @@
     </div>
     <div v-else class="path-preview-content">
       <div class="path-preview-item">
-        <span class="path-preview-label">项目路径</span>
+        <span class="path-preview-label">{{ pathInfo.is_external_repo ? '外部仓库缓存' : '项目路径' }}</span>
         <span class="path-preview-value path-preview-mono">{{ pathInfo.project_local_path }}</span>
         <span class="path-preview-status" :class="pathInfo.project_exists ? 'status-ok' : 'status-bad'">
-          {{ pathInfo.project_exists ? '✅ 存在' : '❌ 不存在' }}
+          {{ pathInfo.project_exists ? '✅ 存在' : (pathInfo.is_external_repo ? '⏳ 首次使用时克隆' : '❌ 不存在') }}
         </span>
       </div>
       <div class="path-preview-item">
@@ -453,7 +453,12 @@ async function onPreviewPath(index) {
   const item = suggestions.value[index]
   if (!item || !props.suggestion?.id) return
   try {
-    const resp = await splitSuggestionsApi.previewPath(props.suggestion.id, item.title, item.work_dir)
+    const resp = await splitSuggestionsApi.previewPath(props.suggestion.id, {
+      title: item.title,
+      work_dir: item.work_dir,
+      linked_project_id: item.linked_project_id ?? null,
+      target_repo_url: item.target_repo_url ?? null,
+    })
     if (resp?.success) {
       pathInfo.value = {
         ...resp.data,

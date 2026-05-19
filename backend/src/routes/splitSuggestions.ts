@@ -70,7 +70,15 @@ const splitSuggestionsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Preview predicted worktree path for a suggestion (child task doesn't exist yet)
-  fastify.post<{ Params: { id: string }; Body: { title: string; work_dir?: string | null } }>(
+  fastify.post<{
+    Params: { id: string };
+    Body: {
+      title: string;
+      work_dir?: string | null;
+      linked_project_id?: number | null;
+      target_repo_url?: string | null;
+    };
+  }>(
     '/split-suggestions/:id/preview-path',
     async (request, reply) => {
       try {
@@ -86,24 +94,39 @@ const splitSuggestionsRoutes: FastifyPluginAsync = async (fastify) => {
           reply.code(404);
           return errorResponse('Parent task not found');
         }
-        const project = await projectRepo.findById(parentTask.project_id);
-        if (!project?.local_path) {
-          reply.code(400);
-          return errorResponse('Project has no local path configured');
-        }
+
+        const { getExternalRepoPath } = await import('../utils/git.js');
         const safeTitle = sanitizeName(request.body.title).substring(0, 50);
-        const worktreePath = join(project.local_path, '.worktrees', `task-?-${safeTitle}`);
         const workDir = request.body.work_dir;
+
+        // 用户在拆分对话框里选的工作空间优先：external repo URL > linked project > parent project
+        let projectLocalPath: string;
+        let isExternal = false;
+        if (request.body.target_repo_url) {
+          projectLocalPath = getExternalRepoPath(request.body.target_repo_url);
+          isExternal = true;
+        } else {
+          const projectId = request.body.linked_project_id ?? parentTask.project_id;
+          const project = await projectRepo.findById(projectId);
+          if (!project?.local_path) {
+            reply.code(400);
+            return errorResponse('Project has no local path configured');
+          }
+          projectLocalPath = project.local_path;
+        }
+
+        const worktreePath = join(projectLocalPath, '.worktrees', `task-?-${safeTitle}`);
         const fullPath = workDir ? join(worktreePath, workDir) : worktreePath;
-        const projectWorkPath = workDir ? join(project.local_path, workDir) : project.local_path;
+        const projectWorkPath = workDir ? join(projectLocalPath, workDir) : projectLocalPath;
         return successResponse({
-          project_local_path: project.local_path,
+          project_local_path: projectLocalPath,
           predicted_path: fullPath,
           project_work_path: projectWorkPath,
           project_work_path_exists: existsSync(projectWorkPath),
-          project_exists: existsSync(project.local_path),
-          worktree_base_exists: existsSync(join(project.local_path, '.worktrees')),
+          project_exists: existsSync(projectLocalPath),
+          worktree_base_exists: existsSync(join(projectLocalPath, '.worktrees')),
           predicted_path_exists: existsSync(fullPath),
+          is_external_repo: isExternal,
         });
       } catch (error) {
         return reply.code(500).send(errorResponse('Failed to preview path'));
