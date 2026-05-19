@@ -257,7 +257,7 @@ class WorkflowService {
     throw new ValidationError('项目未配置本地路径或路径不存在，请先在项目设置中添加有效的 local_path', 'Project local_path is not configured or does not exist', { projectId: task.project_id });
   }
 
-  private async getMastraRunContext(runId: number) {
+  private async getMastraRunContext(runId: number, options: { evictCachedRun?: boolean } = {}) {
     const run = await this.workflowRunRepo.findById(runId);
     if (!run) {
       throw new NotFoundError('未找到工作流运行', 'Workflow run not found', { runId });
@@ -279,6 +279,17 @@ class WorkflowService {
       runId,
       { id: task.id, project_id: task.project_id, execution_path: executionPath, work_dir: task.work_dir ?? null },
     );
+
+    // Mastra caches Run instances by runId in workflow.runs. A cached Run that
+    // was previously cancelled holds a permanently-aborted AbortController; the
+    // execution engine checks signal.aborted after every step and rewrites the
+    // result to "canceled", which prevents retry from advancing past the first
+    // step. Evicting the cached Run forces createRun() to construct a fresh
+    // instance with a new AbortController. The snapshot in storage is keyed by
+    // runId, so timeTravel still resumes from the correct state.
+    if (options.evictCachedRun) {
+      workflow?.runs?.delete?.(mastraRunId);
+    }
 
     const mastraRun = await workflow.createRun({ runId: mastraRunId });
 
@@ -563,7 +574,7 @@ class WorkflowService {
 
     await this.workflowRunRepo.update(runId, { status: 'RUNNING', current_step: stepId });
 
-    const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId);
+    const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId, { evictCachedRun: true });
     if (!mastraRun) {
       throw new ValidationError('未找到 Mastra 运行实例', 'Mastra run instance not found', { runId });
     }
@@ -611,7 +622,7 @@ class WorkflowService {
 
     logger.info('WorkflowService', `Retrying from step: ${retryStep.step_id}`);
 
-    const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId);
+    const { task, executionPath, mastraRun } = await this.getMastraRunContext(runId, { evictCachedRun: true });
 
     await this.workflowRunRepo.update(runId, {
       status: 'RUNNING'
