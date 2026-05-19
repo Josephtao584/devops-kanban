@@ -2,6 +2,7 @@ import { BaseRepository } from './base.js';
 import { withRetry } from '../db/retry.js';
 import type { InValue } from '@libsql/client';
 import type { SessionEventEntity } from '../types/entities.ts';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 type CreateSessionEventRecord = Omit<SessionEventEntity, 'id' | 'seq' | 'created_at' | 'updated_at'>;
 
@@ -13,7 +14,7 @@ class SessionEventRepository extends BaseRepository<SessionEventEntity> {
   protected override parseRow(row: Record<string, unknown>): SessionEventEntity {
     return {
       ...row,
-      payload: row.payload ? JSON.parse(row.payload as string) : {},
+      payload: safeJsonParse(row.payload, {} as Record<string, unknown>, 'session_events.payload'),
     } as SessionEventEntity;
   }
 
@@ -32,6 +33,7 @@ class SessionEventRepository extends BaseRepository<SessionEventEntity> {
   async append(event: CreateSessionEventRecord): Promise<SessionEventEntity> {
     return withRetry(async () => {
       const txn = await this.client.transaction('write');
+      let committed = false;
       try {
         // Get max seq in transaction
         const maxResult = await txn.execute({
@@ -52,6 +54,7 @@ class SessionEventRepository extends BaseRepository<SessionEventEntity> {
         });
 
         await txn.commit();
+        committed = true;
 
         // Fetch the created record
         const created = await this.findById(Number(insertResult.lastInsertRowid));
@@ -60,10 +63,20 @@ class SessionEventRepository extends BaseRepository<SessionEventEntity> {
         }
         return created;
       } catch (error) {
-        await txn.rollback();
+        if (!committed) {
+          try {
+            await txn.rollback();
+          } catch {
+            // rollback may fail if the txn is already closed/aborted
+          }
+        }
         throw error;
       } finally {
-        txn.close();
+        try {
+          txn.close();
+        } catch {
+          // close may throw if already closed
+        }
       }
     });
   }

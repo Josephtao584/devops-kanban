@@ -105,13 +105,13 @@ class BaseRepository<T extends BaseEntity> {
   async update(entityId: number, entityData: Partial<Omit<T, keyof BaseEntity>>): Promise<T | null> {
     return withRetry(async () => {
       const txn = await this.client.transaction('write');
+      let committed = false;
       try {
         const existingResult = await txn.execute({
           sql: `SELECT * FROM "${this.tableName}" WHERE "id" = ?`,
           args: [entityId],
         });
         if (existingResult.rows.length === 0) {
-          txn.close();
           return null;
         }
 
@@ -123,7 +123,6 @@ class BaseRepository<T extends BaseEntity> {
         );
 
         if (definedEntries.length === 0) {
-          txn.close();
           return this.parseRow(existingResult.rows[0] as Record<string, unknown>);
         }
 
@@ -136,12 +135,23 @@ class BaseRepository<T extends BaseEntity> {
         });
 
         await txn.commit();
-        txn.close();
+        committed = true;
         return await this.findById(entityId);
       } catch (error) {
-        await txn.rollback();
-        txn.close();
+        if (!committed) {
+          try {
+            await txn.rollback();
+          } catch {
+            // rollback may fail if the txn is already closed/aborted; preserve the original error
+          }
+        }
         throw error;
+      } finally {
+        try {
+          txn.close();
+        } catch {
+          // close may throw if already closed; nothing to do
+        }
       }
     });
   }

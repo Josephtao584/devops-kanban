@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { SplitSuggestionEntity } from '../types/entities.js';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 class SplitSuggestionRepository extends BaseRepository<SplitSuggestionEntity> {
   constructor() {
@@ -7,7 +8,7 @@ class SplitSuggestionRepository extends BaseRepository<SplitSuggestionEntity> {
   }
 
   protected override parseRow(row: Record<string, unknown>): SplitSuggestionEntity {
-    const rawSuggestions = row.suggestions ? JSON.parse(row.suggestions as string) : [];
+    const rawSuggestions = safeJsonParse(row.suggestions, [] as unknown[], 'split_suggestions.suggestions');
     const suggestions = (rawSuggestions as Array<Record<string, unknown>>).map((s) => ({
       title: (s.title as string) ?? '',
       description: (s.description as string) ?? '',

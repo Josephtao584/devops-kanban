@@ -6,6 +6,13 @@ import * as fs from 'node:fs';
 import { STORAGE_PATH } from '../config/index.js';
 import { logger } from './logger.js';
 
+// Timeouts on execSync calls — without these, a hung git/network operation
+// blocks the entire Node event loop. Local git ops (worktree add/remove,
+// rev-parse, branch -D, prune) are always fast; clone/fetch may legitimately
+// take a while over slow networks but still need a hard upper bound.
+const GIT_LOCAL_TIMEOUT_MS = 30_000;
+const GIT_NETWORK_TIMEOUT_MS = 180_000;
+
 type WorktreeStatusItem = {
   path: string;
   head?: string;
@@ -54,6 +61,7 @@ export async function ensureExternalRepo(repoUrl: string): Promise<string> {
         cwd: repoDir,
         encoding: 'utf-8',
         stdio: 'pipe',
+        timeout: GIT_NETWORK_TIMEOUT_MS,
       });
     } catch (error) {
       const execError = error as Error & { stderr?: string };
@@ -73,6 +81,7 @@ export async function ensureExternalRepo(repoUrl: string): Promise<string> {
     execSync(`git clone ${repoUrl} ${repoDir}`, {
       encoding: 'utf-8',
       stdio: 'pipe',
+      timeout: GIT_NETWORK_TIMEOUT_MS,
     });
   } catch (error) {
     const execError = error as Error & { stderr?: string };
@@ -105,7 +114,7 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
 
     // Prune stale worktree references (dir deleted but git still tracks it)
     try {
-      execSync('git worktree prune', { cwd: repoPath, stdio: 'pipe' });
+      execSync('git worktree prune', { cwd: repoPath, stdio: 'pipe', timeout: GIT_LOCAL_TIMEOUT_MS });
     } catch {
       // Non-critical, continue
     }
@@ -118,7 +127,7 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
     // Check if branch already exists
     let branchExists = false;
     try {
-      execSync(`git rev-parse --verify refs/heads/${branchName}`, { cwd: repoPath, stdio: 'pipe' });
+      execSync(`git rev-parse --verify refs/heads/${branchName}`, { cwd: repoPath, stdio: 'pipe', timeout: GIT_LOCAL_TIMEOUT_MS });
       branchExists = true;
     } catch {
       branchExists = false;
@@ -129,12 +138,14 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
       execSync(`git worktree add "${worktreePath}" "${branchName}"`, {
         cwd: repoPath,
         encoding: 'utf-8',
+        timeout: GIT_LOCAL_TIMEOUT_MS,
       });
     } else {
       // Branch doesn't exist, create it with worktree
       execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
         cwd: repoPath,
         encoding: 'utf-8',
+        timeout: GIT_LOCAL_TIMEOUT_MS,
       });
     }
 
@@ -203,6 +214,7 @@ export function cleanupWorktree(worktreePath: string, repoPath = process.cwd(), 
       execSync(`git worktree remove ${worktreePath} --force`, {
         cwd: repoPath,
         encoding: 'utf-8',
+        timeout: GIT_LOCAL_TIMEOUT_MS,
       });
     }
     if (branchName) {
@@ -210,6 +222,7 @@ export function cleanupWorktree(worktreePath: string, repoPath = process.cwd(), 
         execSync(`git branch -D ${branchName} --force`, {
           cwd: repoPath,
           encoding: 'utf-8',
+          timeout: GIT_LOCAL_TIMEOUT_MS,
         });
       } catch {
         logger.info('Git', `Branch ${branchName} may not exist, skipping deletion`);
@@ -228,6 +241,7 @@ export function getWorktreeStatus(repoPath = process.cwd()): WorktreeStatusItem[
     const output = execSync('git worktree list --porcelain', {
       cwd: repoPath,
       encoding: 'utf-8',
+      timeout: GIT_LOCAL_TIMEOUT_MS,
     });
     const worktrees: WorktreeStatusItem[] = [];
     const lines = output.trim().split('\n');
@@ -255,7 +269,7 @@ export function getWorktreeStatus(repoPath = process.cwd()): WorktreeStatusItem[
 
 export function isGitRepository(repoPath = process.cwd()) {
   try {
-    execSync('git rev-parse --git-dir', { cwd: repoPath, stdio: 'ignore' });
+    execSync('git rev-parse --git-dir', { cwd: repoPath, stdio: 'ignore', timeout: GIT_LOCAL_TIMEOUT_MS });
     return true;
   } catch {
     return false;
@@ -289,6 +303,7 @@ export function mergeBranch(
       cwd: repoPath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: GIT_LOCAL_TIMEOUT_MS,
     });
 
     return {

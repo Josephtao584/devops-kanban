@@ -151,7 +151,7 @@ class WorkflowService {
             logger.warn('WorkflowService', `Notification enrichment failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }).catch((err) => {
-          logger.warn('WorkflowService', `Notification event check failed: ${err.message}`);
+          logger.warn('WorkflowService', `Notification event check failed: ${err instanceof Error ? err.message : String(err)}`);
         });
       },
     });
@@ -482,8 +482,9 @@ class WorkflowService {
     }).then((result: any) => {
       logger.info('WorkflowService', `Resume result status: ${result?.status}`);
     }).catch(async (err: any) => {
-      logger.error('WorkflowService', `Resume error: ${err.message}`);
-      await this.lifecycle.onWorkflowError(runId, err.message).catch(() => {});
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error('WorkflowService', `Resume error: ${errorMessage}`);
+      await this.lifecycle.onWorkflowError(runId, errorMessage).catch(() => {});
     });
 
     return await this.workflowRunRepo.findById(runId);

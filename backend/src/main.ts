@@ -19,18 +19,39 @@ const start = async () => {
   }
 };
 
-process.on('SIGTERM', () => {
-  console.log('👋 Coplat Backend shutting down...');
+let shuttingDown = false;
+const shutdown = (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`👋 Coplat Backend shutting down (${signal})...`);
 
   if (app.schedulerService) {
-    app.schedulerService.shutdown();
+    try {
+      app.schedulerService.shutdown();
+    } catch (err) {
+      console.error('Scheduler shutdown failed:', err);
+    }
   }
 
-  app.close(() => {
+  // Hard timeout: if fastify.close hangs (e.g. open socket / running child
+  // process), force exit so we don't get stuck in a half-closed state.
+  const forceExitTimer = setTimeout(() => {
+    console.error('Graceful shutdown timed out after 5s, forcing exit');
+    process.exit(1);
+  }, 5000);
+  forceExitTimer.unref();
+
+  app.close().then(() => {
     console.log('Fastify server closed');
     process.exit(0);
+  }).catch((err) => {
+    console.error('Error during fastify.close:', err);
+    process.exit(1);
   });
-});
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Global error handlers - catch unhandled exceptions that would crash the process
 process.on('uncaughtException', (error) => {

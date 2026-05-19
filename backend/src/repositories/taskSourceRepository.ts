@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { TaskSourceEntity } from '../types/entities.js';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 class TaskSourceRepository extends BaseRepository<TaskSourceEntity> {
   constructor() {
@@ -9,7 +10,7 @@ class TaskSourceRepository extends BaseRepository<TaskSourceEntity> {
   protected override parseRow(row: Record<string, unknown>): TaskSourceEntity {
     return {
       ...row,
-      config: row.config ? JSON.parse(row.config as string) : {},
+      config: safeJsonParse(row.config, {} as Record<string, unknown>, 'task_sources.config'),
       enabled: !!row.enabled,
     } as TaskSourceEntity;
   }
