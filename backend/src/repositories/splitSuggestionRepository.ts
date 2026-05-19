@@ -7,10 +7,20 @@ class SplitSuggestionRepository extends BaseRepository<SplitSuggestionEntity> {
   }
 
   protected override parseRow(row: Record<string, unknown>): SplitSuggestionEntity {
-    return {
-      ...row,
-      suggestions: row.suggestions ? JSON.parse(row.suggestions as string) : [],
-    } as SplitSuggestionEntity;
+    const rawSuggestions = row.suggestions ? JSON.parse(row.suggestions as string) : [];
+    const suggestions = (rawSuggestions as Array<Record<string, unknown>>).map((s) => ({
+      title: (s.title as string) ?? '',
+      description: (s.description as string) ?? '',
+      template_id: (s.template_id as string | null) ?? null,
+      linked_project_id: (s.linked_project_id as number | null) ?? null,
+      target_repo_url: (s.target_repo_url as string | null) ?? null,
+      depends_on_indices: Array.isArray(s.depends_on_indices) ? (s.depends_on_indices as number[]) : [],
+      enabled: s.enabled !== false,
+      create_worktree: s.create_worktree !== false,
+      auto_start: s.auto_start !== false,
+      work_dir: (s.work_dir as string | null) ?? null,
+    }));
+    return { ...row, suggestions } as SplitSuggestionEntity;
   }
 
   protected override serializeRow(
@@ -42,4 +52,4 @@ class SplitSuggestionRepository extends BaseRepository<SplitSuggestionEntity> {
 }
 
 export const splitSuggestionRepository = new SplitSuggestionRepository();
-export type { SplitSuggestionRepository };
+export { SplitSuggestionRepository };

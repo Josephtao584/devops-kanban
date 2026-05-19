@@ -22,6 +22,11 @@ interface WorktreeResult {
   worktree_status: string;
 }
 
+export interface BatchCreateResult {
+  task: TaskEntity;
+  suggestion: Suggestion;
+}
+
 class TaskService {
   taskRepo: TaskRepository;
   projectRepo: ProjectRepository;
@@ -456,7 +461,7 @@ class TaskService {
     suggestions: Suggestion[];
     skip_indices?: number[];
     existing_task_id_by_index?: Record<number, number>;
-  }): Promise<TaskEntity[]> {
+  }): Promise<BatchCreateResult[]> {
     const skipIndices = new Set(input.skip_indices ?? []);
     const existingByIndex = input.existing_task_id_by_index ?? {};
 
@@ -494,13 +499,13 @@ class TaskService {
     const parent = await this.taskRepo.findById(input.parent_task_id);
     if (!parent) throw new Error(`parent task ${input.parent_task_id} not found`);
 
-    const created: TaskEntity[] = [];
+    const created: BatchCreateResult[] = [];
     for (let i = 0; i < enabled.length; i++) {
       const { s } = enabled[i]!;
       const deps: number[] = [];
       for (const d of remappedDeps[i]!) {
         if ('batchPos' in d) {
-          const upstream = created[d.batchPos];
+          const upstream = created[d.batchPos]?.task;
           if (upstream) deps.push(upstream.id);
         } else {
           deps.push(d.existingTaskId);
@@ -518,10 +523,11 @@ class TaskService {
         depends_on: deps,
         target_repo_url: s.linked_project_id == null ? s.target_repo_url : null,
         auto_execute_template_id: s.template_id,
+        work_dir: s.work_dir ?? null,
         labels: [],
       });
 
-      created.push(task);
+      created.push({ task, suggestion: s });
     }
 
     return created;

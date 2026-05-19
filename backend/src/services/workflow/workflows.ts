@@ -5,7 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { STORAGE_PATH } from '../../config/index.js';
 import { executeWorkflowStep, continueWorkflowStepWithAnswer } from './workflowStepExecutor.js';
-import type { WorkflowInstanceEntity, WorkflowRunEntity } from '../../types/entities.js';
+import type { Suggestion, WorkflowInstanceEntity, WorkflowRunEntity } from '../../types/entities.js';
 import type { WorkflowLifecycle } from './workflowLifecycle.js';
 import { logger } from '../../utils/logger.js';
 
@@ -13,6 +13,7 @@ const sharedStateSchema = z.object({
   taskTitle: z.string(),
   taskDescription: z.string(),
   worktreePath: z.string(),
+  workDir: z.string().optional(),
   projectEnv: z.record(z.string()).optional(),
   taskExternalId: z.string().optional(),
 });
@@ -28,6 +29,7 @@ const firstStepInputSchema = z.object({
   taskTitle: z.string(),
   taskDescription: z.string(),
   worktreePath: z.string(),
+  workDir: z.string().optional(),
   projectEnv: z.record(z.string()).optional(),
   taskExternalId: z.string().optional(),
 });
@@ -288,6 +290,7 @@ export function buildWorkflowFromInstance(
             const executionResult = await executor.execute({
               prompt: finalSplitPrompt,
               worktreePath: state.worktreePath,
+              cwdSubdir: state.workDir,
               executorConfig: {
                 type: agent.executorType,
                 skills: [...agent.skills],
@@ -368,6 +371,9 @@ export function buildWorkflowFromInstance(
                 target_repo_url: linkedId ? null : (raw.target_repo_url ?? null),
                 depends_on_indices: Array.isArray(raw.depends_on_indices) ? raw.depends_on_indices : [],
                 enabled: raw.enabled !== false,
+                // AI can't infer worktree/auto-start preferences — default to true and let the user override in the split-suggestion card.
+                create_worktree: true,
+                auto_start: true,
               };
             });
 
@@ -381,15 +387,7 @@ export function buildWorkflowFromInstance(
               parent_task_id: number;
               workflow_run_id: number;
               status: 'PENDING';
-              suggestions: Array<{
-                title: string;
-                description: string;
-                template_id: string | null;
-                linked_project_id: number | null;
-                target_repo_url: string | null;
-                depends_on_indices: number[];
-                enabled: boolean;
-              }>;
+              suggestions: Suggestion[];
               confirmed_at: string | null;
             };
             await splitSuggestionRepository.create(splitEntity);
@@ -536,6 +534,7 @@ export function buildWorkflowFromInstance(
                 workflowInstance,
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
+                cwdSubdir: state.workDir,
                 providerSessionId,
                 answerPrompt: answerToSend,
                 onEvent: async (event) => {
@@ -569,6 +568,7 @@ export function buildWorkflowFromInstance(
               result = await executeWorkflowStep({
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
+                cwdSubdir: state.workDir,
                 state: {
                   taskTitle: state.taskTitle,
                   taskDescription: state.taskDescription,

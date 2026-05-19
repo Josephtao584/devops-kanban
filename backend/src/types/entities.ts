@@ -36,6 +36,7 @@ export interface TaskEntity {
   parent_task_id?: number | null;
   depends_on: number[];
   target_repo_url?: string | null;
+  work_dir?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -270,6 +271,9 @@ export interface Suggestion {
   target_repo_url: string | null;
   depends_on_indices: number[];
   enabled: boolean;
+  create_worktree: boolean;
+  auto_start: boolean;
+  work_dir: string | null;
 }
 
 export type SplitSuggestionStatus = 'PENDING' | 'CONFIRMED' | 'DISMISSED';

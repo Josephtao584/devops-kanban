@@ -60,6 +60,7 @@ export interface ExecutorProviderState {
 export interface ExecutorExecutionInput {
   prompt: string;
   worktreePath: string;
+  cwdSubdir?: string | undefined;
   executorConfig?: ExecutorConfig | undefined;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
   onProviderState?: ((providerState: ExecutorProviderState) => void | Promise<void>) | undefined;
@@ -71,6 +72,7 @@ export interface ExecutorExecutionInput {
 export interface ExecutorContinueInput {
   prompt: string;
   worktreePath: string;
+  cwdSubdir?: string | undefined;
   providerSessionId?: string;
   executorConfig?: ExecutorConfig;
   onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>);

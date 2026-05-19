@@ -1,7 +1,7 @@
 import crossSpawn, {SpawnedProcess} from 'cross-spawn';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import { parseStepResult, validateStepResult } from './claudeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
 import type { AskUserQuestionData, ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
@@ -192,6 +192,7 @@ export function parseStreamEvent(json: Record<string, unknown>): WorkflowExecuti
 
 async function defaultSpawnImpl({
   worktreePath,
+  cwdSubdir,
   prompt,
   executorConfig = {},
   abortSignal,
@@ -199,6 +200,7 @@ async function defaultSpawnImpl({
   onAskUser,
 }: {
   worktreePath: string;
+  cwdSubdir?: string | undefined;
   prompt: string;
   executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
   abortSignal?: AbortSignal;
@@ -210,7 +212,7 @@ async function defaultSpawnImpl({
   const spawnCommand = resolved.command || 'npx';
   const commandArgs = [...resolved.args, ...cliArgs];
 
-  // Auto-detect .mcp.json in worktree and pass to Claude Code explicitly
+  // Auto-detect .mcp.json in worktree root and pass to Claude Code explicitly
   const mcpConfigPath = resolve(worktreePath, '.mcp.json');
   if (existsSync(mcpConfigPath)) {
     commandArgs.push('--mcp-config', mcpConfigPath);
@@ -223,9 +225,11 @@ async function defaultSpawnImpl({
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
   const spawnImpl = await resolveCrossSpawn();
 
+  const effectiveCwd = cwdSubdir ? join(worktreePath, cwdSubdir) : worktreePath;
+
   return await new Promise<ClaudeSpawnExecution>((resolve, reject) => {
     const spawnedProc = spawnImpl(spawnCommand, commandArgs, {
-      cwd: worktreePath,
+      cwd: effectiveCwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: resolved.env,
       shell: false,
@@ -331,6 +335,7 @@ class ClaudeStepRunner {
   async runStep({
     prompt,
     worktreePath,
+    cwdSubdir,
     executorConfig = {},
     abortSignal,
     onEvent,
@@ -339,6 +344,7 @@ class ClaudeStepRunner {
   }: {
     prompt: string;
     worktreePath: string;
+    cwdSubdir?: string | undefined;
     executorConfig?: ClaudeRuntimeExecutorConfig | undefined;
     abortSignal?: AbortSignal;
     onEvent?: ((event: WorkflowExecutionEvent) => void | Promise<void>) | undefined;
@@ -347,6 +353,7 @@ class ClaudeStepRunner {
   }) {
     const execution = await this.spawnImpl({
       worktreePath,
+      cwdSubdir,
       prompt,
       executorConfig,
       ...(abortSignal ? { abortSignal } : {}),

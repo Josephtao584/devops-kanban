@@ -16,6 +16,7 @@ export interface CreateTaskInput {
   order?: number;
   auto_execute?: number;
   auto_execute_template_id?: string | null;
+  work_dir?: string | null;
 }
 
 import type { WorkflowTemplateEntity } from '../entities.ts';
@@ -43,4 +44,5 @@ export interface UpdateTaskInput {
   order?: number;
   auto_execute?: number;
   auto_execute_template_id?: string | null;
+  work_dir?: string | null;
 }

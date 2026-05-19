@@ -5,5 +5,6 @@ export interface WorkflowTaskRecord {
   description?: string | undefined;
   worktree_path?: string | null;
   worktree_branch?: string | null;
+  work_dir?: string | null;
   external_id?: string | null;
 }

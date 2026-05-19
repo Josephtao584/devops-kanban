@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   parent_task_id INTEGER,
   depends_on TEXT NOT NULL DEFAULT '[]',
   target_repo_url TEXT,
+  work_dir TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
