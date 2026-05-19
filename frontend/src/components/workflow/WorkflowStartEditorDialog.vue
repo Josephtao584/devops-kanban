@@ -511,7 +511,7 @@ const handlePreviewPrompt = async () => {
   previewContent.value = ''
 
   try {
-    const response = await previewPrompt({
+    const response = await workflowTemplateStore.previewPrompt({
       step: { name: step.name, instructionPrompt: step.instructionPrompt || '', agentId: step.agentId, type: step.type },
       upstreamSteps,
       ...(props.taskTitle ? { taskTitle: props.taskTitle } : {}),
