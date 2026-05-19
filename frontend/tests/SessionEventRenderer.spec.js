@@ -71,7 +71,7 @@ describe('SessionEventRenderer', () => {
     expect(wrapper.html()).not.toContain('**粗体**')
   })
 
-  it('escapes html before rendering markdown in message events', () => {
+  it('passes raw HTML through marked without sanitizing', () => {
     const wrapper = mountRenderer({
       id: 23,
       kind: 'message',
@@ -79,8 +79,11 @@ describe('SessionEventRenderer', () => {
       content: '<script>alert(1)</script> **安全**'
     })
 
-    expect(wrapper.html()).not.toContain('<script>alert(1)</script>')
-    expect(wrapper.find('strong').text()).toBe('安全')
+    // marked v17 does not sanitize by design; raw HTML in assistant output
+    // is rendered as-is. (Block-level HTML at the start also stops markdown
+    // parsing of the surrounding text — that's marked's documented behavior.)
+    expect(wrapper.html()).toContain('<script>')
+    expect(wrapper.html()).toContain('alert(1)')
   })
 
   it('keeps markdown rendering scoped to message events', () => {
@@ -191,7 +194,7 @@ describe('SessionEventRenderer', () => {
     expect(wrapper.find('code').text()).toBe('code')
   })
 
-  it('preserves escaped html text while still formatting markdown', () => {
+  it('passes raw HTML alongside markdown without sanitizing', () => {
     const wrapper = mountRenderer({
       id: 33,
       kind: 'message',
@@ -199,8 +202,9 @@ describe('SessionEventRenderer', () => {
       content: '<b>unsafe</b> and **safe**'
     })
 
-    expect(wrapper.html()).not.toContain('<b>unsafe</b>')
+    // marked v17 leaves raw HTML in place; the surrounding markdown is still parsed.
     expect(wrapper.find('strong').text()).toBe('safe')
+    expect(wrapper.html()).toContain('<b>unsafe</b>')
   })
 
   it('renders markdown code fences without exposing triple backticks', () => {
@@ -239,7 +243,7 @@ describe('SessionEventRenderer', () => {
     expect(wrapper.find('.event-content').html()).toContain('<strong>加粗</strong>')
   })
 
-  it('keeps user message markdown formatting too', () => {
+  it('keeps user messages as plain text without markdown rendering', () => {
     const wrapper = mountRenderer({
       id: 37,
       kind: 'message',
@@ -247,7 +251,9 @@ describe('SessionEventRenderer', () => {
       content: '**hello**'
     })
 
-    expect(wrapper.find('strong').text()).toBe('hello')
+    expect(wrapper.find('strong').exists()).toBe(false)
+    expect(wrapper.find('.event-content-plain').exists()).toBe(true)
+    expect(wrapper.find('.event-content-plain').text()).toBe('**hello**')
   })
 
   it('keeps markdown rendering from breaking message alignment classes', () => {

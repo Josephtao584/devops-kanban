@@ -7,7 +7,15 @@
       <div v-if="messageTime" class="event-time">{{ messageTime }}</div>
       <div class="event-role-label" :class="messageAlignmentClass">{{ roleLabel }}</div>
       <div class="event-message" :class="messageBubbleClass">
-        <div class="event-content" v-html="formattedMessageContent"></div>
+        <div
+          v-if="isUserMessage"
+          class="event-content event-content-plain"
+        >{{ rawMessageContent }}</div>
+        <div
+          v-else
+          class="event-content"
+          v-html="formattedMessageContent"
+        ></div>
       </div>
     </div>
   </div>
@@ -24,6 +32,10 @@ const props = defineProps({
 const messageAlignmentClass = computed(() => {
   return props.event?.role === 'user' ? 'align-right' : 'align-left'
 })
+
+const isUserMessage = computed(() => props.event?.role === 'user')
+
+const rawMessageContent = computed(() => props.event?.content || '')
 
 const messageBubbleClass = computed(() => {
   return props.event?.role === 'user' ? 'bubble-user' : 'bubble-assistant'
@@ -230,6 +242,10 @@ const formattedMessageContent = computed(() => {
   text-align: left;
   text-rendering: optimizeLegibility;
   min-width: 0;
+}
+
+.event-content-plain {
+  white-space: pre-wrap;
 }
 
 .event-message.bubble-assistant .event-content {

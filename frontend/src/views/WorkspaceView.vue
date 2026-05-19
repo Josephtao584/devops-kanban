@@ -73,6 +73,12 @@
             <div class="task-card-title">{{ task.title }}</div>
             <div v-if="task.description" class="task-card-desc">{{ task.description }}</div>
             <div v-if="task.id > 0" class="task-card-actions" @click.stop>
+              <el-button size="small" text @click="onPreviewTaskPath(task.id, task.work_dir)" title="查看路径">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </el-button>
               <el-button size="small" text @click="openEditTask(task)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
@@ -125,6 +131,12 @@
                   <div class="task-card-title">{{ task.title }}</div>
                   <div v-if="task.description" class="task-card-desc">{{ task.description }}</div>
                   <div v-if="task.id > 0" class="task-card-actions" @click.stop>
+                    <el-button size="small" text @click="onPreviewTaskPath(task.id, task.work_dir)" title="查看路径">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                    </el-button>
                     <el-button size="small" text @click="openEditTask(task)">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                         <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path>
@@ -386,10 +398,21 @@
           </el-select>
         </el-form-item>
         <el-form-item label="工作目录">
-          <el-input
-            v-model="taskForm.work_dir"
-            placeholder="如 backend 或 frontend/src（留空表示工作树根目录）"
-          />
+          <div class="work-dir-row">
+            <el-input
+              v-model="taskForm.work_dir"
+              placeholder="如 backend 或 frontend/src（留空表示工作树根目录）"
+              class="work-dir-input"
+            />
+            <el-button
+              v-if="isEditingTask && taskForm.id"
+              size="small"
+              :icon="undefined"
+              @click="onPreviewTaskPath(taskForm.id, taskForm.work_dir)"
+            >
+              查看路径
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -443,6 +466,47 @@
       :task-title="selectedTask?.title || ''"
       @workflow-completed="onWorkflowCompleted"
     />
+
+    <el-dialog
+      v-model="showTaskPathDialog"
+      title="路径预览"
+      width="600px"
+      align-center
+      class="path-preview-dialog"
+    >
+      <div v-if="taskPathInfo?.error" class="path-preview-error">
+        {{ taskPathInfo.error }}
+      </div>
+      <div v-else-if="taskPathInfo" class="path-preview-content">
+        <div class="path-preview-item">
+          <span class="path-preview-label">项目路径</span>
+          <span class="path-preview-value path-preview-mono">{{ taskPathInfo.project_local_path }}</span>
+          <span class="path-preview-status" :class="taskPathInfo.project_exists ? 'status-ok' : 'status-bad'">
+            {{ taskPathInfo.project_exists ? '✅ 存在' : '❌ 不存在' }}
+          </span>
+        </div>
+        <div class="path-preview-item">
+          <span class="path-preview-label">工作目录</span>
+          <span class="path-preview-value path-preview-mono">{{ taskPathInfo.project_work_path }}</span>
+          <span class="path-preview-status" :class="taskPathInfo.project_work_path_exists ? 'status-ok' : 'status-bad'">
+            {{ taskPathInfo.project_work_path_exists ? '✅ 存在' : '❌ 不存在' }}
+          </span>
+        </div>
+        <div class="path-preview-item">
+          <span class="path-preview-label">Worktree</span>
+          <span class="path-preview-value path-preview-mono">{{ taskPathInfo.full_path }}</span>
+          <span class="path-preview-status" :class="taskPathInfo.full_path_exists ? 'status-ok' : 'status-warn'">
+            {{ taskPathInfo.full_path_exists ? '✅ 已创建' : '⏳ 尚未创建' }}
+          </span>
+        </div>
+        <div class="path-preview-hint">
+          ℹ️ Agent 实际运行时会在 Worktree 路径中执行；若 Worktree 尚未创建，启动任务时会自动创建。
+        </div>
+      </div>
+      <template #footer>
+        <el-button size="small" @click="showTaskPathDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -546,6 +610,24 @@ const taskForm = reactive({
   project_id: null,
   work_dir: ''
 })
+
+const showTaskPathDialog = ref(false)
+const taskPathInfo = ref(null)
+
+async function onPreviewTaskPath(taskId, workDir) {
+  if (!taskId) return
+  try {
+    const resp = await taskWorktreeApi.previewTaskWorktreePath(taskId, workDir || null)
+    if (resp?.success) {
+      taskPathInfo.value = resp.data
+    } else {
+      taskPathInfo.value = { error: resp?.message || '获取路径信息失败' }
+    }
+  } catch (e) {
+    taskPathInfo.value = { error: e?.message || '获取路径信息失败' }
+  }
+  showTaskPathDialog.value = true
+}
 
 function openCreateTask() {
   isEditingTask.value = false
@@ -1532,6 +1614,17 @@ watch(taskListViewMode, (mode) => {
   width: 100%;
 }
 
+.work-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.work-dir-row .work-dir-input {
+  flex: 1;
+}
+
 /* Right side: two independent columns */
 .workspace-right {
   flex: 1;
@@ -2153,5 +2246,77 @@ watch(taskListViewMode, (mode) => {
   max-height: calc(94vh - 110px);
   overflow-y: auto;
   padding: 16px 24px;
+}
+
+.path-preview-dialog .el-dialog__body {
+  padding: 16px 20px;
+}
+.path-preview-dialog .path-preview-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.path-preview-dialog .path-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-secondary, #f5f7fa);
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #e4e7ed);
+}
+.path-preview-dialog .path-preview-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #606266);
+  white-space: nowrap;
+  min-width: 72px;
+}
+.path-preview-dialog .path-preview-value {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary, #303133);
+  word-break: break-all;
+}
+.path-preview-dialog .path-preview-mono {
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 11.5px;
+  background: var(--bg-primary, #fff);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, #e4e7ed);
+}
+.path-preview-dialog .path-preview-status {
+  font-size: 11px;
+  white-space: nowrap;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.path-preview-dialog .path-preview-status.status-ok {
+  color: #67c23a;
+  background: rgba(103, 194, 58, 0.1);
+}
+.path-preview-dialog .path-preview-status.status-bad {
+  color: #f56c6c;
+  background: rgba(245, 108, 108, 0.1);
+}
+.path-preview-dialog .path-preview-status.status-warn {
+  color: #e6a23c;
+  background: rgba(230, 162, 60, 0.1);
+}
+.path-preview-dialog .path-preview-hint {
+  font-size: 12px;
+  color: var(--text-secondary, #909399);
+  padding: 8px 14px;
+  background: rgba(230, 162, 60, 0.08);
+  border-left: 3px solid #e6a23c;
+  border-radius: 4px;
+}
+.path-preview-dialog .path-preview-error {
+  text-align: center;
+  padding: 20px;
+  color: #f56c6c;
+  font-size: 13px;
 }
 </style>

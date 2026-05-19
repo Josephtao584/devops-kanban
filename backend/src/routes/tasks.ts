@@ -301,11 +301,17 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       const worktreePath = getWorktreePath(task.id, task.title, project.local_path);
       const workDir = request.body?.work_dir;
       const fullPath = workDir ? `${worktreePath}/${workDir}` : worktreePath;
+      const projectWorkPath = workDir ? `${project.local_path}/${workDir}` : project.local_path;
       return successResponse({
         worktree_path: worktreePath,
         full_path: fullPath,
         worktree_exists: fs.existsSync(worktreePath),
         full_path_exists: fs.existsSync(fullPath),
+        project_local_path: project.local_path,
+        project_work_path: projectWorkPath,
+        project_exists: fs.existsSync(project.local_path),
+        project_work_path_exists: fs.existsSync(projectWorkPath),
+        worktree_base_exists: fs.existsSync(`${project.local_path}/.worktrees`),
       });
     } catch (error) {
       logError(error, request);

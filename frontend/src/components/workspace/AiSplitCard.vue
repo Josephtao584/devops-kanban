@@ -597,24 +597,9 @@ defineExpose({ updateField, onAddTask, onWorkspaceSelect })
   background: var(--bg-primary);
   transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
 }
-.suggestion-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent-color);
-  border-radius: 10px 0 0 10px;
-  opacity: 0.7;
-  transition: opacity 0.18s;
-}
 .suggestion-card:hover {
   border-color: var(--accent-color);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-}
-.suggestion-card:hover::before {
-  opacity: 1;
 }
 .suggestion-card:last-child {
   margin-bottom: 0;
@@ -622,9 +607,6 @@ defineExpose({ updateField, onAddTask, onWorkspaceSelect })
 .suggestion-card.is-disabled {
   opacity: 0.5;
   background: var(--bg-secondary);
-}
-.suggestion-card.is-disabled::before {
-  background: var(--text-tertiary);
 }
 
 /* Top bar */

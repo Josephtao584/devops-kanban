@@ -1,5 +1,6 @@
 import crossSpawn, { SpawnedProcess } from 'cross-spawn';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { parseStepResult, validateStepResult } from './openCodeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
@@ -301,6 +302,14 @@ async function defaultSpawnImpl({
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
 
   const effectiveCwd = cwdSubdir ? join(worktreePath, cwdSubdir) : worktreePath;
+
+  if (!existsSync(effectiveCwd)) {
+    throw new Error(
+      cwdSubdir
+        ? `工作路径不存在：${effectiveCwd}（任务配置的 work_dir="${cwdSubdir}" 在 worktree 中找不到，请检查任务的工作路径）`
+        : `工作路径不存在：${effectiveCwd}`,
+    );
+  }
 
   return await new Promise<OpenCodeSpawnExecution>((resolve, reject) => {
     const spawnedProc = crossSpawn(spawnCommand, commandArgs, {
