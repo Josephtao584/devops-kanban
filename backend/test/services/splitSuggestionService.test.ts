@@ -297,7 +297,7 @@ test.test('updateSuggestions rejects edits to locked rows', async () => {
     workflow_run_id: null,
     status: 'CONFIRMED',
     suggestions: [
-      buildSuggestion({ title: 'locked', child_task_id: 999 }),
+      buildSuggestion({ title: 'locked', child_task_id: 999_999 }),
     ],
     confirmed_at: new Date().toISOString(),
   });
@@ -334,8 +334,8 @@ test.test('updateSuggestions rejects shrinking suggestion list', async () => {
     workflow_run_id: null,
     status: 'CONFIRMED',
     suggestions: [
-      buildSuggestion({ title: 'a', child_task_id: 1 }),
-      buildSuggestion({ title: 'b', child_task_id: 2 }),
+      buildSuggestion({ title: 'a', child_task_id: 999_001 }),
+      buildSuggestion({ title: 'b', child_task_id: 999_002 }),
     ],
     confirmed_at: new Date().toISOString(),
   });
@@ -369,7 +369,7 @@ test.test('updateSuggestions allows appending new rows while locked rows unchang
     workflow_run_id: null,
     status: 'CONFIRMED',
     suggestions: [
-      buildSuggestion({ title: 'a', child_task_id: 1 }),
+      buildSuggestion({ title: 'a', child_task_id: 999_003 }),
     ],
     confirmed_at: new Date().toISOString(),
   });
@@ -426,6 +426,9 @@ test.test('confirm partial failure: already-created task ids are persisted to su
     assert.ok(updated.suggestions[0]!.child_task_id != null, 's1 must have child_task_id');
     assert.equal(updated.suggestions[1]!.child_task_id, null, 's2 must remain unbuilt');
     assert.equal(updated.suggestions[2]!.child_task_id, null, 's3 must remain unbuilt');
+    // 第一个 task 必须真的进了 DB（不是只有 suggestion 上有 id 而真实 task 不存在）
+    const firstChild = await taskRepository.findById(updated.suggestions[0]!.child_task_id!);
+    assert.ok(firstChild, 's1 child task must exist in DB');
   } finally {
     taskService.taskRepo.create = originalCreate;
     stub.restore();
