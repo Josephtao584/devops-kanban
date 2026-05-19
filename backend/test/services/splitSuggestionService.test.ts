@@ -25,6 +25,7 @@ function buildSuggestion(overrides: SuggestionFixtureOverrides = {}) {
     enabled: true,
     create_worktree: overrides.create_worktree ?? true,
     auto_start: overrides.auto_start ?? true,
+    work_dir: null,
   };
 }
 

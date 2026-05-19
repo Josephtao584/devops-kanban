@@ -18,6 +18,7 @@ class SplitSuggestionRepository extends BaseRepository<SplitSuggestionEntity> {
       enabled: s.enabled !== false,
       create_worktree: s.create_worktree !== false,
       auto_start: s.auto_start !== false,
+      work_dir: (s.work_dir as string | null) ?? null,
     }));
     return { ...row, suggestions } as SplitSuggestionEntity;
   }

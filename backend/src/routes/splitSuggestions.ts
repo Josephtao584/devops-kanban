@@ -1,8 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { splitSuggestionService } from '../services/splitSuggestionService.js';
+import { ProjectRepository } from '../repositories/projectRepository.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { withRetry } from '../db/retry.js';
+import { sanitizeName } from '../utils/git.js';
 
 const suggestionSchema = z.object({
   title: z.string(),
@@ -14,7 +18,10 @@ const suggestionSchema = z.object({
   enabled: z.boolean(),
   create_worktree: z.boolean().default(true),
   auto_start: z.boolean().default(true),
+  work_dir: z.string().nullable().default(null),
 });
+
+const projectRepo = new ProjectRepository();
 
 const splitSuggestionsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { taskId: string } }>('/tasks/:taskId/split-suggestions', async (request, reply) => {
@@ -60,6 +67,48 @@ const splitSuggestionsRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send(errorResponse((error as Error).message));
     }
   });
+
+  // Preview predicted worktree path for a suggestion (child task doesn't exist yet)
+  fastify.post<{ Params: { id: string }; Body: { title: string; work_dir?: string | null } }>(
+    '/split-suggestions/:id/preview-path',
+    async (request, reply) => {
+      try {
+        const { splitSuggestionRepository } = await import('../repositories/splitSuggestionRepository.js');
+        const record = await splitSuggestionRepository.findById(Number(request.params.id));
+        if (!record) {
+          reply.code(404);
+          return errorResponse('Split suggestion not found');
+        }
+        const { taskRepository } = await import('../repositories/taskRepository.js');
+        const parentTask = await taskRepository.findById(record.parent_task_id);
+        if (!parentTask) {
+          reply.code(404);
+          return errorResponse('Parent task not found');
+        }
+        const project = await projectRepo.findById(parentTask.project_id);
+        if (!project?.local_path) {
+          reply.code(400);
+          return errorResponse('Project has no local path configured');
+        }
+        const safeTitle = sanitizeName(request.body.title).substring(0, 50);
+        const worktreePath = join(project.local_path, '.worktrees', `task-?-${safeTitle}`);
+        const workDir = request.body.work_dir;
+        const fullPath = workDir ? join(worktreePath, workDir) : worktreePath;
+        const projectWorkPath = workDir ? join(project.local_path, workDir) : project.local_path;
+        return successResponse({
+          project_local_path: project.local_path,
+          predicted_path: fullPath,
+          project_work_path: projectWorkPath,
+          project_work_path_exists: existsSync(projectWorkPath),
+          project_exists: existsSync(project.local_path),
+          worktree_base_exists: existsSync(join(project.local_path, '.worktrees')),
+          predicted_path_exists: existsSync(fullPath),
+        });
+      } catch (error) {
+        return reply.code(500).send(errorResponse('Failed to preview path'));
+      }
+    },
+  );
 };
 
 export default splitSuggestionsRoutes;

@@ -523,6 +523,7 @@ class TaskService {
         depends_on: deps,
         target_repo_url: s.linked_project_id == null ? s.target_repo_url : null,
         auto_execute_template_id: s.template_id,
+        work_dir: s.work_dir ?? null,
         labels: [],
       });
 
