@@ -1,6 +1,9 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
-import { logger } from '../src/utils/logger.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { logger, logCrash } from '../src/utils/logger.js';
+import { STORAGE_PATH } from '../src/config/index.js';
 
 test.test('logger.info outputs structured format', () => {
   const output: string[] = [];
@@ -79,4 +82,48 @@ test.test('logger without context has no trailing JSON', () => {
   console.log = originalLog;
   const line = output[0]!;
   assert.ok(!line.includes('{'), 'Should not include context JSON when no context provided');
+});
+
+test.test('logger.info appends to today\'s log file', async () => {
+  const originalLog = console.log;
+  console.log = () => {};
+
+  const tag = `file-test-${process.pid}-${Date.now()}`;
+  logger.info('FileTest', tag);
+
+  console.log = originalLog;
+
+  const today = new Date();
+  const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const logFile = path.join(STORAGE_PATH, 'logs', `backend-${stamp}.log`);
+
+  // WriteStream is async; poll for the marker to appear (up to ~2s).
+  let content = '';
+  for (let i = 0; i < 20; i++) {
+    if (fs.existsSync(logFile)) {
+      content = fs.readFileSync(logFile, 'utf8');
+      if (content.includes(tag)) break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  assert.ok(fs.existsSync(logFile), `expected log file at ${logFile}`);
+  assert.ok(content.includes(tag), `expected log file to contain marker ${tag}`);
+  assert.ok(content.includes('[FileTest]'));
+});
+
+test.test('logCrash writes a synchronous crash dump', () => {
+  const err = new Error('synthetic crash');
+  const crashPath = logCrash('test-label', err, { runId: 999 });
+
+  assert.ok(crashPath, 'logCrash should return the dump path');
+  assert.ok(fs.existsSync(crashPath!), `crash file should exist at ${crashPath}`);
+  const content = fs.readFileSync(crashPath!, 'utf8');
+  assert.ok(content.includes('test-label'));
+  assert.ok(content.includes('synthetic crash'));
+  assert.ok(content.includes('"runId": 999'));
+  assert.ok(content.includes('[stack]'));
+
+  // Cleanup so re-runs don't accumulate
+  try { fs.unlinkSync(crashPath!); } catch { /* ignore */ }
 });

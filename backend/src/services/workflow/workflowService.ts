@@ -208,12 +208,15 @@ class WorkflowService {
     const projectEnv = project?.env || {};
     this.executeWorkflow(run.id, { ...task, execution_path: executionPath, project_env: projectEnv }, instance).catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error('WorkflowService', `Fatal error in workflow run #${run.id}: ${errorMessage}`);
+      const stack = err instanceof Error ? err.stack : null;
+      logger.error('WorkflowService', `Fatal error in workflow run #${run.id}: ${errorMessage}${stack ? '\n' + stack : ''}`);
       this.workflowRunRepo.update(run.id, {
         status: 'FAILED',
         current_step: null,
         context: { error: errorMessage },
-      }).catch(() => {});
+      }).catch((dbErr) => {
+        logger.warn('WorkflowService', `Failed to mark run ${run.id} as FAILED after startWorkflow error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
+      });
     });
 
     return run;
@@ -442,10 +445,19 @@ class WorkflowService {
       throw new BusinessError(`无法取消状态为 ${run.status} 的工作流`, `Cannot cancel workflow in status: ${run.status}`, { runId, status: run.status });
     }
 
-    const { mastraRun } = await this.getMastraRunContext(runId);
-
-    logger.info('WorkflowService', `Cancelling Mastra run ${run.mastra_run_id}`);
-    await mastraRun.cancel();
+    // Best-effort cancel: under rapid cancel+retry the cached Mastra Run may be
+    // mid-teardown / already-finished, and createRun() / cancel() can throw.
+    // Still flip the DB row to CANCELLED so the UI reflects user intent and
+    // a subsequent retry can proceed. Surfacing the error to the route causes
+    // the user to keep clicking cancel, which compounds the race.
+    try {
+      const { mastraRun } = await this.getMastraRunContext(runId);
+      logger.info('WorkflowService', `Cancelling Mastra run ${run.mastra_run_id}`);
+      await mastraRun.cancel();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.warn('WorkflowService', `Mastra cancel failed for runId ${runId}, proceeding to DB cancel: ${errorMessage}`);
+    }
 
     // Finalize running or suspended step
     const runningStep = (run.current_step
@@ -453,7 +465,9 @@ class WorkflowService {
       : null) || run.steps.find((candidate) => candidate.status === 'RUNNING' || candidate.status === 'SUSPENDED');
 
     if (runningStep) {
-      await this.lifecycle.onStepCancel(runId, runningStep.step_id).catch(() => {});
+      await this.lifecycle.onStepCancel(runId, runningStep.step_id).catch((err) => {
+        logger.warn('WorkflowService', `onStepCancel failed for runId ${runId}, step ${runningStep.step_id}: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
 
     const updatedRun = await this.workflowRunRepo.update(runId, { status: 'CANCELLED' });
@@ -494,8 +508,16 @@ class WorkflowService {
       logger.info('WorkflowService', `Resume result status: ${result?.status}`);
     }).catch(async (err: any) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error('WorkflowService', `Resume error: ${errorMessage}`);
-      await this.lifecycle.onWorkflowError(runId, errorMessage).catch(() => {});
+      const stack = err instanceof Error ? err.stack : null;
+      logger.error('WorkflowService', `Resume error for runId ${runId}: ${errorMessage}${stack ? '\n' + stack : ''}`);
+      // Defensive: onWorkflowError can itself throw (DB serialization queue
+      // reset, txn close failures). Don't let that bubble into an
+      // unhandledRejection — main.ts treats those as fatal.
+      try {
+        await this.lifecycle.onWorkflowError(runId, errorMessage);
+      } catch (hookErr) {
+        logger.warn('WorkflowService', `onWorkflowError hook failed during resume catch: ${hookErr instanceof Error ? hookErr.message : String(hookErr)}`);
+      }
     });
 
     return await this.workflowRunRepo.findById(runId);
@@ -586,12 +608,15 @@ class WorkflowService {
     // workflow finishes or suspends. Lifecycle callbacks drive state updates.
     this.executeRetry(runId, mastraRun, stepId, task, executionPath, projectEnv).catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error('WorkflowService', `Fatal error in retryStep run #${runId}: ${errorMessage}`);
+      const stack = err instanceof Error ? err.stack : null;
+      logger.error('WorkflowService', `Fatal error in retryStep run #${runId}: ${errorMessage}${stack ? '\n' + stack : ''}`);
       this.workflowRunRepo.update(runId, {
         status: 'FAILED',
         current_step: null,
         context: { error: errorMessage },
-      }).catch(() => {});
+      }).catch((dbErr) => {
+        logger.warn('WorkflowService', `Failed to mark run ${runId} as FAILED after retryStep error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
+      });
     });
   }
 
@@ -652,12 +677,15 @@ class WorkflowService {
     // Execute retry in background (non-blocking)
     this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath, projectEnv).catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${errorMessage}`);
+      const stack = err instanceof Error ? err.stack : null;
+      logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${errorMessage}${stack ? '\n' + stack : ''}`);
       this.workflowRunRepo.update(runId, {
         status: 'FAILED',
         current_step: null,
         context: { error: errorMessage },
-      }).catch(() => {});
+      }).catch((dbErr) => {
+        logger.warn('WorkflowService', `Failed to mark run ${runId} as FAILED after retry error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
+      });
     });
 
     return await this.workflowRunRepo.findById(runId);
@@ -692,12 +720,15 @@ class WorkflowService {
       instance,
     ).catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error('WorkflowService', `Fatal error in loop run #${newRun.id}: ${errorMessage}`);
+      const stack = err instanceof Error ? err.stack : null;
+      logger.error('WorkflowService', `Fatal error in loop run #${newRun.id}: ${errorMessage}${stack ? '\n' + stack : ''}`);
       this.workflowRunRepo.update(newRun.id, {
         status: 'FAILED',
         current_step: null,
         context: { error: errorMessage },
-      }).catch(() => {});
+      }).catch((dbErr) => {
+        logger.warn('WorkflowService', `Failed to mark loop run ${newRun.id} as FAILED: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
+      });
     });
 
     return newRun;
@@ -728,19 +759,29 @@ class WorkflowService {
         },
       });
 
-      // Wait for completion - lifecycle callbacks handle step events internally
+      // Mastra's stream object exposes promise-shaped properties (e.g. `result`)
+      // that throw when accessed if the stream has already errored synchronously.
+      // Re-thrown rejections that escape the .result await get reported as
+      // unhandledRejection — and main.ts kills the process. Wrap so any failure
+      // is logged + funneled through onWorkflowError.
       const result = await output.result;
 
-      logger.info('WorkflowService', `timeTravel result status: ${result.status}`);
+      logger.info('WorkflowService', `timeTravel result status: ${result?.status}`);
       // Workflow lifecycle callbacks (onFinish/onError) handle final state updates
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      await this.lifecycle.onWorkflowError(runId, errorMessage).catch(() => {});
+      const stack = err instanceof Error ? err.stack : null;
+      logger.error('WorkflowService', `executeRetry failed for runId ${runId}, step ${stepId}: ${errorMessage}${stack ? '\n' + stack : ''}`);
+      await this.lifecycle.onWorkflowError(runId, errorMessage).catch((hookErr) => {
+        logger.warn('WorkflowService', `onWorkflowError hook failed: ${hookErr instanceof Error ? hookErr.message : String(hookErr)}`);
+      });
       await this.workflowRunRepo.update(runId, {
         status: 'FAILED',
         current_step: null,
         context: { error: errorMessage },
-      }).catch(() => {});
+      }).catch((dbErr) => {
+        logger.warn('WorkflowService', `Failed to mark run ${runId} as FAILED after executeRetry error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
+      });
       await this.resetTaskToTodo(task.id);
     }
   }
