@@ -1,4 +1,5 @@
 import crossSpawn, { SpawnedProcess } from 'cross-spawn';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { parseStepResult, validateStepResult } from './openCodeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
@@ -276,6 +277,7 @@ function summarizeCommand(command: string, args: string[]) {
 
 async function defaultSpawnImpl({
   worktreePath,
+  cwdSubdir,
   prompt,
   executorConfig = {},
   cliOptions = {},
@@ -284,6 +286,7 @@ async function defaultSpawnImpl({
   onAskUser,
 }: {
   worktreePath: string;
+  cwdSubdir?: string | undefined;
   prompt: string;
   executorConfig?: OpenCodeRuntimeExecutorConfig;
   cliOptions?: OpenCodeCliOptions;
@@ -297,9 +300,11 @@ async function defaultSpawnImpl({
   const commandArgs = [...resolved.args, ...cliArgs];
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
 
+  const effectiveCwd = cwdSubdir ? join(worktreePath, cwdSubdir) : worktreePath;
+
   return await new Promise<OpenCodeSpawnExecution>((resolve, reject) => {
     const spawnedProc = crossSpawn(spawnCommand, commandArgs, {
-      cwd: worktreePath,
+      cwd: effectiveCwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: resolved.env,
       shell: false,
@@ -406,6 +411,7 @@ class OpenCodeStepRunner {
   async runStep({
     prompt,
     worktreePath,
+    cwdSubdir,
     executorConfig,
     cliOptions,
     abortSignal,
@@ -415,6 +421,7 @@ class OpenCodeStepRunner {
   }: {
     prompt: string;
     worktreePath: string;
+    cwdSubdir?: string | undefined;
     executorConfig?: OpenCodeRuntimeExecutorConfig;
     cliOptions?: OpenCodeCliOptions;
     abortSignal?: AbortSignal;
@@ -426,6 +433,7 @@ class OpenCodeStepRunner {
       worktreePath,
       prompt,
     };
+    if (cwdSubdir) spawnInput.cwdSubdir = cwdSubdir;
     if (executorConfig) spawnInput.executorConfig = executorConfig;
     if (cliOptions) spawnInput.cliOptions = cliOptions;
     if (abortSignal) spawnInput.abortSignal = abortSignal;

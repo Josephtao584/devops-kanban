@@ -20,6 +20,7 @@ interface ExecuteWorkflowStepInput {
   agentRepo?: AgentRepository;
   stepId: string;
   worktreePath: string;
+  cwdSubdir?: string | undefined;
   state: {
     taskTitle: string;
     taskDescription: string;
@@ -77,6 +78,7 @@ export async function executeWorkflowStep({
   agentRepo = defaultAgentRepo,
   stepId,
   worktreePath,
+  cwdSubdir,
   state,
   inputData,
   upstreamStepIds = [],
@@ -131,6 +133,7 @@ export async function executeWorkflowStep({
   const execution: ExecutorExecutionResult = await executor.execute({
     prompt,
     worktreePath,
+    cwdSubdir,
     executorConfig,
     abortSignal,
     onEvent,
@@ -147,6 +150,7 @@ export async function continueWorkflowStepWithAnswer({
   agentRepo = defaultAgentRepo,
   stepId,
   worktreePath,
+  cwdSubdir,
   providerSessionId,
   answerPrompt,
   onEvent,
@@ -158,6 +162,7 @@ export async function continueWorkflowStepWithAnswer({
   agentRepo?: AgentRepository;
   stepId: string;
   worktreePath: string;
+  cwdSubdir?: string | undefined;
   providerSessionId: string;
   answerPrompt: string;
   onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
@@ -174,6 +179,7 @@ export async function continueWorkflowStepWithAnswer({
   const execution = await executor.continue({
     prompt: answerPrompt,
     worktreePath,
+    cwdSubdir,
     providerSessionId,
     executorConfig,
     ...(onEvent ? { onEvent } : {}),

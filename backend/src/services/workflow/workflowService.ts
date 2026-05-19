@@ -240,7 +240,7 @@ class WorkflowService {
     }
   }
 
-  private async resolveExecutionPath(task: { project_id: number; worktree_path?: string | null; target_repo_url?: string | null }) {
+  private async resolveExecutionPath(task: { project_id: number; worktree_path?: string | null; work_dir?: string | null; target_repo_url?: string | null }) {
     if (task.worktree_path && existsSync(task.worktree_path)) {
       return task.worktree_path;
     }
@@ -360,6 +360,7 @@ class WorkflowService {
           taskTitle: task.title || 'Untitled Task',
           taskDescription: task.description || '',
           worktreePath: task.execution_path,
+          workDir: task.work_dir || '',
           projectEnv: task.project_env,
           taskExternalId: task.external_id || '',
         },
@@ -367,6 +368,7 @@ class WorkflowService {
           taskTitle: task.title || 'Untitled Task',
           taskDescription: task.description || '',
           worktreePath: task.execution_path,
+          workDir: task.work_dir || '',
           projectEnv: task.project_env,
           taskExternalId: task.external_id || '',
         },
@@ -708,6 +710,7 @@ class WorkflowService {
           taskTitle: task.title || 'Untitled Task',
           taskDescription: task.description || '',
           worktreePath: executionPath,
+          workDir: task.work_dir || '',
           projectEnv,
           taskExternalId: task.external_id || '',
         },

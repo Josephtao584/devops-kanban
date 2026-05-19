@@ -12,6 +12,7 @@ class OpenCodeExecutor implements Executor {
   async execute({
     prompt,
     worktreePath,
+    cwdSubdir,
     executorConfig,
     onEvent,
     onProviderState,
@@ -22,6 +23,7 @@ class OpenCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
+      cwdSubdir,
       executorConfig: { env: executorConfig?.env },
       ...(abortSignal ? { abortSignal } : {}),
       ...(onEvent || onProviderState ? { onEvent: async (event) => {
@@ -53,6 +55,7 @@ class OpenCodeExecutor implements Executor {
   async continue({
     prompt,
     worktreePath,
+    cwdSubdir,
     providerSessionId,
     executorConfig,
     onEvent,
@@ -69,6 +72,7 @@ class OpenCodeExecutor implements Executor {
     const result = await this.runner.runStep({
       prompt,
       worktreePath,
+      cwdSubdir,
       executorConfig: { env: executorConfig?.env },
       cliOptions,
       ...(abortSignal ? { abortSignal } : {}),

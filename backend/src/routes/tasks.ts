@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import * as fs from 'node:fs';
 
 import { buildWorktreeDiff, buildBranchDiff } from './git.js';
-import { isGitRepository } from '../utils/git.js';
+import { isGitRepository, getWorktreePath } from '../utils/git.js';
 import { TaskService } from '../services/taskService.js';
 import { ProjectRepository } from '../repositories/projectRepository.js';
 import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
@@ -87,7 +87,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         'title', 'description', 'project_id', 'iteration_id', 'status',
         'priority', 'assignee', 'due_date', 'external_id', 'workflow_run_id',
         'worktree_path', 'worktree_branch', 'order',
-        'auto_execute', 'auto_execute_template_id',
+        'auto_execute', 'auto_execute_template_id', 'work_dir',
       ];
       for (const key of allowedKeys) {
         if ((body as any)[key] !== undefined) {
@@ -283,6 +283,34 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       logError(error, request);
       reply.code(getStatusCode(error));
       return errorResponse(getErrorMessage(error, 'Failed to delete worktree'));
+    }
+  });
+
+  fastify.post<{ Params: IdParams; Body: { work_dir?: string | null } }>('/:id/worktree/preview', async (request, reply) => {
+    try {
+      const task = await taskService.getById(parseNumber(request.params.id));
+      if (!task) {
+        reply.code(404);
+        return errorResponse('Task not found');
+      }
+      const project = await projectRepo.findById(task.project_id);
+      if (!project?.local_path) {
+        reply.code(400);
+        return errorResponse('Project has no local path configured');
+      }
+      const worktreePath = getWorktreePath(task.id, task.title, project.local_path);
+      const workDir = request.body?.work_dir;
+      const fullPath = workDir ? `${worktreePath}/${workDir}` : worktreePath;
+      return successResponse({
+        worktree_path: worktreePath,
+        full_path: fullPath,
+        worktree_exists: fs.existsSync(worktreePath),
+        full_path_exists: fs.existsSync(fullPath),
+      });
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to preview worktree path'));
     }
   });
 

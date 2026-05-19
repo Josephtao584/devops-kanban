@@ -13,6 +13,7 @@ const sharedStateSchema = z.object({
   taskTitle: z.string(),
   taskDescription: z.string(),
   worktreePath: z.string(),
+  workDir: z.string().optional(),
   projectEnv: z.record(z.string()).optional(),
   taskExternalId: z.string().optional(),
 });
@@ -28,6 +29,7 @@ const firstStepInputSchema = z.object({
   taskTitle: z.string(),
   taskDescription: z.string(),
   worktreePath: z.string(),
+  workDir: z.string().optional(),
   projectEnv: z.record(z.string()).optional(),
   taskExternalId: z.string().optional(),
 });
@@ -288,6 +290,7 @@ export function buildWorkflowFromInstance(
             const executionResult = await executor.execute({
               prompt: finalSplitPrompt,
               worktreePath: state.worktreePath,
+              cwdSubdir: state.workDir,
               executorConfig: {
                 type: agent.executorType,
                 skills: [...agent.skills],
@@ -531,6 +534,7 @@ export function buildWorkflowFromInstance(
                 workflowInstance,
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
+                cwdSubdir: state.workDir,
                 providerSessionId,
                 answerPrompt: answerToSend,
                 onEvent: async (event) => {
@@ -564,6 +568,7 @@ export function buildWorkflowFromInstance(
               result = await executeWorkflowStep({
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
+                cwdSubdir: state.workDir,
                 state: {
                   taskTitle: state.taskTitle,
                   taskDescription: state.taskDescription,

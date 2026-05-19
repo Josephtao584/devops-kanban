@@ -385,6 +385,12 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="工作目录">
+          <el-input
+            v-model="taskForm.work_dir"
+            placeholder="如 backend 或 frontend/src（留空表示工作树根目录）"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showTaskDialog = false">取消</el-button>
@@ -537,7 +543,8 @@ const taskForm = reactive({
   description: '',
   status: 'TODO',
   priority: 'MEDIUM',
-  project_id: null
+  project_id: null,
+  work_dir: ''
 })
 
 function openCreateTask() {
@@ -548,6 +555,7 @@ function openCreateTask() {
   taskForm.status = 'TODO'
   taskForm.priority = 'MEDIUM'
   taskForm.project_id = selectedProjectId.value || (projects.value.length ? projects.value[0].id : null)
+  taskForm.work_dir = ''
   showTaskDialog.value = true
 }
 
@@ -559,6 +567,7 @@ function openEditTask(task) {
   taskForm.status = task.status
   taskForm.priority = task.priority
   taskForm.project_id = task.project_id
+  taskForm.work_dir = task.work_dir || ''
   showTaskDialog.value = true
 }
 
@@ -574,7 +583,8 @@ async function handleSaveTask() {
         title: taskForm.title,
         description: taskForm.description,
         status: taskForm.status,
-        priority: taskForm.priority
+        priority: taskForm.priority,
+        work_dir: taskForm.work_dir || null
       })
       if (resp?.success) {
         ElMessage.success('任务已更新')
@@ -586,7 +596,8 @@ async function handleSaveTask() {
         description: taskForm.description,
         status: taskForm.status,
         priority: taskForm.priority,
-        project_id: taskForm.project_id
+        project_id: taskForm.project_id,
+        work_dir: taskForm.work_dir || null
       })
       if (resp?.success) {
         ElMessage.success('任务已创建')
