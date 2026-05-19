@@ -1,5 +1,6 @@
 import { buildApp } from './app.js';
 import { killAllActiveProcesses } from './utils/processRegistry.js';
+import { logCrash } from './utils/logger.js';
 
 const app = await buildApp();
 
@@ -65,18 +66,22 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Global error handlers - catch unhandled exceptions that would crash the process
 process.on('uncaughtException', (error) => {
+  const crashPath = logCrash('uncaughtException', error);
   console.error('💥 UNCAUGHT EXCEPTION:', error);
   console.error('Stack:', error.stack);
+  if (crashPath) console.error(`Crash dump: ${crashPath}`);
   // Process state is undefined after uncaught exception — must restart
   setTimeout(() => process.exit(1), 1000);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+  const crashPath = logCrash('unhandledRejection', reason, { promise: String(promise) });
   console.error('💥 UNHANDLED REJECTION at:', promise);
   console.error('Reason:', reason);
   if (reason instanceof Error) {
     console.error('Stack:', reason.stack);
   }
+  if (crashPath) console.error(`Crash dump: ${crashPath}`);
   // Prevent data corruption from continuing in undefined state
   setTimeout(() => process.exit(1), 1000);
 });

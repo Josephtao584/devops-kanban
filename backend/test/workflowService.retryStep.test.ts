@@ -220,3 +220,70 @@ test.test('retryStep rejects when workflow run is missing', async () => {
     },
   );
 });
+
+test.test('retryStep evicts cached Mastra Run before createRun to drop stale AbortController', async () => {
+  const steps = [buildStep('step-a', 'COMPLETED'), buildStep('step-b', 'COMPLETED')];
+  let run = buildRun(steps, { mastra_run_id: 'mastra-stale' });
+
+  const deleted: string[] = [];
+  const createRunCalls: Array<{ runId?: string }> = [];
+  const fakeWorkflow = {
+    runs: {
+      delete: (id: string) => {
+        deleted.push(id);
+        return true;
+      },
+    },
+    async createRun(opts: { runId?: string } = {}) {
+      createRunCalls.push(opts);
+      return {
+        runId: opts.runId,
+        timeTravelStream: () => ({ result: Promise.resolve({ status: 'success', result: { summary: 'ok' } }) }),
+      };
+    },
+  };
+
+  const service = new WorkflowService({
+    workflowRunRepo: {
+      async findById() { return run; },
+      async update(_id: number, update: Record<string, unknown>) {
+        run = { ...run, ...update } as WorkflowRunEntity;
+        return run;
+      },
+      async updateStep(_id: number, stepId: string, update: Record<string, unknown>) {
+        const idx = run.steps.findIndex((s) => s.step_id === stepId);
+        if (idx >= 0) {
+          run.steps[idx] = { ...run.steps[idx], ...update } as WorkflowStepEntity;
+        }
+        return run;
+      },
+    } as never,
+    taskRepo: {
+      async findById() {
+        return { id: 7, project_id: 3, title: 'T', description: 'D', worktree_path: '/tmp/wt' };
+      },
+    } as never,
+    projectRepo: {
+      async findById() { return { id: 3, env: {} }; },
+    } as never,
+    instanceService: {} as never,
+    agentRepo: {} as never,
+    lifecycle: {
+      async onWorkflowStart() {},
+      async onWorkflowError() {},
+    } as never,
+  });
+
+  // Stub the workflow lookup so getMastraRunContext runs its real eviction logic
+  // against our fake Mastra workflow. The eviction must happen BEFORE createRun
+  // so the new Run instance gets a fresh AbortController.
+  (service as any).getOrRegisterWorkflowByInstanceId = async () => ({ workflow: fakeWorkflow });
+  (service as any).resolveExecutionPath = async () => '/tmp/wt';
+
+  await service.retryStep(42, 'step-b');
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.deepEqual(deleted, ['mastra-stale'], 'cached Run should be evicted from workflow.runs');
+  assert.equal(createRunCalls.length, 1, 'createRun should be called once after eviction');
+  assert.equal(createRunCalls[0]?.runId, 'mastra-stale', 'createRun should reuse the same mastraRunId');
+});
