@@ -27,6 +27,9 @@ async function updateSuggestions(
     const before = existing.suggestions[i]!;
     const after = suggestions[i]!;
     if (before.child_task_id != null) {
+      // Field-order-sensitive equality. parseRow constructs each suggestion
+      // with a fixed key order; the frontend's onAddTask uses the same order.
+      // Both sides round-trip through this normalization before reaching here.
       if (JSON.stringify(before) !== JSON.stringify(after)) {
         throw new Error(`row ${i} is locked (child_task_id=${before.child_task_id})`);
       }
