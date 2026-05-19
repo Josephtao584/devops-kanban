@@ -68,7 +68,7 @@ export function getMastra() {
 
 interface BuildWorkflowOptions {
   runId: number;
-  task: { id: number; project_id: number; execution_path: string };
+  task: { id: number; project_id: number; execution_path: string; work_dir?: string | null };
   lifecycle: WorkflowLifecycle;
   loopContext?: {
     fromStepId: string;

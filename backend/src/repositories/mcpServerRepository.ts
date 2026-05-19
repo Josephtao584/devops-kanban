@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { McpServerEntity } from '../types/entities.js';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 class McpServerRepository extends BaseRepository<McpServerEntity> {
   constructor() {
@@ -9,7 +10,7 @@ class McpServerRepository extends BaseRepository<McpServerEntity> {
   protected override parseRow(row: Record<string, unknown>): McpServerEntity {
     return {
       ...row,
-      config: row.config ? JSON.parse(row.config as string) : {},
+      config: safeJsonParse(row.config, {} as Record<string, unknown>, 'mcp_servers.config'),
       server_type: row.server_type as 'stdio' | 'http',
     } as McpServerEntity;
   }

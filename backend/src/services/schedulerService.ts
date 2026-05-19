@@ -89,7 +89,10 @@ class SchedulerService {
     }
     this.unregisterSyncJob(sourceId);
     const task = cron.schedule(cronExpression, () => {
-      this.executeSync(sourceId);
+      this.executeSync(sourceId).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[Scheduler] Unhandled error in sync job ${sourceId}: ${message}`);
+      });
     });
     this.syncJobs.set(sourceId, task);
     console.log(`[Scheduler] Registered sync job for source ${sourceId}: ${cronExpression}`);
@@ -167,7 +170,10 @@ class SchedulerService {
       this.dispatchJob.stop();
     }
     this.dispatchJob = cron.schedule(cronExpression, () => {
-      this.dispatchWorkflows();
+      this.dispatchWorkflows().catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[Scheduler] Unhandled error in dispatch job: ${message}`);
+      });
     });
     console.log(`[Scheduler] Registered dispatch job: ${cronExpression}`);
     return true;

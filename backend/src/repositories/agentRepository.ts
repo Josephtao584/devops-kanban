@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { AgentEntity } from '../types/entities.js';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 class AgentRepository extends BaseRepository<AgentEntity> {
   constructor() {
@@ -9,9 +10,9 @@ class AgentRepository extends BaseRepository<AgentEntity> {
   protected override parseRow(row: Record<string, unknown>): AgentEntity {
     return {
       ...row,
-      skills: row.skills ? JSON.parse(row.skills as string) : [],
-      mcpServers: row.mcp_servers ? JSON.parse(row.mcp_servers as string) : [],
-      env: row.env ? JSON.parse(row.env as string) : {},
+      skills: safeJsonParse(row.skills, [] as unknown[], 'agents.skills'),
+      mcpServers: safeJsonParse(row.mcp_servers, [] as unknown[], 'agents.mcp_servers'),
+      env: safeJsonParse(row.env, {} as Record<string, unknown>, 'agents.env'),
       enabled: Boolean(row.enabled),
       settingsPath: (row.settings_path as string) || undefined,
     } as AgentEntity;

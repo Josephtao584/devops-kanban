@@ -10,6 +10,7 @@ import { WorkflowService } from './workflow/workflowService.js';
 import { createWorktree, cleanupWorktree, isGitRepository, buildBranchName, ensureExternalRepo, getExternalRepoPath } from '../utils/git.js';
 import { ensureMcpJsonInWorktree } from '../utils/mcpSync.js';
 import { ValidationError, NotFoundError, BusinessError, InternalError } from '../utils/errors.js';
+import { sanitizeWorkDir } from '../utils/workDir.js';
 import { logger } from '../utils/logger.js';
 
 import { hasCycle } from './workflow/dependencyValidator.js';
@@ -124,6 +125,7 @@ class TaskService {
     if (taskData.worktree_path !== undefined) createData.worktree_path = taskData.worktree_path;
     if (taskData.worktree_branch !== undefined) createData.worktree_branch = taskData.worktree_branch;
     if (taskData.iteration_id !== undefined) createData.iteration_id = taskData.iteration_id;
+    if (taskData.work_dir !== undefined) createData.work_dir = sanitizeWorkDir(taskData.work_dir);
 
     return await this.taskRepo.create(createData);
   }
@@ -139,6 +141,9 @@ class TaskService {
     }
     if (taskData.description !== undefined && taskData.description.length > 5000) {
       throw new ValidationError('任务描述不能超过 5000 个字符', 'Task description exceeds maximum length of 5000 characters');
+    }
+    if (taskData.work_dir !== undefined) {
+      taskData = { ...taskData, work_dir: sanitizeWorkDir(taskData.work_dir) };
     }
     return await this.taskRepo.update(taskId, taskData);
   }
@@ -523,7 +528,7 @@ class TaskService {
         depends_on: deps,
         target_repo_url: s.linked_project_id == null ? s.target_repo_url : null,
         auto_execute_template_id: s.template_id,
-        work_dir: s.work_dir ?? null,
+        work_dir: sanitizeWorkDir(s.work_dir ?? null),
         labels: [],
       });
 

@@ -1,6 +1,7 @@
 import { BaseRepository } from './base.js';
 import type { WorkflowInstanceEntity } from '../types/entities.js';
 import type { InValue } from '@libsql/client';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 class WorkflowInstanceRepository extends BaseRepository<WorkflowInstanceEntity> {
   constructor() {
@@ -10,7 +11,7 @@ class WorkflowInstanceRepository extends BaseRepository<WorkflowInstanceEntity> 
   protected override parseRow(row: Record<string, unknown>): WorkflowInstanceEntity {
     return {
       ...row,
-      steps: row.steps ? JSON.parse(row.steps as string) : [],
+      steps: safeJsonParse(row.steps, [] as unknown[], 'workflow_instances.steps'),
     } as WorkflowInstanceEntity;
   }
 

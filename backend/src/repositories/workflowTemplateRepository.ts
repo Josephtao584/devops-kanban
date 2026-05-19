@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { WorkflowTemplateEntity } from '../types/entities.js';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 class WorkflowTemplateRepository extends BaseRepository<WorkflowTemplateEntity> {
   constructor() {
@@ -9,8 +10,8 @@ class WorkflowTemplateRepository extends BaseRepository<WorkflowTemplateEntity> 
   protected override parseRow(row: Record<string, unknown>): WorkflowTemplateEntity {
     return {
       ...row,
-      steps: row.steps ? JSON.parse(row.steps as string) : [],
-      tags: row.tags ? JSON.parse(row.tags as string) : [],
+      steps: safeJsonParse(row.steps, [] as unknown[], 'workflow_templates.steps'),
+      tags: safeJsonParse(row.tags, [] as unknown[], 'workflow_templates.tags'),
     } as WorkflowTemplateEntity;
   }
 

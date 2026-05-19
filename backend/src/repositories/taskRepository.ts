@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { TaskEntity } from '../types/entities.ts';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 interface TaskStatusCounts {
   REQUIREMENTS: number;
@@ -19,8 +20,8 @@ class TaskRepository extends BaseRepository<TaskEntity> {
   protected override parseRow(row: Record<string, unknown>): TaskEntity {
     return {
       ...row,
-      labels: row.labels ? JSON.parse(row.labels as string) : undefined,
-      depends_on: row.depends_on ? JSON.parse(row.depends_on as string) : [],
+      labels: row.labels == null ? undefined : safeJsonParse<unknown>(row.labels, undefined, 'tasks.labels'),
+      depends_on: safeJsonParse(row.depends_on, [] as unknown[], 'tasks.depends_on'),
     } as TaskEntity;
   }
 

@@ -70,6 +70,18 @@ function mountCard(suggestion, parentProjectId = 1) {
           props: ['disabled', 'type', 'size', 'plain', 'text'],
           emits: ['click'],
         },
+        'el-tooltip': {
+          template: '<div><slot /></div>',
+          props: ['content', 'placement', 'disabled'],
+        },
+        'el-popconfirm': {
+          template: '<div><slot name="reference" /></div>',
+          props: ['title', 'confirmButtonText', 'cancelButtonText', 'confirmButtonType', 'width'],
+        },
+        'el-dialog': {
+          template: '<div v-if="modelValue"><slot /></div>',
+          props: ['modelValue', 'title', 'width', 'alignCenter'],
+        },
       },
     },
   })
@@ -78,7 +90,7 @@ function mountCard(suggestion, parentProjectId = 1) {
 describe('AiSplitCard', () => {
   it('renders create_worktree and auto_start checkboxes with defaults', () => {
     const wrapper = mountCard(makeSuggestion([baseItem({ template_id: 'tmpl-1' })]))
-    const labels = wrapper.findAll('label.suggestion-toggle')
+    const labels = wrapper.findAll('label.switch-pill')
     const createWorktreeLabel = labels.find((l) => l.text().includes('创建 worktree'))
     const autoStartLabel = labels.find((l) => l.text().includes('自动启动'))
     expect(createWorktreeLabel.find('input[type=checkbox]').element.checked).toBe(true)
@@ -88,7 +100,7 @@ describe('AiSplitCard', () => {
 
   it('disables auto_start when no template selected', () => {
     const wrapper = mountCard(makeSuggestion([baseItem({ template_id: null })]))
-    const labels = wrapper.findAll('label.suggestion-toggle')
+    const labels = wrapper.findAll('label.switch-pill')
     const autoStartLabel = labels.find((l) => l.text().includes('自动启动'))
     const checkbox = autoStartLabel.find('input[type=checkbox]')
     expect(checkbox.attributes('disabled')).toBeDefined()

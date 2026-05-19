@@ -15,8 +15,22 @@ import { prepareExecutionMcp } from './executorMcpPreparation.js';
 import { cleanupMcpJson, cleanupOpenCodeMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { joinWorkDir } from '../../utils/workDir.js';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
 import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
+
+/**
+ * Resolve the effective base directory where skills/MCP config are installed
+ * for a step. When the task configures `work_dir`, both files and the executor
+ * cwd land in `<execution_path>/<work_dir>` so that Claude Code / OpenCode can
+ * discover them via their default-cwd lookup. Empty/missing work_dir falls
+ * back to the execution path root. Throws if `work_dir` would escape the
+ * worktree (defense in depth on top of input-time validation).
+ */
+function resolveExecutorBasePath(executionPath: string, workDir?: string | null): string {
+  return joinWorkDir(executionPath, workDir);
+}
 
 // NOTE: do not statically import `../taskService.js` here. The module graph
 // forms a cycle: workflowService → workflowLifecycle → taskService → workflowService,
@@ -293,15 +307,42 @@ class WorkflowLifecycle {
     return run.status === 'CANCELLED' || step.status === 'CANCELLED';
   }
 
-  private async _cleanupPreviousStepSkills(executionPath: string, runId: number, executorType?: string): Promise<void> {
+  /**
+   * Resolve the work_dir-aware base path used to install skills/MCP for a run.
+   * Prefers the basePath persisted at install time on `run.context` so cleanup
+   * uses the same path even if the user edits `task.work_dir` mid-run.
+   * Falls back to re-deriving from the task, then to the worktree path.
+   */
+  private async _resolveRunBasePath(worktreePath: string, taskId: number | null, runId?: number): Promise<string> {
+    if (typeof runId === 'number') {
+      try {
+        const run = await this.workflowRunRepo.findById(runId);
+        const persisted = run?.context?.['install_base_path'];
+        if (typeof persisted === 'string' && persisted.length > 0) {
+          return persisted;
+        }
+      } catch {
+        // fall through to task lookup
+      }
+    }
+    if (!taskId) return worktreePath;
+    try {
+      const task = await this.taskRepo.findById(taskId);
+      return resolveExecutorBasePath(worktreePath, task?.work_dir);
+    } catch {
+      return worktreePath;
+    }
+  }
+
+  private async _cleanupPreviousStepSkills(basePath: string, runId: number, executorType?: string): Promise<void> {
     try {
       // Cleanup Claude Code skills
-      const claudeSkillsDir = resolve(executionPath, '.claude', 'skills');
+      const claudeSkillsDir = resolve(basePath, '.claude', 'skills');
       await cleanupSkillsByManifest(claudeSkillsDir, runId);
 
       // Cleanup OpenCode skills
       if (executorType === 'OPEN_CODE' || !executorType) {
-        const openCodeSkillsDir = resolve(executionPath, '.opencode', 'skills');
+        const openCodeSkillsDir = resolve(basePath, '.opencode', 'skills');
         await cleanupSkillsByManifest(openCodeSkillsDir, runId);
       }
     } catch (err) {
@@ -309,7 +350,7 @@ class WorkflowLifecycle {
     }
   }
 
-  private async _prepareCurrentStepSkills(runId: number, stepId: string, executionPath: string): Promise<void> {
+  private async _prepareCurrentStepSkills(runId: number, stepId: string, basePath: string): Promise<void> {
     try {
       const stepBinding = await this._getTemplateStepBinding(runId, stepId);
       if (typeof stepBinding.agentId !== 'number') {
@@ -324,13 +365,13 @@ class WorkflowLifecycle {
       await prepareExecutionSkills({
         executorType,
         skillNames,
-        executionPath,
+        executionPath: basePath,
       });
 
       // Write manifest to the correct directory based on executor type
       const skillsDir = executorType === 'OPEN_CODE'
-        ? resolve(executionPath, '.opencode', 'skills')
-        : resolve(executionPath, '.claude', 'skills');
+        ? resolve(basePath, '.opencode', 'skills')
+        : resolve(basePath, '.claude', 'skills');
       await writeSkillManifest(skillsDir, {
         runId,
         stepId,
@@ -344,7 +385,7 @@ class WorkflowLifecycle {
     }
   }
 
-  private async _prepareCurrentStepMcp(runId: number, stepId: string, executionPath: string): Promise<void> {
+  private async _prepareCurrentStepMcp(runId: number, stepId: string, basePath: string): Promise<void> {
     try {
       const stepBinding = await this._getTemplateStepBinding(runId, stepId);
       if (typeof stepBinding.agentId !== 'number') {
@@ -356,8 +397,8 @@ class WorkflowLifecycle {
       // Resolve with metadata (auto_install, install_command) for pre-check
       const serversWithMeta = await resolveAgentMcpServersWithMeta(stepBinding.agentId);
       if (serversWithMeta.length === 0) {
-        await cleanupMcpJson(executionPath);
-        await cleanupOpenCodeMcpJson(executionPath);
+        await cleanupMcpJson(basePath);
+        await cleanupOpenCodeMcpJson(basePath);
         return;
       }
 
@@ -365,15 +406,15 @@ class WorkflowLifecycle {
       const mcpServerConfigs = await preCheckMcpServers(serversWithMeta);
       if (mcpServerConfigs.length === 0) {
         logger.warn('WorkflowLifecycle', `All MCP servers failed pre-check for step ${stepId}`);
-        await cleanupMcpJson(executionPath);
-        await cleanupOpenCodeMcpJson(executionPath);
+        await cleanupMcpJson(basePath);
+        await cleanupOpenCodeMcpJson(basePath);
         return;
       }
 
       await prepareExecutionMcp({
         executorType,
         mcpServerConfigs,
-        executionPath,
+        executionPath: basePath,
       });
 
       logger.info('WorkflowLifecycle', `Prepared ${mcpServerConfigs.length} MCP servers for step ${stepId}`);
@@ -505,10 +546,33 @@ class WorkflowLifecycle {
       return;
     }
 
-    // Step-level skill isolation: cleanup previous step's skills, prepare current step's skills
-    await this._cleanupPreviousStepSkills(task.execution_path, runId);
-    await this._prepareCurrentStepSkills(runId, stepId, task.execution_path);
-    await this._prepareCurrentStepMcp(runId, stepId, task.execution_path);
+    // Step-level skill isolation: cleanup previous step's skills, prepare current step's skills.
+    // When task.work_dir is set, both files and the executor cwd live in
+    // <execution_path>/<work_dir> so executors can pick them up via default-cwd discovery.
+    const basePath = resolveExecutorBasePath(task.execution_path, task.work_dir);
+    if (task.work_dir && !existsSync(basePath)) {
+      throw new Error(
+        `工作路径不存在：${basePath}（任务配置的 work_dir="${task.work_dir}" 在工作目录中找不到，请检查任务的工作路径）`,
+      );
+    }
+    await this._cleanupPreviousStepSkills(basePath, runId);
+    await this._prepareCurrentStepSkills(runId, stepId, basePath);
+    await this._prepareCurrentStepMcp(runId, stepId, basePath);
+
+    // Persist the basePath used for this install on the run's context so
+    // end-of-run cleanup uses the same path even if `task.work_dir` is edited
+    // mid-run (otherwise install and cleanup would diverge and orphan files).
+    try {
+      const currentRun = await this.workflowRunRepo.findById(runId);
+      const currentContext = currentRun?.context ?? {};
+      if (currentContext['install_base_path'] !== basePath) {
+        await this.workflowRunRepo.update(runId, {
+          context: { ...currentContext, install_base_path: basePath },
+        });
+      }
+    } catch (err) {
+      logger.warn('WorkflowLifecycle', `Failed to persist install_base_path: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     const startedAt = new Date().toISOString();
     const { step } = await this._getRunStep(runId, stepId);
@@ -922,8 +986,9 @@ class WorkflowLifecycle {
   async onStepCancel(runId: number, stepId: string) {
     const { run } = await this._getRunStep(runId, stepId);
     if (run.worktree_path) {
-      await cleanupMcpJson(run.worktree_path);
-      await cleanupOpenCodeMcpJson(run.worktree_path);
+      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null, runId);
+      await cleanupMcpJson(basePath);
+      await cleanupOpenCodeMcpJson(basePath);
     }
     await this._finalizeStepArtifacts(runId, stepId, 'CANCELLED', {
       error: 'Workflow cancelled',
@@ -966,7 +1031,8 @@ class WorkflowLifecycle {
 
     // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
     if (run.worktree_path) {
-      await this._cleanupPreviousStepSkills(run.worktree_path, runId);
+      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null, runId);
+      await this._cleanupPreviousStepSkills(basePath, runId);
     }
 
     await this.workflowRunRepo.update(runId, {
@@ -994,7 +1060,8 @@ class WorkflowLifecycle {
 
     // Cleanup last step's skills (keep MCP config in worktree for subsequent use)
     if (run.worktree_path) {
-      await this._cleanupPreviousStepSkills(run.worktree_path, runId);
+      const basePath = await this._resolveRunBasePath(run.worktree_path, run.task_id ?? null, runId);
+      await this._cleanupPreviousStepSkills(basePath, runId);
     }
 
     await this.workflowRunRepo.update(runId, {

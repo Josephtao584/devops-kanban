@@ -40,16 +40,26 @@ class AgentChatService {
     const tempDir = path.join(os.tmpdir(), `agent-chat-${chatId}`);
     fs.mkdirSync(tempDir, { recursive: true });
 
-    const session = this.chatRepo.createSession({
-      id: chatId,
-      agentId,
-      status: 'idle',
-      tempDir,
-      providerSessionId: null,
-    });
+    try {
+      const session = this.chatRepo.createSession({
+        id: chatId,
+        agentId,
+        status: 'idle',
+        tempDir,
+        providerSessionId: null,
+      });
 
-    logger.info('AgentChatService', `Started chat session ${chatId} for agent ${agentId}`);
-    return session;
+      logger.info('AgentChatService', `Started chat session ${chatId} for agent ${agentId}`);
+      return session;
+    } catch (err) {
+      // Roll back the temp dir so failed startups don't leak under /tmp
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch (cleanupErr) {
+        logger.warn('AgentChatService', `Failed to clean up temp dir after startSession error: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`);
+      }
+      throw err;
+    }
   }
 
   getSession(chatId: string) {

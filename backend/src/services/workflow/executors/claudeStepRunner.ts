@@ -7,6 +7,7 @@ import { resolveCommand } from './commandResolver.js';
 import type { AskUserQuestionData, ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
 import { buildEvent } from '../../../types/executors.js';
 import { logger } from '../../../utils/logger.js';
+import { registerActiveProcess } from '../../../utils/processRegistry.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code'];
 
@@ -212,8 +213,19 @@ async function defaultSpawnImpl({
   const spawnCommand = resolved.command || 'npx';
   const commandArgs = [...resolved.args, ...cliArgs];
 
-  // Auto-detect .mcp.json in worktree root and pass to Claude Code explicitly
-  const mcpConfigPath = resolve(worktreePath, '.mcp.json');
+  const effectiveCwd = cwdSubdir ? join(worktreePath, cwdSubdir) : worktreePath;
+
+  if (!existsSync(effectiveCwd)) {
+    throw new Error(
+      cwdSubdir
+        ? `工作路径不存在：${effectiveCwd}（任务配置的 work_dir="${cwdSubdir}" 在 worktree 中找不到，请检查任务的工作路径）`
+        : `工作路径不存在：${effectiveCwd}`,
+    );
+  }
+
+  // Auto-detect .mcp.json next to the executor's effective cwd (which is where
+  // the lifecycle installs the MCP config when the task uses a work_dir).
+  const mcpConfigPath = resolve(effectiveCwd, '.mcp.json');
   if (existsSync(mcpConfigPath)) {
     commandArgs.push('--mcp-config', mcpConfigPath);
   }
@@ -225,8 +237,6 @@ async function defaultSpawnImpl({
   const commandSummary = summarizeCommand(spawnCommand, commandArgs);
   const spawnImpl = await resolveCrossSpawn();
 
-  const effectiveCwd = cwdSubdir ? join(worktreePath, cwdSubdir) : worktreePath;
-
   return await new Promise<ClaudeSpawnExecution>((resolve, reject) => {
     const spawnedProc = spawnImpl(spawnCommand, commandArgs, {
       cwd: effectiveCwd,
@@ -235,6 +245,7 @@ async function defaultSpawnImpl({
       shell: false,
     });
     const proc = toExecutorProcessHandle(spawnedProc);
+    registerActiveProcess(spawnedProc as unknown as import('node:child_process').ChildProcess);
 
     let killedByAskUser = false;
     let capturedAskUserQuestion: AskUserQuestionData | null = null;

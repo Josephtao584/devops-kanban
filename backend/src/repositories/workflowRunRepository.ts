@@ -3,6 +3,7 @@ import { withRetry } from '../db/retry.js';
 import type { Client } from '@libsql/client';
 import type { WorkflowRunEntity, WorkflowStepEntity } from '../types/entities.ts';
 import { logger } from '../utils/logger.js';
+import { safeJsonParse } from '../utils/safeJson.js';
 
 type UpdateWorkflowStepRecord = Partial<Omit<WorkflowStepEntity, 'step_id' | 'name'>>;
 
@@ -35,17 +36,14 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   }
 
   private mapRowToEntity(row: Record<string, unknown>): WorkflowRunEntity {
-    const loopFailureContextRaw = row.loop_failure_context;
     return {
       ...row,
-      steps: row.steps ? JSON.parse(row.steps as string) : [],
-      context: row.context ? JSON.parse(row.context as string) : {},
+      steps: safeJsonParse(row.steps, [] as unknown[], 'workflow_runs.steps'),
+      context: safeJsonParse(row.context, {} as Record<string, unknown>, 'workflow_runs.context'),
       parent_run_id: row.parent_run_id == null ? null : Number(row.parent_run_id),
       iteration: Number(row.iteration ?? 1),
       looped_from_step_id: row.looped_from_step_id ? String(row.looped_from_step_id) : null,
-      loop_failure_context: loopFailureContextRaw
-        ? JSON.parse(String(loopFailureContextRaw))
-        : null,
+      loop_failure_context: safeJsonParse(row.loop_failure_context, null, 'workflow_runs.loop_failure_context'),
       loop_trigger_error: row.loop_trigger_error == null ? null : String(row.loop_trigger_error),
     } as WorkflowRunEntity;
   }
@@ -276,6 +274,7 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   async updateStep(runId: number, stepId: string, stepUpdate: UpdateWorkflowStepRecord): Promise<WorkflowRunEntity | null> {
     return this.serializeMutation(async () => {
       const txn = await this.client.transaction('write');
+      let committed = false;
       try {
         const runResult = await txn.execute({
           sql: 'SELECT * FROM workflow_runs WHERE id = ?',
@@ -297,12 +296,23 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
         });
 
         await txn.commit();
+        committed = true;
         return { ...run, steps, updated_at: now };
       } catch (error) {
-        await txn.rollback();
+        if (!committed) {
+          try {
+            await txn.rollback();
+          } catch {
+            // rollback may fail if the txn is already closed/aborted
+          }
+        }
         throw error;
       } finally {
-        txn.close();
+        try {
+          txn.close();
+        } catch {
+          // close may throw if already closed
+        }
       }
     });
   }

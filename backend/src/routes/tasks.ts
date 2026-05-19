@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import { buildWorktreeDiff, buildBranchDiff } from './git.js';
 import { isGitRepository, getWorktreePath } from '../utils/git.js';
@@ -11,6 +12,7 @@ import type { IdParams } from '../types/http/params.js';
 import type { ProjectIdQuery } from '../types/http/query.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { getErrorMessage, getStatusCode, parseNumber, logError } from '../utils/http.js';
+import { sanitizeWorkDir } from '../utils/workDir.js';
 
 const taskService = new TaskService();
 const projectRepo = new ProjectRepository();
@@ -299,13 +301,19 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Project has no local path configured');
       }
       const worktreePath = getWorktreePath(task.id, task.title, project.local_path);
-      const workDir = request.body?.work_dir;
-      const fullPath = workDir ? `${worktreePath}/${workDir}` : worktreePath;
+      const workDir = sanitizeWorkDir(request.body?.work_dir);
+      const fullPath = workDir ? path.join(worktreePath, workDir) : worktreePath;
+      const projectWorkPath = workDir ? path.join(project.local_path, workDir) : project.local_path;
       return successResponse({
         worktree_path: worktreePath,
         full_path: fullPath,
         worktree_exists: fs.existsSync(worktreePath),
         full_path_exists: fs.existsSync(fullPath),
+        project_local_path: project.local_path,
+        project_work_path: projectWorkPath,
+        project_exists: fs.existsSync(project.local_path),
+        project_work_path_exists: fs.existsSync(projectWorkPath),
+        worktree_base_exists: fs.existsSync(path.join(project.local_path, '.worktrees')),
       });
     } catch (error) {
       logError(error, request);

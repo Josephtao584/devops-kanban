@@ -88,20 +88,43 @@ class NotificationService {
         },
       };
 
+      let settled = false;
+      const safeResolve = (value: HttpResponse) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const safeReject = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+
       const req = requestFactory(options, (res) => {
-        resolve({
-          ok: res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode || 0,
+        // Drain the response body so the socket can be released back to the
+        // agent pool. Without this the connection lingers until the kernel
+        // closes it.
+        res.resume();
+        res.on('error', safeReject);
+        res.on('end', () => {
+          safeResolve({
+            ok: res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode || 0,
+          });
         });
       });
 
-      req.on('error', reject);
+      req.on('error', safeReject);
       req.setTimeout(10000, () => {
-        req.destroy();
-        reject(new Error('Request timeout'));
+        req.destroy(new Error('Request timeout'));
       });
-      req.write(bodyStr);
-      req.end();
+
+      try {
+        req.write(bodyStr);
+        req.end();
+      } catch (err) {
+        safeReject(err instanceof Error ? err : new Error(String(err)));
+      }
     });
   }
 

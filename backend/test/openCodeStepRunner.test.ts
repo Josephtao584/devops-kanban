@@ -555,3 +555,35 @@ test.test('OpenCodeStepRunner passes onAskUser to spawn implementation', async (
   }
   assert.deepEqual(receivedAskUser, questionData);
 });
+
+test.test('default spawnImpl rejects when cwdSubdir does not exist', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+
+  const root = mkdtempSync(join(tmpdir(), 'opencode-runner-'));
+  try {
+    const runner = new OpenCodeStepRunner();
+    await assert.rejects(
+      runner.runStep({
+        prompt: 'prompt',
+        worktreePath: root,
+        cwdSubdir: 'does-not-exist',
+      }),
+      (err: any) => /工作路径不存在/.test(err.message) && /does-not-exist/.test(err.message),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test.test('default spawnImpl rejects when worktreePath itself does not exist', async () => {
+  const runner = new OpenCodeStepRunner();
+  await assert.rejects(
+    runner.runStep({
+      prompt: 'prompt',
+      worktreePath: '/definitely/not/a/real/path/should-fail',
+    }),
+    (err: any) => /工作路径不存在/.test(err.message),
+  );
+});

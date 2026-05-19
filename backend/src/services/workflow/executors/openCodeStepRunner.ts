@@ -1,5 +1,6 @@
 import crossSpawn, { SpawnedProcess } from 'cross-spawn';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { parseStepResult, validateStepResult } from './openCodeStepResult.js';
 import { resolveCommand } from './commandResolver.js';
@@ -7,6 +8,7 @@ import type { ExecutorProcessHandle, WorkflowExecutionEvent, AskUserQuestionData
 import { buildEvent } from '../../../types/executors.js';
 import { OPENCODE_COMMAND } from '../../../config/index.js';
 import { logger } from '../../../utils/logger.js';
+import { registerActiveProcess } from '../../../utils/processRegistry.js';
 
 const OPENCODE_DEFAULT_COMMAND = OPENCODE_COMMAND.split(/\s+/).filter(Boolean);
 
@@ -302,6 +304,14 @@ async function defaultSpawnImpl({
 
   const effectiveCwd = cwdSubdir ? join(worktreePath, cwdSubdir) : worktreePath;
 
+  if (!existsSync(effectiveCwd)) {
+    throw new Error(
+      cwdSubdir
+        ? `工作路径不存在：${effectiveCwd}（任务配置的 work_dir="${cwdSubdir}" 在 worktree 中找不到，请检查任务的工作路径）`
+        : `工作路径不存在：${effectiveCwd}`,
+    );
+  }
+
   return await new Promise<OpenCodeSpawnExecution>((resolve, reject) => {
     const spawnedProc = crossSpawn(spawnCommand, commandArgs, {
       cwd: effectiveCwd,
@@ -310,6 +320,7 @@ async function defaultSpawnImpl({
       shell: false,
     });
     const proc = toExecutorProcessHandle(spawnedProc);
+    registerActiveProcess(spawnedProc as unknown as import('node:child_process').ChildProcess);
 
     if (abortSignal) {
       if (abortSignal.aborted) {
