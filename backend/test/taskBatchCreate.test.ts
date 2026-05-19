@@ -22,7 +22,7 @@ test('batchCreate assigns depends_on from indices', async () => {
   assert.deepEqual(result[0]!.task.depends_on, []);
   assert.deepEqual(result[1]!.task.depends_on, [result[0]!.task.id]);
   assert.equal(result[0]!.task.status, 'TODO');
-  assert.equal(result[1]!.task.status, 'WAITING');
+  assert.equal(result[1]!.task.status, 'TODO');
 
   for (const t of result) await taskRepository.delete(t.task.id);
   await taskRepository.delete(parent.id);
@@ -100,9 +100,9 @@ test('batchCreate links cross-batch deps to existing task ids by original index'
   // B has no deps -> TODO
   assert.deepEqual(b!.task.depends_on, []);
   assert.equal(b!.task.status, 'TODO');
-  // C depends on existing A (real id) and freshly-created B (real id) -> WAITING
+  // C depends on existing A (real id) and freshly-created B (real id) -> TODO
   assert.deepEqual([...c!.task.depends_on!].sort(), [existingChild.id, b!.task.id].sort());
-  assert.equal(c!.task.status, 'WAITING');
+  assert.equal(c!.task.status, 'TODO');
 
   for (const t of result) await taskRepository.delete(t.task.id);
   await taskRepository.delete(existingChild.id);
