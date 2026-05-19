@@ -20,19 +20,25 @@ async function updateSuggestions(
   if (existing.status !== 'PENDING' && existing.status !== 'CONFIRMED') {
     throw new Error(`cannot edit suggestion in status ${existing.status}`);
   }
-  if (suggestions.length < existing.suggestions.length) {
-    throw new Error('cannot remove existing suggestion rows');
+  // 已建行（child_task_id != null）按 child_task_id 在新数组里找：
+  //   - 找不到 → 用户尝试删除已建行，拒绝
+  //   - 找到但任意字段不一致 → 用户尝试改已建行，拒绝
+  // 未建行允许任意删除/编辑/重排。
+  const afterById = new Map<number, Suggestion>();
+  for (const s of suggestions) {
+    if (s.child_task_id != null) afterById.set(s.child_task_id, s);
   }
-  for (let i = 0; i < existing.suggestions.length; i++) {
-    const before = existing.suggestions[i]!;
-    const after = suggestions[i]!;
-    if (before.child_task_id != null) {
-      // Field-order-sensitive equality. parseRow constructs each suggestion
-      // with a fixed key order; the frontend's onAddTask uses the same order.
-      // Both sides round-trip through this normalization before reaching here.
-      if (JSON.stringify(before) !== JSON.stringify(after)) {
-        throw new Error(`row ${i} is locked (child_task_id=${before.child_task_id})`);
-      }
+  for (const before of existing.suggestions) {
+    if (before.child_task_id == null) continue;
+    const after = afterById.get(before.child_task_id);
+    if (!after) {
+      throw new Error(`cannot remove locked row (child_task_id=${before.child_task_id})`);
+    }
+    // Field-order-sensitive equality. parseRow constructs each suggestion
+    // with a fixed key order; the frontend's onAddTask uses the same order.
+    // Both sides round-trip through this normalization before reaching here.
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      throw new Error(`row is locked (child_task_id=${before.child_task_id})`);
     }
   }
   await splitSuggestionRepository.update(id, { suggestions });

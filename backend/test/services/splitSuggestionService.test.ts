@@ -307,7 +307,7 @@ test.test('updateSuggestions rejects edits to locked rows', async () => {
     ];
     await assert.rejects(
       splitSuggestionService.updateSuggestions(suggestion.id, tampered),
-      /row 0 is locked/,
+      /row is locked/,
     );
   } finally {
     await splitSuggestionRepository.delete(suggestion.id);
@@ -316,7 +316,7 @@ test.test('updateSuggestions rejects edits to locked rows', async () => {
   }
 });
 
-test.test('updateSuggestions rejects shrinking suggestion list', async () => {
+test.test('updateSuggestions rejects removing locked rows', async () => {
   const project = await projectRepository.create({
     name: `split-shrink-${Date.now()}-${Math.random()}`,
     description: undefined,
@@ -342,8 +342,46 @@ test.test('updateSuggestions rejects shrinking suggestion list', async () => {
   try {
     await assert.rejects(
       splitSuggestionService.updateSuggestions(suggestion.id, [suggestion.suggestions[0]!]),
-      /cannot remove existing suggestion rows/,
+      /cannot remove locked row/,
     );
+  } finally {
+    await splitSuggestionRepository.delete(suggestion.id);
+    await taskRepository.delete(parent.id);
+    await projectRepository.delete(project.id);
+  }
+});
+
+test.test('updateSuggestions allows removing unlocked rows while locked rows untouched', async () => {
+  const project = await projectRepository.create({
+    name: `split-remove-unlocked-${Date.now()}-${Math.random()}`,
+    description: undefined,
+    git_url: undefined,
+    local_path: undefined,
+    env: {},
+  });
+  const parent = await taskRepository.create({
+    title: 'parent', description: '', project_id: project.id,
+    status: 'IN_PROGRESS', priority: 'MEDIUM', source: 'internal',
+    depends_on: [], labels: [],
+  });
+  const suggestion = await splitSuggestionRepository.create({
+    parent_task_id: parent.id,
+    workflow_run_id: null,
+    status: 'PENDING',
+    suggestions: [
+      buildSuggestion({ title: 'locked-a', child_task_id: 999_010 }),
+      buildSuggestion({ title: 'unlocked-b' }),
+      buildSuggestion({ title: 'unlocked-c' }),
+    ],
+    confirmed_at: null,
+  });
+  try {
+    // Drop the middle unlocked row. Locked row stays intact.
+    const next = [suggestion.suggestions[0]!, suggestion.suggestions[2]!];
+    const updated = await splitSuggestionService.updateSuggestions(suggestion.id, next);
+    assert.equal(updated.suggestions.length, 2);
+    assert.equal(updated.suggestions[0]!.child_task_id, 999_010);
+    assert.equal(updated.suggestions[1]!.title, 'unlocked-c');
   } finally {
     await splitSuggestionRepository.delete(suggestion.id);
     await taskRepository.delete(parent.id);
