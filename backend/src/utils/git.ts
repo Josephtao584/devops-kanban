@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -6,12 +6,51 @@ import * as fs from 'node:fs';
 import { STORAGE_PATH } from '../config/index.js';
 import { logger } from './logger.js';
 
-// Timeouts on execSync calls — without these, a hung git/network operation
+// Timeouts on git invocations — without these, a hung git/network operation
 // blocks the entire Node event loop. Local git ops (worktree add/remove,
 // rev-parse, branch -D, prune) are always fast; clone/fetch may legitimately
 // take a while over slow networks but still need a hard upper bound.
 const GIT_LOCAL_TIMEOUT_MS = 30_000;
 const GIT_NETWORK_TIMEOUT_MS = 180_000;
+
+/**
+ * Run `git` with explicit argv to avoid shell interpretation. Inputs like
+ * repoUrl, worktreePath, branchName flow in from the database and would be
+ * unsafe to interpolate into a shell command string. Returns combined
+ * stdout; throws an Error whose `.stderr` matches what spawnSync sets so
+ * existing error-handling paths keep working.
+ */
+function runGit(
+  args: string[],
+  options: { cwd?: string; timeoutMs?: number; allowFailure?: boolean } = {},
+): string {
+  const result = spawnSync('git', args, {
+    cwd: options.cwd,
+    encoding: 'utf-8',
+    timeout: options.timeoutMs ?? GIT_LOCAL_TIMEOUT_MS,
+    shell: false,
+  });
+
+  if (result.error) {
+    if (options.allowFailure) return '';
+    const err = result.error as Error & { stderr?: string };
+    err.stderr = result.stderr || '';
+    throw err;
+  }
+
+  if (result.status !== 0) {
+    if (options.allowFailure) return result.stdout || '';
+    const stderr = result.stderr || '';
+    const err: Error & { stderr?: string; status?: number | null } = new Error(
+      stderr || `git ${args[0]} failed with status ${result.status}`,
+    );
+    err.stderr = stderr;
+    err.status = result.status;
+    throw err;
+  }
+
+  return result.stdout || '';
+}
 
 type WorktreeStatusItem = {
   path: string;
@@ -57,11 +96,9 @@ export async function ensureExternalRepo(repoUrl: string): Promise<string> {
 
   if (fs.existsSync(repoDir) && isGitRepository(repoDir)) {
     try {
-      execSync('git fetch --all --prune', {
+      runGit(['fetch', '--all', '--prune'], {
         cwd: repoDir,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-        timeout: GIT_NETWORK_TIMEOUT_MS,
+        timeoutMs: GIT_NETWORK_TIMEOUT_MS,
       });
     } catch (error) {
       const execError = error as Error & { stderr?: string };
@@ -78,11 +115,7 @@ export async function ensureExternalRepo(repoUrl: string): Promise<string> {
   fs.mkdirSync(path.dirname(repoDir), { recursive: true });
 
   try {
-    execSync(`git clone ${repoUrl} ${repoDir}`, {
-      encoding: 'utf-8',
-      stdio: 'pipe',
-      timeout: GIT_NETWORK_TIMEOUT_MS,
-    });
+    runGit(['clone', repoUrl, repoDir], { timeoutMs: GIT_NETWORK_TIMEOUT_MS });
   } catch (error) {
     const execError = error as Error & { stderr?: string };
     const stderr = execError.stderr || execError.message;
@@ -113,11 +146,7 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
     }
 
     // Prune stale worktree references (dir deleted but git still tracks it)
-    try {
-      execSync('git worktree prune', { cwd: repoPath, stdio: 'pipe', timeout: GIT_LOCAL_TIMEOUT_MS });
-    } catch {
-      // Non-critical, continue
-    }
+    runGit(['worktree', 'prune'], { cwd: repoPath, allowFailure: true });
 
     const parentDir = path.dirname(worktreePath);
     if (!fs.existsSync(parentDir)) {
@@ -127,7 +156,7 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
     // Check if branch already exists
     let branchExists = false;
     try {
-      execSync(`git rev-parse --verify refs/heads/${branchName}`, { cwd: repoPath, stdio: 'pipe', timeout: GIT_LOCAL_TIMEOUT_MS });
+      runGit(['rev-parse', '--verify', `refs/heads/${branchName}`], { cwd: repoPath });
       branchExists = true;
     } catch {
       branchExists = false;
@@ -135,18 +164,10 @@ export function createWorktree(taskId: number, taskTitle: string, repoPath = pro
 
     if (branchExists) {
       // Branch exists, just add worktree without creating branch
-      execSync(`git worktree add "${worktreePath}" "${branchName}"`, {
-        cwd: repoPath,
-        encoding: 'utf-8',
-        timeout: GIT_LOCAL_TIMEOUT_MS,
-      });
+      runGit(['worktree', 'add', worktreePath, branchName], { cwd: repoPath });
     } else {
       // Branch doesn't exist, create it with worktree
-      execSync(`git worktree add -b "${branchName}" "${worktreePath}"`, {
-        cwd: repoPath,
-        encoding: 'utf-8',
-        timeout: GIT_LOCAL_TIMEOUT_MS,
-      });
+      runGit(['worktree', 'add', '-b', branchName, worktreePath], { cwd: repoPath });
     }
 
     // Copy .claude/ config (settings.json, settings.local.json) to worktree
@@ -211,19 +232,11 @@ function ensureWorktreesGitignore(repoPath: string) {
 export function cleanupWorktree(worktreePath: string, repoPath = process.cwd(), branchName: string | null = null) {
   try {
     if (fs.existsSync(worktreePath)) {
-      execSync(`git worktree remove ${worktreePath} --force`, {
-        cwd: repoPath,
-        encoding: 'utf-8',
-        timeout: GIT_LOCAL_TIMEOUT_MS,
-      });
+      runGit(['worktree', 'remove', worktreePath, '--force'], { cwd: repoPath });
     }
     if (branchName) {
       try {
-        execSync(`git branch -D ${branchName} --force`, {
-          cwd: repoPath,
-          encoding: 'utf-8',
-          timeout: GIT_LOCAL_TIMEOUT_MS,
-        });
+        runGit(['branch', '-D', branchName, '--force'], { cwd: repoPath });
       } catch {
         logger.info('Git', `Branch ${branchName} may not exist, skipping deletion`);
       }
@@ -238,11 +251,7 @@ export function cleanupWorktree(worktreePath: string, repoPath = process.cwd(), 
 
 export function getWorktreeStatus(repoPath = process.cwd()): WorktreeStatusItem[] {
   try {
-    const output = execSync('git worktree list --porcelain', {
-      cwd: repoPath,
-      encoding: 'utf-8',
-      timeout: GIT_LOCAL_TIMEOUT_MS,
-    });
+    const output = runGit(['worktree', 'list', '--porcelain'], { cwd: repoPath });
     const worktrees: WorktreeStatusItem[] = [];
     const lines = output.trim().split('\n');
     let currentWorktree: WorktreeStatusItem | null = null;
@@ -268,12 +277,13 @@ export function getWorktreeStatus(repoPath = process.cwd()): WorktreeStatusItem[
 }
 
 export function isGitRepository(repoPath = process.cwd()) {
-  try {
-    execSync('git rev-parse --git-dir', { cwd: repoPath, stdio: 'ignore', timeout: GIT_LOCAL_TIMEOUT_MS });
-    return true;
-  } catch {
-    return false;
-  }
+  const result = spawnSync('git', ['rev-parse', '--git-dir'], {
+    cwd: repoPath,
+    stdio: 'ignore',
+    timeout: GIT_LOCAL_TIMEOUT_MS,
+    shell: false,
+  });
+  return result.status === 0;
 }
 
 export interface MergeResult {
@@ -291,35 +301,33 @@ export function mergeBranch(
   const { noFastForward = true, message } = options;
 
   // 构建合并命令
-  const flags = ['merge'];
-  if (noFastForward) flags.push('--no-ff');
-  flags.push(sourceBranch);
+  const args = ['merge'];
+  if (noFastForward) args.push('--no-ff');
+  args.push(sourceBranch);
   if (message) {
-    flags.push('-m', message);
+    args.push('-m', message);
   }
 
-  try {
-    const output = execSync(`git ${flags.join(' ')}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: GIT_LOCAL_TIMEOUT_MS,
-    });
+  const result = spawnSync('git', args, {
+    cwd: repoPath,
+    encoding: 'utf-8',
+    timeout: GIT_LOCAL_TIMEOUT_MS,
+    shell: false,
+  });
 
+  if (result.status === 0) {
     return {
       success: true,
       conflicts: [],
       hasConflicts: false,
-      message: output || 'Merge completed successfully',
+      message: result.stdout || 'Merge completed successfully',
     };
-  } catch (error) {
-    const execError = error as Error & { stderr?: string; stdout?: string };
-    const stderr = execError.stderr || '';
-    const stdout = execError.stdout || '';
-    const combinedOutput = stderr + stdout;
+  }
 
-    // 检测合并冲突
-    if (combinedOutput.includes('CONFLICT') || combinedOutput.includes('merge failed')) {
+  const combinedOutput = (result.stderr || '') + (result.stdout || '');
+
+  // 检测合并冲突
+  if (combinedOutput.includes('CONFLICT') || combinedOutput.includes('merge failed')) {
       const conflicts: string[] = [];
 
       // 解析冲突文件：both modified: xxx, both added: xxx, both deleted: xxx
@@ -354,14 +362,13 @@ export function mergeBranch(
         hasConflicts: conflicts.length > 0,
         message: `Merge conflicts in ${conflicts.length} file(s)`,
       };
-    }
-
-    // 其他错误
-    return {
-      success: false,
-      conflicts: [],
-      hasConflicts: false,
-      message: combinedOutput || 'Merge failed',
-    };
   }
+
+  // 其他错误
+  return {
+    success: false,
+    conflicts: [],
+    hasConflicts: false,
+    message: combinedOutput || 'Merge failed',
+  };
 }

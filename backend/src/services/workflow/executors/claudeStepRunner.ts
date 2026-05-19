@@ -7,6 +7,7 @@ import { resolveCommand } from './commandResolver.js';
 import type { AskUserQuestionData, ExecutorProcessHandle, WorkflowExecutionEvent } from '../../../types/executors.js';
 import { buildEvent } from '../../../types/executors.js';
 import { logger } from '../../../utils/logger.js';
+import { registerActiveProcess } from '../../../utils/processRegistry.js';
 
 const CLAUDE_DEFAULT_COMMAND = ['npx', '-y', '@anthropic-ai/claude-code'];
 
@@ -244,6 +245,7 @@ async function defaultSpawnImpl({
       shell: false,
     });
     const proc = toExecutorProcessHandle(spawnedProc);
+    registerActiveProcess(spawnedProc as unknown as import('node:child_process').ChildProcess);
 
     let killedByAskUser = false;
     let capturedAskUserQuestion: AskUserQuestionData | null = null;

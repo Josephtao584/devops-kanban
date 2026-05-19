@@ -1,4 +1,5 @@
 import { buildApp } from './app.js';
+import { killAllActiveProcesses } from './utils/processRegistry.js';
 
 const app = await buildApp();
 
@@ -31,6 +32,15 @@ const shutdown = (signal: string) => {
     } catch (err) {
       console.error('Scheduler shutdown failed:', err);
     }
+  }
+
+  // Kill any executor child processes (Claude Code / Codex / OpenCode) that
+  // were still running. Without this they survive the parent and keep
+  // burning CPU + an Anthropic API session until the model finishes.
+  try {
+    killAllActiveProcesses('SIGTERM');
+  } catch (err) {
+    console.error('Active process cleanup failed:', err);
   }
 
   // Hard timeout: if fastify.close hangs (e.g. open socket / running child

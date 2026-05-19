@@ -8,6 +8,7 @@ import type { ExecutorProcessHandle, WorkflowExecutionEvent, AskUserQuestionData
 import { buildEvent } from '../../../types/executors.js';
 import { OPENCODE_COMMAND } from '../../../config/index.js';
 import { logger } from '../../../utils/logger.js';
+import { registerActiveProcess } from '../../../utils/processRegistry.js';
 
 const OPENCODE_DEFAULT_COMMAND = OPENCODE_COMMAND.split(/\s+/).filter(Boolean);
 
@@ -319,6 +320,7 @@ async function defaultSpawnImpl({
       shell: false,
     });
     const proc = toExecutorProcessHandle(spawnedProc);
+    registerActiveProcess(spawnedProc as unknown as import('node:child_process').ChildProcess);
 
     if (abortSignal) {
       if (abortSignal.aborted) {
