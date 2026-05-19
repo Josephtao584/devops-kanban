@@ -24,6 +24,7 @@
 <script setup>
 import { computed } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const props = defineProps({
   event: { type: Object, required: true }
@@ -57,13 +58,13 @@ const formattedMessageContent = computed(() => {
   const content = props.event?.content || ''
   if (props.event?.kind !== 'message' || !content) return content
 
-  // marked handles HTML escaping internally — don't pre-escape
   const rendered = marked.parse(content, {
     gfm: true,
     breaks: true
   })
 
-  return typeof rendered === 'string' ? rendered : ''
+  const html = typeof rendered === 'string' ? rendered : ''
+  return html ? DOMPurify.sanitize(html) : ''
 })
 </script>
 

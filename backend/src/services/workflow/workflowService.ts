@@ -277,7 +277,7 @@ class WorkflowService {
     const { workflow } = await this.getOrRegisterWorkflowByInstanceId(
       run.workflow_instance_id,
       runId,
-      { id: task.id, project_id: task.project_id, execution_path: executionPath },
+      { id: task.id, project_id: task.project_id, execution_path: executionPath, work_dir: task.work_dir ?? null },
     );
 
     const mastraRun = await workflow.createRun({ runId: mastraRunId });
@@ -288,7 +288,7 @@ class WorkflowService {
   private async getOrRegisterWorkflowByInstanceId(
     instanceId: string,
     runId: number,
-    task: { id: number; project_id: number; execution_path: string },
+    task: { id: number; project_id: number; execution_path: string; work_dir?: string | null },
   ): Promise<any> {
     const workflow = getWorkflowFromWorkflowId(instanceId);
     if (workflow) {
@@ -337,7 +337,7 @@ class WorkflowService {
 
       const workflow = buildWorkflowFromInstance(workflowInstance, {
         runId,
-        task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path },
+        task: { id: task.id, project_id: task.project_id, execution_path: task.execution_path, work_dir: task.work_dir ?? null },
         lifecycle: this.lifecycle,
         ...(loopContext ? { loopContext } : {}),
       });

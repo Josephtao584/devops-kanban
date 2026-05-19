@@ -71,19 +71,21 @@ describe('SessionEventRenderer', () => {
     expect(wrapper.html()).not.toContain('**粗体**')
   })
 
-  it('passes raw HTML through marked without sanitizing', () => {
+  it('strips dangerous HTML from assistant markdown via DOMPurify', () => {
     const wrapper = mountRenderer({
       id: 23,
       kind: 'message',
       role: 'assistant',
-      content: '<script>alert(1)</script> **安全**'
+      content: '<script>alert(1)</script> <img src=x onerror=alert(2)> **安全**'
     })
 
-    // marked v17 does not sanitize by design; raw HTML in assistant output
-    // is rendered as-is. (Block-level HTML at the start also stops markdown
-    // parsing of the surrounding text — that's marked's documented behavior.)
-    expect(wrapper.html()).toContain('<script>')
-    expect(wrapper.html()).toContain('alert(1)')
+    // Assistant content is rendered through marked then sanitized with
+    // DOMPurify before reaching v-html. Script tags must be removed entirely
+    // and event-handler attributes must be stripped from any surviving tags.
+    const html = wrapper.html()
+    expect(html).not.toContain('<script>')
+    expect(html).not.toContain('alert(1)')
+    expect(html).not.toContain('onerror')
   })
 
   it('keeps markdown rendering scoped to message events', () => {

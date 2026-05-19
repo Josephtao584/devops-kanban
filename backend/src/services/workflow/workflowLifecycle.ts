@@ -14,7 +14,9 @@ import { resolveAgentMcpServersWithMeta, preCheckMcpServers } from './workflowMc
 import { prepareExecutionMcp } from './executorMcpPreparation.js';
 import { cleanupMcpJson, cleanupOpenCodeMcpJson } from '../../utils/mcpSync.js';
 import { logger } from '../../utils/logger.js';
-import { resolve, join } from 'node:path';
+import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { joinWorkDir } from '../../utils/workDir.js';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
 import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
 
@@ -23,13 +25,11 @@ import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
  * for a step. When the task configures `work_dir`, both files and the executor
  * cwd land in `<execution_path>/<work_dir>` so that Claude Code / OpenCode can
  * discover them via their default-cwd lookup. Empty/missing work_dir falls
- * back to the execution path root.
+ * back to the execution path root. Throws if `work_dir` would escape the
+ * worktree (defense in depth on top of input-time validation).
  */
 function resolveExecutorBasePath(executionPath: string, workDir?: string | null): string {
-  if (!workDir || !workDir.trim()) {
-    return executionPath;
-  }
-  return join(executionPath, workDir);
+  return joinWorkDir(executionPath, workDir);
 }
 
 // NOTE: do not statically import `../taskService.js` here. The module graph
@@ -537,6 +537,11 @@ class WorkflowLifecycle {
     // When task.work_dir is set, both files and the executor cwd live in
     // <execution_path>/<work_dir> so executors can pick them up via default-cwd discovery.
     const basePath = resolveExecutorBasePath(task.execution_path, task.work_dir);
+    if (task.work_dir && !existsSync(basePath)) {
+      throw new Error(
+        `工作路径不存在：${basePath}（任务配置的 work_dir="${task.work_dir}" 在工作目录中找不到，请检查任务的工作路径）`,
+      );
+    }
     await this._cleanupPreviousStepSkills(basePath, runId);
     await this._prepareCurrentStepSkills(runId, stepId, basePath);
     await this._prepareCurrentStepMcp(runId, stepId, basePath);
