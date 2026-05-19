@@ -179,3 +179,108 @@ test.test('parseRow preserves create_worktree and auto_start when explicitly tru
     assert.equal(found!.suggestions[0]!.auto_start, true);
   });
 });
+
+test.test('parseRow defaults child_task_id to null when missing in stored row', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const taskRepo = new TaskRepository();
+    const splitRepo = new SplitSuggestionRepository();
+
+    const project = await projectRepo.create({
+      name: 'p',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+      env: {},
+    });
+    const parent = await taskRepo.create({
+      title: 'parent',
+      description: '',
+      project_id: project.id,
+      status: 'TODO',
+      priority: 'MEDIUM',
+      source: 'internal',
+      depends_on: [],
+      labels: [],
+    });
+
+    // 直接构造一条没有 child_task_id 字段的旧版 suggestion
+    const legacyJson = JSON.stringify([
+      {
+        title: 'legacy',
+        description: 'd',
+        template_id: null,
+        linked_project_id: null,
+        target_repo_url: null,
+        depends_on_indices: [],
+        enabled: true,
+        create_worktree: true,
+        auto_start: true,
+        work_dir: null,
+        // 注意：故意不包含 child_task_id
+      },
+    ]);
+    const client = getDbClient();
+    await client.execute({
+      sql: `INSERT INTO split_suggestions (parent_task_id, workflow_run_id, status, suggestions, confirmed_at) VALUES (?, ?, ?, ?, ?)`,
+      args: [parent.id, null, 'PENDING', legacyJson, null],
+    });
+
+    const found = await splitRepo.findPendingByParentTask(parent.id);
+    assert.ok(found);
+    assert.equal(found!.suggestions.length, 1);
+    assert.equal(found!.suggestions[0]!.child_task_id, null,
+      'legacy row missing child_task_id must default to null');
+  });
+});
+
+test.test('parseRow preserves child_task_id when set to a number', async () => {
+  await withIsolatedStorage(async () => {
+    const projectRepo = new ProjectRepository();
+    const taskRepo = new TaskRepository();
+    const splitRepo = new SplitSuggestionRepository();
+
+    const project = await projectRepo.create({
+      name: 'p',
+      description: undefined,
+      git_url: undefined,
+      local_path: undefined,
+      env: {},
+    });
+    const parent = await taskRepo.create({
+      title: 'parent',
+      description: '',
+      project_id: project.id,
+      status: 'TODO',
+      priority: 'MEDIUM',
+      source: 'internal',
+      depends_on: [],
+      labels: [],
+    });
+
+    const json = JSON.stringify([
+      {
+        title: 'child',
+        description: 'd',
+        template_id: null,
+        linked_project_id: null,
+        target_repo_url: null,
+        depends_on_indices: [],
+        enabled: true,
+        create_worktree: true,
+        auto_start: true,
+        work_dir: null,
+        child_task_id: 42,
+      },
+    ]);
+    const client = getDbClient();
+    await client.execute({
+      sql: `INSERT INTO split_suggestions (parent_task_id, workflow_run_id, status, suggestions, confirmed_at) VALUES (?, ?, ?, ?, ?)`,
+      args: [parent.id, null, 'PENDING', json, null],
+    });
+
+    const found = await splitRepo.findPendingByParentTask(parent.id);
+    assert.ok(found);
+    assert.equal(found!.suggestions[0]!.child_task_id, 42);
+  });
+});
