@@ -15,7 +15,7 @@ defineProps({
   event: { type: Object, required: true }
 })
 
-const isThinkingExpanded = ref(false)
+const isThinkingExpanded = ref(true)
 
 function toggleThinkingExpanded() {
   isThinkingExpanded.value = !isThinkingExpanded.value
