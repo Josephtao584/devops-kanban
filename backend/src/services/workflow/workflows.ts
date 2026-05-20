@@ -489,8 +489,9 @@ export function buildWorkflowFromInstance(
           sessionId = askUserSessionInfo.sessionId;
           segmentId = askUserSessionInfo.segmentId;
           providerSessionId = savedProviderSessionId;
-          // Wrap the user's answer so the AI sees clear context before continuing.
-          pendingAnswer = `[User's answer to your question]\n${typedResumeData.ask_user_answer}\n\nPlease continue based on this answer.`;
+          // The AI already sees the prior question via the session continuation; sending the raw
+          // answer keeps it from being interpreted as a placeholder template.
+          pendingAnswer = typedResumeData.ask_user_answer;
 
           logger.info('Workflows', `Step ${templateStep.id} resuming from AskUserQuestion with answer, workflowRun: ${options.runId}`);
         }
