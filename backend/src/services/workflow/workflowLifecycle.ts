@@ -18,6 +18,7 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { joinWorkDir } from '../../utils/workDir.js';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
+import { ExecutorType } from '../../types/executors.js';
 import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
 
 /**
@@ -358,7 +359,9 @@ class WorkflowLifecycle {
       }
 
       const { skillNames, executorType } = await resolveAgentSkills(stepBinding.agentId);
-      if (skillNames.length === 0) {
+      // OpenCode always gets builtin skills (e.g. ask-user-question) prepended,
+      // so don't skip even when skillNames is empty.
+      if (skillNames.length === 0 && executorType !== ExecutorType.OPEN_CODE) {
         return;
       }
 
