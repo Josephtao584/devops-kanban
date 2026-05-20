@@ -97,9 +97,10 @@ const workflowRoutes: FastifyPluginAsync<WorkflowRouteOptions> = async (
     }
   });
 
-  fastify.post<{ Params: IdParams }>('/runs/:id/retry', async (request, reply) => {
+  fastify.post<{ Params: IdParams; Body: { retryNote?: string } }>('/runs/:id/retry', async (request, reply) => {
     try {
-      const run = await service.retryWorkflow(parseNumber(request.params.id));
+      const { retryNote } = request.body ?? {};
+      const run = await service.retryWorkflow(parseNumber(request.params.id), retryNote);
       return successResponse(run, 'Workflow retry started');
     } catch (error) {
       logError(error, request);

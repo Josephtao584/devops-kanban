@@ -69,6 +69,11 @@
       :failed-step-id="loopDialogFailedStepId"
       @confirm="handleLoopConfirm"
     />
+
+    <WorkflowRetryDialog
+      v-model="retryDialogVisible"
+      @confirm="handleRetryConfirm"
+    />
   </div>
 </template>
 
@@ -81,6 +86,7 @@ import { useWorkflowRunPolling } from '../../composables/kanban/useWorkflowRunPo
 import WorkflowQuickActions from './WorkflowQuickActions.vue'
 import WorkflowStepCards from './WorkflowStepCards.vue'
 import WorkflowLoopBackDialog from './WorkflowLoopBackDialog.vue'
+import WorkflowRetryDialog from './WorkflowRetryDialog.vue'
 import { canLoopAgain as computeCanLoopAgain, canLoopBack as computeCanLoopBack } from '../../utils/loopActionVisibility.js'
 
 const taskStore = useTaskStore()
@@ -107,6 +113,9 @@ const autoRetry = ref(false)
 // Loop-back dialog state.
 const loopDialogVisible = ref(false)
 const loopDialogMode = ref('back') // 'back' | 'again'
+
+// Retry dialog state.
+const retryDialogVisible = ref(false)
 
 const isWorkflowTerminal = computed(() => {
   const status = run.value?.status
@@ -460,11 +469,17 @@ async function handleStart() {
 async function handleRetry() {
   const runId = run.value?.id ?? task.value?.workflow_run_id
   if (!runId) return
+  retryDialogVisible.value = true
+}
+
+async function handleRetryConfirm({ retryNote }) {
+  const runId = run.value?.id ?? task.value?.workflow_run_id
+  if (!runId) return
   actionLoading.value = true
   try {
-    const resp = await workflowStore.retryWorkflow(runId)
+    const resp = await workflowStore.retryWorkflow(runId, retryNote)
     if (resp?.success) {
-      ElMessage.success('已发起重试')
+      ElMessage.success(retryNote ? '已发起对话式续接' : '已发起重试')
       await load()
       emit('refresh')
     } else {

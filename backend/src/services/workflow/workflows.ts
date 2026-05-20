@@ -16,6 +16,8 @@ const sharedStateSchema = z.object({
   workDir: z.string().optional(),
   projectEnv: z.record(z.string()).optional(),
   taskExternalId: z.string().optional(),
+  retryNote: z.string().optional(),
+  retryNoteStepId: z.string().optional(),
 });
 
 const stepOutputSchema = z.object({
@@ -472,6 +474,25 @@ export function buildWorkflowFromInstance(
         let providerSessionId: string | undefined;
         let pendingAnswer: string | undefined;
 
+        // === Retry with note: continue prior Claude session by sending the note as the next user message ===
+        // Only the step targeted by retryNoteStepId is affected; other steps fall through.
+        // Falls back to first-execution if no provider_session_id is saved (rare — happens when the
+        // previous run died before the executor reported any session_id).
+        const isRetryWithNote = !typedResumeData?.ask_user_answer
+          && state.retryNote
+          && state.retryNoteStepId === templateStep.id;
+        if (isRetryWithNote) {
+          const currentRun = await options.lifecycle.workflowRunRepo.findById(options.runId);
+          const savedProviderSessionId = currentRun?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id;
+          if (savedProviderSessionId) {
+            providerSessionId = savedProviderSessionId;
+            pendingAnswer = state.retryNote;
+            logger.info('Workflows', `Step ${templateStep.id} retry-with-note: will resume session ${savedProviderSessionId}, workflowRun: ${options.runId}`);
+          } else {
+            logger.warn('Workflows', `Step ${templateStep.id} retry-with-note requested but no provider_session_id saved; falling back to first execution with loopContextText`);
+          }
+        }
+
         // === Resume from AskUserQuestion (takes priority over confirmation) ===
         if (typedResumeData?.ask_user_answer) {
           const savedProviderSessionId = typedSuspendData?.providerSessionId;
@@ -513,7 +534,10 @@ export function buildWorkflowFromInstance(
         }
 
         // === First execution (if not resuming from AskUser) ===
-        if (pendingAnswer === undefined) {
+        // === Open a session segment if not already opened by AskUser resume ===
+        // First execution and retry-with-note both fall here; they only differ in whether
+        // pendingAnswer/providerSessionId were pre-seeded (continuation vs fresh prompt).
+        if (sessionId === undefined) {
           const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
           if (!sessionInfo) {
             logger.info('Workflows', `Step ${templateStep.id} start was skipped or cancelled for workflowRun: ${options.runId}`);
@@ -523,6 +547,18 @@ export function buildWorkflowFromInstance(
 
           sessionId = sessionInfo.sessionId;
           segmentId = sessionInfo.segmentId;
+        }
+
+        // === Persist the retry note as the user message so the session log reflects it ===
+        if (isRetryWithNote && pendingAnswer !== undefined && sessionId && segmentId) {
+          await options.lifecycle.sessionEventRepo.append({
+            session_id: sessionId,
+            segment_id: segmentId,
+            kind: 'message',
+            role: 'user',
+            content: pendingAnswer,
+            payload: { retry_note: true },
+          }).catch(() => {});
         }
 
         while (true) {
@@ -574,6 +610,10 @@ export function buildWorkflowFromInstance(
               const stepLoopContextText = options.loopContext && options.loopContext.fromStepId === templateStep.id
                 ? options.loopContext.text
                 : undefined;
+              const stepRetryNote = state.retryNote && state.retryNoteStepId === templateStep.id
+                ? state.retryNote
+                : undefined;
+              const effectiveLoopContextText = stepLoopContextText ?? stepRetryNote;
               result = await executeWorkflowStep({
                 stepId: templateStep.id,
                 worktreePath: state.worktreePath,
@@ -590,7 +630,7 @@ export function buildWorkflowFromInstance(
                 ...(!signalAlreadyAborted && abortSignal ? { abortSignal } : {}),
                 upstreamStepIds: previousStepId ? [previousStepId] : [],
                 isFirstStep: isFirst,
-                ...(stepLoopContextText ? { loopContextText: stepLoopContextText } : {}),
+                ...(effectiveLoopContextText ? { loopContextText: effectiveLoopContextText } : {}),
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;
