@@ -8,10 +8,10 @@ export const useWorkflowStore = defineStore('workflow', () => {
   const error = ref(null)
   const apiError = useApiErrorHandler({ showMessage: false, defaultMessage: '操作失败' })
 
-  async function retryWorkflow(runId) {
+  async function retryWorkflow(runId, retryNote) {
     loading.value = true
     try {
-      const response = await workflowApi.retryWorkflow(runId)
+      const response = await workflowApi.retryWorkflow(runId, retryNote)
       return response
     } catch (err) {
       error.value = apiError.handleError(err, '重试失败')

@@ -620,7 +620,7 @@ class WorkflowService {
     });
   }
 
-  async retryWorkflow(runId: number) {
+  async retryWorkflow(runId: number, retryNote?: string) {
     logger.info('WorkflowService', `retryWorkflow called for runId: ${runId}`);
 
     const run = await this.workflowRunRepo.findById(runId);
@@ -675,7 +675,7 @@ class WorkflowService {
     const projectEnv = project?.env || {};
 
     // Execute retry in background (non-blocking)
-    this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath, projectEnv).catch((err) => {
+    this.executeRetry(runId, mastraRun, retryStep.step_id, task, executionPath, projectEnv, retryNote).catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : null;
       logger.error('WorkflowService', `Fatal error in retry run #${runId}: ${errorMessage}${stack ? '\n' + stack : ''}`);
@@ -740,7 +740,8 @@ class WorkflowService {
     stepId: string,
     task: WorkflowTaskRecord,
     executionPath: string,
-    projectEnv: Record<string, string>
+    projectEnv: Record<string, string>,
+    retryNote?: string
   ) {
     try {
       logger.info('WorkflowService', `Calling timeTravelStream for step: ${stepId}`);
@@ -756,6 +757,7 @@ class WorkflowService {
           workDir: task.work_dir || '',
           projectEnv,
           taskExternalId: task.external_id || '',
+          ...(retryNote ? { retryNote, retryNoteStepId: stepId } : {}),
         },
       });
 
