@@ -560,6 +560,12 @@ export function buildWorkflowFromInstance(
                     });
                   }
                 },
+                // Detection-only callback: the runner already throws STEP_AWAITING_USER_INPUT when
+                // an ASK_USER marker is parsed. Passing onAskUser keeps parity with the first-execution
+                // path and gives any future spawnImpl variant a hook to fire side effects on detection.
+                onAskUser: async () => {
+                  logger.info('Workflows', `Step ${templateStep.id} detected AskUserQuestion during continuation`);
+                },
               });
             } else {
               // First execution: fresh prompt
@@ -652,6 +658,11 @@ export function buildWorkflowFromInstance(
           } catch (err) {
             // Handle AskUserQuestion: suspend the Mastra workflow so state persists across restarts.
             const anyErr = err as any;
+            const inContinuation = providerSessionId !== undefined && askUserHandled;
+            logger.info(
+              'Workflows',
+              `Step ${templateStep.id} caught error: message=${anyErr?.message}, hasAskUserQuestion=${!!anyErr?.askUserQuestion}, inContinuation=${inContinuation}`,
+            );
             if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
               logger.info('Workflows', `Step ${templateStep.id} encountered AskUserQuestion, suspending workflow`);
 
@@ -662,7 +673,10 @@ export function buildWorkflowFromInstance(
                 throw new Error(`Cannot suspend step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
               }
 
-              // Save ask_user event to session and update workflow run/step to SUSPENDED
+              // Save ask_user event to session and update workflow run/step to SUSPENDED.
+              // askUserHandled guards against duplicate emission within a single execute() call;
+              // a *second* AskUserQuestion within the same step lives in a fresh execute() invocation
+              // (after Mastra resumed and re-called execute), so the flag is naturally reset.
               if (!askUserHandled) {
                 await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
                   ask_user_question: anyErr.askUserQuestion,

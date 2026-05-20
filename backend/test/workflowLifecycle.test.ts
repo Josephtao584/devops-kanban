@@ -563,3 +563,106 @@ test.test('onStepComplete finalizes ASK_USER segment to COMPLETED', async () => 
   assert.ok(segmentUpdate, 'ASK_USER segment should be finalized');
   assert.equal(segmentUpdate!.updateData.status, 'COMPLETED', 'ASK_USER segment should become COMPLETED');
 });
+
+// === onStepAskUserResume tests (second-AskUserQuestion regression coverage) ===
+
+test.test('onStepAskUserResume restores run/step/session/segment from ASK_USER → RUNNING', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'SUSPENDED',
+    stepStatus: 'SUSPENDED',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  harness.sessions.set(50, { id: 50, status: 'ASK_USER', task_id: 1 });
+  harness.segments.push({ id: 300, session_id: 50, status: 'ASK_USER' } as any);
+
+  const result = await harness.lifecycle.onStepAskUserResume(7, 'solution-design');
+
+  assert.deepEqual(result, { sessionId: 50, segmentId: 300 });
+  assert.equal(harness.runUpdates[0]!.status, 'RUNNING');
+  assert.equal(harness.stepUpdates[0]!.updateData.status, 'RUNNING');
+  assert.equal(harness.sessionUpdates[0]!.updateData.status, 'RUNNING');
+  const segmentUpdate = harness.segmentUpdates.find((u) => u.segmentId === 300);
+  assert.ok(segmentUpdate, 'ASK_USER segment must be flipped back to RUNNING');
+  assert.equal(segmentUpdate!.updateData.status, 'RUNNING');
+});
+
+test.test('onStepAskUserResume returns segmentId even when segment is not ASK_USER', async () => {
+  // Regression: previously the segment id was only re-cached when status === 'ASK_USER',
+  // which broke the second AskUserQuestion within the same step (its segment had already
+  // been flipped to RUNNING by the first resume, so the cache was missing on resume #2).
+  const harness = createLifecycleHarness({
+    runStatus: 'SUSPENDED',
+    stepStatus: 'SUSPENDED',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  harness.sessions.set(50, { id: 50, status: 'RUNNING', task_id: 1 });
+  harness.segments.push({ id: 301, session_id: 50, status: 'RUNNING' } as any);
+
+  const result = await harness.lifecycle.onStepAskUserResume(7, 'solution-design');
+
+  assert.deepEqual(result, { sessionId: 50, segmentId: 301 });
+  // Segment must NOT be re-flipped to RUNNING since it's already RUNNING — but the
+  // function still must return the segment id so onEvent writes succeed in continue path.
+  const segmentUpdate = harness.segmentUpdates.find((u) => u.segmentId === 301);
+  assert.equal(segmentUpdate, undefined, 'RUNNING segment must not be re-updated');
+});
+
+test.test('onStepAskUserResume returns undefined ids when step has no session_id', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'SUSPENDED',
+    stepStatus: 'SUSPENDED',
+    stepSessionId: null,
+    currentStep: 'solution-design',
+  });
+
+  const result = await harness.lifecycle.onStepAskUserResume(7, 'solution-design');
+
+  assert.deepEqual(result, { sessionId: undefined, segmentId: undefined });
+});
+
+test.test('onSessionAskUser flips RUNNING and other transient segment states to ASK_USER', async () => {
+  // Regression: when a second AskUserQuestion fires within the same step's continuation,
+  // the segment status path may not be exactly RUNNING (it could be a transient state from
+  // a previous resume). The flip should still happen as long as it isn't already ASK_USER.
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  harness.sessions.set(50, { id: 50, status: 'RUNNING', task_id: 1 });
+  // Segment is RUNNING (typical for second AskUserQuestion after resume restored it)
+  harness.segments.push({ id: 302, session_id: 50, status: 'RUNNING' } as any);
+
+  await harness.lifecycle.onSessionAskUser(7, 'solution-design', {
+    ask_user_question: { tool_use_id: 'toolu_2', questions: [] },
+  });
+
+  const segmentUpdate = harness.segmentUpdates.find((u) => u.segmentId === 302);
+  assert.ok(segmentUpdate, 'segment should be flipped to ASK_USER');
+  assert.equal(segmentUpdate!.updateData.status, 'ASK_USER');
+});
+
+test.test('onSessionAskUser is idempotent for already ASK_USER segments', async () => {
+  const harness = createLifecycleHarness({
+    runStatus: 'RUNNING',
+    stepStatus: 'RUNNING',
+    stepSessionId: 50,
+    currentStep: 'solution-design',
+  });
+
+  harness.sessions.set(50, { id: 50, status: 'ASK_USER', task_id: 1 });
+  harness.segments.push({ id: 303, session_id: 50, status: 'ASK_USER' } as any);
+
+  await harness.lifecycle.onSessionAskUser(7, 'solution-design', {
+    ask_user_question: { tool_use_id: 'toolu_3', questions: [] },
+  });
+
+  const segmentUpdate = harness.segmentUpdates.find((u) => u.segmentId === 303);
+  assert.equal(segmentUpdate, undefined, 'already-ASK_USER segment must not be redundantly updated');
+});
