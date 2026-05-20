@@ -435,10 +435,10 @@ describe('SessionEventRenderer', () => {
     expect(wrapper.find('.event-thinking').exists()).toBe(true)
     expect(wrapper.classes()).toContain('tone-thinking')
     expect(wrapper.find('.event-thinking-label').text()).toBe('思考过程')
-    expect(wrapper.find('.event-thinking-content').exists()).toBe(false)
+    expect(wrapper.find('.event-thinking-content').exists()).toBe(true)
   })
 
-  it('expands thinking content when the header is clicked', async () => {
+  it('renders thinking content expanded by default and collapses on click', async () => {
     const wrapper = mountRenderer({
       id: 51,
       kind: 'message',
@@ -447,13 +447,13 @@ describe('SessionEventRenderer', () => {
       isThinking: true
     })
 
-    expect(wrapper.find('.event-thinking-content').exists()).toBe(false)
-    expect(wrapper.find('.event-thinking-toggle').text()).toBe('展开')
-
-    await wrapper.find('.event-thinking-header').trigger('click')
     expect(wrapper.find('.event-thinking-content').exists()).toBe(true)
     expect(wrapper.find('.event-thinking-content').text()).toContain('Analyzing the codebase structure')
     expect(wrapper.find('.event-thinking-toggle').text()).toBe('收起')
+
+    await wrapper.find('.event-thinking-header').trigger('click')
+    expect(wrapper.find('.event-thinking-content').exists()).toBe(false)
+    expect(wrapper.find('.event-thinking-toggle').text()).toBe('展开')
   })
 
   it('does not render thinking messages as regular chat bubbles', () => {

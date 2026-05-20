@@ -442,7 +442,7 @@
     <el-dialog
       v-model="showSplitSuggestionsDialog"
       title="拆分建议"
-      width="80vw"
+      width="960px"
       top="3vh"
       align-center
       :destroy-on-close="true"
