@@ -54,7 +54,7 @@
                   v-for="opt in event.payload.ask_user_question.questions[0].options"
                   :key="opt.label"
                   class="event-ask-user-option-btn"
-                  @click="fillAnswer(opt.value || opt.label)"
+                  @click="fillAnswer(opt.label || opt.value)"
                 >
                   {{ opt.label }}
                 </button>
