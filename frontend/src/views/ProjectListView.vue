@@ -10,9 +10,9 @@
             <p class="hero-banner__slogan">{{ $t('project.homeSlogan') }}</p>
           </div>
           <div class="hero-banner__actions">
-            <el-button type="primary" size="large" class="hero-banner__cta" @click="showCreateDialog">
+            <el-button type="primary" size="large" class="hero-banner__cta" @click="showCreateTeamDialog">
               <el-icon><Plus /></el-icon>
-              {{ $t('project.newProject') }}
+              {{ $t('team.newTeam') }}
             </el-button>
           </div>
         </div>
@@ -21,35 +21,50 @@
       <section class="workspace-panel surface-panel">
         <div class="page-header workspace-panel__header">
           <div class="page-header__content">
-            <div class="page-header__title">{{ $t('project.workspaceTitle') }}</div>
+            <div class="page-header__title">{{ $t('team.teamWorkspaceTitle') }}</div>
             <p class="page-header__description">{{ $t('project.workspaceDescription') }}</p>
           </div>
           <div class="page-actions">
-            <span class="workspace-panel__count">{{ projects.length }} {{ $t('project.workspaceCountSuffix') }}</span>
+            <span class="workspace-panel__count">{{ totalTeamProjects }} {{ $t('project.workspaceCountSuffix') }}</span>
           </div>
         </div>
 
         <div class="workspace-panel__body">
-          <el-skeleton v-if="loading" :rows="6" animated />
+          <el-skeleton v-if="teamLoading" :rows="6" animated />
 
-          <div v-else-if="projects.length === 0" class="empty-workspace">
+          <div v-else-if="teamStore.teams.length === 0" class="empty-workspace">
             <div class="empty-workspace__icon">
-              <el-icon><FolderOpened /></el-icon>
+              <el-icon><UserFilled /></el-icon>
             </div>
-            <h2 class="empty-workspace__title">{{ $t('project.emptyTitle') }}</h2>
+            <h2 class="empty-workspace__title">{{ $t('team.emptyTeamTitle') }}</h2>
             <p class="empty-workspace__description">{{ $t('project.emptyDescription') }}</p>
-            <el-button type="primary" @click="showCreateDialog">{{ $t('project.createFirst') }}</el-button>
+            <el-button type="primary" @click="showCreateTeamDialog">{{ $t('team.createFirstTeam') }}</el-button>
           </div>
 
-          <div v-else class="project-grid">
-            <ProjectCard
-              v-for="project in projects"
-              :key="project.id"
-              :project="project"
-              @click="openProject"
-              @edit="showEditDialog"
-              @delete="handleDelete"
+          <div v-else class="team-grid">
+            <TeamCard
+              v-for="teamItem in teamStore.teams"
+              :key="teamItem.id"
+              :team="teamItem"
+              @edit="showEditTeamDialog"
+              @delete="handleDeleteTeam"
             />
+          </div>
+
+          <div v-if="unassignedProjects.length" class="unassigned-section">
+            <div class="unassigned-header">
+              <h3 class="unassigned-title">{{ $t('team.unassignedTitle') }}</h3>
+            </div>
+            <div class="project-grid">
+              <ProjectCard
+                v-for="project in unassignedProjects"
+                :key="project.id"
+                :project="project"
+                @click="openProject"
+                @edit="showEditDialog"
+                @delete="handleDelete"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -60,6 +75,13 @@
         :loading="submitting"
         @submit="handleSubmit"
       />
+
+      <TeamFormDialog
+        v-model="teamDialogVisible"
+        :team="editingTeam"
+        :loading="teamSubmitting"
+        @submit="handleTeamSubmit"
+      />
     </div>
   </div>
 </template>
@@ -69,28 +91,46 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, FolderOpened, UserFilled } from '@element-plus/icons-vue'
 import { useProjectStore } from '../stores/projectStore'
 import { useTaskStore } from '../stores/taskStore'
+import { useTeamStore } from '../stores/teamStore'
 import ProjectCard from '../components/project/ProjectCard.vue'
 import ProjectFormDialog from '../components/project/ProjectFormDialog.vue'
+import TeamCard from '../components/team/TeamCard.vue'
+import TeamFormDialog from '../components/team/TeamFormDialog.vue'
 
 const { t } = useI18n()
 const router = useRouter()
 const projectStore = useProjectStore()
 const taskStore = useTaskStore()
+const teamStore = useTeamStore()
 
-const loading = computed(() => projectStore.loading)
+const teamLoading = computed(() => teamStore.loading)
 const projects = computed(() => projectStore.projects)
+
+const totalTeamProjects = computed(() =>
+  teamStore.teams.reduce((sum, team) => sum + (team.projects?.length || 0), 0)
+)
+
+const unassignedProjects = computed(() =>
+  projectStore.projects.filter(p => !p.team_id)
+)
 
 const dialogVisible = ref(false)
 const editingProject = ref(null)
 const submitting = ref(false)
 
+const teamDialogVisible = ref(false)
+const editingTeam = ref(null)
+const teamSubmitting = ref(false)
+
 onMounted(() => {
   projectStore.fetchProjects()
+  teamStore.fetchTeams()
 })
 
+// Project dialog handlers
 const showCreateDialog = () => {
   editingProject.value = null
   dialogVisible.value = true
@@ -166,6 +206,59 @@ watch(() => dialogVisible.value, (newValue) => {
     editingProject.value = null
   }
 })
+
+// Team dialog handlers
+const showCreateTeamDialog = () => {
+  editingTeam.value = null
+  teamDialogVisible.value = true
+}
+
+const showEditTeamDialog = (teamItem) => {
+  editingTeam.value = teamItem
+  teamDialogVisible.value = true
+}
+
+const handleTeamSubmit = async (formData) => {
+  teamSubmitting.value = true
+  try {
+    if (editingTeam.value) {
+      await teamStore.updateTeam(editingTeam.value.id, formData)
+      ElMessage.success(t('team.updated'))
+    } else {
+      await teamStore.createTeam(formData)
+      ElMessage.success(t('team.created'))
+    }
+    teamDialogVisible.value = false
+    editingTeam.value = null
+    teamStore.fetchTeams()
+  } catch {
+    ElMessage.error(editingTeam.value ? t('team.updateFailed') : t('team.createFailed'))
+  } finally {
+    teamSubmitting.value = false
+  }
+}
+
+const handleDeleteTeam = async (teamItem) => {
+  try {
+    await ElMessageBox.confirm(
+      t('team.deleteConfirmMessage', { name: teamItem.name }),
+      t('team.deleteConfirmTitle'),
+      {
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+  } catch { return }
+
+  try {
+    await teamStore.deleteTeam(teamItem.id)
+    ElMessage.success(t('team.deleted'))
+    teamStore.fetchTeams()
+  } catch {
+    ElMessage.error(t('team.deleteFailed'))
+  }
+}
 </script>
 
 <style scoped>
@@ -285,7 +378,12 @@ watch(() => dialogVisible.value, (newValue) => {
   margin-right: 6px;
 }
 
-/* Workspace panel */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 18px;
+}
+
 .workspace-panel {
   overflow: hidden;
   border: 1px solid var(--border-color);
@@ -364,6 +462,23 @@ watch(() => dialogVisible.value, (newValue) => {
   font-size: 14px;
   line-height: 1.7;
   color: var(--text-secondary);
+}
+
+.unassigned-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.unassigned-header {
+  margin-bottom: 16px;
+}
+
+.unassigned-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
 }
 
 </style>

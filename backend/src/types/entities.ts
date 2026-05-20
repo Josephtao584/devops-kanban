@@ -1,5 +1,7 @@
 import type { ExecutorType } from './executors.ts';
 
+export type RepoRole = 'knowledge' | 'development';
+
 export interface ProjectEntity {
   id: number;
   name: string;
@@ -8,6 +10,16 @@ export interface ProjectEntity {
   local_path: string | undefined;
   env: Record<string, string>;
   default_template_id?: string | null;
+  team_id?: number | null;
+  repo_role?: RepoRole | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamEntity {
+  id: number;
+  name: string;
+  description: string | undefined;
   created_at: string;
   updated_at: string;
 }
