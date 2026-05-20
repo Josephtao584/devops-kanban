@@ -18,6 +18,7 @@ import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { joinWorkDir } from '../../utils/workDir.js';
 import { type StepSnapshot, WorkflowNotificationEvent } from '../notificationEvents.js';
+import { ExecutorType } from '../../types/executors.js';
 import { DEFAULT_MAX_LOOPS } from './loopConstants.js';
 
 /**
@@ -358,7 +359,9 @@ class WorkflowLifecycle {
       }
 
       const { skillNames, executorType } = await resolveAgentSkills(stepBinding.agentId);
-      if (skillNames.length === 0) {
+      // OpenCode always gets builtin skills (e.g. ask-user-question) prepended,
+      // so don't skip even when skillNames is empty.
+      if (skillNames.length === 0 && executorType !== ExecutorType.OPEN_CODE) {
         return;
       }
 
@@ -836,7 +839,7 @@ class WorkflowLifecycle {
     if (step.session_id) {
       const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
 
-      if (latestSegment?.status === 'RUNNING') {
+      if (latestSegment && latestSegment.status !== 'ASK_USER') {
         await this.sessionSegmentRepo.update(latestSegment.id, {
           status: 'ASK_USER',
           completed_at: completedAt,
@@ -949,15 +952,24 @@ class WorkflowLifecycle {
     });
 
     const { step } = await this._getRunStep(runId, stepId);
-    if (step.session_id) {
-      await this.sessionRepo.update(step.session_id, { status: 'RUNNING', completed_at: null });
-      const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
-      if (latestSegment?.status === 'ASK_USER') {
-        await this.sessionSegmentRepo.update(latestSegment.id, { status: 'RUNNING', completed_at: null });
-        this._rememberStepAttemptSegmentId(runId, stepId, latestSegment.id);
-      }
-      return { sessionId: step.session_id, segmentId: latestSegment?.id };
+    if (!step.session_id) {
+      return { sessionId: undefined, segmentId: undefined };
     }
+
+    await this.sessionRepo.update(step.session_id, { status: 'RUNNING', completed_at: null });
+    const latestSegment = await this.sessionSegmentRepo.findLatestBySessionId(step.session_id);
+    if (latestSegment) {
+      // Flip ASK_USER → RUNNING so the segment is back in an active state.
+      // For other transient states (e.g. RUNNING already, after a server restart) leave the
+      // status alone and just re-cache the segment id so onEvent writes succeed during the
+      // continue round (otherwise a second AskUserQuestion within the same step would lose
+      // its segment cache after onSessionAskUser cleared it).
+      if (latestSegment.status === 'ASK_USER') {
+        await this.sessionSegmentRepo.update(latestSegment.id, { status: 'RUNNING', completed_at: null });
+      }
+      this._rememberStepAttemptSegmentId(runId, stepId, latestSegment.id);
+    }
+    return { sessionId: step.session_id, segmentId: latestSegment?.id };
   }
 
   async onStepResume(

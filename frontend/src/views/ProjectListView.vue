@@ -10,6 +10,10 @@
             <p class="hero-banner__slogan">{{ $t('project.homeSlogan') }}</p>
           </div>
           <div class="hero-banner__actions">
+            <el-button type="success" size="large" class="hero-banner__cta" @click="showCreateDialog">
+              <el-icon><Plus /></el-icon>
+              {{ $t('project.newProject') }}
+            </el-button>
             <el-button type="primary" size="large" class="hero-banner__cta" @click="showCreateTeamDialog">
               <el-icon><Plus /></el-icon>
               {{ $t('team.newTeam') }}

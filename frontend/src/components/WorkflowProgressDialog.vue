@@ -83,8 +83,8 @@
                   v-for="opt in q.options"
                   :key="opt.label"
                   class="ask-user-option-btn"
-                  :class="{ selected: askUserAnswer === (opt.value || opt.label) }"
-                  @click="askUserAnswer = opt.value || opt.label"
+                  :class="{ selected: askUserAnswer === opt.label }"
+                  @click="askUserAnswer = opt.label"
                 >
                   {{ opt.label }}
                 </button>
