@@ -7,9 +7,13 @@ CREATE TABLE IF NOT EXISTS projects (
   local_path TEXT,
   env TEXT NOT NULL DEFAULT '{}',
   default_template_id TEXT,
+  team_id INTEGER,
+  repo_role TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_projects_team_id ON projects(team_id);
 
 -- iterations: 迭代表
 CREATE TABLE IF NOT EXISTS iterations (
@@ -267,6 +271,17 @@ CREATE TABLE IF NOT EXISTS executions (
 
 CREATE INDEX IF NOT EXISTS idx_executions_session_id ON executions(session_id);
 CREATE INDEX IF NOT EXISTS idx_executions_task_id ON executions(task_id);
+
+-- teams: 团队表（多个项目的集合）
+CREATE TABLE IF NOT EXISTS teams (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_teams_name ON teams(name);
 
 -- settings: 全局配置表
 CREATE TABLE IF NOT EXISTS settings (

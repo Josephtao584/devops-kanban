@@ -105,6 +105,8 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
+:: Patch native dep that npm skipped due to cross-platform lockfile bug
+call npm install @libsql/win32-x64-msvc --no-save --no-audit --silent >nul 2>&1
 echo [OK] Backend dependencies installed
 echo.
 
@@ -143,6 +145,8 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
+:: Patch native dep that npm skipped due to cross-platform lockfile bug
+call npm install @rollup/rollup-win32-x64-msvc --no-save --no-audit --silent >nul 2>&1
 echo [OK] Frontend dependencies installed
 echo.
 

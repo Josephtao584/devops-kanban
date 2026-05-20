@@ -100,6 +100,15 @@ npm config set strict-ssl false
 echo -e "${GREEN}✓ 镜像源：$(npm config get registry)${NC}"
 echo -e "${GREEN}✓ strict-ssl: false${NC}"
 
+# 当前平台对应的原生依赖（绕过 npm 跨平台 lockfile bug，缺啥补啥）
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)   NATIVE_LIBSQL=@libsql/darwin-arm64;        NATIVE_ROLLUP=@rollup/rollup-darwin-arm64 ;;
+    Darwin-x86_64)  NATIVE_LIBSQL=@libsql/darwin-x64;          NATIVE_ROLLUP=@rollup/rollup-darwin-x64 ;;
+    Linux-x86_64)   NATIVE_LIBSQL=@libsql/linux-x64-gnu;       NATIVE_ROLLUP=@rollup/rollup-linux-x64-gnu ;;
+    Linux-aarch64)  NATIVE_LIBSQL=@libsql/linux-arm64-gnu;     NATIVE_ROLLUP=@rollup/rollup-linux-arm64-gnu ;;
+    *)              NATIVE_LIBSQL="";                          NATIVE_ROLLUP="" ;;
+esac
+
 echo ""
 echo -e "${YELLOW}检查端口占用...${NC}"
 cleanup_port "$FRONTEND_PORT" "前端服务 (Vite)"
@@ -116,6 +125,9 @@ echo -e "${YELLOW}安装后端依赖...${NC}"
 if ! npm install --no-audit; then
     echo -e "${RED}✗ 后端依赖安装失败${NC}"
     exit 1
+fi
+if [ -n "$NATIVE_LIBSQL" ]; then
+    npm install "$NATIVE_LIBSQL" --no-save --no-audit --silent >/dev/null 2>&1 || true
 fi
 echo -e "${GREEN}✓ 后端依赖安装完成${NC}"
 echo ""
@@ -149,6 +161,9 @@ echo -e "${YELLOW}安装前端依赖...${NC}"
 if ! npm install --no-audit; then
     echo -e "${RED}✗ 前端依赖安装失败${NC}"
     exit 1
+fi
+if [ -n "$NATIVE_ROLLUP" ]; then
+    npm install "$NATIVE_ROLLUP" --no-save --no-audit --silent >/dev/null 2>&1 || true
 fi
 echo -e "${GREEN}✓ 前端依赖安装完成${NC}"
 echo ""

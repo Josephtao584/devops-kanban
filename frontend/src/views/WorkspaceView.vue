@@ -8,11 +8,43 @@
       </div>
       <div class="project-filter-bar">
         <select
+          v-model="selectedTeamId"
+          @change="handleTeamChange"
+          :disabled="teamStore.loading"
+        >
+          <option :value="null">全部团队</option>
+          <option
+            v-for="team in teamStore.teams"
+            :key="team.id"
+            :value="team.id"
+          >
+            {{ team.name }}
+          </option>
+        </select>
+      </div>
+      <div class="project-filter-bar" v-if="selectedTeamId">
+        <select
           v-model="selectedProjectId"
           @change="handleProjectChange"
           :disabled="projectStore.loading"
         >
-          <option :value="null">{{ $t('project.selectProject') }}</option>
+          <option :value="null">全部项目</option>
+          <option
+            v-for="project in teamProjects"
+            :key="project.id"
+            :value="project.id"
+          >
+            {{ project.repo_role === 'knowledge' ? '📚' : '🔧' }} {{ project.name }}
+          </option>
+        </select>
+      </div>
+      <div class="project-filter-bar" v-else>
+        <select
+          v-model="selectedProjectId"
+          @change="handleProjectChange"
+          :disabled="projectStore.loading"
+        >
+          <option :value="null">全部项目</option>
           <option
             v-for="project in projects"
             :key="project.id"
@@ -71,6 +103,9 @@
               <span class="task-status" :class="statusClass(task.status)">{{ statusText(task.status) }}</span>
             </div>
             <div class="task-card-title">{{ task.title }}</div>
+            <div v-if="selectedTeamId && taskProjectName(task)" class="task-card-project-name">
+              {{ taskProjectName(task) }}
+            </div>
             <div v-if="task.description" class="task-card-desc">{{ task.description }}</div>
             <div v-if="task.id > 0" class="task-card-actions" @click.stop>
               <el-button size="small" text @click="onPreviewTaskPath(task.id, task.work_dir)" title="查看路径">
@@ -129,6 +164,7 @@
                     <span class="task-status" :class="statusClass(task.status)">{{ statusText(task.status) }}</span>
                   </div>
                   <div class="task-card-title">{{ task.title }}</div>
+                  <div v-if="selectedTeamId && taskProjectName(task)" class="task-card-project-name">{{ taskProjectName(task) }}</div>
                   <div v-if="task.description" class="task-card-desc">{{ task.description }}</div>
                   <div v-if="task.id > 0" class="task-card-actions" @click.stop>
                     <el-button size="small" text @click="onPreviewTaskPath(task.id, task.work_dir)" title="查看路径">
@@ -526,6 +562,7 @@ import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useProjectStore } from '../stores/projectStore.js'
+import { useTeamStore } from '../stores/teamStore.js'
 import { useAgentStore } from '../stores/agentStore.js'
 import { useSplitSuggestionsStore } from '../stores/splitSuggestions.js'
 import { useTaskSourceStore } from '../stores/taskSourceStore.js'
@@ -539,6 +576,7 @@ import draggable from 'vuedraggable'
 import { useTaskTimer } from '../composables/kanban/useTaskTimer.js'
 
 const projectStore = useProjectStore()
+const teamStore = useTeamStore()
 const agentStore = useAgentStore()
 const splitStore = useSplitSuggestionsStore()
 const taskSourceStore = useTaskSourceStore()
@@ -551,7 +589,14 @@ const route = useRoute()
 const router = useRouter()
 
 const projects = computed(() => projectStore.projects)
+const selectedTeamId = ref(null)
 const selectedProjectId = ref(route.params.projectId ? Number(route.params.projectId) : null)
+
+// When a team is selected, show only its projects
+const teamProjects = computed(() => {
+  if (!selectedTeamId.value) return []
+  return projects.value.filter(p => p.team_id === selectedTeamId.value)
+})
 
 // Active step session info from the current workflow run
 const activeSession = ref(null) // { session_id, step_name, assembled_prompt }
@@ -636,7 +681,9 @@ function openCreateTask() {
   taskForm.description = ''
   taskForm.status = 'TODO'
   taskForm.priority = 'MEDIUM'
-  taskForm.project_id = selectedProjectId.value || (projects.value.length ? projects.value[0].id : null)
+  taskForm.project_id = selectedProjectId.value
+    || (selectedTeamId.value && teamProjects.value.length ? teamProjects.value[0].id : null)
+    || (projects.value.length ? projects.value[0].id : null)
   taskForm.work_dir = ''
   showTaskDialog.value = true
 }
@@ -966,9 +1013,21 @@ function startColumnResize(e, status) {
 
 async function loadTasks() {
   try {
-    const resp = selectedProjectId.value
-      ? await taskStore.listTasks({ project_id: selectedProjectId.value })
-      : await taskStore.listTasks()
+    let resp
+    if (selectedProjectId.value) {
+      resp = await taskStore.listTasks({ project_id: selectedProjectId.value })
+    } else if (selectedTeamId.value) {
+      // Load tasks from all team projects
+      const teamProjectIds = teamProjects.value.map(p => p.id)
+      const allTasks = []
+      for (const projectId of teamProjectIds) {
+        const r = await taskStore.listTasks({ project_id: projectId })
+        if (r?.success) allTasks.push(...(r.data || []))
+      }
+      resp = { success: true, data: allTasks }
+    } else {
+      resp = await taskStore.listTasks()
+    }
     if (resp?.success) realTasks.value = resp.data || []
   } catch (e) {
     console.error('Failed to load tasks:', e)
@@ -991,6 +1050,14 @@ async function handleProjectChange() {
   projectStore.setCurrentProject(project)
   const path = selectedProjectId.value ? `/workspace/${selectedProjectId.value}` : '/workspace'
   if (route.path !== path) router.replace(path)
+  await loadTasks()
+}
+
+async function handleTeamChange() {
+  selectedStatus.value = null
+  selectedTask.value = null
+  selectedProjectId.value = null
+  projectStore.setCurrentProject(null)
   await loadTasks()
 }
 
@@ -1064,6 +1131,11 @@ const selectTask = (task) => {
   selectedTask.value = task
   focusedNodeId.value = task?.id ?? null
   userSelectedStep.value = null
+}
+
+function taskProjectName(task) {
+  const project = projects.value.find(p => p.id === task.project_id)
+  return project?.name || ''
 }
 
 // Clicking a node in the DAG shifts which workflow is shown below,
@@ -1283,7 +1355,8 @@ const runStatusClass = computed(() => {
 onMounted(async () => {
   await Promise.all([
     projectStore.fetchProjects(),
-    agentStore.fetchAgents()
+    agentStore.fetchAgents(),
+    teamStore.fetchTeams()
   ])
   if (!selectedProjectId.value && projects.value.length) {
     selectedProjectId.value = projects.value[0].id
@@ -1444,6 +1517,18 @@ watch(taskListViewMode, (mode) => {
   box-shadow: 0 0 0 3px var(--accent-color-soft);
 }
 
+.team-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-color-soft);
+  color: var(--accent-color);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .task-list {
   flex: 1;
   overflow-y: auto;
@@ -1579,6 +1664,13 @@ watch(taskListViewMode, (mode) => {
   text-overflow: ellipsis;
   word-break: break-word;
   margin-bottom: 6px;
+}
+
+.task-card-project-name {
+  font-size: 11px;
+  color: var(--accent-color);
+  font-weight: 500;
+  margin-bottom: 4px;
 }
 
 .task-card-actions {
