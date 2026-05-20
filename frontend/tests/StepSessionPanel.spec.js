@@ -421,4 +421,84 @@ describe('StepSessionPanel', () => {
 
     expect(wrapper.find('.panel-title').text()).toBe('代码开发')
   })
+
+  it('clicking an AskUserQuestion option fills the composer with the option label', async () => {
+    // The button label is what the human sees and is meaningful to the AI in
+    // free-text continuations (e.g. "川菜"); the value is an internal identifier
+    // (e.g. "chuan"). Sending the label preserves user intent end-to-end.
+    getSessionMock.mockResolvedValue({ data: { status: 'SUSPENDED' } })
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 1, hasMore: false })
+    eventsRef.value = [
+      {
+        id: 10,
+        seq: 1,
+        kind: 'ask_user',
+        role: 'assistant',
+        content: '请选择菜系',
+        payload: {
+          ask_user_question: {
+            tool_use_id: 'ask-1',
+            questions: [
+              {
+                question: '请选择菜系',
+                options: [
+                  { label: '川菜', value: 'chuan' },
+                  { label: '粤菜', value: 'yue' }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
+    await flushPromises()
+
+    const buttons = wrapper.findAll('.event-ask-user-option-btn')
+    expect(buttons).toHaveLength(2)
+    expect(buttons[0].text()).toBe('川菜')
+
+    await buttons[0].trigger('click')
+    await flushPromises()
+
+    const input = wrapper.find('input')
+    expect(input.element.value).toBe('川菜')
+  })
+
+  it('falls back to value when an AskUserQuestion option has no label', async () => {
+    getSessionMock.mockResolvedValue({ data: { status: 'SUSPENDED' } })
+    loadInitial.mockResolvedValue({ events: [], lastSeq: 1, hasMore: false })
+    eventsRef.value = [
+      {
+        id: 11,
+        seq: 1,
+        kind: 'ask_user',
+        role: 'assistant',
+        content: '请选择',
+        payload: {
+          ask_user_question: {
+            tool_use_id: 'ask-2',
+            questions: [
+              {
+                question: '请选择',
+                options: [
+                  { value: 'only-value' }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+
+    const wrapper = mountPanel({ sessionId: 102, stepName: '代码开发' })
+    await flushPromises()
+
+    const button = wrapper.find('.event-ask-user-option-btn')
+    await button.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('input').element.value).toBe('only-value')
+  })
 })
