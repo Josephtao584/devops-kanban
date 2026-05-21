@@ -153,6 +153,7 @@ export async function continueWorkflowStepWithAnswer({
   cwdSubdir,
   providerSessionId,
   answerPrompt,
+  abortSignal,
   onEvent,
   onProviderState,
   onAskUser,
@@ -165,6 +166,7 @@ export async function continueWorkflowStepWithAnswer({
   cwdSubdir?: string | undefined;
   providerSessionId: string;
   answerPrompt: string;
+  abortSignal?: AbortSignal;
   onEvent?: (event: WorkflowExecutionEvent) => void | Promise<void>;
   onProviderState?: (providerState: ExecutorProviderState) => void | Promise<void>;
   onAskUser?: (data: AskUserQuestionData) => void | Promise<void>;
@@ -182,6 +184,7 @@ export async function continueWorkflowStepWithAnswer({
     cwdSubdir,
     providerSessionId,
     executorConfig,
+    ...(abortSignal ? { abortSignal } : {}),
     ...(onEvent ? { onEvent } : {}),
     ...(onProviderState ? { onProviderState } : {}),
     ...(onAskUser ? { onAskUser } : {}),

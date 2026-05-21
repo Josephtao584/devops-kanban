@@ -576,6 +576,7 @@ export function buildWorkflowFromInstance(
                 cwdSubdir: state.workDir,
                 providerSessionId,
                 answerPrompt: answerToSend,
+                ...(!signalAlreadyAborted && abortSignal ? { abortSignal } : {}),
                 onEvent: async (event) => {
                   // ask_user events are handled by onSessionAskUser — skip here to avoid duplicates
                   if (event.kind === 'ask_user') return;

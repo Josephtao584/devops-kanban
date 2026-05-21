@@ -361,6 +361,18 @@ class WorkflowService {
       const mastraRunId = mastraRun.runId;
 
       // Store the mastra_run_id and mark as running
+      // CRITICAL: Re-read the current status before updating — the user may have
+      // cancelled this run between createIfNoActiveRun (which created it as PENDING)
+      // and here. Without this check, we would overwrite CANCELLED → RUNNING and
+      // the Mastra run would proceed despite the user's cancellation.
+      const currentRun = await this.workflowRunRepo.findById(runId);
+      if (currentRun?.status === 'CANCELLED') {
+        logger.info('WorkflowService', `Run ${runId} was cancelled before executeWorkflow could start, skipping Mastra start. Not overriding status.`);
+        // Still save the mastra_run_id so future retries can find this run,
+        // but leave status as CANCELLED.
+        await this.workflowRunRepo.update(runId, { mastra_run_id: mastraRunId });
+        return;
+      }
       await this.workflowRunRepo.update(runId, { mastra_run_id: mastraRunId, status: 'RUNNING' });
       logger.info('WorkflowService', `Created Mastra run ${mastraRunId} for workflowRun ${runId}`);
 
