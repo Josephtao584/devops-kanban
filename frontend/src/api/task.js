@@ -50,4 +50,4 @@ export const reorderTasks = async (tasks) => {
 export const batchCreateTasks = (payload) => api.post('/tasks/batch-create', payload)
 export const getTaskPipeline = (taskId) => api.get(`/tasks/${taskId}/pipeline`)
 export const getTaskDependents = (taskId) => api.get(`/tasks/${taskId}/dependents`)
-export const regenerateTaskSplit = (taskId) => api.post(`/tasks/${taskId}/regenerate-split`)
+export const regenerateTaskSplit = (taskId, retryNote) => api.post(`/tasks/${taskId}/regenerate-split`, { retryNote })

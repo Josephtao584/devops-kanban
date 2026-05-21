@@ -217,7 +217,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.post<{ Params: IdParams }>('/:id/regenerate-split', async (req, reply) => {
+  fastify.post<{ Params: IdParams; Body: { retryNote?: string } }>('/:id/regenerate-split', async (req, reply) => {
     try {
       const taskId = parseNumber(req.params.id);
 
@@ -240,7 +240,8 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        await workflowService.retryStep(run.id, splitStepBinding.id);
+        const { retryNote } = req.body ?? {};
+        await workflowService.retryStep(run.id, splitStepBinding.id, retryNote);
         return successResponse({ dismissed: !!existing, regenerated: true, runId: run.id, stepId: splitStepBinding.id });
       } catch (err) {
         logError(err, req);

@@ -287,9 +287,18 @@ export function buildWorkflowFromInstance(
             // instruction. The preamble is escaped the same way splitPrompt
             // is (`.replaceAll('\n', '\\n')`) so the persisted prompt is
             // uniformly single-line escaped.
-            const finalSplitPrompt = options.loopContext && options.loopContext.fromStepId === templateStep.id
-              ? `${options.loopContext.text.replaceAll('\n', '\\n')}\\n${splitPrompt}`
-              : splitPrompt;
+            const retryNote = state.retryNote && state.retryNoteStepId === templateStep.id
+              ? state.retryNote
+              : undefined;
+
+            let finalSplitPrompt: string;
+            if (options.loopContext && options.loopContext.fromStepId === templateStep.id) {
+              finalSplitPrompt = `${options.loopContext.text.replaceAll('\n', '\\n')}\\n${splitPrompt}`;
+            } else if (retryNote) {
+              finalSplitPrompt = `## Previous Attempt Feedback\n${retryNote.replaceAll('\n', '\\n')}\n\n${splitPrompt}`;
+            } else {
+              finalSplitPrompt = splitPrompt;
+            }
 
             // Persist the assembled prompt so the UI can show what was sent.
             await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
