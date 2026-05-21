@@ -546,7 +546,7 @@ class WorkflowService {
    * caller is responsible for first clearing any downstream artifacts such
    * as pending split_suggestion rows.
    */
-  async retryStep(runId: number, stepId: string): Promise<void> {
+  async retryStep(runId: number, stepId: string, retryNote?: string): Promise<void> {
     logger.info('WorkflowService', `retryStep called for runId: ${runId}, stepId: ${stepId}`);
 
     const run = await this.workflowRunRepo.findById(runId);
@@ -618,7 +618,7 @@ class WorkflowService {
 
     // Fire-and-forget — timeTravelStream.result resolves when the (re-run)
     // workflow finishes or suspends. Lifecycle callbacks drive state updates.
-    this.executeRetry(runId, mastraRun, stepId, task, executionPath, projectEnv).catch((err) => {
+    this.executeRetry(runId, mastraRun, stepId, task, executionPath, projectEnv, retryNote).catch((err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : null;
       logger.error('WorkflowService', `Fatal error in retryStep run #${runId}: ${errorMessage}${stack ? '\n' + stack : ''}`);

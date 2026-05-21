@@ -276,7 +276,7 @@ const agentsLoaded = ref(false)
 const localTemplate = ref({ template_id: '', name: '', steps: [] })
 const selectedStepIndex = ref(0)
 const showStepDetailsDialog = ref(false)
-const autoCreateWorktree = ref(true)
+const autoCreateWorktree = ref(false)
 const confirming = ref(false)
 
 const normalizeTemplate = (rawTemplate) => {
