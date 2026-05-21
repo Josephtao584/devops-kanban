@@ -583,6 +583,12 @@ class WorkflowLifecycle {
     let session = step.session_id ? await this.sessionRepo.findById(step.session_id) : null;
     const latestSegment = session ? await this.sessionSegmentRepo.findLatestBySessionId(session.id) : null;
 
+    // Re-check cancellation after async skill/MCP setup before creating a session.
+    // This prevents creating a RUNNING session when the user cancelled during the setup.
+    if (await this._isWorkflowStepCancelled(runId, stepId)) {
+      return;
+    }
+
     if (!session) {
       session = await this._createLogicalStepSession(runId, stepId, task);
     } else {
