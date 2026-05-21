@@ -201,6 +201,7 @@ export function buildWorkflowFromInstance(
           let pendingAnswer: string | undefined;
           let askUserSessionInfo: { sessionId: number | undefined; segmentId: number | undefined } | null = null;
           let providerSessionId: string | undefined = typedSuspendData?.providerSessionId;
+          let retryWithNoteContinuation = false;
 
           if (typedResumeData?.ask_user_answer) {
             const savedProviderSessionId = typedSuspendData?.providerSessionId;
@@ -219,16 +220,41 @@ export function buildWorkflowFromInstance(
             pendingAnswer = typedResumeData.ask_user_answer;
           }
 
+          // === Retry with note: continue prior Claude session by sending the note as the next user message ===
+          // Mirrors the DEFAULT step path. Only fires on the first attempt — auto-retries inside the loop
+          // run a fresh execution. Falls back to fresh execution if no provider_session_id is saved.
+          const isRetryWithNote = !pendingAnswer
+            && state.retryNote
+            && state.retryNoteStepId === templateStep.id;
+          if (isRetryWithNote) {
+            const currentRun = await options.lifecycle.workflowRunRepo.findById(options.runId);
+            const savedProviderSessionId = currentRun?.steps.find((s) => s.step_id === templateStep.id)?.provider_session_id;
+            if (savedProviderSessionId) {
+              providerSessionId = savedProviderSessionId;
+              pendingAnswer = state.retryNote;
+              retryWithNoteContinuation = true;
+              logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} retry-with-note: will resume session ${savedProviderSessionId}, workflowRun: ${options.runId}`);
+            } else {
+              logger.warn('Workflows', `SPLIT_TASK step ${templateStep.id} retry-with-note requested but no provider_session_id saved; falling back to fresh execution with note prepended`);
+            }
+          }
+
           const maxRetries = Math.min(templateStep.maxRetries ?? 0, 3);
 
           for (let attempt = 0; ; attempt++) {
           let askUserHandled = false;
           try {
-            // Skip onStepStart on resume — the session/segment from the original execution
-            // are already restored via onStepAskUserResume above.
+            // Three session-init paths:
+            // 1. AskUserQuestion resume → reuse session/segment from askUserSessionInfo
+            // 2. Retry-with-note continuation → start a fresh session for the new turn,
+            //    then send the note via executor.continue using the saved provider_session_id
+            // 3. Fresh first execution → start a new session
             let sessionId: number | undefined;
             let segmentId: number | undefined;
-            if (!pendingAnswer) {
+            if (askUserSessionInfo) {
+              sessionId = askUserSessionInfo.sessionId;
+              segmentId = askUserSessionInfo.segmentId;
+            } else {
               const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
               if (!sessionInfo) {
                 abort();
@@ -236,10 +262,6 @@ export function buildWorkflowFromInstance(
               }
               sessionId = sessionInfo.sessionId;
               segmentId = sessionInfo.segmentId;
-            } else {
-              // Resume path: use the session/segment already restored by onStepAskUserResume
-              sessionId = askUserSessionInfo!.sessionId;
-              segmentId = askUserSessionInfo!.segmentId;
             }
 
             const { renderSplitPrompt, DEFAULT_SPLIT_PROMPT } = await import('./defaultSplitPrompt.js');
@@ -287,12 +309,18 @@ export function buildWorkflowFromInstance(
             // instruction. The preamble is escaped the same way splitPrompt
             // is (`.replaceAll('\n', '\\n')`) so the persisted prompt is
             // uniformly single-line escaped.
+            // Retry-with-note continuation sends only the note via executor.continue —
+            // the split prompt is NOT re-sent because the AI session already has the
+            // original prompt in its context. Fall back to prepending the note when
+            // no provider_session_id is saved (rare).
             const retryNote = state.retryNote && state.retryNoteStepId === templateStep.id
               ? state.retryNote
               : undefined;
 
             let finalSplitPrompt: string;
-            if (options.loopContext && options.loopContext.fromStepId === templateStep.id) {
+            if (retryWithNoteContinuation && retryNote) {
+              finalSplitPrompt = retryNote.replaceAll('\n', '\\n');
+            } else if (options.loopContext && options.loopContext.fromStepId === templateStep.id) {
               finalSplitPrompt = `${options.loopContext.text.replaceAll('\n', '\\n')}\\n${splitPrompt}`;
             } else if (retryNote) {
               finalSplitPrompt = `## Previous Attempt Feedback\\n${retryNote.replaceAll('\n', '\\n')}\\n\\n${splitPrompt}`;
@@ -325,16 +353,18 @@ export function buildWorkflowFromInstance(
               throw new Error(`Agent ${agent.id} has invalid MCP servers configuration`);
             }
 
-            // Write the user prompt as the first event so it appears before streaming events
-            // Skip on resume — the prompt was already written in the original execution
-            if (!pendingAnswer && sessionId && segmentId) {
+            // Write the user prompt as the first event so it appears before streaming events.
+            // Skip on AskUserQuestion resume — the prompt was already written in the original execution.
+            // For retry-with-note continuation we still write so the UI shows the new note.
+            const isAskUserResume = !!askUserSessionInfo;
+            if (!isAskUserResume && sessionId && segmentId) {
               await options.lifecycle.sessionEventRepo.append({
                 session_id: sessionId,
                 segment_id: segmentId,
                 kind: 'message',
                 role: 'user',
                 content: finalSplitPrompt,
-                payload: {},
+                payload: retryWithNoteContinuation ? { retry_note: true } : {},
               }).catch(() => {});
             }
 
