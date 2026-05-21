@@ -26,15 +26,26 @@
       </span>
     </div>
     <div class="skill-list" v-if="!loading">
-      <div
-        class="skill-list-item"
-        v-for="skill in skills"
-        :key="skill.id"
-        :class="{ 'active': selectedId === skill.id }"
-        @click.stop="emit('select', skill)"
+      <draggable
+        :list="skills"
+        :animation="200"
+        ghost-class="ghost-item"
+        drag-class="drag-item"
+        handle=".drag-handle"
+        item-key="id"
+        @end="onDragEnd"
       >
-        <span class="skill-list-item__name">{{ skill.name }}</span>
-      </div>
+        <template #item="{ element }">
+          <div
+            class="skill-list-item"
+            :class="{ 'active': selectedId === element.id }"
+            @click.stop="emit('select', element)"
+          >
+            <span class="drag-handle" :title="$t('skill.dragToReorder')">&#9776;</span>
+            <span class="skill-list-item__name">{{ element.name }}</span>
+          </div>
+        </template>
+      </draggable>
       <div v-if="skills.length === 0" class="empty-list">
         {{ $t('skill.noSkills') }}
       </div>
@@ -46,6 +57,8 @@
 </template>
 
 <script setup>
+import draggable from 'vuedraggable'
+
 defineProps({
   skills: { type: Array, default: () => [] },
   selectedId: { type: [Number, String], default: null },
@@ -54,7 +67,11 @@ defineProps({
   templates: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['select', 'update:selectedTemplateId'])
+const emit = defineEmits(['select', 'update:selectedTemplateId', 'reorder'])
+
+const onDragEnd = (evt) => {
+  emit('reorder', evt)
+}
 </script>
 
 <style scoped>
@@ -166,7 +183,7 @@ const emit = defineEmits(['select', 'update:selectedTemplateId'])
 .skill-list-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
@@ -189,6 +206,25 @@ const emit = defineEmits(['select', 'update:selectedTemplateId'])
   box-shadow: inset 0 0 0 1px rgba(37, 198, 201, 0.12);
 }
 
+.drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  font-size: 14px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+.skill-list-item:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 .skill-list-item__name {
   font-weight: 600;
   font-size: 13px;
@@ -206,5 +242,15 @@ const emit = defineEmits(['select', 'update:selectedTemplateId'])
   text-align: center;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.ghost-item {
+  opacity: 0.4;
+  background: var(--accent-color-soft);
+}
+
+.drag-item {
+  opacity: 0.8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 </style>

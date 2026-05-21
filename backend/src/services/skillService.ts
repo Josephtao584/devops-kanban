@@ -24,7 +24,17 @@ class SkillService {
   }
 
   async listSkills(): Promise<SkillEntity[]> {
-    return await this.skillRepo.findAll();
+    const skills = await this.skillRepo.findAll();
+    return skills.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }
+
+  async reorderSkills(idOrder: number[]): Promise<void> {
+    for (let i = 0; i < idOrder.length; i++) {
+      const id = idOrder[i];
+      if (id !== undefined) {
+        await this.skillRepo.update(id, { sort_order: i });
+      }
+    }
   }
 
   async getSkill(id: number): Promise<SkillEntity | null> {
@@ -61,6 +71,7 @@ class SkillService {
     const entityData: Omit<SkillEntity, 'id' | 'created_at' | 'updated_at'> = {
       name,
       identifier: name,
+      sort_order: existing.length,
       ...(description ? { description } : {})
     };
     return await this.skillRepo.create(entityData);

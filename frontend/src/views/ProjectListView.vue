@@ -275,6 +275,7 @@ const handleDeleteTeam = async (teamItem) => {
 .project-list-view {
   min-height: 100%;
   padding: var(--page-padding);
+  overflow-y: auto;
   background:
     radial-gradient(120% 80% at 20% -10%, rgba(37, 198, 201, 0.10), transparent 60%),
     radial-gradient(80% 60% at 95% 0%, rgba(99, 102, 241, 0.06), transparent 65%),

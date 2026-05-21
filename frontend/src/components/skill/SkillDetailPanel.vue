@@ -144,7 +144,6 @@ defineExpose({ fileInputRef })
 .skill-detail-panel {
   flex: 1;
   background: var(--panel-bg);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color);
@@ -155,6 +154,7 @@ defineExpose({ fileInputRef })
 .detail-header {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .skill-title-row {
@@ -244,7 +244,7 @@ defineExpose({ fileInputRef })
   display: flex;
   flex-direction: column;
   padding: 16px 20px;
-  overflow: hidden;
+  min-height: 0;
 }
 
 .section-header {
@@ -252,6 +252,7 @@ defineExpose({ fileInputRef })
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .section-actions {
@@ -261,6 +262,7 @@ defineExpose({ fileInputRef })
 
 .file-browser {
   flex: 1;
+  min-height: 0;
   display: flex;
   gap: 0;
   overflow: hidden;

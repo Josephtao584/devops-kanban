@@ -762,7 +762,9 @@ export default {
     filesRefreshed: '文件列表已刷新',
     deleteConfirm: '确定要删除此技能吗？',
     editFile: '编辑文件',
-    fileContentPlaceholder: '输入文件内容'
+    fileContentPlaceholder: '输入文件内容',
+    dragToReorder: '拖拽排序',
+    reorderFailed: '技能排序失败'
   },
   mcpServer: {
     title: 'MCP配置',
