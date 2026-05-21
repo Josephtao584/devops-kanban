@@ -295,7 +295,7 @@ export function buildWorkflowFromInstance(
             if (options.loopContext && options.loopContext.fromStepId === templateStep.id) {
               finalSplitPrompt = `${options.loopContext.text.replaceAll('\n', '\\n')}\\n${splitPrompt}`;
             } else if (retryNote) {
-              finalSplitPrompt = `## Previous Attempt Feedback\n${retryNote.replaceAll('\n', '\\n')}\n\n${splitPrompt}`;
+              finalSplitPrompt = `## Previous Attempt Feedback\\n${retryNote.replaceAll('\n', '\\n')}\\n\\n${splitPrompt}`;
             } else {
               finalSplitPrompt = splitPrompt;
             }
