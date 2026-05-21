@@ -23,3 +23,60 @@ export function hasCycle(nodes: NodeWithDeps[]): boolean {
   }
   return false;
 }
+
+/**
+ * Find any cycle in a dependency map keyed by task id.
+ * Map semantics: `map.get(id)` returns the list of upstream task ids that `id` depends on.
+ * Returns the cycle path (first === last) when a cycle exists, or null when the graph is a DAG.
+ */
+export function findCycleById(deps: Map<number, number[]>): number[] | null {
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map<number, number>();
+  for (const id of deps.keys()) color.set(id, WHITE);
+
+  function dfs(start: number): number[] | null {
+    const stack: Array<{ id: number; iter: Iterator<number> }> = [];
+    color.set(start, GRAY);
+    stack.push({ id: start, iter: (deps.get(start) ?? [])[Symbol.iterator]() });
+
+    while (stack.length > 0) {
+      const top = stack[stack.length - 1]!;
+      const next = top.iter.next();
+      if (next.done) {
+        color.set(top.id, BLACK);
+        stack.pop();
+        continue;
+      }
+      const child = next.value;
+      if (child === top.id) {
+        return [child, child];
+      }
+      const c = color.get(child);
+      if (c === GRAY) {
+        const path: number[] = [];
+        for (let i = 0; i < stack.length; i++) {
+          const node = stack[i]!.id;
+          if (path.length > 0 || node === child) {
+            path.push(node);
+          }
+        }
+        path.push(child);
+        return path;
+      }
+      if (c === undefined || c === WHITE) {
+        if (c === undefined) color.set(child, WHITE);
+        color.set(child, GRAY);
+        stack.push({ id: child, iter: (deps.get(child) ?? [])[Symbol.iterator]() });
+      }
+    }
+    return null;
+  }
+
+  for (const id of deps.keys()) {
+    if (color.get(id) === WHITE) {
+      const cycle = dfs(id);
+      if (cycle) return cycle;
+    }
+  }
+  return null;
+}
