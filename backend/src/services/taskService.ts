@@ -168,6 +168,23 @@ class TaskService {
       throw new BusinessError('只有待处理或进行中的任务可以启动', 'Only TODO or IN_PROGRESS tasks can be started', { taskId, status: task.status });
     }
 
+    const dependencyIds = task.depends_on ?? [];
+    if (dependencyIds.length > 0) {
+      const upstreams = await Promise.all(dependencyIds.map(id => this.taskRepo.findById(id)));
+      const blockerIds: number[] = [];
+      dependencyIds.forEach((id, idx) => {
+        const u = upstreams[idx];
+        if (!u || u.status !== 'DONE') blockerIds.push(id);
+      });
+      if (blockerIds.length > 0) {
+        throw new BusinessError(
+          '上游任务未全部完成，无法启动',
+          'Upstream tasks not all DONE',
+          { taskId, blockerIds }
+        );
+      }
+    }
+
     await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
 
     try {
