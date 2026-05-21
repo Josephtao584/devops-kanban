@@ -85,6 +85,7 @@
         :team="editingTeam"
         :loading="teamSubmitting"
         @submit="handleTeamSubmit"
+        @refresh="handleTeamRefresh"
       />
     </div>
   </div>
@@ -240,6 +241,11 @@ const handleTeamSubmit = async (formData) => {
   } finally {
     teamSubmitting.value = false
   }
+}
+
+const handleTeamRefresh = async () => {
+  await teamStore.fetchTeams()
+  await projectStore.fetchProjects()
 }
 
 const handleDeleteTeam = async (teamItem) => {

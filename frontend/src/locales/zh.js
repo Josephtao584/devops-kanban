@@ -937,6 +937,10 @@ export default {
   team: {
     projectTab: '项目',
     teamTab: '团队',
+    basicInfo: '基本信息',
+    editProjectInTeam: '编辑',
+    removeProjectConfirm: '确定要从团队中移除 "{name}" 吗？',
+    noProjectsInTeam: '暂无项目，点击"添加项目"开始',
     newTeam: '新建团队',
     createTeam: '创建团队',
     editTeam: '编辑团队',
