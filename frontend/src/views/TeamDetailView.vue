@@ -74,6 +74,7 @@
       :team="editingTeam"
       :loading="editSubmitting"
       @submit="handleEditSubmit"
+      @refresh="handleTeamRefresh"
     />
 
     <el-dialog v-model="showAddProjectDialog" :title="$t('team.addProjectToTeam')" width="500px">
@@ -162,6 +163,12 @@ const handleEditSubmit = async (formData) => {
   } finally {
     editSubmitting.value = false
   }
+}
+
+const handleTeamRefresh = async () => {
+  await teamStore.fetchTeam(team.value.id)
+  team.value = teamStore.currentTeam
+  await projectStore.fetchProjects()
 }
 
 const handleDeleteTeam = async () => {

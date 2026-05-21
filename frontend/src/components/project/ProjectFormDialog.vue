@@ -2,7 +2,8 @@
   <BaseDialog
     v-model="visible"
     :title="isEditing ? $t('project.editProject') : $t('project.createProject')"
-    width="500px"
+    :width="isEditing ? '600px' : '500px'"
+    :append-to-body="appendToBody"
   >
     <el-form
       ref="formRef"
@@ -130,6 +131,10 @@ const props = defineProps({
     default: null
   },
   loading: {
+    type: Boolean,
+    default: false
+  },
+  appendToBody: {
     type: Boolean,
     default: false
   }
