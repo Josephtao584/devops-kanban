@@ -564,7 +564,9 @@ class WorkflowService {
     }
 
     // Reset the target step to PENDING and clear all execution artifacts so
-    // onStepStart treats this as a fresh attempt.
+    // onStepStart treats this as a fresh attempt. When a retryNote is provided,
+    // preserve provider_session_id so the step handler can continue the prior
+    // Claude session by sending the note as the next user message.
     await this.workflowRunRepo.updateStep(runId, stepId, {
       status: 'PENDING',
       started_at: null,
@@ -572,7 +574,7 @@ class WorkflowService {
       error: null,
       summary: null,
       assembled_prompt: null,
-      provider_session_id: null,
+      ...(retryNote ? {} : { provider_session_id: null }),
       suspend_reason: null,
       confirmation_note: null,
       confirmed_at: null,
