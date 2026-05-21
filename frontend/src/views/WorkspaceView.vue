@@ -1017,11 +1017,13 @@ async function loadTasks() {
     if (selectedProjectId.value) {
       resp = await taskStore.listTasks({ project_id: selectedProjectId.value })
     } else if (selectedTeamId.value) {
-      // Load tasks from all team projects
+      // Load tasks from all team projects in parallel
       const teamProjectIds = teamProjects.value.map(p => p.id)
+      const results = await Promise.all(
+        teamProjectIds.map(id => taskStore.listTasks({ project_id: id }))
+      )
       const allTasks = []
-      for (const projectId of teamProjectIds) {
-        const r = await taskStore.listTasks({ project_id: projectId })
+      for (const r of results) {
         if (r?.success) allTasks.push(...(r.data || []))
       }
       resp = { success: true, data: allTasks }
@@ -1058,7 +1060,7 @@ async function handleTeamChange() {
   selectedTask.value = null
   selectedProjectId.value = null
   projectStore.setCurrentProject(null)
-  await loadTasks()
+  loadTasks() // fire-and-forget: UI updates immediately
 }
 
 async function loadPipeline(taskId) {
