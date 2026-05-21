@@ -13,7 +13,7 @@ import { ValidationError, NotFoundError, BusinessError, InternalError } from '..
 import { sanitizeWorkDir } from '../utils/workDir.js';
 import { logger } from '../utils/logger.js';
 
-import { hasCycle } from './workflow/dependencyValidator.js';
+import { hasCycle, findCycleById } from './workflow/dependencyValidator.js';
 import type { Suggestion, TaskEntity, ProjectEntity } from '../types/entities.ts';
 import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 
@@ -437,6 +437,60 @@ class TaskService {
 
   async getDependents(taskId: number): Promise<TaskEntity[]> {
     return this.taskRepo.findDependents(taskId);
+  }
+
+  async updateDependenciesBatch(
+    rootId: number,
+    edges: Array<{ from: number; to: number }>,
+  ): Promise<{ updated: number }> {
+    const pipeline = await this.getPipeline(rootId);
+    const idSet = new Set(pipeline.nodes.map((n) => n.id));
+    const taskById = new Map(pipeline.nodes.map((n) => [n.id, n]));
+
+    for (const edge of edges) {
+      if (!idSet.has(edge.from) || !idSet.has(edge.to)) {
+        throw new BusinessError(
+          `依赖引用不合法：边 ${edge.from}→${edge.to} 不在当前 pipeline 中`,
+          'Edge references task outside pipeline',
+          { invalidEdge: edge },
+        );
+      }
+      if (edge.from === edge.to) {
+        throw new BusinessError(
+          '依赖不能指向自身',
+          'Self-loop detected',
+          { taskId: edge.from },
+        );
+      }
+    }
+
+    const newDepsByTaskId = new Map<number, number[]>();
+    for (const id of idSet) newDepsByTaskId.set(id, []);
+    for (const edge of edges) {
+      const arr = newDepsByTaskId.get(edge.to)!;
+      if (!arr.includes(edge.from)) arr.push(edge.from);
+    }
+
+    const cycle = findCycleById(newDepsByTaskId);
+    if (cycle) {
+      throw new BusinessError(
+        `依赖关系存在环路：${cycle.join(' → ')}`,
+        'Cycle detected in dependencies',
+        { cycle },
+      );
+    }
+
+    let updated = 0;
+    for (const id of idSet) {
+      const oldDeps = (taskById.get(id)!.depends_on ?? []).slice().sort((a, b) => a - b);
+      const newDeps = (newDepsByTaskId.get(id) ?? []).slice().sort((a, b) => a - b);
+      const same = oldDeps.length === newDeps.length && oldDeps.every((v, i) => v === newDeps[i]);
+      if (!same) {
+        await this.taskRepo.update(id, { depends_on: newDepsByTaskId.get(id) ?? [] });
+        updated++;
+      }
+    }
+    return { updated };
   }
 
   async onTaskStatusChange(taskId: number, newStatus: string, visited: Set<number> = new Set()): Promise<void> {
