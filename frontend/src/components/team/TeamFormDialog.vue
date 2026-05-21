@@ -73,14 +73,16 @@
       </el-button>
     </template>
 
-    <!-- Add project to team dialog -->
+    <!-- Add project to team dialog (lazy mount) -->
     <el-dialog
+      v-if="isEditing"
       v-model="addProjectDialogVisible"
       :title="$t('team.addProjectToTeam')"
       width="480px"
       top="15vh"
       :append-to-body="true"
       :show-close="true"
+      :destroy-on-close="true"
     >
       <div class="add-project-content">
         <div class="field-label">{{ $t('project.selectProject') }}</div>
@@ -147,8 +149,9 @@
       </template>
     </el-dialog>
 
-    <!-- Edit project dialog (nested) -->
+    <!-- Edit project dialog (lazy mount via v-if) -->
     <ProjectFormDialog
+      v-if="editingProjectDialogVisible"
       v-model="editingProjectDialogVisible"
       :project="editingProject"
       :loading="editingProjectLoading"
@@ -177,7 +180,6 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'submit', 'cancel'])
 
 const { t } = useI18n()
-
 const projectStore = useProjectStore()
 
 const formRef = ref(null)
@@ -201,13 +203,18 @@ const addingProject = ref(false)
 const editingProjectDialogVisible = ref(false)
 const editingProject = ref(null)
 const editingProjectLoading = ref(false)
+const projectsLoaded = ref(false)
 
-const availableProjects = computed(() =>
-  (projectStore.projects || []).filter(p => !p.team_id || p.team_id === props.team?.id)
-    .filter(p => !teamProjects.value.some(existing => existing.id === p.id))
-)
+// Filter against local snapshot, not reactive store
+const availableProjects = computed(() => {
+  const allProjects = projectStore.projects || []
+  const teamId = props.team?.id
+  const teamProjectIds = teamProjects.value.map(p => p.id)
+  return allProjects.filter(p => (!p.team_id || p.team_id === teamId) && !teamProjectIds.includes(p.id))
+})
 
-watch(() => props.team, (team) => {
+// Single watch for form + projects sync
+watch(() => props.team, async (team) => {
   if (team) {
     form.value = { name: team.name || '', description: team.description || '' }
   } else {
@@ -215,10 +222,14 @@ watch(() => props.team, (team) => {
   }
 }, { immediate: true })
 
-// Load team projects when dialog opens in edit mode
-watch([() => props.modelValue, () => props.team], async ([visible, team]) => {
-  if (visible && team?.id) {
+// Load projects only when dialog opens (not on form changes)
+watch(() => props.modelValue, async (visible) => {
+  if (visible && props.team?.id) {
     await loadTeamProjects()
+    if (!projectsLoaded.value) {
+      await projectStore.fetchProjects()
+      projectsLoaded.value = true
+    }
     activeTab.value = 'basic'
   } else if (!visible) {
     teamProjects.value = []
@@ -226,14 +237,8 @@ watch([() => props.modelValue, () => props.team], async ([visible, team]) => {
   }
 })
 
-// Ensure projects are loaded before opening add dialog
-watch(addProjectDialogVisible, async (visible) => {
-  if (visible && !projectStore.projects?.length) {
-    await projectStore.fetchProjects()
-  }
-})
-
 async function loadTeamProjects() {
+  if (!props.team?.id) return
   projectsLoading.value = true
   try {
     const resp = await teamApi.getTeam(props.team.id)
@@ -340,7 +345,6 @@ const handleCancel = () => {
   padding: 16px 20px;
 }
 
-/* Projects tab */
 .projects-tab {
   display: flex;
   flex-direction: column;
@@ -434,7 +438,6 @@ const handleCancel = () => {
   background: rgba(37, 198, 201, 0.1);
 }
 
-/* Add project dialog (reuse TeamCard styles) */
 .add-project-content {
   display: flex;
   flex-direction: column;
