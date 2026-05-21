@@ -185,17 +185,44 @@ export function buildWorkflowFromInstance(
         inputSchema: isFirst ? firstStepInputSchema : stepOutputSchema,
         outputSchema: stepOutputSchema,
         stateSchema: sharedStateSchema,
-        execute: async ({ inputData, state, abortSignal, abort }) => {
+        resumeSchema,
+        suspendSchema,
+        execute: async ({ inputData, state, abortSignal, abort, resumeData, suspend, suspendData }) => {
           const signalAlreadyAborted = abortSignal?.aborted ?? false;
           if (signalAlreadyAborted) {
             logger.warn('Workflows', `SPLIT_TASK step ${templateStep.id} received stale abort signal, ignoring. workflowRun: ${options.runId}`);
           }
 
-          logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} starting, workflowRun: ${options.runId}`);
+          logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} starting, workflowRun: ${options.runId}, resumeData: ${!!resumeData}`);
+
+          // === Resume from AskUserQuestion ===
+          const typedResumeData = resumeData as { ask_user_answer?: string } | undefined;
+          const typedSuspendData = suspendData as { providerSessionId?: string } | undefined;
+          let pendingAnswer: string | undefined;
+          let askUserSessionInfo: { sessionId: number | undefined; segmentId: number | undefined } | null = null;
+          let providerSessionId: string | undefined = typedSuspendData?.providerSessionId;
+
+          if (typedResumeData?.ask_user_answer) {
+            const savedProviderSessionId = typedSuspendData?.providerSessionId;
+            if (!savedProviderSessionId) {
+              throw new Error(`Cannot resume AskUserQuestion in SPLIT_TASK step ${templateStep.id}: provider_session_id not found`);
+            }
+
+            askUserSessionInfo = await options.lifecycle.onStepAskUserResume(options.runId, templateStep.id);
+            if (!askUserSessionInfo) {
+              logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} AskUser resume cancelled for workflowRun: ${options.runId}`);
+              abort();
+              return { summary: '' };
+            }
+
+            providerSessionId = savedProviderSessionId;
+            pendingAnswer = typedResumeData.ask_user_answer;
+          }
 
           const maxRetries = Math.min(templateStep.maxRetries ?? 0, 3);
 
           for (let attempt = 0; ; attempt++) {
+          let askUserHandled = false;
           try {
             const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
             if (!sessionInfo) {
@@ -289,42 +316,86 @@ export function buildWorkflowFromInstance(
               }).catch(() => {});
             }
 
-            const executionResult = await executor.execute({
-              prompt: finalSplitPrompt,
-              worktreePath: state.worktreePath,
-              cwdSubdir: state.workDir,
-              executorConfig: {
-                type: agent.executorType,
-                skills: [...agent.skills],
-                mcpServers: [...agent.mcpServers],
-                env: agent.env ? { ...agent.env } : undefined,
-                settingsPath: agent.settingsPath || undefined,
-              },
-              abortSignal: signalAlreadyAborted ? undefined : abortSignal,
-              onEvent: async (event) => {
-                if (event.kind === 'ask_user') return;
-                if (sessionInfo.sessionId && sessionInfo.segmentId) {
-                  await options.lifecycle.sessionEventRepo.append({
-                    session_id: sessionInfo.sessionId,
-                    segment_id: sessionInfo.segmentId,
-                    kind: event.kind,
-                    role: event.role,
-                    content: event.content,
-                    payload: event.payload || {},
-                  }).catch(() => {});
-                }
-              },
-              onProviderState: async (providerState) => {
-                if (sessionInfo.segmentId && providerState.providerSessionId) {
-                  await options.lifecycle.sessionSegmentRepo?.update(sessionInfo.segmentId, {
-                    provider_session_id: providerState.providerSessionId,
-                  }).catch(() => {});
-                  await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
-                    provider_session_id: providerState.providerSessionId,
-                  }).catch(() => {});
-                }
-              },
-            });
+            const executionResult = pendingAnswer
+              ? await executor.continue({
+                  worktreePath: state.worktreePath,
+                  cwdSubdir: state.workDir,
+                  providerSessionId: providerSessionId!,
+                  prompt: pendingAnswer,
+                  executorConfig: {
+                    type: agent.executorType,
+                    skills: [...agent.skills],
+                    mcpServers: [...agent.mcpServers],
+                    env: agent.env ? { ...agent.env } : undefined,
+                    settingsPath: agent.settingsPath || undefined,
+                  },
+                  ...(signalAlreadyAborted ? {} : { abortSignal }),
+                  onEvent: async (event) => {
+                    if (event.kind === 'ask_user') return;
+                    if (askUserSessionInfo?.sessionId && askUserSessionInfo?.segmentId) {
+                      await options.lifecycle.sessionEventRepo.append({
+                        session_id: askUserSessionInfo.sessionId,
+                        segment_id: askUserSessionInfo.segmentId,
+                        kind: event.kind,
+                        role: event.role,
+                        content: event.content,
+                        payload: event.payload || {},
+                      }).catch(() => {});
+                    }
+                  },
+                  onProviderState: async (providerState) => {
+                    if (askUserSessionInfo?.segmentId && providerState.providerSessionId) {
+                      await options.lifecycle.sessionSegmentRepo?.update(askUserSessionInfo.segmentId, {
+                        provider_session_id: providerState.providerSessionId,
+                      }).catch(() => {});
+                      await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                        provider_session_id: providerState.providerSessionId,
+                      }).catch(() => {});
+                    }
+                  },
+                  onAskUser: async () => {
+                    logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} detected AskUserQuestion during continuation`);
+                  },
+                })
+              : await executor.execute({
+                  prompt: finalSplitPrompt,
+                  worktreePath: state.worktreePath,
+                  cwdSubdir: state.workDir,
+                  executorConfig: {
+                    type: agent.executorType,
+                    skills: [...agent.skills],
+                    mcpServers: [...agent.mcpServers],
+                    env: agent.env ? { ...agent.env } : undefined,
+                    settingsPath: agent.settingsPath || undefined,
+                  },
+                  ...(signalAlreadyAborted ? {} : { abortSignal }),
+                  onEvent: async (event) => {
+                    if (event.kind === 'ask_user') return;
+                    if (sessionInfo.sessionId && sessionInfo.segmentId) {
+                      await options.lifecycle.sessionEventRepo.append({
+                        session_id: sessionInfo.sessionId,
+                        segment_id: sessionInfo.segmentId,
+                        kind: event.kind,
+                        role: event.role,
+                        content: event.content,
+                        payload: event.payload || {},
+                      }).catch(() => {});
+                    }
+                  },
+                  onProviderState: async (providerState) => {
+                    if (sessionInfo.segmentId && providerState.providerSessionId) {
+                      await options.lifecycle.sessionSegmentRepo?.update(sessionInfo.segmentId, {
+                        provider_session_id: providerState.providerSessionId,
+                      }).catch(() => {});
+                      await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
+                        provider_session_id: providerState.providerSessionId,
+                      }).catch(() => {});
+                    }
+                  },
+                  onAskUser: async () => {
+                    logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} detected AskUserQuestion during execution`);
+                  },
+                });
 
             // Write the final summary as the last event
             if (sessionInfo.sessionId && sessionInfo.segmentId) {
@@ -400,7 +471,34 @@ export function buildWorkflowFromInstance(
 
             return { summary };
           } catch (err) {
+            const anyErr = err as any;
             const errorMessage = err instanceof Error ? err.message : String(err);
+
+            // Handle AskUserQuestion: suspend the Mastra workflow so state persists across restarts.
+            if (anyErr?.message === 'STEP_AWAITING_USER_INPUT' && anyErr?.askUserQuestion) {
+              logger.info('Workflows', `SPLIT_TASK step ${templateStep.id} encountered AskUserQuestion, suspending workflow`);
+
+              // Get providerSessionId from current run step
+              const currentRun = await options.lifecycle.workflowRunRepo.findById(options.runId);
+              providerSessionId = currentRun?.steps.find((s: any) => s.step_id === templateStep.id)?.provider_session_id ?? providerSessionId;
+              if (!providerSessionId) {
+                throw new Error(`Cannot suspend SPLIT_TASK step ${templateStep.id}: provider_session_id not found. The AI session may have ended before asking the question.`);
+              }
+
+              if (!askUserHandled) {
+                await options.lifecycle.onSessionAskUser(options.runId, templateStep.id, {
+                  ask_user_question: anyErr.askUserQuestion,
+                });
+                askUserHandled = true;
+              }
+
+              return await suspend({
+                reason: 'AI 提出了问题',
+                stepName: templateStep.name,
+                providerSessionId,
+                askUserQuestion: anyErr.askUserQuestion,
+              });
+            }
 
             // Check for auto-retry
             const currentRetryCount = attempt;
