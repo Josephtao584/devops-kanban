@@ -51,3 +51,5 @@ export const batchCreateTasks = (payload) => api.post('/tasks/batch-create', pay
 export const getTaskPipeline = (taskId) => api.get(`/tasks/${taskId}/pipeline`)
 export const getTaskDependents = (taskId) => api.get(`/tasks/${taskId}/dependents`)
 export const regenerateTaskSplit = (taskId, retryNote) => api.post(`/tasks/${taskId}/regenerate-split`, { retryNote })
+export const updateTaskDependencies = (rootId, edges) =>
+  api.put(`/tasks/${rootId}/dependencies/batch`, { edges })
