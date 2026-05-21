@@ -118,6 +118,11 @@ async function confirm(id: number): Promise<{ tasks: number[]; suggestion: Split
     const templateId = task.auto_execute_template_id;
     if (!templateId) continue;
 
+    // Check dependency: skip tasks with unmet depends_on — they'll be
+    // auto-started by taskService.onTaskStatusChange when upstreams finish.
+    const fullTask = await taskService.getById(task.id);
+    if (!fullTask || (fullTask.depends_on ?? []).length > 0) continue;
+
     try {
       await taskService.startTask(task.id, { workflow_template_id: templateId });
     } catch (err) {
