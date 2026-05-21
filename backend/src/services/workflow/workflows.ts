@@ -224,10 +224,22 @@ export function buildWorkflowFromInstance(
           for (let attempt = 0; ; attempt++) {
           let askUserHandled = false;
           try {
-            const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
-            if (!sessionInfo) {
-              abort();
-              return { summary: '' };
+            // Skip onStepStart on resume — the session/segment from the original execution
+            // are already restored via onStepAskUserResume above.
+            let sessionId: number | undefined;
+            let segmentId: number | undefined;
+            if (!pendingAnswer) {
+              const sessionInfo = await options.lifecycle.onStepStart(options.runId, templateStep.id, options.task);
+              if (!sessionInfo) {
+                abort();
+                return { summary: '' };
+              }
+              sessionId = sessionInfo.sessionId;
+              segmentId = sessionInfo.segmentId;
+            } else {
+              // Resume path: use the session/segment already restored by onStepAskUserResume
+              sessionId = askUserSessionInfo!.sessionId;
+              segmentId = askUserSessionInfo!.segmentId;
             }
 
             const { renderSplitPrompt, DEFAULT_SPLIT_PROMPT } = await import('./defaultSplitPrompt.js');
@@ -305,10 +317,11 @@ export function buildWorkflowFromInstance(
             }
 
             // Write the user prompt as the first event so it appears before streaming events
-            if (sessionInfo.sessionId && sessionInfo.segmentId) {
+            // Skip on resume — the prompt was already written in the original execution
+            if (!pendingAnswer && sessionId && segmentId) {
               await options.lifecycle.sessionEventRepo.append({
-                session_id: sessionInfo.sessionId,
-                segment_id: sessionInfo.segmentId,
+                session_id: sessionId,
+                segment_id: segmentId,
                 kind: 'message',
                 role: 'user',
                 content: finalSplitPrompt,
@@ -371,10 +384,10 @@ export function buildWorkflowFromInstance(
                   ...(signalAlreadyAborted ? {} : { abortSignal }),
                   onEvent: async (event) => {
                     if (event.kind === 'ask_user') return;
-                    if (sessionInfo.sessionId && sessionInfo.segmentId) {
+                    if (sessionId && segmentId) {
                       await options.lifecycle.sessionEventRepo.append({
-                        session_id: sessionInfo.sessionId,
-                        segment_id: sessionInfo.segmentId,
+                        session_id: sessionId,
+                        segment_id: segmentId,
                         kind: event.kind,
                         role: event.role,
                         content: event.content,
@@ -383,8 +396,8 @@ export function buildWorkflowFromInstance(
                     }
                   },
                   onProviderState: async (providerState) => {
-                    if (sessionInfo.segmentId && providerState.providerSessionId) {
-                      await options.lifecycle.sessionSegmentRepo?.update(sessionInfo.segmentId, {
+                    if (segmentId && providerState.providerSessionId) {
+                      await options.lifecycle.sessionSegmentRepo?.update(segmentId, {
                         provider_session_id: providerState.providerSessionId,
                       }).catch(() => {});
                       await options.lifecycle.workflowRunRepo.updateStep(options.runId, templateStep.id, {
@@ -398,11 +411,11 @@ export function buildWorkflowFromInstance(
                 });
 
             // Write the final summary as the last event
-            if (sessionInfo.sessionId && sessionInfo.segmentId) {
+            if (sessionId && segmentId) {
               const adaptedPreview = adaptStepResult(agent.executorType, executionResult);
               await options.lifecycle.sessionEventRepo.append({
-                session_id: sessionInfo.sessionId,
-                segment_id: sessionInfo.segmentId,
+                session_id: sessionId,
+                segment_id: segmentId,
                 kind: 'message',
                 role: 'assistant',
                 content: adaptedPreview.summary,
