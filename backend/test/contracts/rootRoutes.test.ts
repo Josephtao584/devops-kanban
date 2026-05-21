@@ -21,6 +21,7 @@ test.test('root route preserves success, message, version and endpoint data shap
         skills: '/api/skills',
         mcpServers: '/api/mcp-servers',
         workflows: '/api/workflows',
+        teams: '/api/teams',
         websocket: '/ws',
         health: '/health',
       },
