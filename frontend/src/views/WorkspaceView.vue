@@ -265,14 +265,30 @@
         <div class="workspace-section workspace-mid-top" :class="{ collapsed: midCollapsed }">
           <!-- DAG (hidden when collapsed) -->
           <template v-if="!midCollapsed">
-            <PipelineDag
-              v-if="selectedTask"
-              :nodes="pipeline.nodes"
-              :current-task-id="focusedTaskId"
-              :refreshing="pipelineRefreshing"
-              @select="onDagSelect"
-              @refresh="onPipelineRefresh"
-            />
+            <template v-if="selectedTask">
+              <PipelineDag
+                :nodes="pipeline.nodes"
+                :current-task-id="focusedTaskId"
+                :refreshing="pipelineRefreshing"
+                @select="onDagSelect"
+                @refresh="onPipelineRefresh"
+              />
+              <el-button
+                v-if="pipeline?.root?.id"
+                size="small"
+                class="pipeline-edit-deps-btn"
+                @click="openDependencyEditor"
+              >
+                编辑依赖
+              </el-button>
+              <DependencyEditorDialog
+                :visible="dependencyEditorVisible"
+                :pipeline-root-id="pipeline?.root?.id || null"
+                :nodes="pipeline?.nodes || []"
+                @close="dependencyEditorVisible = false"
+                @saved="onDependenciesSaved"
+              />
+            </template>
             <div v-else class="panel-placeholder">请选择任务</div>
           </template>
 
@@ -551,6 +567,7 @@ import { ref, computed, watch, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PipelineDag from '../components/workspace/PipelineDag.vue'
+import DependencyEditorDialog from '../components/workspace/DependencyEditorDialog.vue'
 import CurrentWorkflow from '../components/workspace/CurrentWorkflow.vue'
 import TaskFileViewer from '../components/workspace/TaskFileViewer.vue'
 import ChangedFilesPanel from '../components/workspace/ChangedFilesPanel.vue'
@@ -798,6 +815,13 @@ async function onKanbanDragEnd(event) {
 const realTasks = ref([])
 const pipeline = ref({ root: null, nodes: [] })
 const pipelineRefreshing = ref(false)
+const dependencyEditorVisible = ref(false)
+function openDependencyEditor() {
+  if (pipeline.value?.root?.id) dependencyEditorVisible.value = true
+}
+function onDependenciesSaved() {
+  onPipelineRefresh()
+}
 const selectedTask = ref(null)
 // Currently "focused" DAG node id — what the CurrentWorkflow panel displays.
 // Defaults to selectedTask.id but can be switched by clicking any node in the DAG.
@@ -2333,6 +2357,16 @@ watch(taskListViewMode, (mode) => {
 
 .task-kanban-board.column-resizing .task-kanban-column {
   pointer-events: none;
+}
+
+.workspace-mid-top {
+  position: relative;
+}
+.pipeline-edit-deps-btn {
+  position: absolute;
+  top: 8px;
+  right: 44px;
+  z-index: 4;
 }
 </style>
 
