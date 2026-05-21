@@ -532,7 +532,7 @@ body {
   width: calc(100vw - 220px);
   flex: 1;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden;
   transition: margin-left 0.3s ease;
 }
 

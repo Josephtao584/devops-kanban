@@ -107,7 +107,6 @@ const visibleEnv = computed(() => {
   flex: 1;
   min-width: 0;
   background: var(--panel-bg);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color);

@@ -121,6 +121,22 @@ export const skillRoutes: FastifyPluginAsync<SkillRouteOptions> = async (fastify
     }
   });
 
+  fastify.post<{ Body: { order: number[] } }>('/reorder', async (request, reply) => {
+    try {
+      const { order } = request.body;
+      if (!Array.isArray(order)) {
+        reply.code(400);
+        return errorResponse('order must be an array of skill IDs');
+      }
+      await skillService.reorderSkills(order);
+      return successResponse(null, 'Skills reordered');
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to reorder skills'));
+    }
+  });
+
   fastify.get<{ Params: IdParams }>('/:id/files', async (request, reply) => {
     try {
       const skill = await skillService.getSkill(parseNumber(request.params.id));

@@ -45,6 +45,15 @@
   max-width: var(--page-max-width-narrow);
 }
 
+/* Detail content area (shared by all config detail panels) */
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+}
+
 .page-header,
 .page-section-header {
   display: flex;

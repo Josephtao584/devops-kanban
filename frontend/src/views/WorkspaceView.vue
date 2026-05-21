@@ -1390,6 +1390,7 @@ watch(taskListViewMode, (mode) => {
 .workspace-view {
   display: flex;
   height: 100%;
+  overflow-y: auto;
   background: var(--page-bg);
   font-size: var(--font-size-sm);
 }

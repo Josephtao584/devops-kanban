@@ -54,6 +54,14 @@ export const useSkillStore = defineStore('skill', () => {
     throw new Error(response.message || 'Failed to create skill from zip')
   }
 
+  const reorderSkills = async (order) => {
+    const response = await skillApi.reorder(order)
+    if (response.success) {
+      return response.data
+    }
+    throw new Error(response.message || 'Failed to reorder skills')
+  }
+
   return {
     skills: crud.items,
     currentSkill: crud.currentItem,
@@ -71,6 +79,7 @@ export const useSkillStore = defineStore('skill', () => {
     fetchSkillFile,
     updateSkillFile,
     uploadSkillZip,
-    createSkillFromZip
+    createSkillFromZip,
+    reorderSkills
   }
 })

@@ -27,6 +27,7 @@
         :templates="workflowTemplates"
         @select="selectSkill"
         @update:selected-template-id="selectedTemplateId = $event"
+        @reorder="handleReorder"
       />
 
       <!-- 右侧：技能详情面板 -->
@@ -441,6 +442,16 @@ const confirmDelete = async () => {
 const closeForm = () => {
   showForm.value = false
   editingSkill.value = null
+}
+
+const handleReorder = async (evt) => {
+  const newOrder = filteredSkills.value.map(s => s.id)
+  try {
+    await skillStore.reorderSkills(newOrder)
+  } catch (e) {
+    console.error('Failed to reorder skills:', e)
+    showToast(t('skill.reorderFailed'), 'error')
+  }
 }
 
 onMounted(loadSkills)
