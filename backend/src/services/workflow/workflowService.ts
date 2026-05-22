@@ -40,6 +40,7 @@ function toStepState(instance: WorkflowInstanceEntity) {
 type StartWorkflowOptions = {
   workflowTemplateId: string;
   workflowTemplateSnapshot?: WorkflowTemplateEntity | undefined;
+  skipConcurrencyCheck?: boolean;
 };
 
 class WorkflowService {
@@ -188,14 +189,17 @@ class WorkflowService {
     await this.validateInstanceAgents(instance);
 
     // Enforce global concurrency limit regardless of call origin (API or scheduler).
-    const maxConcurrent = await this.settingsService.getMaxConcurrentWorkflows();
-    const activeCount = await this.workflowRunRepo.countActive();
-    if (activeCount >= maxConcurrent) {
-      throw new TooManyRequestsError(
-        `并发工作流已达上限 (${maxConcurrent})，请稍后再试`,
-        `Max concurrent workflows reached: ${activeCount}/${maxConcurrent}`,
-        { activeCount, maxConcurrent },
-      );
+    // Manual starts from the UI bypass this check (skipConcurrencyCheck: true).
+    if (!options.skipConcurrencyCheck) {
+      const maxConcurrent = await this.settingsService.getMaxConcurrentWorkflows();
+      const activeCount = await this.workflowRunRepo.countActive();
+      if (activeCount >= maxConcurrent) {
+        throw new TooManyRequestsError(
+          `并发工作流已达上限 (${maxConcurrent})，请稍后再试`,
+          `Max concurrent workflows reached: ${activeCount}/${maxConcurrent}`,
+          { activeCount, maxConcurrent },
+        );
+      }
     }
 
     // Atomically check for active runs and create a new one if none exist.
