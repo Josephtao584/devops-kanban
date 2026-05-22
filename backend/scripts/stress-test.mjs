@@ -152,12 +152,14 @@ async function startWorkflowForTask(taskId, templateId) {
     workflow_template_id: templateId,
   });
   if (!resp.ok || !resp.body?.success) {
-    stats.workflows.dispatchError++;
     const reason = resp.body?.error || resp.body?.message || resp.error || `status=${resp.status}`;
-    // Print every failure inline so the user notices immediately rather than
-    // only seeing the aggregate counter at the end of the run.
+    if (resp.status === 429) {
+      // concurrency limit hit — caller should retry after a delay
+      return { ok: false, reason, retryable: true };
+    }
+    stats.workflows.dispatchError++;
     console.warn(`[dispatch] task ${taskId} START failed: status=${resp.status} body=${JSON.stringify(resp.body) || resp.error}`);
-    return { ok: false, reason };
+    return { ok: false, reason, retryable: false };
   }
   stats.workflows.dispatched++;
   console.log(`[dispatch] task ${taskId} started ok`);
@@ -182,7 +184,14 @@ async function pollWorkflowUntilDone(taskId, deadlineMs) {
 async function workflowWorker(taskQueue, templateId, workerId) {
   while (taskQueue.length > 0 && !shuttingDown) {
     const task = taskQueue.shift();
-    const start = await startWorkflowForTask(task.id, templateId);
+    let start;
+    // Retry on 429 until the slot opens or we're shutting down
+    while (!shuttingDown) {
+      start = await startWorkflowForTask(task.id, templateId);
+      if (start.ok || !start.retryable) break;
+      console.log(`[wf-${workerId}] task ${task.id} 429 concurrency limit, retrying in 5s…`);
+      await sleep(5000);
+    }
     if (!start.ok) {
       console.warn(`[wf-${workerId}] task ${task.id} dispatch failed: ${start.reason}`);
       continue;
