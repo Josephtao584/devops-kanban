@@ -319,11 +319,12 @@ async function defaultSpawnImpl({
       stdio: ['ignore', 'pipe', 'pipe'],
       env: resolved.env,
       shell: false,
-      // Windows: detach from parent's console group so this child's CTRL_C / CTRL_BREAK
-      // (or any of its grandchildren's) cannot bounce back into the backend process.
-      // No-op on POSIX since signals there are addressed by pid, not console group.
+      // Windows: hide any console window the child may create. We don't pass
+      // detached:true — on Windows it would put the child in its own console
+      // group, which (a) pops up a separate cmd window and (b) breaks the
+      // stdout/stderr pipes so the chat panel shows nothing because the
+      // output ends up in the detached console instead of our pipes.
       windowsHide: true,
-      detached: process.platform === 'win32',
     });
     const proc = toExecutorProcessHandle(spawnedProc);
     registerActiveProcess(spawnedProc as unknown as import('node:child_process').ChildProcess);
