@@ -273,7 +273,7 @@ const handleDeleteTeam = async (teamItem) => {
 
 <style scoped>
 .project-list-view {
-  min-height: 100%;
+  height: 100%;
   padding: var(--page-padding);
   overflow-y: auto;
   background:
