@@ -127,7 +127,7 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
 
   async countActive(): Promise<number> {
     const result = await this.client.execute(
-      "SELECT COUNT(*) as count FROM workflow_runs WHERE status IN ('RUNNING', 'PENDING', 'SUSPENDED')"
+      "SELECT COUNT(*) as count FROM workflow_runs WHERE status IN ('RUNNING', 'PENDING')"
     );
     return Number(result.rows[0]?.count || 0);
   }
