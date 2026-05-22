@@ -7,17 +7,14 @@ export interface ScopeFilter {
 }
 
 export interface TaskStatusCounts {
-  REQUIREMENTS: number;
-  TODO: number;
-  IN_PROGRESS: number;
-  DONE: number;
-  BLOCKED: number;
-  CANCELLED: number;
+  todo: number;
+  inProgress: number;
+  done: number;
+  requirements: number;
+  blocked: number;
+  cancelled: number;
+  total: number;
 }
-
-const EMPTY_COUNTS: TaskStatusCounts = {
-  REQUIREMENTS: 0, TODO: 0, IN_PROGRESS: 0, DONE: 0, BLOCKED: 0, CANCELLED: 0,
-};
 
 export interface SessionStats {
   running: number;
@@ -77,23 +74,33 @@ export class DashboardRepository {
   async getTaskStatusCounts(scope: ScopeFilter): Promise<TaskStatusCounts> {
     const result = await this.client.execute({
       sql: `
-        SELECT status, COUNT(*) AS c
+        SELECT
+          SUM(CASE WHEN status = 'TODO'         THEN 1 ELSE 0 END) AS todo,
+          SUM(CASE WHEN status = 'IN_PROGRESS'  THEN 1 ELSE 0 END) AS in_progress,
+          SUM(CASE WHEN status = 'DONE'         THEN 1 ELSE 0 END) AS done,
+          SUM(CASE WHEN status = 'REQUIREMENTS' THEN 1 ELSE 0 END) AS requirements,
+          SUM(CASE WHEN status = 'BLOCKED'      THEN 1 ELSE 0 END) AS blocked,
+          SUM(CASE WHEN status = 'CANCELLED'    THEN 1 ELSE 0 END) AS cancelled,
+          COUNT(*) AS total
         FROM tasks
         WHERE (? IS NULL OR project_id = ?)
           AND (? IS NULL OR project_id IN (SELECT id FROM projects WHERE team_id = ?))
-        GROUP BY status
       `,
       args: [
         scope.projectId ?? null, scope.projectId ?? null,
         scope.teamId ?? null, scope.teamId ?? null,
       ],
     });
-    const counts: TaskStatusCounts = { ...EMPTY_COUNTS };
-    for (const row of result.rows) {
-      const status = row.status as keyof TaskStatusCounts;
-      if (status in counts) counts[status] = Number(row.c);
-    }
-    return counts;
+    const row = result.rows[0] ?? {};
+    return {
+      todo:         Number(row.todo ?? 0),
+      inProgress:   Number(row.in_progress ?? 0),
+      done:         Number(row.done ?? 0),
+      requirements: Number(row.requirements ?? 0),
+      blocked:      Number(row.blocked ?? 0),
+      cancelled:    Number(row.cancelled ?? 0),
+      total:        Number(row.total ?? 0),
+    };
   }
 
   async getSessionStats(scope: ScopeFilter): Promise<SessionStats> {
