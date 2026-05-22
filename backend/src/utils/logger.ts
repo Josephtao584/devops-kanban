@@ -78,6 +78,20 @@ function writeLine(line: string): void {
   }
 }
 
+/**
+ * Write synchronously to today's log. Use only for shutdown/error paths
+ * where the async write stream may not flush before the process dies.
+ */
+function writeLineSync(line: string): void {
+  if (!ensureLogDir()) return;
+  try {
+    const filePath = path.join(LOG_DIR, `backend-${todayStamp()}.log`);
+    fs.writeFileSync(filePath, line + '\n', { flag: 'a' });
+  } catch (err) {
+    console.error(`[logger] sync write failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 export const logger = {
   info(component: string, message: string, context?: LogContext) {
     const line = formatMessage('INFO', component, message, context);
@@ -88,13 +102,15 @@ export const logger = {
   warn(component: string, message: string, context?: LogContext) {
     const line = formatMessage('WARN', component, message, context);
     console.warn(line);
-    writeLine(line);
+    // Sync: warns often precede shutdown/crash; we don't want them lost.
+    writeLineSync(line);
   },
 
   error(component: string, message: string, context?: LogContext) {
     const line = formatMessage('ERROR', component, message, context);
     console.error(line);
-    writeLine(line);
+    // Sync: errors may be the last thing before process death.
+    writeLineSync(line);
   },
 };
 

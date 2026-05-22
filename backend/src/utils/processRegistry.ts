@@ -29,9 +29,12 @@ export function killAllActiveProcesses(signal: NodeJS.Signals = 'SIGTERM'): numb
       if (process.platform === 'win32' && proc.pid) {
         // taskkill propagates to the process tree; we don't await it so the
         // shutdown path stays synchronous.
+        // windowsHide:true + detached:true keeps the helper out of our console
+        // group so its own CTRL_C signal can't bounce back into the backend.
         spawn('taskkill', ['/pid', String(proc.pid), '/t', '/f'], {
           stdio: 'ignore',
           detached: true,
+          windowsHide: true,
         });
       } else {
         proc.kill(signal);

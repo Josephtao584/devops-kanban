@@ -33,10 +33,13 @@ function killProcessTree(proc: ExecutorProcessHandle): boolean {
   if (!pid) return false;
 
   if (process.platform === 'win32') {
-    // On Windows, use taskkill to kill the entire process tree
+    // On Windows, use taskkill to kill the entire process tree.
+    // windowsHide + detached keeps taskkill out of our console group so its
+    // termination signals don't bounce back to the backend.
     spawn('taskkill', ['/pid', String(pid), '/t', '/f'], {
       stdio: 'ignore',
       detached: true,
+      windowsHide: true,
     });
     return true;
   } else {
@@ -243,6 +246,11 @@ async function defaultSpawnImpl({
       stdio: ['ignore', 'pipe', 'pipe'],
       env: resolved.env,
       shell: false,
+      // Windows: detach from parent's console group so this child's CTRL_C / CTRL_BREAK
+      // (or any of its grandchildren's) cannot bounce back into the backend process.
+      // No-op on POSIX since signals there are addressed by pid, not console group.
+      windowsHide: true,
+      detached: process.platform === 'win32',
     });
     const proc = toExecutorProcessHandle(spawnedProc);
     registerActiveProcess(spawnedProc as unknown as import('node:child_process').ChildProcess);
