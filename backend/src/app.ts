@@ -30,6 +30,7 @@ import {
   presetRoutes,
   splitSuggestionsRoutes,
   teamRoutes,
+  dashboardRoutes,
 } from './routes/index.js';
 import { SchedulerService } from './services/schedulerService.js';
 
@@ -139,6 +140,7 @@ export async function buildApp() {
   fastify.register(presetRoutes, { prefix: '/api/presets', storagePath: config.STORAGE_PATH });
   fastify.register(splitSuggestionsRoutes, { prefix: '/api' });
   fastify.register(teamRoutes, { prefix: '/api/teams' });
+  fastify.register(dashboardRoutes, { prefix: '/api/dashboard' });
 
   // Shutdown scheduler when app closes
   fastify.addHook('onClose', async () => {
