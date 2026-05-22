@@ -79,6 +79,20 @@ export async function buildApp() {
     }
   }
 
+  // 启动恢复：把上次进程崩溃遗留的孤儿 PENDING/RUNNING run 标为 FAILED
+  {
+    const { getDbClient } = await import('./db/client.js');
+    const now = new Date().toISOString();
+    const result = await getDbClient().execute({
+      sql: `UPDATE workflow_runs SET status = 'FAILED', updated_at = ?
+            WHERE status IN ('RUNNING', 'PENDING')`,
+      args: [now],
+    });
+    if (result.rowsAffected > 0) {
+      logger.info('Recovery', `Marked ${result.rowsAffected} orphaned workflow run(s) as FAILED on startup`);
+    }
+  }
+
   // Bootstrap built-in task split agent and skill
   await bootstrapBuiltinTaskSplitAgent();
 
