@@ -281,7 +281,7 @@
               >
                 编辑依赖
               </el-button>
-              <DependencyEditorDialog
+              <DependencyTableEditor
                 :visible="dependencyEditorVisible"
                 :pipeline-root-id="pipeline?.root?.id || null"
                 :nodes="pipeline?.nodes || []"
@@ -567,7 +567,7 @@ import { ref, computed, watch, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PipelineDag from '../components/workspace/PipelineDag.vue'
-import DependencyEditorDialog from '../components/workspace/DependencyEditorDialog.vue'
+import DependencyTableEditor from '../components/workspace/DependencyTableEditor.vue'
 import CurrentWorkflow from '../components/workspace/CurrentWorkflow.vue'
 import TaskFileViewer from '../components/workspace/TaskFileViewer.vue'
 import ChangedFilesPanel from '../components/workspace/ChangedFilesPanel.vue'
