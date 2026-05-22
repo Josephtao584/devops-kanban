@@ -65,7 +65,6 @@ function killProcessTree(proc: ExecutorProcessHandle): boolean {
   if (process.platform === 'win32') {
     spawn('taskkill', ['/pid', String(pid), '/t', '/f'], {
       stdio: 'ignore',
-      detached: true,
       windowsHide: true,
     });
     return true;
