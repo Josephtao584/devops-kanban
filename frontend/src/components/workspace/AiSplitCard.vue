@@ -327,7 +327,7 @@ watch(() => props.suggestion, (val) => {
         .filter((i) => i !== null)
     )
     val.suggestions.forEach((s) => {
-      if (s.create_worktree === undefined) s.create_worktree = true
+      if (s.create_worktree === undefined) s.create_worktree = false
       if (s.auto_start === undefined) s.auto_start = true
       if (s.child_task_id === undefined) s.child_task_id = null
     })
@@ -393,7 +393,7 @@ function onAddTask() {
       target_repo_url: null,
       depends_on_indices: [],
       enabled: true,
-      create_worktree: true,
+      create_worktree: false,
       auto_start: true,
       work_dir: null,
       child_task_id: null,
