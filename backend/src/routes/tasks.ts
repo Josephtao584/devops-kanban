@@ -217,6 +217,40 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  fastify.put<{
+    Params: { rootId: string };
+    Body: { edges?: Array<{ from: number; to: number }> };
+  }>('/:rootId/dependencies/batch', async (request, reply) => {
+    try {
+      const body = request.body;
+      if (!body || !Array.isArray(body.edges)) {
+        reply.code(400);
+        return errorResponse('edges must be an array');
+      }
+      if (body.edges.length > 1000) {
+        reply.code(400);
+        return errorResponse('edges length must be <= 1000');
+      }
+      for (const e of body.edges) {
+        if (!e
+          || !Number.isInteger(e.from) || e.from <= 0
+          || !Number.isInteger(e.to) || e.to <= 0) {
+          reply.code(400);
+          return errorResponse('each edge must have positive integer from/to');
+        }
+      }
+      const result = await taskService.updateDependenciesBatch(
+        parseNumber(request.params.rootId),
+        body.edges,
+      );
+      return successResponse(result, 'Dependencies updated');
+    } catch (error) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to update dependencies'));
+    }
+  });
+
   fastify.post<{ Params: IdParams; Body: { retryNote?: string } }>('/:id/regenerate-split', async (req, reply) => {
     try {
       const taskId = parseNumber(req.params.id);

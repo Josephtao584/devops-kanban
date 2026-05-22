@@ -1,6 +1,7 @@
 import { BaseRepository } from './base.js';
 import type { TaskEntity } from '../types/entities.ts';
 import { safeJsonParse } from '../utils/safeJson.js';
+import { withRetry } from '../db/retry.js';
 
 interface TaskStatusCounts {
   REQUIREMENTS: number;
@@ -187,6 +188,32 @@ class TaskRepository extends BaseRepository<TaskEntity> {
       args: [parentTaskId],
     });
     return result.rows.map(row => this.parseRow(row as Record<string, unknown>));
+  }
+
+  async batchUpdateDependsOn(updates: Array<{ id: number; depends_on: number[] }>): Promise<void> {
+    if (updates.length === 0) return;
+    return withRetry(async () => {
+      const txn = await this.client.transaction('write');
+      let committed = false;
+      try {
+        const now = new Date().toISOString();
+        for (const u of updates) {
+          await txn.execute({
+            sql: 'UPDATE tasks SET depends_on = ?, updated_at = ? WHERE id = ?',
+            args: [JSON.stringify(u.depends_on), now, u.id],
+          });
+        }
+        await txn.commit();
+        committed = true;
+      } catch (error) {
+        if (!committed) {
+          try { await txn.rollback(); } catch { /* ignore */ }
+        }
+        throw error;
+      } finally {
+        try { txn.close(); } catch { /* ignore */ }
+      }
+    });
   }
 }
 

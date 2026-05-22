@@ -13,7 +13,7 @@ import { ValidationError, NotFoundError, BusinessError, InternalError } from '..
 import { sanitizeWorkDir } from '../utils/workDir.js';
 import { logger } from '../utils/logger.js';
 
-import { hasCycle } from './workflow/dependencyValidator.js';
+import { hasCycle, findCycleById } from './workflow/dependencyValidator.js';
 import type { Suggestion, TaskEntity, ProjectEntity } from '../types/entities.ts';
 import type { CreateTaskInput, StartTaskInput, UpdateTaskInput } from '../types/dto/tasks.js';
 
@@ -166,6 +166,23 @@ class TaskService {
 
     if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS') {
       throw new BusinessError('只有待处理或进行中的任务可以启动', 'Only TODO or IN_PROGRESS tasks can be started', { taskId, status: task.status });
+    }
+
+    const dependencyIds = task.depends_on ?? [];
+    if (dependencyIds.length > 0) {
+      const upstreams = await Promise.all(dependencyIds.map(id => this.taskRepo.findById(id)));
+      const blockerIds: number[] = [];
+      dependencyIds.forEach((id, idx) => {
+        const u = upstreams[idx];
+        if (!u || u.status !== 'DONE') blockerIds.push(id);
+      });
+      if (blockerIds.length > 0) {
+        throw new BusinessError(
+          '上游任务未全部完成，无法启动',
+          'Upstream tasks not all DONE',
+          { taskId, blockerIds }
+        );
+      }
     }
 
     await this.taskRepo.update(taskId, { status: 'IN_PROGRESS' });
@@ -420,6 +437,68 @@ class TaskService {
 
   async getDependents(taskId: number): Promise<TaskEntity[]> {
     return this.taskRepo.findDependents(taskId);
+  }
+
+  async updateDependenciesBatch(
+    rootId: number,
+    edges: Array<{ from: number; to: number }>,
+  ): Promise<{ updated: number }> {
+    const pipeline = await this.getPipeline(rootId);
+    const idSet = new Set(pipeline.nodes.map((n) => n.id));
+    const taskById = new Map(pipeline.nodes.map((n) => [n.id, n]));
+
+    for (const edge of edges) {
+      if (!idSet.has(edge.from) || !idSet.has(edge.to)) {
+        throw new BusinessError(
+          `依赖引用不合法：边 ${edge.from}→${edge.to} 不在当前 pipeline 中`,
+          'Edge references task outside pipeline',
+          { invalidEdge: edge },
+        );
+      }
+      if (edge.from === edge.to) {
+        throw new BusinessError(
+          '依赖不能指向自身',
+          'Self-loop detected',
+          { taskId: edge.from },
+        );
+      }
+    }
+
+    const newDepsByTaskId = new Map<number, number[]>();
+    for (const id of idSet) {
+      const oldDeps = taskById.get(id)!.depends_on ?? [];
+      // Preserve dependencies that point outside the current pipeline (e.g.
+      // upstream tasks in a sibling pipeline). Editor only touches in-pipeline
+      // edges; out-of-pipeline edges remain untouched.
+      const externalDeps = oldDeps.filter((d) => !idSet.has(d));
+      newDepsByTaskId.set(id, [...externalDeps]);
+    }
+    for (const edge of edges) {
+      const arr = newDepsByTaskId.get(edge.to)!;
+      if (!arr.includes(edge.from)) arr.push(edge.from);
+    }
+
+    const cycle = findCycleById(newDepsByTaskId);
+    if (cycle) {
+      const cycleTitles = cycle.map((id) => taskById.get(id)?.title ?? `#${id}`);
+      throw new BusinessError(
+        `依赖关系存在环路：${cycleTitles.join(' → ')}`,
+        'Cycle detected in dependencies',
+        { cycle },
+      );
+    }
+
+    const dirty: Array<{ id: number; depends_on: number[] }> = [];
+    for (const id of idSet) {
+      const oldDeps = (taskById.get(id)!.depends_on ?? []).slice().sort((a, b) => a - b);
+      const newDeps = (newDepsByTaskId.get(id) ?? []).slice().sort((a, b) => a - b);
+      const same = oldDeps.length === newDeps.length && oldDeps.every((v, i) => v === newDeps[i]);
+      if (!same) {
+        dirty.push({ id, depends_on: newDepsByTaskId.get(id) ?? [] });
+      }
+    }
+    await this.taskRepo.batchUpdateDependsOn(dirty);
+    return { updated: dirty.length };
   }
 
   async onTaskStatusChange(taskId: number, newStatus: string, visited: Set<number> = new Set()): Promise<void> {
