@@ -39,19 +39,27 @@ export async function buildApp() {
   await initDatabase();
 
   // Auto-seed sample data if database is empty
-  const { getDbClient } = await import('./db/client.js');
-  const result = await getDbClient().execute('SELECT COUNT(*) as count FROM projects');
-  if (!result?.rows?.[0] || Number(result.rows[0].count) === 0) {
-    try {
-      console.log('Database is empty, seeding sample data...');
-      await seedSampleData();
-    } catch (seedError) {
-      console.warn('Sample data seeding skipped (data may already exist):', seedError instanceof Error ? seedError.message : String(seedError));
+  try {
+    const { getDbClient } = await import('./db/client.js');
+    const result = await getDbClient().execute('SELECT COUNT(*) as count FROM projects');
+    if (!result?.rows?.[0] || Number(result.rows[0].count) === 0) {
+      try {
+        console.log('Database is empty, seeding sample data...');
+        await seedSampleData();
+      } catch (seedError) {
+        console.warn('Sample data seeding skipped (data may already exist):', seedError instanceof Error ? seedError.message : String(seedError));
+      }
     }
+  } catch (err) {
+    logger.warn('App', `Skipping sample data check: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Initialize Mastra workflow engine
-  await initWorkflows();
+  try {
+    await initWorkflows();
+  } catch (err) {
+    logger.error('App', `Mastra init failed, workflow routes will be unavailable: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // Bootstrap built-in workflow templates
   await bootstrapBuiltinTemplates();

@@ -32,6 +32,7 @@ export async function initDatabase(): Promise<void> {
   await client.execute('PRAGMA journal_mode = WAL');
   await client.execute('PRAGMA busy_timeout = 30000');
   await client.execute('PRAGMA synchronous = NORMAL');
+  await client.execute('PRAGMA wal_autocheckpoint = 200');
 
   const schemaPath = join(import.meta.dirname, 'schema.sql');
   const schemaSql = await readFile(schemaPath, 'utf-8');

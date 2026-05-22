@@ -125,6 +125,13 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
     return Number(result.rows[0]?.count || 0);
   }
 
+  async countActive(): Promise<number> {
+    const result = await this.client.execute(
+      "SELECT COUNT(*) as count FROM workflow_runs WHERE status IN ('RUNNING', 'PENDING', 'SUSPENDED')"
+    );
+    return Number(result.rows[0]?.count || 0);
+  }
+
   async findAllByTaskId(taskId: number): Promise<WorkflowRunEntity[]> {
     const result = await this.client.execute({
       sql: 'SELECT * FROM workflow_runs WHERE task_id = ?',

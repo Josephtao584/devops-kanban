@@ -72,6 +72,12 @@ export class BusinessError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(userMessage: string, internalMessage: string, context?: Record<string, unknown>) {
+    super({ statusCode: 429, code: 'TOO_MANY_REQUESTS', userMessage, internalMessage, context });
+  }
+}
+
 export class InternalError extends AppError {
   constructor(userMessage: string, internalMessage: string, context?: Record<string, unknown>) {
     super({

@@ -10,9 +10,10 @@ import { WorkflowLoopService } from './workflowLoopService.js';
 import { buildWorkflowFromInstance, getWorkflowFromWorkflowId, cropInstanceForLoop, formatLoopContext, collectPriorSummaries } from './workflows.js';
 import { type WorkflowTaskRecord } from '../../types/workflow.js';
 import { WorkflowInstanceEntity, WorkflowRunEntity, WorkflowTemplateEntity } from '../../types/entities.js';
-import { ValidationError, NotFoundError, ConflictError, BusinessError } from '../../utils/errors.js';
+import { ValidationError, NotFoundError, ConflictError, BusinessError, TooManyRequestsError } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { NotificationService } from '../notificationService.js';
+import { SettingsService } from '../settingsService.js';
 import { STORAGE_PATH, BACKEND_ROOT } from '../../config/index.js';
 import { ensureExternalRepo } from '../../utils/git.js';
 import { writeErrorToFile } from './workflowSummaryWriter.js';
@@ -50,12 +51,13 @@ class WorkflowService {
   agentRepo: AgentRepository;
   lifecycle: WorkflowLifecycle;
   loopService: WorkflowLoopService;
+  private settingsService: SettingsService;
 
   private async resetTaskToTodo(taskId: number) {
     await this.taskRepo.update(taskId, { status: 'TODO' }).catch(() => {});
   }
 
-  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, templateService, agentRepo, lifecycle, loopService }: {
+  constructor({ workflowRunRepo, taskRepo, projectRepo, instanceService, templateService, agentRepo, lifecycle, loopService, settingsService }: {
     workflowRunRepo?: WorkflowRunRepository;
     taskRepo?: TaskRepository;
     projectRepo?: ProjectRepository;
@@ -64,6 +66,7 @@ class WorkflowService {
     agentRepo?: AgentRepository;
     lifecycle?: WorkflowLifecycle;
     loopService?: WorkflowLoopService;
+    settingsService?: SettingsService;
   } = {}) {
     this.workflowRunRepo = workflowRunRepo || sharedWorkflowRunRepo;
     this.taskRepo = taskRepo || new TaskRepository();
@@ -71,6 +74,7 @@ class WorkflowService {
     this.instanceService = instanceService || new WorkflowInstanceService();
     this.templateService = templateService || new WorkflowTemplateService();
     this.agentRepo = agentRepo || new AgentRepository();
+    this.settingsService = settingsService || new SettingsService();
     this.loopService = loopService || new WorkflowLoopService({
       workflowRunRepo: this.workflowRunRepo,
       taskRepo: this.taskRepo,
@@ -182,6 +186,17 @@ class WorkflowService {
       ? await this.instanceService.createFromTemplateSnapshot(options.workflowTemplateSnapshot)
       : await this.instanceService.createFromTemplate(options.workflowTemplateId);
     await this.validateInstanceAgents(instance);
+
+    // Enforce global concurrency limit regardless of call origin (API or scheduler).
+    const maxConcurrent = await this.settingsService.getMaxConcurrentWorkflows();
+    const activeCount = await this.workflowRunRepo.countActive();
+    if (activeCount >= maxConcurrent) {
+      throw new TooManyRequestsError(
+        `并发工作流已达上限 (${maxConcurrent})，请稍后再试`,
+        `Max concurrent workflows reached: ${activeCount}/${maxConcurrent}`,
+        { activeCount, maxConcurrent },
+      );
+    }
 
     // Atomically check for active runs and create a new one if none exist.
     // This prevents race conditions where two concurrent calls both see no
