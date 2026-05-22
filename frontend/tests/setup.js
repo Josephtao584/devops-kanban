@@ -6,3 +6,9 @@ import { createPinia, setActivePinia } from 'pinia'
 setActivePinia(createPinia())
 
 config.global.plugins = [ElementPlus]
+
+// Global stubs for echarts-based components (canvas not available in jsdom)
+config.global.stubs = {
+  TrendChart: { template: '<div data-test="trend-chart"></div>', name: 'TrendChart' },
+  StatusDistribution: { template: '<div data-test="status-distribution"></div>', name: 'StatusDistribution' },
+}

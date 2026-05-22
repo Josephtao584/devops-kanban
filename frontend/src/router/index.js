@@ -30,7 +30,11 @@ const routes = [
     path: '/mcp-servers',
     name: 'McpServerConfig',
     component: () => import('../views/McpServerConfig.vue')
-  }
+  },
+  { path: '/dashboard',                 name: 'Dashboard',         component: () => import('../views/DashboardView.vue') },
+  { path: '/dashboard/agents/:id',      name: 'DashboardAgent',    component: () => import('../views/DashboardAgentDetailView.vue') },
+  { path: '/dashboard/projects/:id',    name: 'DashboardProject',  component: () => import('../views/DashboardProjectDetailView.vue') },
+  { path: '/dashboard/teams/:id',       name: 'DashboardTeam',     component: () => import('../views/DashboardTeamDetailView.vue') }
 ]
 
 const router = createRouter({
