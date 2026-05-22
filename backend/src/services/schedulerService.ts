@@ -280,10 +280,7 @@ class SchedulerService {
   // --- Workflow Dispatch ---
 
   async getActiveWorkflowCount(): Promise<number> {
-    const all = await this.workflowRunRepository.findAll();
-    return all.filter(
-      (r) => r.status === 'RUNNING' || r.status === 'PENDING' || r.status === 'SUSPENDED'
-    ).length;
+    return this.workflowRunRepository.countActive();
   }
 
   async dispatchWorkflows(): Promise<DispatchResult> {

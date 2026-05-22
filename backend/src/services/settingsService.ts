@@ -35,7 +35,7 @@ class SettingsService {
 
   async getMaxConcurrentWorkflows(): Promise<number> {
     const val = await this.get('scheduler.max_concurrent_workflows');
-    return val ? parseInt(val, 10) : 3;
+    return val ? parseInt(val, 10) : 5;
   }
 
   async getMaxTasksPerExecution(): Promise<number> {
