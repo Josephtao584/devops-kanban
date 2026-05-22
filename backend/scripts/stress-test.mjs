@@ -140,9 +140,14 @@ async function startWorkflowForTask(taskId, templateId) {
   });
   if (!resp.ok || !resp.body?.success) {
     stats.workflows.dispatchError++;
-    return { ok: false, reason: resp.body?.error || resp.error || `status=${resp.status}` };
+    const reason = resp.body?.error || resp.body?.message || resp.error || `status=${resp.status}`;
+    // Print every failure inline so the user notices immediately rather than
+    // only seeing the aggregate counter at the end of the run.
+    console.warn(`[dispatch] task ${taskId} START failed: status=${resp.status} body=${JSON.stringify(resp.body) || resp.error}`);
+    return { ok: false, reason };
   }
   stats.workflows.dispatched++;
+  console.log(`[dispatch] task ${taskId} started ok`);
   return { ok: true, data: resp.body.data };
 }
 
