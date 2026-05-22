@@ -78,22 +78,6 @@ export async function buildApp() {
       logger.info('Migration', `Migrated ${result.rowsAffected} WAITING tasks to TODO`);
     }
   }
-
-  // 一次性迁移：max_concurrent_workflows 默认值从 3 升到 5
-  {
-    const { getDbClient } = await import('./db/client.js');
-    const r = await getDbClient().execute({
-      sql: "SELECT value FROM settings WHERE key = 'scheduler.max_concurrent_workflows'",
-      args: [],
-    });
-    if (r.rows.length > 0 && r.rows[0].value === '3') {
-      await getDbClient().execute({
-        sql: "UPDATE settings SET value = '5' WHERE key = 'scheduler.max_concurrent_workflows'",
-        args: [],
-      });
-      logger.info('Migration', 'Bumped scheduler.max_concurrent_workflows from 3 to 5');
-    }
-  }
   }
 
   // Bootstrap built-in task split agent and skill
