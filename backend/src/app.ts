@@ -78,7 +78,6 @@ export async function buildApp() {
       logger.info('Migration', `Migrated ${result.rowsAffected} WAITING tasks to TODO`);
     }
   }
-  }
 
   // Bootstrap built-in task split agent and skill
   await bootstrapBuiltinTaskSplitAgent();
