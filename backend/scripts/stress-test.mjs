@@ -8,7 +8,7 @@
 //     --tasks=50 \
 //     --concurrency=3 \
 //     --rps=5 \
-//     --duration=600 \
+//     --duration=3600 \
 //     --templateId=<workflow_template_id> \
 //     --localPath=/abs/path/to/some/git/repo \
 //     [--gitUrl=https://github.com/foo/bar.git]
@@ -38,7 +38,7 @@ const cfg = {
   tasks: Number(args.tasks ?? 50),
   concurrency: Number(args.concurrency ?? 3),
   rps: Number(args.rps ?? 5),
-  durationSec: Number(args.duration ?? 600),
+  durationSec: Number(args.duration ?? 3600),
   templateId: args.templateId || null,
   localPath: args.localPath || null,
   gitUrl: args.gitUrl || null,
