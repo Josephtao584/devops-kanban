@@ -9,28 +9,31 @@
           <div class="hero-surface__content">
             <h1 class="hero-surface__title">{{ $t('dashboard.title') }}</h1>
             <p class="hero-surface__description">{{ $t('dashboard.description') }}</p>
+            <p v-if="lastUpdatedLabel" class="hero-surface__meta">{{ lastUpdatedLabel }}</p>
           </div>
           <div class="hero-surface__actions">
             <ScopeSelector v-model="scope" :teams="teams" :projects="projects" />
-            <el-button class="hero-surface__refresh" @click="loadOverview">
-              <el-icon><Refresh /></el-icon>
+            <el-button class="hero-surface__refresh" :loading="loading" @click="loadOverview">
+              <el-icon v-if="!loading"><Refresh /></el-icon>
               {{ $t('dashboard.refresh') }}
             </el-button>
           </div>
         </div>
+        <div v-if="loading && overview" class="hero-surface__progress"></div>
       </section>
 
-      <!-- Loading / Error -->
+      <!-- Error -->
       <div v-if="error" class="error-surface surface-panel">
         <el-icon class="error-surface__icon"><WarningFilled /></el-icon>
         <p class="error-surface__text">{{ error }}</p>
         <el-button @click="loadOverview">{{ $t('dashboard.refresh') }}</el-button>
       </div>
 
-      <el-skeleton v-if="loading" :rows="8" animated />
+      <!-- Initial loading skeleton (only when no data yet) -->
+      <el-skeleton v-if="loading && !overview" :rows="8" animated />
 
       <!-- Metric cards -->
-      <section v-if="overview && !loading" class="metric-grid">
+      <section v-if="overview" class="metric-grid">
         <div class="metric-card surface-card surface-card--hoverable">
           <div class="metric-card__icon" style="--icon-bg: var(--accent-color-soft); --icon-color: var(--accent-color);">
             <el-icon><Connection /></el-icon>
@@ -94,15 +97,15 @@
             </div>
           </div>
           <div class="metric-card__footer">
-            <el-tag size="small" type="warning">{{ overview.workflows.running }} running</el-tag>
-            <el-tag size="small" type="danger">{{ overview.workflows.recent7dFailed }} failed</el-tag>
-            <el-tag size="small" type="info">{{ overview.workflows.suspended }} suspended</el-tag>
+            <el-tag size="small" type="warning">{{ overview.workflows.running }} {{ $t('dashboard.workflows.running') }}</el-tag>
+            <el-tag size="small" type="danger">{{ overview.workflows.recent7dFailed }} {{ $t('dashboard.workflows.failed') }}</el-tag>
+            <el-tag size="small" type="info">{{ overview.workflows.suspended }} {{ $t('dashboard.workflows.suspended') }}</el-tag>
           </div>
         </div>
       </section>
 
       <!-- Charts row -->
-      <section v-if="overview && !loading" class="chart-row surface-panel">
+      <section v-if="overview" class="chart-row surface-panel">
         <div class="chart-row__card">
           <h3 class="chart-row__title">{{ $t('dashboard.trend.title') }}</h3>
           <TrendChart :data="overview.trend30d" />
@@ -110,7 +113,7 @@
       </section>
 
       <!-- Leaderboards -->
-      <section v-if="overview && !loading" class="leaderboard-grid surface-panel">
+      <section v-if="overview" class="leaderboard-grid surface-panel">
         <LeaderboardCard
           :title="$t('dashboard.leaderboard.agents')"
           :items="agentItems"
@@ -140,6 +143,14 @@ import { getOverview } from '../api/dashboard.js'
 import { getTeams } from '../api/team.js'
 import { getProjects } from '../api/project.js'
 
+function formatTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
 export default {
   name: 'DashboardView',
   components: { ScopeSelector, LeaderboardCard, TrendChart },
@@ -151,15 +162,23 @@ export default {
       overview: null,
       loading: false,
       error: null,
+      lastUpdatedAt: null,
     }
   },
   computed: {
+    lastUpdatedLabel() {
+      if (!this.lastUpdatedAt) return ''
+      return this.$t('dashboard.lastUpdated', { time: formatTime(this.lastUpdatedAt) })
+    },
     agentItems() {
-      return (this.overview?.agentTop || []).map(a => ({
-        id: a.agentId, name: a.name,
-        primary: a.sessionsTotal,
-        secondary: `${a.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
-      }))
+      return (this.overview?.agentTop || []).map(a => {
+        const ratePct = Math.round((a.successRate ?? 0) * 100)
+        const recent = `${a.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`
+        const secondary = a.successRate > 0
+          ? `${recent} · ${this.$t('dashboard.leaderboard.successRate', { rate: ratePct })}`
+          : recent
+        return { id: a.agentId, name: a.name, primary: a.sessionsTotal, secondary }
+      })
     },
     projectItems() {
       return (this.overview?.projectTop || []).map(p => ({
@@ -171,8 +190,8 @@ export default {
     teamItems() {
       return (this.overview?.teamTop || []).map(t => ({
         id: t.teamId, name: t.name,
-        primary: t.tasksTotal,
-        secondary: `${t.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
+        primary: t.sessionsRecent7d,
+        secondary: this.$t('dashboard.leaderboard.tasksTotal', { n: t.tasksTotal }),
       }))
     },
   },
@@ -191,8 +210,12 @@ export default {
       this.error = null
       try {
         const res = await getOverview(this.scope)
-        if (res.success) this.overview = res.data
-        else this.error = res.message || 'load failed'
+        if (res.success) {
+          this.overview = res.data
+          this.lastUpdatedAt = Date.now()
+        } else {
+          this.error = res.message || 'load failed'
+        }
       } catch (e) {
         this.error = e?.message || 'load failed'
       } finally {
@@ -208,7 +231,7 @@ export default {
 
 <style scoped>
 .dashboard-view {
-  min-height: 100%;
+  height: 100%;
   overflow-y: auto;
   background:
     radial-gradient(120% 80% at 20% -10%, rgba(37, 198, 201, 0.10), transparent 60%),
@@ -300,6 +323,13 @@ export default {
   color: var(--text-secondary);
 }
 
+.hero-surface__meta {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
 .hero-surface__actions {
   display: flex;
   align-items: center;
@@ -309,6 +339,23 @@ export default {
 
 .hero-surface__refresh :deep(.el-icon) {
   margin-right: 4px;
+}
+
+.hero-surface__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: hero-progress 1.2s ease-in-out infinite;
+}
+
+@keyframes hero-progress {
+  0%   { background-position: -40% 0; }
+  100% { background-position: 140% 0; }
 }
 
 /* Error surface */
@@ -418,6 +465,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .metric-card__footer-text {
@@ -451,7 +499,7 @@ export default {
 /* Leaderboard grid */
 .leaderboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   padding: 20px;
   border-radius: 18px;
@@ -469,6 +517,11 @@ export default {
   background: transparent;
 }
 
+.leaderboard-grid :deep(.leaderboard-card + .leaderboard-card) {
+  border-left: 1px solid var(--border-color);
+  padding-left: 16px;
+}
+
 .leaderboard-grid :deep(.leaderboard-card__title) {
   font-size: 13px;
   margin-bottom: 8px;
@@ -484,6 +537,16 @@ export default {
 }
 
 /* Responsive */
+@media (max-width: 1280px) {
+  .leaderboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .leaderboard-grid :deep(.leaderboard-card:nth-child(odd)) {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
 @media (max-width: 1024px) {
   .metric-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -494,6 +557,10 @@ export default {
   .metric-grid,
   .leaderboard-grid {
     grid-template-columns: 1fr;
+  }
+  .leaderboard-grid :deep(.leaderboard-card) {
+    border-left: none !important;
+    padding-left: 0 !important;
   }
 
   .hero-surface__inner {

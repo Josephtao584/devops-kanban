@@ -357,8 +357,10 @@ test.test('DashboardService.getTeamDetail aggregates over projects', async () =>
     const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
     const svc = new DashboardService(new DashboardRepository(client), client);
     const detail = await svc.getTeamDetail(1);
-    assert.equal(detail.projects.length, 2);
+    assert.equal(detail.projectBreakdown.length, 2);
     assert.equal(detail.aggregateTasks.total, 6);
+    const project1 = detail.projectBreakdown.find(p => p.projectId === 1);
+    assert.equal(project1?.tasksTotal, 4);
   } finally { cleanup(); }
 });
 
@@ -371,5 +373,37 @@ test.test('DashboardService.getAgentDetail throws NotFoundError for unknown agen
     const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
     const svc = new DashboardService(new DashboardRepository(client), client);
     await assert.rejects(() => svc.getAgentDetail(999, {}), /agent .* missing/);
+  } finally { cleanup(); }
+});
+
+test.test('DashboardService.getAgentDetail returns sessions filtered by agentId, plus recent/byProject/byTeam', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    await applySchema(client);
+    await seedFixtures(client);
+    await client.execute(`INSERT INTO teams (id, name) VALUES (1, 'T1'), (2, 'T2')`);
+    await client.execute(`UPDATE projects SET team_id = 1 WHERE id = 1`);
+    await client.execute(`UPDATE projects SET team_id = 2 WHERE id = 2`);
+    await client.execute(`INSERT INTO agents (id, name, executorType, role) VALUES (1, 'A1', 'CLAUDE_CODE', 'developer'), (2, 'A2', 'CLAUDE_CODE', 'developer')`);
+    await client.execute(`INSERT INTO sessions (id, task_id, agent_id, status, executor_type, started_at) VALUES
+      (1, 1, 1, 'RUNNING',   'CLAUDE_CODE', datetime('now','-1 days')),
+      (2, 1, 1, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-2 days')),
+      (3, 5, 1, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-3 days')),
+      (4, 1, 2, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-1 days'))`);
+    const { DashboardService } = await import('../../src/services/DashboardService.js');
+    const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
+    const svc = new DashboardService(new DashboardRepository(client), client);
+
+    const detail = await svc.getAgentDetail(1, {});
+    assert.equal(detail.sessions.total, 3, 'sessions should only count agent 1');
+    assert.equal(detail.sessions.running, 1);
+    assert.equal(detail.recentSessions.length, 3);
+    assert.equal(detail.byProject.length, 2);
+    const p1 = detail.byProject.find(b => b.projectId === 1);
+    assert.equal(p1?.sessionsTotal, 2);
+    const p2 = detail.byProject.find(b => b.projectId === 2);
+    assert.equal(p2?.sessionsTotal, 1);
+    assert.equal(detail.byTeam.length, 2);
+    assert.equal(detail.trend30d.length, 30);
   } finally { cleanup(); }
 });

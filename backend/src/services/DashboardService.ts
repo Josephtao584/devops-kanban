@@ -70,42 +70,50 @@ export class DashboardService {
   async getAgentDetail(agentId: number, scope: ScopeFilter) {
     const agentRow = await this.client.execute({ sql: 'SELECT * FROM agents WHERE id = ?', args: [agentId] });
     if (agentRow.rows.length === 0) throw new NotFoundError('Agent not found', `agent ${agentId} missing`);
-    const sessions = await this.repo.getSessionStats(scope);
-    return { agent: agentRow.rows[0], sessions, recentSessions: [], byProject: [], byTeam: [], trend30d: await this.repo.getTrend30d(scope) };
+    const agentScope: ScopeFilter = { ...scope, agentId };
+    const [sessions, trend30d, recentSessions, byProject, byTeam] = await Promise.all([
+      this.repo.getSessionStats(agentScope),
+      this.repo.getTrend30d(agentScope),
+      this.repo.getRecentSessionsForAgent(agentId),
+      this.repo.getAgentBreakdownByProject(agentId),
+      this.repo.getAgentBreakdownByTeam(agentId),
+    ]);
+    return { agent: agentRow.rows[0], sessions, recentSessions, byProject, byTeam, trend30d };
   }
 
   async getProjectDetail(projectId: number) {
     const p = await this.client.execute({ sql: 'SELECT * FROM projects WHERE id = ?', args: [projectId] });
     if (p.rows.length === 0) throw new NotFoundError('Project not found', `project ${projectId} missing`);
-    const project = p.rows[0];
+    const project = p.rows[0]!;
+    const teamId = project.team_id == null ? null : Number(project.team_id);
     let team = null;
-    if ((project as any).team_id) {
-      const t = await this.client.execute({ sql: 'SELECT * FROM teams WHERE id = ?', args: [(project as any).team_id] });
+    if (teamId != null) {
+      const t = await this.client.execute({ sql: 'SELECT * FROM teams WHERE id = ?', args: [teamId] });
       team = t.rows[0] ?? null;
     }
-    const scope = { projectId };
-    const [sessions, taskBlock, trend30d] = await Promise.all([
+    const scope: ScopeFilter = { projectId };
+    const [sessions, taskBlock, trend30d, agentBreakdown] = await Promise.all([
       this.repo.getSessionStats(scope),
       this.getTaskBlock(scope),
       this.repo.getTrend30d(scope),
+      this.repo.getAgentLeaderboard(scope),
     ]);
-    const agentBreakdown = await this.repo.getAgentLeaderboard(scope);
-    return { project, team, sessions, tasks: taskBlock, agentBreakdown, recentSessions: [], trend30d };
+    return { project, team, sessions, tasks: taskBlock, agentBreakdown, trend30d };
   }
 
   async getTeamDetail(teamId: number) {
     const t = await this.client.execute({ sql: 'SELECT * FROM teams WHERE id = ?', args: [teamId] });
     if (t.rows.length === 0) throw new NotFoundError('Team not found', `team ${teamId} missing`);
     const team = t.rows[0];
-    const projects = await this.client.execute({ sql: 'SELECT * FROM projects WHERE team_id = ?', args: [teamId] });
-    const scope = { teamId };
-    const [aggregateSessions, taskBlock, trend30d, agentBreakdown] = await Promise.all([
+    const scope: ScopeFilter = { teamId };
+    const [aggregateSessions, taskBlock, trend30d, agentBreakdown, projectBreakdown] = await Promise.all([
       this.repo.getSessionStats(scope),
       this.getTaskBlock(scope),
       this.repo.getTrend30d(scope),
       this.repo.getAgentLeaderboard(scope),
+      this.repo.getTeamProjectBreakdown(teamId),
     ]);
-    return { team, projects: projects.rows, aggregateSessions, aggregateTasks: taskBlock, agentBreakdown, trend30d };
+    return { team, projectBreakdown, aggregateSessions, aggregateTasks: taskBlock, agentBreakdown, trend30d };
   }
 }
 
