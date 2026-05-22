@@ -210,7 +210,7 @@ async function handleTriggerDispatch() {
 
 async function onSchedulerEnabledChange() {
   try {
-    const res = await updateSettings({
+    const res = await settingsStore.updateSettings({
       'scheduler.enabled': String(schedulerEnabled.value),
     })
     if (!res.success) {
