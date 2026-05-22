@@ -148,3 +148,71 @@ test('updateDependenciesBatch tasks omitted from edges have depends_on cleared',
     await teardownPipeline(s);
   }
 });
+
+test('updateDependenciesBatch preserves dependencies pointing outside the pipeline', async () => {
+  const s = await setupPipeline();
+  // External task in a different project: not part of this pipeline.
+  const otherProject = await projectRepository.create({ name: `dep-edit-other-${Date.now()}-${Math.random()}`, env: {} } as any);
+  const ext = await taskRepository.create({ title: 'EXT', project_id: otherProject.id, status: 'DONE', priority: 'MEDIUM', source: 'internal', depends_on: [] } as any);
+  await taskRepository.update(s.b.id, { depends_on: [ext.id] } as any);
+  try {
+    const result = await taskService.updateDependenciesBatch(s.root.id, [
+      { from: s.a.id, to: s.b.id },
+    ]);
+    const bAfter = await taskRepository.findById(s.b.id);
+    const sorted = (bAfter!.depends_on ?? []).slice().sort((x, y) => x - y);
+    const expected = [ext.id, s.a.id].sort((x, y) => x - y);
+    assert.deepEqual(sorted, expected, 'B 应同时保留 EXT 与新加 A');
+    assert.ok(result.updated >= 1);
+  } finally {
+    await taskRepository.delete(ext.id);
+    await projectRepository.delete(otherProject.id);
+    await teardownPipeline(s);
+  }
+});
+
+test('updateDependenciesBatch cycle error message contains task titles', async () => {
+  const s = await setupPipeline();
+  try {
+    await assert.rejects(
+      () => taskService.updateDependenciesBatch(s.root.id, [
+        { from: s.a.id, to: s.b.id },
+        { from: s.b.id, to: s.a.id },
+      ]),
+      (err: any) => {
+        assert.equal(err.name, 'BusinessError');
+        assert.match(err.userMessage, /A/);
+        assert.match(err.userMessage, /B/);
+        return true;
+      },
+    );
+  } finally {
+    await teardownPipeline(s);
+  }
+});
+
+test('updateDependenciesBatch is atomic — failure in mid-write leaves DB unchanged', async () => {
+  const s = await setupPipeline();
+  await taskRepository.update(s.b.id, { depends_on: [s.a.id] } as any);
+  await taskRepository.update(s.c.id, { depends_on: [s.b.id] } as any);
+  // Simulate write failure by stubbing batchUpdateDependsOn to throw.
+  const repo: any = (taskService as any).taskRepo;
+  const original = repo.batchUpdateDependsOn.bind(repo);
+  repo.batchUpdateDependsOn = async () => { throw new Error('simulated write failure'); };
+  try {
+    await assert.rejects(
+      () => taskService.updateDependenciesBatch(s.root.id, [
+        { from: s.c.id, to: s.b.id },
+        { from: s.a.id, to: s.c.id },
+      ]),
+      (err: any) => err.message === 'simulated write failure',
+    );
+    const bAfter = await taskRepository.findById(s.b.id);
+    const cAfter = await taskRepository.findById(s.c.id);
+    assert.deepEqual(bAfter!.depends_on ?? [], [s.a.id], 'B 应保留旧依赖');
+    assert.deepEqual(cAfter!.depends_on ?? [], [s.b.id], 'C 应保留旧依赖');
+  } finally {
+    repo.batchUpdateDependsOn = original;
+    await teardownPipeline(s);
+  }
+});

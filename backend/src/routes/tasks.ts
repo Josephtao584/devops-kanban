@@ -227,10 +227,16 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         reply.code(400);
         return errorResponse('edges must be an array');
       }
+      if (body.edges.length > 1000) {
+        reply.code(400);
+        return errorResponse('edges length must be <= 1000');
+      }
       for (const e of body.edges) {
-        if (!e || typeof e.from !== 'number' || typeof e.to !== 'number') {
+        if (!e
+          || !Number.isInteger(e.from) || e.from <= 0
+          || !Number.isInteger(e.to) || e.to <= 0) {
           reply.code(400);
-          return errorResponse('each edge must have numeric from/to');
+          return errorResponse('each edge must have positive integer from/to');
         }
       }
       const result = await taskService.updateDependenciesBatch(

@@ -73,3 +73,45 @@ test('PUT /:rootId/dependencies/batch returns 400 with BusinessError message on 
     await app.close();
   }
 });
+
+test('PUT /:rootId/dependencies/batch returns 400 when edges length exceeds limit', async () => {
+  const app = Fastify();
+  app.register(taskRoutes);
+  await app.ready();
+  try {
+    const tooMany = Array.from({ length: 1001 }, (_, i) => ({ from: 1, to: i + 2 }));
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/5/dependencies/batch',
+      payload: { edges: tooMany },
+    });
+    assert.equal(res.statusCode, 400);
+    assert.match(res.json().message, /<= 1000/);
+  } finally {
+    await app.close();
+  }
+});
+
+test('PUT /:rootId/dependencies/batch returns 400 for non-integer or non-positive edge values', async () => {
+  const app = Fastify();
+  app.register(taskRoutes);
+  await app.ready();
+  try {
+    for (const bad of [
+      { from: 1.5, to: 2 },
+      { from: 0, to: 2 },
+      { from: -1, to: 2 },
+      { from: 'x', to: 2 },
+      { from: 1, to: null },
+    ]) {
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/5/dependencies/batch',
+        payload: { edges: [bad] },
+      });
+      assert.equal(res.statusCode, 400, `expected 400 for edge ${JSON.stringify(bad)}`);
+    }
+  } finally {
+    await app.close();
+  }
+});

@@ -64,7 +64,6 @@ export function findCycleById(deps: Map<number, number[]>): number[] | null {
         return path;
       }
       if (c === undefined || c === WHITE) {
-        if (c === undefined) color.set(child, WHITE);
         color.set(child, GRAY);
         stack.push({ id: child, iter: (deps.get(child) ?? [])[Symbol.iterator]() });
       }

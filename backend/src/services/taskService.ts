@@ -465,7 +465,14 @@ class TaskService {
     }
 
     const newDepsByTaskId = new Map<number, number[]>();
-    for (const id of idSet) newDepsByTaskId.set(id, []);
+    for (const id of idSet) {
+      const oldDeps = taskById.get(id)!.depends_on ?? [];
+      // Preserve dependencies that point outside the current pipeline (e.g.
+      // upstream tasks in a sibling pipeline). Editor only touches in-pipeline
+      // edges; out-of-pipeline edges remain untouched.
+      const externalDeps = oldDeps.filter((d) => !idSet.has(d));
+      newDepsByTaskId.set(id, [...externalDeps]);
+    }
     for (const edge of edges) {
       const arr = newDepsByTaskId.get(edge.to)!;
       if (!arr.includes(edge.from)) arr.push(edge.from);
@@ -473,24 +480,25 @@ class TaskService {
 
     const cycle = findCycleById(newDepsByTaskId);
     if (cycle) {
+      const cycleTitles = cycle.map((id) => taskById.get(id)?.title ?? `#${id}`);
       throw new BusinessError(
-        `依赖关系存在环路：${cycle.join(' → ')}`,
+        `依赖关系存在环路：${cycleTitles.join(' → ')}`,
         'Cycle detected in dependencies',
         { cycle },
       );
     }
 
-    let updated = 0;
+    const dirty: Array<{ id: number; depends_on: number[] }> = [];
     for (const id of idSet) {
       const oldDeps = (taskById.get(id)!.depends_on ?? []).slice().sort((a, b) => a - b);
       const newDeps = (newDepsByTaskId.get(id) ?? []).slice().sort((a, b) => a - b);
       const same = oldDeps.length === newDeps.length && oldDeps.every((v, i) => v === newDeps[i]);
       if (!same) {
-        await this.taskRepo.update(id, { depends_on: newDepsByTaskId.get(id) ?? [] });
-        updated++;
+        dirty.push({ id, depends_on: newDepsByTaskId.get(id) ?? [] });
       }
     }
-    return { updated };
+    await this.taskRepo.batchUpdateDependsOn(dirty);
+    return { updated: dirty.length };
   }
 
   async onTaskStatusChange(taskId: number, newStatus: string, visited: Set<number> = new Set()): Promise<void> {
