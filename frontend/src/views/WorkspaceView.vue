@@ -81,6 +81,13 @@
             </svg>
             新建
           </el-button>
+          <el-button size="small" text :disabled="tasksRefreshing" @click="refreshTasks" title="刷新任务列表">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ 'spinning': tasksRefreshing }">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </el-button>
           <el-button
             v-if="selectedProjectId"
             size="small"
@@ -813,6 +820,7 @@ async function onKanbanDragEnd(event) {
 }
 
 const realTasks = ref([])
+const tasksRefreshing = ref(false)
 const pipeline = ref({ root: null, nodes: [] })
 const pipelineRefreshing = ref(false)
 const dependencyEditorVisible = ref(false)
@@ -1066,6 +1074,15 @@ async function loadTasks() {
   } else if (selectedTask.value) {
     const refreshed = realTasks.value.find(t => t.id === selectedTask.value.id)
     if (refreshed) selectedTask.value = refreshed
+  }
+}
+
+async function refreshTasks() {
+  tasksRefreshing.value = true
+  try {
+    await loadTasks()
+  } finally {
+    tasksRefreshing.value = false
   }
 }
 
@@ -1600,6 +1617,14 @@ watch(taskListViewMode, (mode) => {
 
 .task-list-actions .el-button {
   font-size: 12px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.task-list-actions .spinning {
+  animation: spin 0.8s linear infinite;
 }
 
 .task-card {
