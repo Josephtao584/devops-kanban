@@ -44,7 +44,7 @@
           <div class="metric-card__values">
             <div class="metric-card__value">
               <span class="metric-card__number">{{ overview.sessions.recent7d }}</span>
-              <span class="metric-card__sub">{{ $t('dashboard.metric.recent') }}</span>
+              <span class="metric-card__sub">{{ recentLabel }}</span>
             </div>
             <div class="metric-card__divider"></div>
             <div class="metric-card__value">
@@ -68,7 +68,7 @@
           <div class="metric-card__values">
             <div class="metric-card__value">
               <span class="metric-card__number">{{ overview.tasks.recent7dDone }}</span>
-              <span class="metric-card__sub">{{ $t('dashboard.metric.recent') }}</span>
+              <span class="metric-card__sub">{{ recentLabel }}</span>
             </div>
             <div class="metric-card__divider"></div>
             <div class="metric-card__value">
@@ -88,7 +88,7 @@
           <div class="metric-card__values">
             <div class="metric-card__value">
               <span class="metric-card__number">{{ overview.workflows.recent7dCompleted }}</span>
-              <span class="metric-card__sub">{{ $t('dashboard.metric.recent') }}</span>
+              <span class="metric-card__sub">{{ recentLabel }}</span>
             </div>
             <div class="metric-card__divider"></div>
             <div class="metric-card__value">
@@ -107,7 +107,7 @@
       <!-- Charts row -->
       <section v-if="overview" class="chart-row surface-panel">
         <div class="chart-row__card">
-          <h3 class="chart-row__title">{{ $t('dashboard.trend.title') }}</h3>
+          <h3 class="chart-row__title">{{ trendTitle }}</h3>
           <TrendChart :data="overview.trend30d" />
         </div>
       </section>
@@ -156,7 +156,7 @@ export default {
   components: { ScopeSelector, LeaderboardCard, TrendChart },
   data() {
     return {
-      scope: { teamId: null, projectId: null },
+      scope: { teamId: null, projectId: null, windowDays: 7 },
       teams: [],
       projects: [],
       overview: null,
@@ -166,6 +166,9 @@ export default {
     }
   },
   computed: {
+    windowDays() { return this.scope.windowDays ?? 7 },
+    recentLabel() { return this.$t('dashboard.metric.recent', { n: this.windowDays }) },
+    trendTitle() { return this.$t('dashboard.trend.title', { n: this.windowDays }) },
     lastUpdatedLabel() {
       if (!this.lastUpdatedAt) return ''
       return this.$t('dashboard.lastUpdated', { time: formatTime(this.lastUpdatedAt) })
@@ -173,7 +176,7 @@ export default {
     agentItems() {
       return (this.overview?.agentTop || []).map(a => {
         const ratePct = Math.round((a.successRate ?? 0) * 100)
-        const recent = `${a.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`
+        const recent = `${a.sessionsRecent7d} ${this.recentLabel}`
         const secondary = a.successRate > 0
           ? `${recent} · ${this.$t('dashboard.leaderboard.successRate', { rate: ratePct })}`
           : recent
@@ -184,7 +187,7 @@ export default {
       return (this.overview?.projectTop || []).map(p => ({
         id: p.projectId, name: p.name,
         primary: p.sessionsTotal,
-        secondary: `${p.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
+        secondary: `${p.sessionsRecent7d} ${this.recentLabel}`,
       }))
     },
     teamItems() {

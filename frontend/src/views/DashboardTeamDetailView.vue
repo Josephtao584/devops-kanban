@@ -41,7 +41,7 @@
             <div class="metric-card__values">
               <div class="metric-card__value">
                 <span class="metric-card__number">{{ detail.aggregateSessions.recent7d }}</span>
-                <span class="metric-card__sub">{{ $t('dashboard.metric.recent') }}</span>
+                <span class="metric-card__sub">{{ recentLabel }}</span>
               </div>
               <div class="metric-card__divider"></div>
               <div class="metric-card__value">
@@ -61,7 +61,7 @@
             <div class="metric-card__values">
               <div class="metric-card__value">
                 <span class="metric-card__number">{{ detail.aggregateTasks.recent7dDone }}</span>
-                <span class="metric-card__sub">{{ $t('dashboard.metric.recent') }}</span>
+                <span class="metric-card__sub">{{ recentLabel }}</span>
               </div>
               <div class="metric-card__divider"></div>
               <div class="metric-card__value">
@@ -78,7 +78,7 @@
             <StatusDistribution :by-status="detail.aggregateTasks.byStatus" />
           </div>
           <div class="surface-panel section-block">
-            <h3 class="section-title">{{ $t('dashboard.trend.title') }}</h3>
+            <h3 class="section-title">{{ trendTitle }}</h3>
             <TrendChart :data="detail.trend30d" />
           </div>
         </section>
@@ -114,21 +114,23 @@ import { getTeamDetail } from '../api/dashboard.js'
 export default {
   name: 'DashboardTeamDetailView',
   components: { ArrowLeft, Refresh, Connection, Document, WarningFilled, LeaderboardCard, TrendChart, StatusDistribution },
-  data: () => ({ detail: null, error: null, loading: false }),
+  data: () => ({ detail: null, error: null, loading: false, windowDays: 7 }),
   computed: {
     id() { return Number(this.$route.params.id) },
+    recentLabel() { return this.$t('dashboard.metric.recent', { n: this.windowDays }) },
+    trendTitle() { return this.$t('dashboard.trend.title', { n: this.windowDays }) },
     projectItems() {
       return (this.detail?.projectBreakdown || []).map(p => ({
         id: p.projectId, name: p.name,
         primary: p.sessionsTotal,
-        secondary: `${this.$t('dashboard.leaderboard.tasksTotal', { n: p.tasksTotal })} · ${p.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
+        secondary: `${this.$t('dashboard.leaderboard.tasksTotal', { n: p.tasksTotal })} · ${p.sessionsRecent7d} ${this.recentLabel}`,
       }))
     },
     agentItems() {
       return (this.detail?.agentBreakdown || []).map(a => ({
         id: a.agentId, name: a.name,
         primary: a.sessionsTotal,
-        secondary: `${a.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
+        secondary: `${a.sessionsRecent7d} ${this.recentLabel}`,
       }))
     },
   },
@@ -139,9 +141,11 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const res = await getTeamDetail(this.id)
-        if (res.success) this.detail = res.data
-        else this.error = res.message
+        const res = await getTeamDetail(this.id, { windowDays: this.windowDays })
+        if (res.success) {
+          this.detail = res.data
+          if (res.data?.windowDays) this.windowDays = res.data.windowDays
+        } else this.error = res.message
       } catch (e) {
         if (e?.response?.status === 404) this.$router.replace('/dashboard')
         else this.error = e?.message

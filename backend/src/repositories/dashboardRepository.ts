@@ -1,10 +1,24 @@
 import type { Client } from '@libsql/client';
 import { getDbClient } from '../db/client.js';
 
+export const ALLOWED_WINDOW_DAYS = [1, 7, 14, 30, 90] as const;
+export type WindowDays = typeof ALLOWED_WINDOW_DAYS[number];
+export const DEFAULT_WINDOW_DAYS: WindowDays = 7;
+export const TREND_WINDOW_DAYS = 30;
+
 export interface ScopeFilter {
   teamId?: number | null;
   projectId?: number | null;
   agentId?: number | null;
+  windowDays?: WindowDays;
+}
+
+function recentExpr(days: number): string {
+  return `-${days} days`;
+}
+
+function trendStartExpr(days: number): string {
+  return `-${days - 1} days`;
 }
 
 export interface TaskStatusCounts {
@@ -139,12 +153,13 @@ export class DashboardRepository {
   }
 
   async getSessionStats(scope: ScopeFilter): Promise<SessionStats> {
+    const window = recentExpr(scope.windowDays ?? DEFAULT_WINDOW_DAYS);
     const result = await this.client.execute({
       sql: `
         SELECT
           SUM(CASE WHEN s.status = 'RUNNING' THEN 1 ELSE 0 END) AS running,
           SUM(CASE WHEN s.status = 'IDLE'    THEN 1 ELSE 0 END) AS idle,
-          SUM(CASE WHEN s.started_at >= datetime('now','-7 days') THEN 1 ELSE 0 END) AS recent7d,
+          SUM(CASE WHEN s.started_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS recent7d,
           COUNT(*) AS total
         FROM sessions s
         JOIN tasks t ON t.id = s.task_id
@@ -153,6 +168,7 @@ export class DashboardRepository {
           AND (? IS NULL OR t.project_id IN (SELECT id FROM projects WHERE team_id = ?))
       `,
       args: [
+        window,
         scope.agentId   ?? null, scope.agentId   ?? null,
         scope.projectId ?? null, scope.projectId ?? null,
         scope.teamId    ?? null, scope.teamId    ?? null,
@@ -168,13 +184,14 @@ export class DashboardRepository {
   }
 
   async getWorkflowStats(scope: ScopeFilter): Promise<WorkflowStats> {
+    const window = recentExpr(scope.windowDays ?? DEFAULT_WINDOW_DAYS);
     const result = await this.client.execute({
       sql: `
         SELECT
           SUM(CASE WHEN wr.status = 'RUNNING'   THEN 1 ELSE 0 END) AS running,
           SUM(CASE WHEN wr.status = 'SUSPENDED' THEN 1 ELSE 0 END) AS suspended,
-          SUM(CASE WHEN wr.status = 'COMPLETED' AND wr.updated_at >= datetime('now','-7 days') THEN 1 ELSE 0 END) AS rc,
-          SUM(CASE WHEN wr.status = 'FAILED'    AND wr.updated_at >= datetime('now','-7 days') THEN 1 ELSE 0 END) AS rf,
+          SUM(CASE WHEN wr.status = 'COMPLETED' AND wr.updated_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS rc,
+          SUM(CASE WHEN wr.status = 'FAILED'    AND wr.updated_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS rf,
           COUNT(*) AS total
         FROM workflow_runs wr
         JOIN tasks t ON t.id = wr.task_id
@@ -182,6 +199,7 @@ export class DashboardRepository {
           AND (? IS NULL OR t.project_id IN (SELECT id FROM projects WHERE team_id = ?))
       `,
       args: [
+        window, window,
         scope.projectId ?? null, scope.projectId ?? null,
         scope.teamId ?? null, scope.teamId ?? null,
       ],
@@ -197,11 +215,12 @@ export class DashboardRepository {
   }
 
   async getAgentLeaderboard(scope: ScopeFilter): Promise<AgentLeaderboardEntry[]> {
+    const window = recentExpr(scope.windowDays ?? DEFAULT_WINDOW_DAYS);
     const result = await this.client.execute({
       sql: `
         SELECT s.agent_id AS agent_id, a.name AS name,
                COUNT(*) AS total,
-               SUM(CASE WHEN s.started_at >= datetime('now','-7 days') THEN 1 ELSE 0 END) AS recent7d,
+               SUM(CASE WHEN s.started_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS recent7d,
                AVG(CASE WHEN s.status = 'COMPLETED' THEN 1.0
                         WHEN s.status = 'FAILED'    THEN 0.0
                         ELSE NULL END) AS success_rate
@@ -216,6 +235,7 @@ export class DashboardRepository {
         LIMIT ${LEADERBOARD_LIMIT}
       `,
       args: [
+        window,
         scope.projectId ?? null, scope.projectId ?? null,
         scope.teamId    ?? null, scope.teamId    ?? null,
       ],
@@ -230,6 +250,7 @@ export class DashboardRepository {
   }
 
   async getProjectLeaderboard(scope: ScopeFilter): Promise<ProjectLeaderboardEntry[]> {
+    const window = recentExpr(scope.windowDays ?? DEFAULT_WINDOW_DAYS);
     const result = await this.client.execute({
       sql: `
         SELECT p.id AS project_id, p.name AS name,
@@ -237,7 +258,7 @@ export class DashboardRepository {
                (SELECT COUNT(*) FROM sessions s JOIN tasks t ON t.id = s.task_id
                   WHERE t.project_id = p.id) AS sessions_total,
                (SELECT COUNT(*) FROM sessions s JOIN tasks t ON t.id = s.task_id
-                  WHERE t.project_id = p.id AND s.started_at >= datetime('now','-7 days')) AS sessions_recent7d
+                  WHERE t.project_id = p.id AND s.started_at >= datetime('now', ?)) AS sessions_recent7d
         FROM projects p
         WHERE (? IS NULL OR p.id = ?)
           AND (? IS NULL OR p.team_id = ?)
@@ -245,6 +266,7 @@ export class DashboardRepository {
         LIMIT ${LEADERBOARD_LIMIT}
       `,
       args: [
+        window,
         scope.projectId ?? null, scope.projectId ?? null,
         scope.teamId    ?? null, scope.teamId    ?? null,
       ],
@@ -259,6 +281,7 @@ export class DashboardRepository {
   }
 
   async getTeamLeaderboard(scope: ScopeFilter): Promise<TeamLeaderboardEntry[]> {
+    const window = recentExpr(scope.windowDays ?? DEFAULT_WINDOW_DAYS);
     const result = await this.client.execute({
       sql: `
         SELECT tm.id AS team_id, tm.name AS name,
@@ -268,13 +291,13 @@ export class DashboardRepository {
                (SELECT COUNT(*) FROM sessions s
                   JOIN tasks    t ON t.id = s.task_id
                   JOIN projects p ON p.id = t.project_id
-                  WHERE p.team_id = tm.id AND s.started_at >= datetime('now','-7 days')) AS sessions_recent7d
+                  WHERE p.team_id = tm.id AND s.started_at >= datetime('now', ?)) AS sessions_recent7d
         FROM teams tm
         WHERE (? IS NULL OR tm.id = ?)
         ORDER BY sessions_recent7d DESC, tasks_total DESC
         LIMIT ${LEADERBOARD_LIMIT}
       `,
-      args: [scope.teamId ?? null, scope.teamId ?? null],
+      args: [window, scope.teamId ?? null, scope.teamId ?? null],
     });
     return result.rows.map(r => ({
       teamId:           Number(r.team_id),
@@ -285,14 +308,16 @@ export class DashboardRepository {
     }));
   }
 
-  async getTrend30d(scope: ScopeFilter): Promise<TrendEntry[]> {
+  async getTrend(scope: ScopeFilter): Promise<TrendEntry[]> {
+    const days = scope.windowDays ?? DEFAULT_WINDOW_DAYS;
+    const start = trendStartExpr(days);
     const a = scope.agentId   ?? null;
     const p = scope.projectId ?? null;
     const t = scope.teamId    ?? null;
     const result = await this.client.execute({
       sql: `
         WITH RECURSIVE days(d) AS (
-          SELECT date('now','-29 days')
+          SELECT date('now', ?)
           UNION ALL SELECT date(d,'+1 day') FROM days WHERE d < date('now')
         )
         SELECT d AS date,
@@ -321,6 +346,7 @@ export class DashboardRepository {
         ORDER BY d ASC
       `,
       args: [
+        start,
         a, a, p, p, t, t,
         a, a, p, p, t, t,
         a, a, p, p, t, t,
@@ -332,6 +358,11 @@ export class DashboardRepository {
       tasksCompleted:     Number(r.tasks_completed),
       workflowsCompleted: Number(r.workflows_completed),
     }));
+  }
+
+  /** @deprecated use getTrend */
+  async getTrend30d(scope: ScopeFilter): Promise<TrendEntry[]> {
+    return this.getTrend(scope);
   }
 
   async getRecentSessionsForAgent(agentId: number, limit = RECENT_SESSIONS_LIMIT): Promise<RecentSessionEntry[]> {
@@ -361,12 +392,13 @@ export class DashboardRepository {
     }));
   }
 
-  async getAgentBreakdownByProject(agentId: number): Promise<AgentProjectBreakdownEntry[]> {
+  async getAgentBreakdownByProject(agentId: number, windowDays: WindowDays = DEFAULT_WINDOW_DAYS): Promise<AgentProjectBreakdownEntry[]> {
+    const window = recentExpr(windowDays);
     const result = await this.client.execute({
       sql: `
         SELECT p.id AS project_id, p.name AS name,
                COUNT(*) AS sessions_total,
-               SUM(CASE WHEN s.started_at >= datetime('now','-7 days') THEN 1 ELSE 0 END) AS sessions_recent7d
+               SUM(CASE WHEN s.started_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS sessions_recent7d
         FROM sessions s
         JOIN tasks t ON t.id = s.task_id
         JOIN projects p ON p.id = t.project_id
@@ -375,7 +407,7 @@ export class DashboardRepository {
         ORDER BY sessions_total DESC
         LIMIT ${LEADERBOARD_LIMIT}
       `,
-      args: [agentId],
+      args: [window, agentId],
     });
     return result.rows.map(r => ({
       projectId:        Number(r.project_id),
@@ -385,12 +417,13 @@ export class DashboardRepository {
     }));
   }
 
-  async getAgentBreakdownByTeam(agentId: number): Promise<AgentTeamBreakdownEntry[]> {
+  async getAgentBreakdownByTeam(agentId: number, windowDays: WindowDays = DEFAULT_WINDOW_DAYS): Promise<AgentTeamBreakdownEntry[]> {
+    const window = recentExpr(windowDays);
     const result = await this.client.execute({
       sql: `
         SELECT tm.id AS team_id, tm.name AS name,
                COUNT(*) AS sessions_total,
-               SUM(CASE WHEN s.started_at >= datetime('now','-7 days') THEN 1 ELSE 0 END) AS sessions_recent7d
+               SUM(CASE WHEN s.started_at >= datetime('now', ?) THEN 1 ELSE 0 END) AS sessions_recent7d
         FROM sessions s
         JOIN tasks t ON t.id = s.task_id
         JOIN projects p ON p.id = t.project_id
@@ -400,7 +433,7 @@ export class DashboardRepository {
         ORDER BY sessions_total DESC
         LIMIT ${LEADERBOARD_LIMIT}
       `,
-      args: [agentId],
+      args: [window, agentId],
     });
     return result.rows.map(r => ({
       teamId:           Number(r.team_id),
@@ -410,7 +443,8 @@ export class DashboardRepository {
     }));
   }
 
-  async getTeamProjectBreakdown(teamId: number): Promise<TeamProjectBreakdownEntry[]> {
+  async getTeamProjectBreakdown(teamId: number, windowDays: WindowDays = DEFAULT_WINDOW_DAYS): Promise<TeamProjectBreakdownEntry[]> {
+    const window = recentExpr(windowDays);
     const result = await this.client.execute({
       sql: `
         SELECT p.id AS project_id, p.name AS name,
@@ -418,12 +452,12 @@ export class DashboardRepository {
                (SELECT COUNT(*) FROM sessions s JOIN tasks t ON t.id = s.task_id
                   WHERE t.project_id = p.id) AS sessions_total,
                (SELECT COUNT(*) FROM sessions s JOIN tasks t ON t.id = s.task_id
-                  WHERE t.project_id = p.id AND s.started_at >= datetime('now','-7 days')) AS sessions_recent7d
+                  WHERE t.project_id = p.id AND s.started_at >= datetime('now', ?)) AS sessions_recent7d
         FROM projects p
         WHERE p.team_id = ?
         ORDER BY sessions_total DESC, tasks_total DESC
       `,
-      args: [teamId],
+      args: [window, teamId],
     });
     return result.rows.map(r => ({
       projectId:        Number(r.project_id),
