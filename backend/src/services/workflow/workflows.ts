@@ -57,24 +57,20 @@ let _initialized = false;
 export async function initWorkflows() {
   if (_initialized) return;
   const dbPath = path.join(STORAGE_PATH as string, 'mastra.db');
-  _mastra = new Mastra({
-    storage: new LibSQLStore({ id: 'kanban-workflow-store', url: `file:${dbPath}` }),
-  });
+  const storage = new LibSQLStore({ id: 'kanban-workflow-store', url: `file:${dbPath}` });
+  _mastra = new Mastra({ storage });
   _initialized = true;
 
-  // Force a WAL checkpoint on startup to recover from any leftover WAL after a crash.
-  // wal_autocheckpoint is per-connection so we also set it here for any writes we
-  // trigger via this temporary connection (the LibSQLStore connection cannot be
-  // configured directly, but frequent Mastra writes will still checkpoint at the
-  // SQLite default threshold of 1000 pages / ~4 MB).
+  // Set WAL autocheckpoint on LibSQLStore's internal connection via its exposed `turso` client.
+  // This limits WAL size to ~800KB instead of the default 4MB, reducing crash recovery risk.
   try {
-    const { createClient } = await import('@libsql/client');
-    const tmpClient = createClient({ url: `file:${dbPath}` });
-    await tmpClient.execute('PRAGMA wal_autocheckpoint = 200');
-    await tmpClient.execute('PRAGMA wal_checkpoint(FULL)');
-    tmpClient.close();
+    const turso = (storage as any).turso;
+    if (turso) {
+      await turso.execute('PRAGMA wal_autocheckpoint = 200');
+      await turso.execute('PRAGMA wal_checkpoint(FULL)');
+    }
   } catch {
-    // Non-fatal: if checkpoint fails, the database is still usable.
+    // Non-fatal: database still usable without this optimization.
   }
 }
 
