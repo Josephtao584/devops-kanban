@@ -1,7 +1,7 @@
 import type { Client } from '@libsql/client';
 import { getDbClient } from '../db/client.js';
 
-export const ALLOWED_WINDOW_DAYS = [7, 14, 30, 90] as const;
+export const ALLOWED_WINDOW_DAYS = [1, 7, 14, 30, 90] as const;
 export type WindowDays = typeof ALLOWED_WINDOW_DAYS[number];
 export const DEFAULT_WINDOW_DAYS: WindowDays = 7;
 export const TREND_WINDOW_DAYS = 30;

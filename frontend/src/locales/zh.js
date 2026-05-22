@@ -49,6 +49,7 @@ export default {
     lastUpdated: '更新于 {time}',
     window: {
       label: '时间范围',
+      last1: '近 1 天',
       last7: '近 7 天',
       last14: '近 14 天',
       last30: '近 30 天',

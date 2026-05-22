@@ -291,6 +291,7 @@ test.test('dashboardRepository.getTrend respects windowDays (7/14/30/90)', async
     await seedFixtures(client);
     const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
     const repo = new DashboardRepository(client);
+    assert.equal((await repo.getTrend({ windowDays: 1  })).length, 1);
     assert.equal((await repo.getTrend({ windowDays: 7  })).length, 7);
     assert.equal((await repo.getTrend({ windowDays: 14 })).length, 14);
     assert.equal((await repo.getTrend({ windowDays: 30 })).length, 30);

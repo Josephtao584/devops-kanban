@@ -50,6 +50,7 @@
 
 <script>
 const WINDOW_OPTIONS = [
+  { value: 1,  labelKey: 'dashboard.window.last1' },
   { value: 7,  labelKey: 'dashboard.window.last7' },
   { value: 14, labelKey: 'dashboard.window.last14' },
   { value: 30, labelKey: 'dashboard.window.last30' },
