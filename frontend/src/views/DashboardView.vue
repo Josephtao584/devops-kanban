@@ -73,11 +73,6 @@
               <span class="metric-card__sub">{{ $t('dashboard.metric.total') }}</span>
             </div>
           </div>
-          <div class="metric-card__footer">
-            <span class="metric-card__footer-text">
-              TODO {{ overview.tasks.byStatus.todo }}, IN_PROGRESS {{ overview.tasks.byStatus.inProgress }}, DONE {{ overview.tasks.byStatus.done }}, BLOCKED {{ overview.tasks.byStatus.blocked }}
-            </span>
-          </div>
         </div>
 
         <div class="metric-card surface-card surface-card--hoverable">
@@ -108,10 +103,6 @@
 
       <!-- Charts row -->
       <section v-if="overview && !loading" class="chart-row surface-panel">
-        <div class="chart-row__card">
-          <h3 class="chart-row__title">{{ $t('dashboard.tasks.byStatus') }}</h3>
-          <StatusDistribution :by-status="overview.tasks.byStatus" />
-        </div>
         <div class="chart-row__card">
           <h3 class="chart-row__title">{{ $t('dashboard.trend.title') }}</h3>
           <TrendChart :data="overview.trend30d" />
@@ -145,14 +136,13 @@ import { Refresh, Connection, Document, Operation, WarningFilled } from '@elemen
 import ScopeSelector from '../components/dashboard/ScopeSelector.vue'
 import LeaderboardCard from '../components/dashboard/LeaderboardCard.vue'
 import TrendChart from '../components/dashboard/TrendChart.vue'
-import StatusDistribution from '../components/dashboard/StatusDistribution.vue'
 import { getOverview } from '../api/dashboard.js'
 import { getTeams } from '../api/team.js'
 import { getProjects } from '../api/project.js'
 
 export default {
   name: 'DashboardView',
-  components: { ScopeSelector, LeaderboardCard, TrendChart, StatusDistribution },
+  components: { ScopeSelector, LeaderboardCard, TrendChart },
   data() {
     return {
       scope: { teamId: null, projectId: null },
@@ -437,9 +427,6 @@ export default {
 
 /* Chart row */
 .chart-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
   padding: 20px;
   border-radius: 18px;
   border: 1px solid var(--border-color);
@@ -505,7 +492,6 @@ export default {
 
 @media (max-width: 768px) {
   .metric-grid,
-  .chart-row,
   .leaderboard-grid {
     grid-template-columns: 1fr;
   }
