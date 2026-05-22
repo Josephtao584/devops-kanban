@@ -42,6 +42,7 @@ export default {
   },
   dashboard: {
     title: '管理看板',
+    description: '全局运行指标与趋势概览，快速了解团队效能',
     refresh: '刷新',
     empty: '暂无数据',
     scope: { team: '团队', project: '项目', all: '全部' },
