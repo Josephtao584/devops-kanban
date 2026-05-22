@@ -15,8 +15,8 @@
         <div class="panel-section">
           <div class="toggle-row toggle-enable-row">
             <span>{{ $t('notification.scheduler.enableScheduler') }}</span>
-            <label class="switch">
-              <input type="checkbox" v-model="schedulerEnabled" @change="onSchedulerEnabledChange" />
+            <label class="switch" :class="{ 'switch-loading': toggleLoading }">
+              <input type="checkbox" v-model="schedulerEnabled" @change="onSchedulerEnabledChange" :disabled="toggleLoading" />
               <span class="slider"></span>
             </label>
           </div>
@@ -92,6 +92,7 @@ const dispatchCronPreset = ref('*/5 * * * *')
 const customCron = ref('')
 const triggerLoading = ref(false)
 const statusLoading = ref(false)
+const toggleLoading = ref(false)
 
 const cronPresets = [
   { label: t('notification.scheduler.minute1'), value: '* * * * *' },
@@ -209,6 +210,8 @@ async function handleTriggerDispatch() {
 }
 
 async function onSchedulerEnabledChange() {
+  if (toggleLoading.value) return
+  toggleLoading.value = true
   try {
     const res = await settingsStore.updateSettings({
       'scheduler.enabled': String(schedulerEnabled.value),
@@ -219,6 +222,8 @@ async function onSchedulerEnabledChange() {
     }
   } catch {
     schedulerEnabled.value = !schedulerEnabled.value
+  } finally {
+    toggleLoading.value = false
   }
 }
 
@@ -447,6 +452,11 @@ onBeforeUnmount(() => {
   display: inline-block;
   width: 36px;
   height: 20px;
+}
+
+.scheduler-panel .switch-loading {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .scheduler-panel .switch input {
