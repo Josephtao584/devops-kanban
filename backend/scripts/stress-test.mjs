@@ -89,10 +89,19 @@ async function pickTemplateId() {
   const resp = await http('GET', '/api/workflow-template');
   const list = unwrap(resp, 'GET /api/workflow-template');
   if (!Array.isArray(list) || list.length === 0) {
-    throw new Error('No workflow templates available; pass --templateId=<id>');
+    throw new Error('No workflow templates available; pass --templateId=<template_id>');
   }
-  console.log(`[setup] picked template "${list[0].id}" (${list[0].name})`);
-  return list[0].id;
+  // Workflow templates have BOTH `id` (numeric PK) and `template_id` (string
+  // business id). The /start endpoint expects the string template_id —
+  // passing the numeric id causes "options.workflowTemplateId?.trim is not
+  // a function" downstream.
+  const picked = list[0];
+  const templateId = picked.template_id || picked.templateId;
+  if (!templateId || typeof templateId !== 'string') {
+    throw new Error(`First template has no string template_id: ${JSON.stringify(picked)}`);
+  }
+  console.log(`[setup] picked template "${templateId}" (${picked.name})`);
+  return templateId;
 }
 
 async function createProject() {
