@@ -272,7 +272,7 @@ test.test('dashboardRepository.getTrend30d: returns 30 entries with zeros for em
       (40, 1, 'inst-1', 'COMPLETED', '/wt/40', 'b40', datetime('now','-1 days'))`);
     const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
     const repo = new DashboardRepository(client);
-    const trend = await repo.getTrend30d({});
+    const trend = await repo.getTrend30d({ windowDays: 30 });
     assert.equal(trend.length, 30);
     const yesterday = trend[trend.length - 2];
     assert.equal(yesterday.sessionsStarted, 1);
@@ -281,6 +281,39 @@ test.test('dashboardRepository.getTrend30d: returns 30 entries with zeros for em
     assert.equal(trend[0].sessionsStarted, 0);
     assert.equal(trend[0].tasksCompleted, 0);
     assert.equal(trend[0].workflowsCompleted, 0);
+  } finally { cleanup(); }
+});
+
+test.test('dashboardRepository.getTrend respects windowDays (7/14/30/90)', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    await applySchema(client);
+    await seedFixtures(client);
+    const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
+    const repo = new DashboardRepository(client);
+    assert.equal((await repo.getTrend({ windowDays: 7  })).length, 7);
+    assert.equal((await repo.getTrend({ windowDays: 14 })).length, 14);
+    assert.equal((await repo.getTrend({ windowDays: 30 })).length, 30);
+    assert.equal((await repo.getTrend({ windowDays: 90 })).length, 90);
+  } finally { cleanup(); }
+});
+
+test.test('dashboardRepository.getSessionStats recent7d uses windowDays', async () => {
+  const { client, cleanup } = createTempDb();
+  try {
+    await applySchema(client);
+    await seedFixtures(client);
+    await client.execute(`INSERT INTO sessions (id, task_id, agent_id, status, executor_type, started_at) VALUES
+      (50, 1, 1, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-3 days')),
+      (51, 1, 1, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-10 days')),
+      (52, 1, 1, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-25 days')),
+      (53, 1, 1, 'COMPLETED', 'CLAUDE_CODE', datetime('now','-60 days'))`);
+    const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
+    const repo = new DashboardRepository(client);
+    assert.equal((await repo.getSessionStats({ windowDays: 7  })).recent7d, 1);
+    assert.equal((await repo.getSessionStats({ windowDays: 14 })).recent7d, 2);
+    assert.equal((await repo.getSessionStats({ windowDays: 30 })).recent7d, 3);
+    assert.equal((await repo.getSessionStats({ windowDays: 90 })).recent7d, 4);
   } finally { cleanup(); }
 });
 
@@ -304,7 +337,7 @@ test.test('DashboardService.getOverview composes all sections; resolves scope na
     const { DashboardService } = await import('../../src/services/DashboardService.js');
     const svc = new DashboardService(new DashboardRepository(client), client);
 
-    const overview = await svc.getOverview({ teamId: 1 });
+    const overview = await svc.getOverview({ teamId: 1, windowDays: 30 });
     assert.equal(overview.scope.teamId, 1);
     assert.equal(overview.scope.teamName, 'T1');
     assert.equal(overview.scope.projectId, null);
@@ -339,7 +372,7 @@ test.test('DashboardService.getProjectDetail returns project, team, sessions, ta
     const { DashboardService } = await import('../../src/services/DashboardService.js');
     const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
     const svc = new DashboardService(new DashboardRepository(client), client);
-    const detail = await svc.getProjectDetail(1);
+    const detail = await svc.getProjectDetail(1, { windowDays: 30 });
     assert.equal((detail.project as any).id, 1);
     assert.equal(detail.tasks.total, 4);
     assert.equal(detail.trend30d.length, 30);
@@ -394,7 +427,7 @@ test.test('DashboardService.getAgentDetail returns sessions filtered by agentId,
     const { DashboardRepository } = await import('../../src/repositories/dashboardRepository.js');
     const svc = new DashboardService(new DashboardRepository(client), client);
 
-    const detail = await svc.getAgentDetail(1, {});
+    const detail = await svc.getAgentDetail(1, { windowDays: 30 });
     assert.equal(detail.sessions.total, 3, 'sessions should only count agent 1');
     assert.equal(detail.sessions.running, 1);
     assert.equal(detail.recentSessions.length, 3);

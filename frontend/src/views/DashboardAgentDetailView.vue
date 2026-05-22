@@ -40,7 +40,7 @@
             <div class="metric-card__values">
               <div class="metric-card__value">
                 <span class="metric-card__number">{{ detail.sessions.recent7d }}</span>
-                <span class="metric-card__sub">{{ $t('dashboard.metric.recent') }}</span>
+                <span class="metric-card__sub">{{ recentLabel }}</span>
               </div>
               <div class="metric-card__divider"></div>
               <div class="metric-card__value">
@@ -57,7 +57,7 @@
 
         <!-- Trend -->
         <section class="chart-row surface-panel">
-          <h3 class="section-title">{{ $t('dashboard.trend.title') }}</h3>
+          <h3 class="section-title">{{ trendTitle }}</h3>
           <TrendChart :data="detail.trend30d" />
         </section>
 
@@ -112,21 +112,23 @@ import { getAgentDetail } from '../api/dashboard.js'
 export default {
   name: 'DashboardAgentDetailView',
   components: { ArrowLeft, Refresh, Connection, WarningFilled, LeaderboardCard, TrendChart },
-  data: () => ({ detail: null, error: null, loading: false }),
+  data: () => ({ detail: null, error: null, loading: false, windowDays: 7 }),
   computed: {
     id() { return Number(this.$route.params.id) },
+    recentLabel() { return this.$t('dashboard.metric.recent', { n: this.windowDays }) },
+    trendTitle() { return this.$t('dashboard.trend.title', { n: this.windowDays }) },
     byProjectItems() {
       return (this.detail?.byProject || []).map(b => ({
         id: b.projectId, name: b.name,
         primary: b.sessionsTotal,
-        secondary: `${b.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
+        secondary: `${b.sessionsRecent7d} ${this.recentLabel}`,
       }))
     },
     byTeamItems() {
       return (this.detail?.byTeam || []).map(b => ({
         id: b.teamId, name: b.name,
         primary: b.sessionsTotal,
-        secondary: `${b.sessionsRecent7d} ${this.$t('dashboard.metric.recent')}`,
+        secondary: `${b.sessionsRecent7d} ${this.recentLabel}`,
       }))
     },
   },
@@ -137,9 +139,11 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const res = await getAgentDetail(this.id, {})
-        if (res.success) this.detail = res.data
-        else this.error = res.message
+        const res = await getAgentDetail(this.id, { windowDays: this.windowDays })
+        if (res.success) {
+          this.detail = res.data
+          if (res.data?.windowDays) this.windowDays = res.data.windowDays
+        } else this.error = res.message
       } catch (e) {
         if (e?.response?.status === 404) this.$router.replace('/dashboard')
         else this.error = e?.message
