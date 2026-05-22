@@ -95,10 +95,14 @@ async function pickTemplateId() {
   // business id). The /start endpoint expects the string template_id —
   // passing the numeric id causes "options.workflowTemplateId?.trim is not
   // a function" downstream.
-  const picked = list[0];
+  // Prefer the built-in "stress-test" template when available — it returns a
+  // deterministic short summary so the run actually completes instead of
+  // tripping "summary is required" on the real exploration template.
+  const stressTpl = list.find((t) => (t.template_id || t.templateId) === 'stress-test');
+  const picked = stressTpl || list[0];
   const templateId = picked.template_id || picked.templateId;
   if (!templateId || typeof templateId !== 'string') {
-    throw new Error(`First template has no string template_id: ${JSON.stringify(picked)}`);
+    throw new Error(`Picked template has no string template_id: ${JSON.stringify(picked)}`);
   }
   console.log(`[setup] picked template "${templateId}" (${picked.name})`);
   return templateId;

@@ -130,6 +130,30 @@ const BUILTIN_TEMPLATES: Omit<WorkflowTemplateEntity, 'id' | 'created_at' | 'upd
     ],
     order: 3,
   },
+  {
+    template_id: 'stress-test',
+    name: '压测专用工作流',
+    tags: ['stress-test'],
+    steps: [
+      {
+        id: 'stress-echo',
+        name: '压测回显',
+        instructionPrompt: `你是压测工作流的执行者，本任务仅用于验证调度链路，不需要修改任何文件、不要执行 shell 命令、不要使用任何工具。
+
+请直接以纯文本回复一段总结，要求：
+1. 第一行写："压测任务执行成功"
+2. 第二行回显当前任务的标题（从用户消息中读取，例如 stress-task-1）
+3. 第三行写一句不超过 30 字的话，确认你已收到指令
+
+整段输出必须是纯文本，不要 Markdown 代码块、不要 JSON、不要工具调用。这是验证 summary 写入链路的最小用例。`,
+        agentId: 1,
+        requiresConfirmation: false,
+        canEarlyExit: false,
+        onFailureLoopTo: null,
+      },
+    ],
+    order: 4,
+  },
 ];
 
 class WorkflowTemplateService {
