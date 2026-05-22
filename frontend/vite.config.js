@@ -80,6 +80,7 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./tests/setup.js'],
+      clearMocks: true,
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html']
