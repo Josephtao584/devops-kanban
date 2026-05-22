@@ -44,6 +44,20 @@
 
         <div class="nav-group">
           <div class="nav-group-label has-divider">
+            <span v-if="!isSidebarCollapsed">{{ $t('nav.groupOperations') }}</span>
+            <div v-else class="nav-group-divider"></div>
+          </div>
+          <router-link to="/dashboard" class="nav-item" :class="{ 'router-link-active': $route.path.startsWith('/dashboard') }" :title="$t('nav.dashboard')">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 3v18h18"></path>
+              <path d="M7 14l3-3 3 3 5-5"></path>
+            </svg>
+            <span v-if="!isSidebarCollapsed" class="nav-text">{{ $t('nav.dashboard') }}</span>
+          </router-link>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-label has-divider">
             <span v-if="!isSidebarCollapsed">{{ $t('nav.groupPlatformConfig') }}</span>
             <div v-else class="nav-group-divider"></div>
           </div>
