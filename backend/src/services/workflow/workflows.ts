@@ -61,6 +61,21 @@ export async function initWorkflows() {
     storage: new LibSQLStore({ id: 'kanban-workflow-store', url: `file:${dbPath}` }),
   });
   _initialized = true;
+
+  // Force a WAL checkpoint on startup to recover from any leftover WAL after a crash.
+  // wal_autocheckpoint is per-connection so we also set it here for any writes we
+  // trigger via this temporary connection (the LibSQLStore connection cannot be
+  // configured directly, but frequent Mastra writes will still checkpoint at the
+  // SQLite default threshold of 1000 pages / ~4 MB).
+  try {
+    const { createClient } = await import('@libsql/client');
+    const tmpClient = createClient({ url: `file:${dbPath}` });
+    await tmpClient.execute('PRAGMA wal_autocheckpoint = 200');
+    await tmpClient.execute('PRAGMA wal_checkpoint(FULL)');
+    tmpClient.close();
+  } catch {
+    // Non-fatal: if checkpoint fails, the database is still usable.
+  }
 }
 
 export function getMastra() {
