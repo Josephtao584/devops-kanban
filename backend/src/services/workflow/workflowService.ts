@@ -173,8 +173,8 @@ class WorkflowService {
 
     const executionPath = await this.resolveExecutionPath(task);
 
-    if (!options.workflowTemplateId?.trim()) {
-      throw new ValidationError('工作流模板 ID 不能为空', 'workflow template id is required');
+    if (typeof options.workflowTemplateId !== 'string' || !options.workflowTemplateId.trim()) {
+      throw new ValidationError('工作流模板 ID 不能为空', 'workflow template id is required and must be a string');
     }
 
     // Create WorkflowInstance (immutable snapshot)
