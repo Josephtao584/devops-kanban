@@ -59,7 +59,7 @@ export default {
     metric: { recent: '近 {n} 天', total: '累计' },
     sessions: { title: 'Session', running: '进行中', idle: '空闲', recent: '近期会话' },
     tasks: { title: '任务', byStatus: '任务状态分布', recentDone: '近期完成', total: '累计任务' },
-    workflows: { title: 'Workflow', running: '运行中', failed: '失败', suspended: '挂起' },
+    workflows: { title: 'AgentTeam', running: '运行中', failed: '失败', suspended: '挂起' },
     leaderboard: {
       agents: 'Agent 排行',
       projects: '项目排行',
@@ -72,7 +72,7 @@ export default {
       title: '近 {n} 天趋势',
       sessions: 'Session 启动',
       tasks: '任务完成',
-      workflows: 'Workflow 完成',
+      workflows: 'AgentTeam 完成',
     },
     detail: {
       agent: 'Agent 明细',
