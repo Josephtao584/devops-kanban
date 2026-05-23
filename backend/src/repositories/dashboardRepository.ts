@@ -70,6 +70,12 @@ export interface TeamLeaderboardEntry {
   sessionsRecent7d: number;
 }
 
+export interface PrevPeriodCounts {
+  sessions: number;
+  tasksDone: number;
+  workflowsCompleted: number;
+}
+
 export interface TrendEntry {
   date: string;
   sessionsStarted: number;
@@ -140,7 +146,7 @@ export class DashboardRepository {
         scope.teamId ?? null, scope.teamId ?? null,
       ],
     });
-    const row = result.rows[0] ?? {};
+    const row: any = result.rows[0] ?? {};
     return {
       todo:         Number(row.todo ?? 0),
       inProgress:   Number(row.in_progress ?? 0),
@@ -174,7 +180,7 @@ export class DashboardRepository {
         scope.teamId    ?? null, scope.teamId    ?? null,
       ],
     });
-    const row = result.rows[0] ?? {};
+    const row: any = result.rows[0] ?? {};
     return {
       running:  Number(row.running  ?? 0),
       idle:     Number(row.idle     ?? 0),
@@ -204,7 +210,7 @@ export class DashboardRepository {
         scope.teamId ?? null, scope.teamId ?? null,
       ],
     });
-    const row = result.rows[0] ?? {};
+    const row: any = result.rows[0] ?? {};
     return {
       running:           Number(row.running   ?? 0),
       suspended:         Number(row.suspended ?? 0),
@@ -360,10 +366,67 @@ export class DashboardRepository {
     }));
   }
 
+  async getPrevPeriodCounts(scope: ScopeFilter): Promise<PrevPeriodCounts> {
+    const days = scope.windowDays ?? DEFAULT_WINDOW_DAYS;
+    const windowEnd   = `-${days} days`;
+    const windowStart = `-${days * 2} days`;
+
+    const [sessionsRow, tasksRow, workflowsRow] = await Promise.all([
+      this.client.execute({
+        sql: `
+          SELECT COUNT(*) AS c FROM sessions s
+          JOIN tasks t ON t.id = s.task_id
+          WHERE s.started_at >= datetime('now', ?)
+            AND s.started_at <  datetime('now', ?)
+            AND (? IS NULL OR s.agent_id = ?)
+            AND (? IS NULL OR t.project_id = ?)
+            AND (? IS NULL OR t.project_id IN (SELECT id FROM projects WHERE team_id = ?))
+        `,
+        args: [windowStart, windowEnd,
+          scope.agentId   ?? null, scope.agentId   ?? null,
+          scope.projectId ?? null, scope.projectId ?? null,
+          scope.teamId    ?? null, scope.teamId    ?? null],
+      }),
+      this.client.execute({
+        sql: `
+          SELECT COUNT(*) AS c FROM tasks
+          WHERE status = 'DONE'
+            AND updated_at >= datetime('now', ?)
+            AND updated_at <  datetime('now', ?)
+            AND (? IS NULL OR project_id = ?)
+            AND (? IS NULL OR project_id IN (SELECT id FROM projects WHERE team_id = ?))
+        `,
+        args: [windowStart, windowEnd,
+          scope.projectId ?? null, scope.projectId ?? null,
+          scope.teamId    ?? null, scope.teamId    ?? null],
+      }),
+      this.client.execute({
+        sql: `
+          SELECT COUNT(*) AS c FROM workflow_runs wr
+          JOIN tasks t ON t.id = wr.task_id
+          WHERE wr.status = 'COMPLETED'
+            AND wr.updated_at >= datetime('now', ?)
+            AND wr.updated_at <  datetime('now', ?)
+            AND (? IS NULL OR t.project_id = ?)
+            AND (? IS NULL OR t.project_id IN (SELECT id FROM projects WHERE team_id = ?))
+        `,
+        args: [windowStart, windowEnd,
+          scope.projectId ?? null, scope.projectId ?? null,
+          scope.teamId    ?? null, scope.teamId    ?? null],
+      }),
+    ]);
+
+    return {
+      sessions:           Number(sessionsRow.rows[0]?.c   ?? 0),
+      tasksDone:          Number(tasksRow.rows[0]?.c       ?? 0),
+      workflowsCompleted: Number(workflowsRow.rows[0]?.c  ?? 0),
+    };
+  }
   /** @deprecated use getTrend */
   async getTrend30d(scope: ScopeFilter): Promise<TrendEntry[]> {
     return this.getTrend(scope);
   }
+
 
   async getRecentSessionsForAgent(agentId: number, limit = RECENT_SESSIONS_LIMIT): Promise<RecentSessionEntry[]> {
     const result = await this.client.execute({

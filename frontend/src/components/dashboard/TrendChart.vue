@@ -26,9 +26,14 @@ export default {
     this.render()
     this._onResize = () => this.chart && this.chart.resize()
     window.addEventListener('resize', this._onResize)
+    if (typeof ResizeObserver !== 'undefined') {
+      this._ro = new ResizeObserver(() => this.chart && this.chart.resize())
+      this._ro.observe(this.$refs.el)
+    }
   },
   beforeUnmount() {
     window.removeEventListener('resize', this._onResize)
+    this._ro && this._ro.disconnect()
     this.chart && this.chart.dispose()
   },
   methods: {
@@ -40,7 +45,7 @@ export default {
       this.chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: {
-          data: [sessionsLabel, tasksLabel, workflowsLabel],
+          data: [tasksLabel, workflowsLabel, sessionsLabel],
           bottom: 0,
           itemWidth: 14,
           itemHeight: 8,
@@ -62,16 +67,6 @@ export default {
         },
         series: [
           {
-            name: sessionsLabel,
-            type: 'line',
-            smooth: true,
-            symbol: 'circle',
-            symbolSize: 6,
-            itemStyle: { color: '#25C6C9' },
-            areaStyle: { opacity: 0.10, color: '#25C6C9' },
-            data: this.data.map(d => d.sessionsStarted),
-          },
-          {
             name: tasksLabel,
             type: 'line',
             smooth: true,
@@ -89,6 +84,16 @@ export default {
             itemStyle: { color: '#7c5cf6' },
             data: this.data.map(d => d.workflowsCompleted),
           },
+          {
+            name: sessionsLabel,
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            itemStyle: { color: '#25C6C9' },
+            areaStyle: { opacity: 0.10, color: '#25C6C9' },
+            data: this.data.map(d => d.sessionsStarted),
+          },
         ],
       })
     },
@@ -97,5 +102,5 @@ export default {
 </script>
 
 <style scoped>
-.trend-chart { width: 100%; height: 300px; }
+.trend-chart { width: 100%; flex: 1; min-height: 220px; }
 </style>

@@ -41,7 +41,7 @@ export class DashboardService {
 
   async getOverview(scope: ScopeFilter) {
     const resolvedScope = await this.resolveScope(scope);
-    const [sessions, tasks, workflows, agentTop, projectTop, teamTop, trend] = await Promise.all([
+    const [sessions, tasks, workflows, agentTop, projectTop, teamTop, trend, prevPeriod] = await Promise.all([
       this.repo.getSessionStats(scope),
       this.getTaskBlock(scope),
       this.repo.getWorkflowStats(scope),
@@ -49,8 +49,9 @@ export class DashboardService {
       this.repo.getProjectLeaderboard(scope),
       this.repo.getTeamLeaderboard(scope),
       this.repo.getTrend(scope),
+      this.repo.getPrevPeriodCounts(scope),
     ]);
-    return { scope: resolvedScope, sessions, tasks, workflows, agentTop, projectTop, teamTop, trend30d: trend };
+    return { scope: resolvedScope, sessions, tasks, workflows, agentTop, projectTop, teamTop, trend30d: trend, prevPeriod };
   }
 
   private async getTaskBlock(scope: ScopeFilter) {

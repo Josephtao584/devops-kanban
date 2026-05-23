@@ -1,6 +1,7 @@
 <template>
   <div class="dashboard-view">
     <div class="dashboard-inner">
+
       <!-- Hero header -->
       <section class="hero-surface surface-panel">
         <div class="hero-surface__decor hero-surface__decor--a"></div>
@@ -29,107 +30,126 @@
         <el-button @click="loadOverview">{{ $t('dashboard.refresh') }}</el-button>
       </div>
 
-      <!-- Initial loading skeleton (only when no data yet) -->
       <el-skeleton v-if="loading && !overview" :rows="8" animated />
 
-      <!-- Metric cards -->
-      <section v-if="overview" class="metric-grid">
-        <div class="metric-card surface-card surface-card--hoverable">
-          <div class="metric-card__icon" style="--icon-bg: var(--accent-color-soft); --icon-color: var(--accent-color);">
-            <el-icon><Connection /></el-icon>
-          </div>
-          <div class="metric-card__header">
-            <span class="metric-card__label">{{ $t('dashboard.sessions.title') }}</span>
-          </div>
-          <div class="metric-card__values">
-            <div class="metric-card__value">
-              <span class="metric-card__number">{{ overview.sessions.recent7d }}</span>
-              <span class="metric-card__sub">{{ recentLabel }}</span>
-            </div>
-            <div class="metric-card__divider"></div>
-            <div class="metric-card__value">
-              <span class="metric-card__number">{{ overview.sessions.total }}</span>
-              <span class="metric-card__sub">{{ $t('dashboard.metric.total') }}</span>
-            </div>
-          </div>
-          <div class="metric-card__footer">
-            <el-tag size="small" type="success">{{ overview.sessions.running }} {{ $t('dashboard.sessions.running') }}</el-tag>
-            <el-tag size="small" type="info">{{ overview.sessions.idle }} {{ $t('dashboard.sessions.idle') }}</el-tag>
+      <template v-if="overview">
+
+        <!-- Alert bar -->
+        <div v-if="alerts.length > 0" class="alert-bar">
+          <div v-for="alert in alerts" :key="alert.key" class="alert-bar__item" :class="'alert-bar__item--' + alert.level">
+            <span class="alert-bar__dot"></span>
+            <span class="alert-bar__text">{{ alert.text }}</span>
           </div>
         </div>
 
-        <div class="metric-card surface-card surface-card--hoverable">
-          <div class="metric-card__icon" style="--icon-bg: var(--warning-soft); --icon-color: var(--warning-strong);">
-            <el-icon><Document /></el-icon>
-          </div>
-          <div class="metric-card__header">
-            <span class="metric-card__label">{{ $t('dashboard.tasks.title') }}</span>
-          </div>
-          <div class="metric-card__values">
-            <div class="metric-card__value">
-              <span class="metric-card__number">{{ overview.tasks.recent7dDone }}</span>
-              <span class="metric-card__sub">{{ recentLabel }}</span>
-            </div>
-            <div class="metric-card__divider"></div>
-            <div class="metric-card__value">
-              <span class="metric-card__number">{{ overview.tasks.total }}</span>
-              <span class="metric-card__sub">{{ $t('dashboard.metric.total') }}</span>
-            </div>
-          </div>
-        </div>
+        <!-- Metric cards -->
+        <section class="metric-grid">
 
-        <div class="metric-card surface-card surface-card--hoverable">
-          <div class="metric-card__icon" style="--icon-bg: var(--danger-soft); --icon-color: var(--danger-strong);">
-            <el-icon><Operation /></el-icon>
-          </div>
-          <div class="metric-card__header">
-            <span class="metric-card__label">{{ $t('dashboard.workflows.title') }}</span>
-          </div>
-          <div class="metric-card__values">
-            <div class="metric-card__value">
-              <span class="metric-card__number">{{ overview.workflows.recent7dCompleted }}</span>
-              <span class="metric-card__sub">{{ recentLabel }}</span>
+          <!-- Tasks -->
+          <div class="kpi-card kpi-card--amber">
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">{{ $t('dashboard.tasks.title') }}</span>
+              <span v-if="taskVelocity > 0" class="velocity-badge">{{ taskVelocity }}/天</span>
             </div>
-            <div class="metric-card__divider"></div>
-            <div class="metric-card__value">
-              <span class="metric-card__number">{{ overview.workflows.total }}</span>
-              <span class="metric-card__sub">{{ $t('dashboard.metric.total') }}</span>
+            <div class="kpi-card__main">
+              <span class="kpi-card__number">{{ overview.tasks.recent7dDone }}</span>
+              <span v-if="tasksDelta" class="delta-badge" :class="'delta-badge--' + tasksDelta.dir">
+                {{ tasksDelta.dir === 'up' ? '↑' : '↓' }}{{ tasksDelta.pct !== null ? Math.abs(tasksDelta.pct) + '%' : '新增' }}
+              </span>
+            </div>
+            <div class="kpi-card__sub">{{ recentLabel }}完成</div>
+            <div class="kpi-card__stats">
+              <span class="kpi-stat"><span class="kpi-stat__val">{{ overview.tasks.total }}</span><span class="kpi-stat__label">累计</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val kpi-stat__val--blue">{{ taskByStatus.inProgress || 0 }}</span><span class="kpi-stat__label">进行中</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val kpi-stat__val--red">{{ taskByStatus.blocked || 0 }}</span><span class="kpi-stat__label">阻塞</span></span>
+            </div>
+            <div class="kpi-completion">
+              <div class="kpi-completion__bar">
+                <div class="kpi-completion__fill" :style="{ width: taskCompletionPct + '%' }"></div>
+              </div>
+              <span class="kpi-completion__pct">{{ taskCompletionPct }}% 完成率</span>
             </div>
           </div>
-          <div class="metric-card__footer">
-            <el-tag size="small" type="warning">{{ overview.workflows.running }} {{ $t('dashboard.workflows.running') }}</el-tag>
-            <el-tag size="small" type="danger">{{ overview.workflows.recent7dFailed }} {{ $t('dashboard.workflows.failed') }}</el-tag>
-            <el-tag size="small" type="info">{{ overview.workflows.suspended }} {{ $t('dashboard.workflows.suspended') }}</el-tag>
+
+          <!-- AgentTeam -->
+          <div class="kpi-card kpi-card--purple">
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">{{ $t('dashboard.workflows.title') }}</span>
+              <span v-if="workflowSuccessRate !== null" class="success-rate-badge" :class="workflowSuccessRate >= 80 ? 'success-rate-badge--good' : 'success-rate-badge--warn'">
+                成功率 {{ workflowSuccessRate }}%
+              </span>
+            </div>
+            <div class="kpi-card__main">
+              <span class="kpi-card__number">{{ overview.workflows.recent7dCompleted }}</span>
+              <span v-if="workflowsDelta" class="delta-badge" :class="'delta-badge--' + workflowsDelta.dir">
+                {{ workflowsDelta.dir === 'up' ? '↑' : '↓' }}{{ workflowsDelta.pct !== null ? Math.abs(workflowsDelta.pct) + '%' : '新增' }}
+              </span>
+            </div>
+            <div class="kpi-card__sub">{{ recentLabel }}完成</div>
+            <div class="kpi-card__stats">
+              <span class="kpi-stat"><span class="kpi-stat__val">{{ overview.workflows.total }}</span><span class="kpi-stat__label">累计</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val kpi-stat__val--orange">{{ overview.workflows.running }}</span><span class="kpi-stat__label">运行中</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val kpi-stat__val--red">{{ overview.workflows.recent7dFailed }}</span><span class="kpi-stat__label">失败</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val kpi-stat__val--yellow">{{ overview.workflows.suspended }}</span><span class="kpi-stat__label">挂起</span></span>
+            </div>
+            <div v-if="workflowSuccessRate !== null" class="kpi-completion">
+              <div class="kpi-completion__bar">
+                <div class="kpi-completion__fill" :style="{ width: workflowSuccessRate + '%' }" :class="workflowSuccessRate >= 80 ? '' : 'kpi-completion__fill--warn'"></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <!-- Charts row -->
-      <section v-if="overview" class="chart-row surface-panel">
-        <div class="chart-row__card">
-          <h3 class="chart-row__title">{{ trendTitle }}</h3>
-          <TrendChart :data="overview.trend30d" />
-        </div>
-      </section>
+          <!-- Sessions -->
+          <div class="kpi-card kpi-card--teal">
+            <div class="kpi-card__top">
+              <span class="kpi-card__label">{{ $t('dashboard.sessions.title') }}</span>
+              <span v-if="overview.sessions.running > 0" class="live-badge">
+                <span class="live-dot"></span>活跃中
+              </span>
+            </div>
+            <div class="kpi-card__main">
+              <span class="kpi-card__number">{{ overview.sessions.recent7d }}</span>
+              <span v-if="sessionsDelta" class="delta-badge" :class="'delta-badge--' + sessionsDelta.dir">
+                {{ sessionsDelta.dir === 'up' ? '↑' : '↓' }}{{ sessionsDelta.pct !== null ? Math.abs(sessionsDelta.pct) + '%' : '新增' }}
+              </span>
+            </div>
+            <div class="kpi-card__sub">{{ recentLabel }}</div>
+            <div class="kpi-card__stats">
+              <span class="kpi-stat"><span class="kpi-stat__val">{{ overview.sessions.total }}</span><span class="kpi-stat__label">累计</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val kpi-stat__val--green">{{ overview.sessions.running }}</span><span class="kpi-stat__label">运行中</span></span>
+              <span class="kpi-stat"><span class="kpi-stat__val">{{ overview.sessions.idle }}</span><span class="kpi-stat__label">空闲</span></span>
+            </div>
+          </div>
 
-      <!-- Leaderboards -->
-      <section v-if="overview" class="leaderboard-grid surface-panel">
-        <LeaderboardCard
-          :title="$t('dashboard.leaderboard.agents')"
-          :items="agentItems"
-          @select="onSelectAgent"
-        />
-        <LeaderboardCard
-          :title="$t('dashboard.leaderboard.projects')"
-          :items="projectItems"
-          @select="onSelectProject"
-        />
-        <LeaderboardCard
-          :title="$t('dashboard.leaderboard.teams')"
-          :items="teamItems"
-          @select="onSelectTeam"
-        />
-      </section>
+        </section>
+
+        <!-- Bottom row: trend + status distribution -->
+        <section class="bottom-row">
+          <div class="bottom-row__main surface-panel">
+            <h3 class="section-title">{{ trendTitle }}</h3>
+            <TrendChart :data="overview.trend30d" />
+          </div>
+          <div class="bottom-row__side">
+            <div class="surface-panel side-panel">
+              <h3 class="section-title">任务状态分布</h3>
+              <StatusDistribution v-if="overview.tasks.byStatus" :by-status="overview.tasks.byStatus" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Leaderboard row -->
+        <section class="surface-panel leaderboard-full">
+          <LeaderboardChart
+            :agent-items="agentItems"
+            :project-items="projectItems"
+            :team-items="teamItems"
+            @select-agent="onSelectAgent"
+            @select-project="onSelectProject"
+            @select-team="onSelectTeam"
+          />
+        </section>
+
+      </template>
     </div>
   </div>
 </template>
@@ -137,8 +157,9 @@
 <script>
 import { Refresh, Connection, Document, Operation, WarningFilled } from '@element-plus/icons-vue'
 import ScopeSelector from '../components/dashboard/ScopeSelector.vue'
-import LeaderboardCard from '../components/dashboard/LeaderboardCard.vue'
+import LeaderboardChart from '../components/dashboard/LeaderboardChart.vue'
 import TrendChart from '../components/dashboard/TrendChart.vue'
+import StatusDistribution from '../components/dashboard/StatusDistribution.vue'
 import { getOverview } from '../api/dashboard.js'
 import { getTeams } from '../api/team.js'
 import { getProjects } from '../api/project.js'
@@ -153,7 +174,7 @@ function formatTime(ts) {
 
 export default {
   name: 'DashboardView',
-  components: { ScopeSelector, LeaderboardCard, TrendChart },
+  components: { ScopeSelector, LeaderboardChart, TrendChart, StatusDistribution },
   data() {
     return {
       scope: { teamId: null, projectId: null, windowDays: 7 },
@@ -172,6 +193,66 @@ export default {
     lastUpdatedLabel() {
       if (!this.lastUpdatedAt) return ''
       return this.$t('dashboard.lastUpdated', { time: formatTime(this.lastUpdatedAt) })
+    },
+    taskByStatus() {
+      return this.overview?.tasks?.byStatus || {}
+    },
+    taskCompletionPct() {
+      const total = this.overview?.tasks?.total || 0
+      const done = this.taskByStatus.DONE || 0
+      if (total === 0) return 0
+      return Math.round((done / total) * 100)
+    },
+    taskVelocity() {
+      const done = this.overview?.tasks?.recent7dDone || 0
+      const days = this.windowDays || 7
+      if (done === 0) return 0
+      return (done / days).toFixed(1)
+    },
+    workflowSuccessRate() {
+      const completed = this.overview?.workflows?.recent7dCompleted || 0
+      const failed = this.overview?.workflows?.recent7dFailed || 0
+      const total = completed + failed
+      if (total === 0) return null
+      return Math.round((completed / total) * 100)
+    },
+    prevPeriod() {
+      return this.overview?.prevPeriod || null
+    },
+    sessionsDelta() {
+      if (!this.prevPeriod) return null
+      const curr = this.overview?.sessions?.recent7d || 0
+      const prev = this.prevPeriod.sessions
+      return this._calcDelta(curr, prev)
+    },
+    tasksDelta() {
+      if (!this.prevPeriod) return null
+      const curr = this.overview?.tasks?.recent7dDone || 0
+      const prev = this.prevPeriod.tasksDone
+      return this._calcDelta(curr, prev)
+    },
+    workflowsDelta() {
+      if (!this.prevPeriod) return null
+      const curr = this.overview?.workflows?.recent7dCompleted || 0
+      const prev = this.prevPeriod.workflowsCompleted
+      return this._calcDelta(curr, prev)
+    },
+    alerts() {
+      if (!this.overview) return []
+      const list = []
+      const blocked = this.taskByStatus.BLOCKED || 0
+      const suspended = this.overview.workflows?.suspended || 0
+      const failed = this.overview.workflows?.recent7dFailed || 0
+      if (blocked > 0) {
+        list.push({ key: 'blocked', level: 'warn', text: `${blocked} 个任务处于阻塞状态，需要关注` })
+      }
+      if (suspended > 0) {
+        list.push({ key: 'suspended', level: 'warn', text: `${suspended} 个 Workflow 等待确认，请及时处理` })
+      }
+      if (failed > 0 && this.workflowSuccessRate !== null && this.workflowSuccessRate < 60) {
+        list.push({ key: 'failrate', level: 'danger', text: `近期 Workflow 成功率仅 ${this.workflowSuccessRate}%，请排查失败原因` })
+      }
+      return list
     },
     agentItems() {
       return (this.overview?.agentTop || []).map(a => {
@@ -208,6 +289,12 @@ export default {
     await this.loadOverview()
   },
   methods: {
+    _calcDelta(curr, prev) {
+      if (prev === 0 && curr === 0) return null
+      if (prev === 0) return { pct: null, dir: 'up', curr, prev }
+      const pct = Math.round(((curr - prev) / prev) * 100)
+      return { pct, dir: pct >= 0 ? 'up' : 'down', curr, prev }
+    },
     async loadOverview() {
       this.loading = true
       this.error = null
@@ -398,112 +485,188 @@ export default {
   gap: 16px;
 }
 
-.metric-card {
+/* KPI Card */
+.kpi-card {
   position: relative;
   padding: 20px;
   border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 4px rgba(15, 35, 50, 0.05);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  gap: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
 }
 
-.metric-card__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: var(--icon-color, var(--accent-color));
-  background: var(--icon-bg, var(--accent-color-soft));
+.kpi-card:hover {
+  box-shadow: 0 4px 16px rgba(15, 35, 50, 0.10);
+  transform: translateY(-1px);
 }
 
-.metric-card__header {
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+}
+
+.kpi-card--teal::before  { background: linear-gradient(90deg, #25C6C9, #0e9ea1); }
+.kpi-card--amber::before { background: linear-gradient(90deg, #EAB445, #d97706); }
+.kpi-card--purple::before{ background: linear-gradient(90deg, #7c5cf6, #5b3fd4); }
+
+.kpi-card__top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
-.metric-card__label {
-  font-size: 13px;
-  font-weight: 600;
+.kpi-card__label {
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.metric-card__values {
+.kpi-card__main {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: baseline;
+  gap: 10px;
 }
 
-.metric-card__value {
+.kpi-card__number {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.kpi-card__sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: -4px;
+}
+
+.kpi-card__stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.kpi-stat {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.metric-card__number {
-  font-size: 28px;
+.kpi-stat__val {
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.1;
+  line-height: 1;
 }
 
-.metric-card__sub {
-  font-size: 11px;
+.kpi-stat__val--green  { color: #10b981; }
+.kpi-stat__val--blue   { color: #25C6C9; }
+.kpi-stat__val--red    { color: #ef4444; }
+.kpi-stat__val--orange { color: #f59e0b; }
+.kpi-stat__val--yellow { color: #d97706; }
+
+.kpi-stat__label {
+  font-size: 10px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
-.metric-card__divider {
-  width: 1px;
-  height: 36px;
-  background: var(--border-color);
-}
-
-.metric-card__footer {
+.kpi-completion {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
-.metric-card__footer-text {
+.kpi-completion__bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.kpi-completion__fill {
+  height: 100%;
+  background: #10b981;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.kpi-completion__fill--warn { background: #f59e0b; }
+
+.kpi-completion__pct {
   font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* Chart row */
-.chart-row {
-  padding: 20px;
-  border-radius: 18px;
-  border: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 1px 2px rgba(15, 35, 50, 0.04);
-}
-
-.chart-row__card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.chart-row__title {
-  margin: 0;
-  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
-/* Leaderboard grid */
-.leaderboard-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+/* Bottom row */
+.bottom-row {
+  display: flex;
   gap: 16px;
+  align-items: stretch;
+}
+
+.bottom-row__main {
+  flex: 3 1 0;
+  min-width: 0;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 2px rgba(15, 35, 50, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.bottom-row__side {
+  flex: 2 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.side-panel {
+  flex: 1;
+  padding: 16px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 2px rgba(15, 35, 50, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Leaderboard full-width row */
+.leaderboard-full {
   padding: 20px;
   border-radius: 18px;
   border: 1px solid var(--border-color);
@@ -512,63 +675,130 @@ export default {
   box-shadow: 0 1px 2px rgba(15, 35, 50, 0.04);
 }
 
-/* LeaderboardCard overrides */
-.leaderboard-grid :deep(.leaderboard-card) {
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
+/* Delta badge */
+.delta-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
 }
 
-.leaderboard-grid :deep(.leaderboard-card + .leaderboard-card) {
-  border-left: 1px solid var(--border-color);
-  padding-left: 16px;
+.delta-badge--up   { background: rgba(5, 150, 105, 0.10); color: #059669; }
+.delta-badge--down { background: rgba(239, 68, 68, 0.08); color: #dc2626; }
+
+/* Alert bar */
+.alert-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.leaderboard-grid :deep(.leaderboard-card__title) {
+.alert-bar__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
   font-size: 13px;
-  margin-bottom: 8px;
+  font-weight: 500;
 }
 
-.leaderboard-grid :deep(.leaderboard-card__row) {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(100, 116, 139, 0.08);
+.alert-bar__item--warn {
+  background: rgba(234, 180, 69, 0.12);
+  border: 1px solid rgba(234, 180, 69, 0.28);
+  color: #92650a;
 }
 
-.leaderboard-grid :deep(.leaderboard-card__row:last-child) {
-  border-bottom: none;
+.alert-bar__item--danger {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: #b91c1c;
+}
+
+.alert-bar__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+.alert-bar__item--warn   .alert-bar__dot { background: #EAB445; }
+.alert-bar__item--danger .alert-bar__dot { background: #ef4444; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.75); }
+}
+
+/* Live badge */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(5, 150, 105, 0.10);
+  border: 1px solid rgba(5, 150, 105, 0.22);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+/* Velocity badge */
+.velocity-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b98015;
+  background: rgba(234, 180, 69, 0.12);
+  border: 1px solid rgba(234, 180, 69, 0.24);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* Success rate badge */
+.success-rate-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.success-rate-badge--good {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.10);
+  border: 1px solid rgba(5, 150, 105, 0.22);
+}
+
+.success-rate-badge--warn {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.20);
 }
 
 /* Responsive */
 @media (max-width: 1280px) {
-  .leaderboard-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .leaderboard-grid :deep(.leaderboard-card:nth-child(odd)) {
-    border-left: none;
-    padding-left: 0;
-  }
+  .bottom-row__side { flex: 1 1 0; }
 }
 
 @media (max-width: 1024px) {
-  .metric-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .bottom-row  { flex-direction: column; }
+  .bottom-row__side { flex: unset; width: 100%; flex-direction: row; }
+  .side-panel  { flex: 1; }
 }
 
 @media (max-width: 768px) {
-  .metric-grid,
-  .leaderboard-grid {
-    grid-template-columns: 1fr;
-  }
-  .leaderboard-grid :deep(.leaderboard-card) {
-    border-left: none !important;
-    padding-left: 0 !important;
-  }
-
-  .hero-surface__inner {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  .metric-grid { grid-template-columns: 1fr; }
+  .bottom-row__side { flex-direction: column; }
+  .hero-surface__inner { flex-direction: column; align-items: flex-start; }
 }
 </style>
