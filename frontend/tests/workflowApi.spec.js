@@ -34,7 +34,9 @@ describe('workflow API', () => {
     try {
       await expect(workflowApi.retryWorkflow(5)).rejects.toThrow('stop')
     } finally { cleanup() }
-    expect(seen[0]).toEqual({ url: '/workflows/runs/5/retry', method: 'post', data: undefined })
+    // retryWorkflow always sends a JSON body so the backend's body parser is
+    // happy. Without retryNote the body is just {}.
+    expect(seen[0]).toEqual({ url: '/workflows/runs/5/retry', method: 'post', data: {} })
   })
 
   it('resumeWorkflow sends POST with data payload', async () => {

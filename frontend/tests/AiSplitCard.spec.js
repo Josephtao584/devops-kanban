@@ -137,23 +137,26 @@ describe('AiSplitCard', () => {
     expect(lastPayload[0].target_repo_url).toBe(null)
   })
 
-  it('backfills missing flags as true on legacy suggestion data', async () => {
+  it('backfills missing flags as defaults on legacy suggestion data', async () => {
     const legacy = baseItem()
     delete legacy.create_worktree
     delete legacy.auto_start
     mountCard(makeSuggestion([legacy]))
     await nextTick()
-    expect(legacy.create_worktree).toBe(true)
+    // Legacy items default to create_worktree=false (don't surprise users by
+    // creating extra worktrees) and auto_start=true (run when a template is
+    // chosen).
+    expect(legacy.create_worktree).toBe(false)
     expect(legacy.auto_start).toBe(true)
   })
 
-  it('onAddTask creates new item with both flags true', async () => {
+  it('onAddTask creates new item with safe default flags', async () => {
     const wrapper = mountCard(makeSuggestion([]))
     wrapper.vm.onAddTask()
     await nextTick()
     const emitted = wrapper.emitted('update')
     const lastPayload = emitted[emitted.length - 1][0]
-    expect(lastPayload[0].create_worktree).toBe(true)
+    expect(lastPayload[0].create_worktree).toBe(false)
     expect(lastPayload[0].auto_start).toBe(true)
   })
 })
