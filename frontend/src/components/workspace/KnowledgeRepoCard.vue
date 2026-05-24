@@ -37,7 +37,7 @@
 
     <div v-if="hasFiles" class="knowledge-card__footer">
       <button class="knowledge-card__open" @click="$emit('open', project)">
-        查阅完整知识库 →
+        阅读完整知识库 →
       </button>
     </div>
   </div>

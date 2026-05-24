@@ -67,10 +67,10 @@
           <button
             v-if="proj.repo_role === 'knowledge'"
             class="compact-browse-btn"
-            title="查阅知识库内容"
+            title="阅读知识库内容"
             @click.stop="openKnowledge(proj)"
           >
-            查阅
+            阅读
           </button>
         </div>
       </div>
