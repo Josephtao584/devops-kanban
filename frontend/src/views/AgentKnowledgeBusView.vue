@@ -14,9 +14,9 @@
       </div>
     </div>
 
-    <div class="main-content-wrapper">
+    <div ref="layoutRef" class="main-content-wrapper">
       <!-- 列1：项目列表（按团队分组） -->
-      <aside class="akb-sidebar">
+      <aside class="akb-sidebar" :style="{ width: sidebarWidth + 'px' }">
         <div class="panel-header">
           <h3>{{ $t('agentKnowledgeBus.sidebarTitle') }}</h3>
           <span class="akb-count">{{ totalProjectCount }}</span>
@@ -64,8 +64,14 @@
         </div>
       </aside>
 
+      <div
+        class="akb-resizer"
+        :class="{ active: dragging === 'sidebar' }"
+        @mousedown.prevent="startDrag('sidebar', $event)"
+      ></div>
+
       <!-- 列2：文件树 -->
-      <section class="akb-tree-pane">
+      <section class="akb-tree-pane" :style="{ width: treeWidth + 'px' }">
         <template v-if="selectedProject">
           <header class="akb-tree-pane__header">
             <div class="akb-tree-pane__title">
@@ -105,6 +111,12 @@
           <p>{{ $t('agentKnowledgeBus.selectProjectHint') }}</p>
         </div>
       </section>
+
+      <div
+        class="akb-resizer"
+        :class="{ active: dragging === 'tree' }"
+        @mousedown.prevent="startDrag('tree', $event)"
+      ></div>
 
       <!-- 列3：文件预览 -->
       <main class="akb-preview-pane">
@@ -199,6 +211,77 @@ marked.setOptions({ gfm: true, breaks: false })
 const teams = ref([])
 const loading = ref(false)
 const selectedProject = ref(null)
+
+// Resizable column widths. Persisted in localStorage so user's adjustment
+// sticks across reloads. Defaults match the old hard-coded layout.
+const STORAGE_KEY = 'akb.layoutWidths'
+const SIDEBAR_DEFAULT = 300
+const TREE_DEFAULT = 320
+const SIDEBAR_BOUNDS = { min: 200, max: 480 }
+const TREE_BOUNDS = { min: 220, max: 560 }
+const PREVIEW_MIN = 360 // ensure column 3 always has reasonable space
+
+const sidebarWidth = ref(SIDEBAR_DEFAULT)
+const treeWidth = ref(TREE_DEFAULT)
+const layoutRef = ref(null)
+const dragging = ref('') // '' | 'sidebar' | 'tree'
+
+;(function loadStoredWidths() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (Number.isFinite(parsed?.sidebar)) sidebarWidth.value = parsed.sidebar
+    if (Number.isFinite(parsed?.tree)) treeWidth.value = parsed.tree
+  } catch { /* corrupted entry — fall back to defaults */ }
+})()
+
+function clamp(value, { min, max }) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function persistWidths() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ sidebar: sidebarWidth.value, tree: treeWidth.value }),
+    )
+  } catch { /* quota / privacy mode — silently ignore */ }
+}
+
+function startDrag(which, event) {
+  dragging.value = which
+  const startX = event.clientX
+  const startSidebar = sidebarWidth.value
+  const startTree = treeWidth.value
+  const containerWidth = layoutRef.value?.clientWidth || 1200
+
+  const onMove = (e) => {
+    const delta = e.clientX - startX
+    if (which === 'sidebar') {
+      const next = clamp(startSidebar + delta, SIDEBAR_BOUNDS)
+      // Don't let column 1 + column 2 push column 3 below PREVIEW_MIN.
+      const headroom = containerWidth - treeWidth.value - PREVIEW_MIN - 8
+      sidebarWidth.value = Math.min(next, Math.max(SIDEBAR_BOUNDS.min, headroom))
+    } else {
+      const next = clamp(startTree + delta, TREE_BOUNDS)
+      const headroom = containerWidth - sidebarWidth.value - PREVIEW_MIN - 8
+      treeWidth.value = Math.min(next, Math.max(TREE_BOUNDS.min, headroom))
+    }
+  }
+  const onUp = () => {
+    dragging.value = ''
+    persistWidths()
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  }
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+}
 
 // File tree state for the currently selected project.
 const tree = ref(null)
@@ -712,7 +795,6 @@ onMounted(loadAll)
 
 /* ---- Column 1: Project Sidebar ---- */
 .akb-sidebar {
-  width: 300px;
   flex-shrink: 0;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -721,6 +803,38 @@ onMounted(loadAll)
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Drag handle between columns. Sits as a flex item in the wrapper, so it
+   contributes to the layout instead of overlapping panes. */
+.akb-resizer {
+  flex: 0 0 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.akb-resizer::after {
+  content: '';
+  position: absolute;
+  top: 30%;
+  bottom: 30%;
+  left: 50%;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--border-color);
+  transform: translateX(-50%);
+  transition: background-color 0.15s ease;
+}
+
+.akb-resizer:hover::after,
+.akb-resizer.active::after {
+  background: var(--accent-color);
+}
+
+.akb-resizer.active {
+  background: rgba(37, 198, 201, 0.06);
 }
 
 .akb-count {
@@ -864,7 +978,6 @@ onMounted(loadAll)
 
 /* ---- Column 2: File Tree ---- */
 .akb-tree-pane {
-  width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
