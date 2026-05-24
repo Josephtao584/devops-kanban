@@ -28,17 +28,22 @@
           @change="handleProjectChange"
           :disabled="projectStore.loading"
         >
-          <option :value="null">全部项目</option>
+          <option :value="null">全部开发仓库</option>
           <option
-            v-for="project in teamProjects"
+            v-for="project in developmentProjects"
             :key="project.id"
             :value="project.id"
           >
-            {{ project.repo_role === 'knowledge' ? '📚' : '🔧' }} {{ project.name }}
+            🔧 {{ project.name }}
           </option>
         </select>
       </div>
-      <div class="project-filter-bar" v-else>
+      <KnowledgeRepoCard
+        v-if="selectedTeamId && knowledgeProject"
+        :project="knowledgeProject"
+        @open="openKnowledgeDialog"
+      />
+      <div class="project-filter-bar" v-else-if="!selectedTeamId">
         <select
           v-model="selectedProjectId"
           @change="handleProjectChange"
@@ -240,6 +245,11 @@
         @tasks-imported="handleTasksImported"
       />
     </el-dialog>
+
+    <KnowledgeRepoDialog
+      v-model="knowledgeDialogVisible"
+      :project="knowledgeDialogProject"
+    />
 
     <div class="resize-handle" @mousedown="(e) => handleMouseDown(e, 'left')"></div>
 
@@ -584,6 +594,8 @@ import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplat
 import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
+import KnowledgeRepoCard from '../components/workspace/KnowledgeRepoCard.vue'
+import KnowledgeRepoDialog from '../components/workspace/KnowledgeRepoDialog.vue'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useProjectStore } from '../stores/projectStore.js'
 import { useTeamStore } from '../stores/teamStore.js'
@@ -621,6 +633,19 @@ const teamProjects = computed(() => {
   if (!selectedTeamId.value) return []
   return projects.value.filter(p => p.team_id === selectedTeamId.value)
 })
+
+// Knowledge / development split. A team has at most one knowledge repo
+// (enforced by teamService); the rest are development repos shown in the
+// project picker. The knowledge repo gets its own card above the picker.
+const knowledgeProject = computed(() => teamProjects.value.find(p => p.repo_role === 'knowledge') || null)
+const developmentProjects = computed(() => teamProjects.value.filter(p => p.repo_role !== 'knowledge'))
+
+const knowledgeDialogVisible = ref(false)
+const knowledgeDialogProject = ref(null)
+function openKnowledgeDialog(project) {
+  knowledgeDialogProject.value = project
+  knowledgeDialogVisible.value = true
+}
 
 // Active step session info from the current workflow run
 const activeSession = ref(null) // { session_id, step_name, assembled_prompt }
@@ -706,7 +731,7 @@ function openCreateTask() {
   taskForm.status = 'TODO'
   taskForm.priority = 'MEDIUM'
   taskForm.project_id = selectedProjectId.value
-    || (selectedTeamId.value && teamProjects.value.length ? teamProjects.value[0].id : null)
+    || (selectedTeamId.value && developmentProjects.value.length ? developmentProjects.value[0].id : null)
     || (projects.value.length ? projects.value[0].id : null)
   taskForm.work_dir = ''
   showTaskDialog.value = true
@@ -1049,8 +1074,9 @@ async function loadTasks() {
     if (selectedProjectId.value) {
       resp = await taskStore.listTasks({ project_id: selectedProjectId.value })
     } else if (selectedTeamId.value) {
-      // Load tasks from all team projects in parallel
-      const teamProjectIds = teamProjects.value.map(p => p.id)
+      // Load tasks from all team development projects in parallel.
+      // Knowledge repos have no tasks of their own, so they're skipped.
+      const teamProjectIds = developmentProjects.value.map(p => p.id)
       const results = await Promise.all(
         teamProjectIds.map(id => taskStore.listTasks({ project_id: id }))
       )

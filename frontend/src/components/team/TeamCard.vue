@@ -50,10 +50,13 @@
           v-for="proj in sortedProjects"
           :key="proj.id"
           class="project-compact-card"
+          :class="{ 'is-knowledge': proj.repo_role === 'knowledge' }"
+          title="打开工作空间"
           @click.stop="openProject(proj)"
         >
           <div class="compact-icon">
-            <el-icon><Folder /></el-icon>
+            <el-icon v-if="proj.repo_role === 'knowledge'"><Reading /></el-icon>
+            <el-icon v-else><Folder /></el-icon>
           </div>
           <div class="compact-info">
             <span class="compact-name">{{ proj.name }}</span>
@@ -61,6 +64,14 @@
               {{ proj.repo_role === 'knowledge' ? '知识仓库' : '开发仓库' }}
             </span>
           </div>
+          <button
+            v-if="proj.repo_role === 'knowledge'"
+            class="compact-browse-btn"
+            title="查阅知识库内容"
+            @click.stop="openKnowledge(proj)"
+          >
+            查阅
+          </button>
         </div>
       </div>
 
@@ -141,6 +152,11 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <KnowledgeRepoDialog
+      v-model="knowledgeDialogVisible"
+      :project="knowledgeDialogProject"
+    />
   </el-card>
 </template>
 
@@ -150,6 +166,7 @@ import { useRouter } from 'vue-router'
 import { UserFilled, Edit, Delete, MoreFilled, Plus, Loading, Folder, Setting, Reading } from '@element-plus/icons-vue'
 import { useProjectStore } from '../../stores/projectStore'
 import * as teamApi from '../../api/team'
+import KnowledgeRepoDialog from '../workspace/KnowledgeRepoDialog.vue'
 
 const props = defineProps({
   team: {
@@ -210,6 +227,14 @@ async function loadProjects() {
 function openProject(proj) {
   router.push(`/workspace/${proj.id}`)
 }
+
+function openKnowledge(proj) {
+  knowledgeDialogProject.value = proj
+  knowledgeDialogVisible.value = true
+}
+
+const knowledgeDialogVisible = ref(false)
+const knowledgeDialogProject = ref(null)
 
 async function handleAddProject() {
   if (!addForm.value.projectId) return
@@ -367,6 +392,41 @@ async function handleAddProject() {
   border-color: var(--accent-color);
   background: var(--accent-color-soft);
   transform: translateY(-1px);
+}
+
+.project-compact-card.is-knowledge {
+  background: linear-gradient(180deg, rgba(255, 244, 214, 0.55) 0%, rgba(255, 250, 240, 0.7) 100%);
+  border-color: rgba(230, 162, 60, 0.35);
+}
+
+.project-compact-card.is-knowledge:hover {
+  border-color: rgba(230, 162, 60, 0.7);
+  background: rgba(230, 162, 60, 0.12);
+}
+
+.project-compact-card.is-knowledge .compact-icon {
+  color: #e6a23c;
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.18) 0%, rgba(230, 162, 60, 0.06) 100%);
+  border-color: rgba(230, 162, 60, 0.25);
+}
+
+.compact-browse-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b8821b;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(230, 162, 60, 0.5);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compact-browse-btn:hover {
+  background: #e6a23c;
+  color: #fff;
+  border-color: #e6a23c;
 }
 
 .compact-icon {
