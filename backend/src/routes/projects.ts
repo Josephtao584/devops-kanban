@@ -9,7 +9,7 @@ import type { IdParams } from '../types/http/params.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import { parseNumber, getStatusCode, getErrorMessage, logError } from '../utils/http.js';
 import { getFileTree } from '../utils/fileTree.js';
-import { readFileContent } from '../utils/fileEdit.js';
+import { readFileContent, writeFileContent } from '../utils/fileEdit.js';
 
 const projectService = new ProjectService();
 const taskService = new TaskService();
@@ -205,6 +205,42 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
         reply.code(getStatusCode(error));
       }
       return errorResponse(getErrorMessage(error, 'Failed to read project file'));
+    }
+  });
+
+  // PUT /:id/files/* - Overwrite a file inside project.local_path. Body must
+  // be { content: string }. Path traversal and large files are rejected by the
+  // shared writeFileContent / validateFilePath helpers.
+  fastify.put<{ Params: IdParams & { '*': string }; Body: { content?: unknown } }>('/:id/files/*', async (request, reply) => {
+    try {
+      const projectId = parseNumber(request.params.id);
+      const project = await projectService.getById(projectId);
+      if (!project) {
+        reply.code(404);
+        return errorResponse('Project not found');
+      }
+      if (!project.local_path) {
+        reply.code(400);
+        return errorResponse('Project has no local_path configured');
+      }
+      if (!fs.existsSync(project.local_path)) {
+        reply.code(400);
+        return errorResponse('Project local_path does not exist on disk');
+      }
+
+      const filePath = (request.params as any)['*'];
+      const body = request.body || {};
+      if (typeof body.content !== 'string') {
+        reply.code(400);
+        return errorResponse('Request body must include a string `content` field');
+      }
+
+      writeFileContent(project.local_path, filePath, body.content);
+      return successResponse({ path: filePath, size: body.content.length }, 'File saved');
+    } catch (error: any) {
+      logError(error, request);
+      reply.code(getStatusCode(error));
+      return errorResponse(getErrorMessage(error, 'Failed to write project file'));
     }
   });
 

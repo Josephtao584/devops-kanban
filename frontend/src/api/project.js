@@ -22,3 +22,11 @@ export const getProjectFileContent = (id, path) => {
     .join('/')
   return api.get(`/projects/${id}/files/${encoded}`)
 }
+export const saveProjectFileContent = (id, path, content) => {
+  const encoded = String(path)
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/')
+  return api.put(`/projects/${id}/files/${encoded}`, { content })
+}
