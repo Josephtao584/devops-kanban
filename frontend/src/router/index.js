@@ -31,6 +31,11 @@ const routes = [
     name: 'McpServerConfig',
     component: () => import('../views/McpServerConfig.vue')
   },
+  {
+    path: '/agent-knowledge-bus',
+    name: 'AgentKnowledgeBus',
+    component: () => import('../views/AgentKnowledgeBusView.vue')
+  },
   { path: '/dashboard',                 name: 'Dashboard',         component: () => import('../views/DashboardView.vue') },
   { path: '/dashboard/agents/:id',      name: 'DashboardAgent',    component: () => import('../views/DashboardAgentDetailView.vue') },
   { path: '/dashboard/projects/:id',    name: 'DashboardProject',  component: () => import('../views/DashboardProjectDetailView.vue') },
