@@ -39,7 +39,7 @@
       <div class="krd-main">
         <!-- 概览模式 -->
         <template v-if="!currentPath">
-          <div class="krd-overview">
+          <div ref="overviewRef" class="krd-overview" @click="handleMarkdownClick">
             <div class="krd-overview-meta">
               <div class="krd-overview-title">
                 <span class="krd-overview-icon">📚</span>
@@ -65,11 +65,22 @@
             </div>
 
             <div v-if="readmeLoading" class="krd-hint">加载 README...</div>
-            <div
-              v-else-if="readmeHtml"
-              class="krd-overview-readme markdown-body"
-              v-html="readmeHtml"
-            ></div>
+            <div v-else-if="readmeHtml" class="krd-overview-readme-wrap">
+              <div class="krd-overview-readme markdown-body" v-html="readmeHtml"></div>
+              <aside v-if="readmeToc.length" class="krd-toc">
+                <div class="krd-toc-title">目录</div>
+                <ul class="krd-toc-list">
+                  <li
+                    v-for="item in readmeToc"
+                    :key="item.id"
+                    :class="['krd-toc-item', `krd-toc-l${item.level}`]"
+                    @click.stop="scrollToToc(item)"
+                  >
+                    {{ item.text }}
+                  </li>
+                </ul>
+              </aside>
+            </div>
             <div v-else-if="hasFiles" class="krd-overview-readme krd-overview-readme--empty">
               此知识库根目录暂无 README 文件
             </div>
@@ -114,16 +125,31 @@
             <span class="krd-file-path">{{ currentPath }}</span>
             <span v-if="fileMeta" class="krd-file-meta">{{ fileMeta }}</span>
           </div>
-          <div class="krd-file-content">
-            <div v-if="fileLoading" class="krd-hint">加载中...</div>
-            <div v-else-if="fileError" class="krd-hint krd-hint--error">{{ fileError }}</div>
-            <div v-else-if="fileIsBinary" class="krd-hint">二进制文件，不支持预览</div>
-            <div
-              v-else-if="isMarkdown(currentPath)"
-              class="krd-markdown markdown-body"
-              v-html="renderedMarkdown"
-            ></div>
-            <pre v-else class="krd-pre">{{ fileContent }}</pre>
+          <div class="krd-file-content-wrap">
+            <div ref="fileBodyRef" class="krd-file-content" @click="handleMarkdownClick">
+              <div v-if="fileLoading" class="krd-hint">加载中...</div>
+              <div v-else-if="fileError" class="krd-hint krd-hint--error">{{ fileError }}</div>
+              <div v-else-if="fileIsBinary" class="krd-hint">二进制文件，不支持预览</div>
+              <div
+                v-else-if="isMarkdown(currentPath)"
+                class="krd-markdown markdown-body"
+                v-html="renderedMarkdown"
+              ></div>
+              <pre v-else class="krd-pre">{{ fileContent }}</pre>
+            </div>
+            <aside v-if="fileToc.length" class="krd-toc krd-toc--side">
+              <div class="krd-toc-title">目录</div>
+              <ul class="krd-toc-list">
+                <li
+                  v-for="item in fileToc"
+                  :key="item.id"
+                  :class="['krd-toc-item', `krd-toc-l${item.level}`]"
+                  @click="scrollToToc(item)"
+                >
+                  {{ item.text }}
+                </li>
+              </ul>
+            </aside>
           </div>
         </template>
       </div>
@@ -132,7 +158,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import FileTree from '../editor/FileTree.vue'
 import { getProjectFileTree, getProjectFileContent } from '../../api/project.js'
@@ -190,10 +217,49 @@ function rewriteAssetUrl(src, baseDir, projectId) {
   return `/api/projects/${projectId}/raw/${encoded}`
 }
 
+// Resolve a relative doc-link href to an in-repo path (without rewriting it
+// to the raw endpoint). Used to mark internal Markdown-to-Markdown links so
+// the click handler can intercept them and navigate inside the dialog.
+// Returns null when the link is external / anchor / mailto.
+function resolveDocPath(href, baseDir) {
+  if (!href) return null
+  if (/^(https?:|data:|blob:|mailto:|tel:|#)/i.test(href)) return null
+  let cleaned = href.replace(/^\.\//, '').replace(/^\/+/, '')
+  const hashIdx = cleaned.search(/[?#]/)
+  let trailing = ''
+  if (hashIdx >= 0) {
+    trailing = cleaned.slice(hashIdx)
+    cleaned = cleaned.slice(0, hashIdx)
+  }
+  const stack = []
+  const baseSegments = baseDir ? baseDir.split('/').filter(Boolean) : []
+  stack.push(...baseSegments)
+  for (const seg of cleaned.split('/')) {
+    if (!seg || seg === '.') continue
+    if (seg === '..') {
+      stack.pop()
+      continue
+    }
+    stack.push(seg)
+  }
+  if (!stack.length) return null
+  return { path: stack.join('/'), hash: trailing.startsWith('#') ? trailing : '' }
+}
+
+// GitHub-style slug for ToC anchors. Not perfect but matches the common case.
+function slugify(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
 function renderMarkdown(content, baseDir) {
   if (!content) return ''
   const projectId = props.project?.id
   const renderer = new marked.Renderer()
+  const headingSlugCounts = new Map()
 
   // marked v17 uses object-form arguments for image/link renderers.
   // Fall back to positional for older majors so this works in either case.
@@ -205,18 +271,58 @@ function renderMarkdown(content, baseDir) {
     }
     return origImage(rewriteAssetUrl(hrefOrToken, baseDir, projectId), title, text)
   }
-  const origLink = renderer.link.bind(renderer)
+  // Custom link renderer: tag relative md/dir links with data-doc-link so the
+  // click handler can intercept them, asset links go through rewriteAssetUrl,
+  // external links open in a new tab.
   renderer.link = (hrefOrToken, title, text) => {
+    let href, linkTitle, linkText
     if (hrefOrToken && typeof hrefOrToken === 'object') {
-      const href = hrefOrToken.href || ''
-      // Only rewrite obviously-relative asset links (images or attachments).
-      // Plain doc-to-doc links stay as-is — clicking them in v-html does
-      // nothing meaningful anyway, and we don't want them to 404 on raw.
-      const isAsset = /\.(png|jpg|jpeg|gif|webp|svg|bmp|pdf)(?:[?#]|$)/i.test(href)
-      const next = isAsset ? rewriteAssetUrl(href, baseDir, projectId) : href
-      return origLink({ ...hrefOrToken, href: next })
+      href = hrefOrToken.href || ''
+      linkTitle = hrefOrToken.title
+      linkText = hrefOrToken.text != null ? hrefOrToken.text : ''
+    } else {
+      href = hrefOrToken
+      linkTitle = title
+      linkText = text != null ? text : ''
     }
-    return origLink(hrefOrToken, title, text)
+    const escapedTitle = linkTitle ? ` title="${String(linkTitle).replace(/"/g, '&quot;')}"` : ''
+    if (/^(https?:)/i.test(href)) {
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer"${escapedTitle}>${linkText}</a>`
+    }
+    if (href.startsWith('#')) {
+      return `<a href="${href}"${escapedTitle}>${linkText}</a>`
+    }
+    if (/\.(png|jpg|jpeg|gif|webp|svg|bmp|pdf)(?:[?#]|$)/i.test(href)) {
+      const next = rewriteAssetUrl(href, baseDir, projectId)
+      return `<a href="${next}" target="_blank" rel="noopener noreferrer"${escapedTitle}>${linkText}</a>`
+    }
+    const resolved = resolveDocPath(href, baseDir)
+    if (!resolved) {
+      return `<a href="${href}"${escapedTitle}>${linkText}</a>`
+    }
+    const dataPath = String(resolved.path).replace(/"/g, '&quot;')
+    const dataHash = resolved.hash ? ` data-doc-hash="${String(resolved.hash).replace(/"/g, '&quot;')}"` : ''
+    return `<a href="javascript:void(0)" data-doc-link="${dataPath}"${dataHash}${escapedTitle} class="krd-doc-link">${linkText}</a>`
+  }
+  // Heading renderer: emit slug ids so ToC clicks can scroll to them.
+  renderer.heading = (textOrToken, levelArg, raw) => {
+    let level, plain
+    let html = ''
+    if (textOrToken && typeof textOrToken === 'object') {
+      level = textOrToken.depth
+      plain = textOrToken.text || ''
+      html = this && this.parser ? this.parser.parseInline(textOrToken.tokens || []) : plain
+    } else {
+      level = levelArg
+      plain = raw || textOrToken
+      html = textOrToken
+    }
+    let slug = slugify(plain)
+    if (!slug) slug = `section-${headingSlugCounts.size + 1}`
+    const seen = headingSlugCounts.get(slug) || 0
+    headingSlugCounts.set(slug, seen + 1)
+    const finalSlug = seen ? `${slug}-${seen}` : slug
+    return `<h${level} id="${finalSlug}">${html || plain}</h${level}>\n`
   }
 
   try {
@@ -224,6 +330,51 @@ function renderMarkdown(content, baseDir) {
   } catch {
     return ''
   }
+}
+
+// Extract a ToC from raw markdown. Uses marked's lexer so we don't have to
+// re-implement heading detection (handles ATX/setext, ignores headings inside
+// code blocks). Slugs must match what renderMarkdown emits.
+function extractToc(content) {
+  if (!content) return []
+  let tokens
+  try {
+    tokens = marked.lexer(content)
+  } catch {
+    return []
+  }
+  const counts = new Map()
+  const items = []
+  for (const tok of tokens) {
+    if (tok.type !== 'heading') continue
+    if (tok.depth < 1 || tok.depth > 3) continue
+    const text = String(tok.text || '').trim()
+    if (!text) continue
+    let slug = slugify(text)
+    if (!slug) slug = `section-${counts.size + 1}`
+    const seen = counts.get(slug) || 0
+    counts.set(slug, seen + 1)
+    const id = seen ? `${slug}-${seen}` : slug
+    items.push({ id, text, level: tok.depth })
+  }
+  return items
+}
+
+// Walk the loaded file tree to verify a path exists before we navigate to it.
+// Avoids "broken link" UX where the user clicks and gets a 404 toast.
+function fileExistsInTree(treeRoot, relPath) {
+  if (!treeRoot || !relPath) return false
+  let exists = false
+  const walk = (node) => {
+    if (!node || exists) return
+    if (node.type === 'file' && node.path === relPath) {
+      exists = true
+      return
+    }
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  walk(treeRoot)
+  return exists
 }
 
 const tree = ref(null)
@@ -276,6 +427,56 @@ const readmeHtml = computed(() => {
   // README sits at repo root, so its relative assets resolve from ''.
   return renderMarkdown(readmeContent.value, '')
 })
+
+// ToC: only show when there are at least 3 headings, otherwise it's noise.
+const fileToc = computed(() => {
+  if (!fileContent.value || !isMarkdown(currentPath.value)) return []
+  const items = extractToc(fileContent.value)
+  return items.length >= 3 ? items : []
+})
+const readmeToc = computed(() => {
+  if (!readmeContent.value) return []
+  const items = extractToc(readmeContent.value)
+  return items.length >= 3 ? items : []
+})
+
+const fileBodyRef = ref(null)
+const overviewRef = ref(null)
+
+// Intercept clicks inside any v-html markdown block. Two cases:
+//   1. data-doc-link → relative md/dir link inside the repo. Navigate inside
+//      the dialog instead of letting the browser hit a dead URL.
+//   2. plain anchor (#id) → let the browser handle it (smooth scroll via CSS).
+// External http(s) links already have target=_blank from renderer.link.
+function handleMarkdownClick(event) {
+  const anchor = event.target.closest('a')
+  if (!anchor) return
+  const docPath = anchor.getAttribute('data-doc-link')
+  if (!docPath) return
+  event.preventDefault()
+  const hash = anchor.getAttribute('data-doc-hash') || ''
+  if (!fileExistsInTree(tree.value, docPath)) {
+    ElMessage.warning(`知识库内未找到文件：${docPath}`)
+    return
+  }
+  handleFileSelect(docPath, hash)
+}
+
+async function scrollToHash(hash, root) {
+  if (!hash || !root) return
+  const id = hash.startsWith('#') ? hash.slice(1) : hash
+  if (!id) return
+  await nextTick()
+  const el = root.querySelector(`#${CSS.escape(id)}`)
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+function scrollToToc(item) {
+  const root = currentPath.value ? fileBodyRef.value : overviewRef.value
+  scrollToHash(`#${item.id}`, root)
+}
 
 const topLevel = computed(() => Array.isArray(tree.value?.children) ? tree.value.children : [])
 const hasFiles = computed(() => topLevel.value.length > 0)
@@ -385,7 +586,7 @@ async function loadReadme() {
   }
 }
 
-async function handleFileSelect(filePath) {
+async function handleFileSelect(filePath, hash = '') {
   if (!filePath) return
   currentPath.value = filePath
   fileLoading.value = true
@@ -399,6 +600,12 @@ async function handleFileSelect(filePath) {
       fileIsBinary.value = !!resp.data?.isBinary
       fileSize.value = resp.data?.size || 0
       fileContent.value = resp.data?.content || ''
+      if (hash && fileBodyRef.value) {
+        await scrollToHash(hash, fileBodyRef.value)
+      } else if (fileBodyRef.value) {
+        // Reset scroll when navigating to a fresh doc.
+        fileBodyRef.value.scrollTop = 0
+      }
     } else {
       fileError.value = resp?.message || '读取失败'
     }
@@ -565,9 +772,17 @@ watch(
   flex-shrink: 0;
 }
 
+.krd-file-content-wrap {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .krd-file-content {
   flex: 1;
   overflow: auto;
+  scroll-behavior: smooth;
 }
 
 .krd-pre {
@@ -583,6 +798,85 @@ watch(
 
 .krd-markdown {
   padding: 24px 32px;
+}
+
+/* TOC */
+.krd-toc {
+  width: 220px;
+  min-width: 180px;
+  max-width: 240px;
+  border-left: 1px solid var(--border-color, #e4e7ed);
+  background: #fafbfc;
+  padding: 16px 14px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.krd-toc--side {
+  flex-shrink: 0;
+}
+
+.krd-toc-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #909399;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.krd-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.krd-toc-item {
+  padding: 4px 8px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  color: #606266;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.krd-toc-item:hover {
+  color: #e6a23c;
+  background: rgba(230, 162, 60, 0.08);
+  border-left-color: #e6a23c;
+}
+
+.krd-toc-l1 { padding-left: 8px; font-weight: 600; color: #303133; }
+.krd-toc-l2 { padding-left: 18px; }
+.krd-toc-l3 { padding-left: 28px; font-size: 11px; color: #909399; }
+
+/* Overview README + side TOC layout */
+.krd-overview-readme-wrap {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: flex-start;
+}
+
+.krd-overview-readme-wrap .krd-overview-readme {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.krd-overview-readme-wrap .krd-toc {
+  border-left: 1px solid var(--border-color, #e4e7ed);
+  border-radius: 6px;
+  background: #fafbfc;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
 }
 
 /* Overview */
@@ -901,5 +1195,19 @@ watch(
 .knowledge-repo-dialog .markdown-body img {
   max-width: 100%;
   height: auto;
+}
+
+/* In-repo doc link — visually distinct from external links so users know
+   these stay inside the dialog instead of hitting the browser. */
+.knowledge-repo-dialog .markdown-body a.krd-doc-link {
+  color: #b8821b;
+  border-bottom: 1px dashed rgba(230, 162, 60, 0.5);
+  padding-bottom: 1px;
+}
+
+.knowledge-repo-dialog .markdown-body a.krd-doc-link:hover {
+  color: #e6a23c;
+  border-bottom-color: #e6a23c;
+  text-decoration: none;
 }
 </style>
