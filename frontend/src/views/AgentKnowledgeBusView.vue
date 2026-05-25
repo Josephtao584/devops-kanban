@@ -87,6 +87,23 @@
               </div>
             </div>
           </header>
+          <div
+            v-if="!treeLoading && !treeError && hasTreeChildren"
+            class="akb-tree-pane__stats"
+          >
+            <div class="akb-stat">
+              <span class="akb-stat__value">{{ totalFiles }}</span>
+              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statFiles') }}</span>
+            </div>
+            <div class="akb-stat">
+              <span class="akb-stat__value">{{ totalDirs }}</span>
+              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statDirs') }}</span>
+            </div>
+            <div v-if="markdownCount" class="akb-stat">
+              <span class="akb-stat__value">{{ markdownCount }}</span>
+              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statMarkdown') }}</span>
+            </div>
+          </div>
           <div v-if="selectedProject.local_path" class="akb-path-bar">
             <span class="akb-path-bar__label">{{ $t('agentKnowledgeBus.localPath') }}</span>
             <span class="akb-path-bar__value" :title="selectedProject.local_path">
@@ -287,6 +304,41 @@ function startDrag(which, event) {
 const tree = ref(null)
 const treeLoading = ref(false)
 const treeError = ref('')
+
+const hasTreeChildren = computed(() => Array.isArray(tree.value?.children) && tree.value.children.length > 0)
+
+const totalFiles = computed(() => {
+  let count = 0
+  const walk = (node) => {
+    if (!node) return
+    if (node.type === 'file') { count += 1; return }
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  ;(tree.value?.children || []).forEach(walk)
+  return count
+})
+
+const totalDirs = computed(() => {
+  let count = 0
+  const walk = (node) => {
+    if (!node) return
+    if (node.type === 'directory') count += 1
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  ;(tree.value?.children || []).forEach(walk)
+  return count
+})
+
+const markdownCount = computed(() => {
+  let count = 0
+  const walk = (node) => {
+    if (!node) return
+    if (node.type === 'file' && isMarkdown(node.path)) count += 1
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  ;(tree.value?.children || []).forEach(walk)
+  return count
+})
 
 // File preview state.
 const selectedFilePath = ref('')
@@ -1040,6 +1092,42 @@ onMounted(loadAll)
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.akb-tree-pane__stats {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.akb-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.akb-stat__value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.akb-stat__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .akb-path-bar {
