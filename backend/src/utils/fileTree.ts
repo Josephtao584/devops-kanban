@@ -7,25 +7,10 @@ export interface FileTreeNode {
   path: string;
   type: 'file' | 'directory';
   size?: number;
-  isBinary?: boolean;
   children?: FileTreeNode[];
 }
 
 const IGNORED_DIRS = ['.git', 'node_modules', '.DS_Store', 'dist'];
-
-function isBinaryFile(filePath: string): boolean {
-  try {
-    const buffer = fs.readFileSync(filePath);
-    const slice = buffer.subarray(0, 8192);
-    if (slice.length === 0) return false;
-    for (let i = 0; i < slice.length; i++) {
-      if (slice[i] === 0) return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
 
 export function getFileTree(rootPath: string, currentPath: string): FileTreeNode {
   const relativePath = path.relative(rootPath, currentPath).split(path.sep).join('/');
@@ -44,7 +29,7 @@ export function getFileTree(rootPath: string, currentPath: string): FileTreeNode
         name: path.basename(rootPath),
         path: '',
         type: 'directory',
-        children: buildTreeFromPaths(files, rootPath),
+        children: buildTreeFromPaths(files),
       };
       return tree;
     } catch {
@@ -61,7 +46,6 @@ export function getFileTree(rootPath: string, currentPath: string): FileTreeNode
         path: relativePath,
         type: 'file',
         size: stat.size,
-        isBinary: isBinaryFile(currentPath),
       };
     }
     if (stat.isDirectory()) {
@@ -85,7 +69,7 @@ export function getFileTree(rootPath: string, currentPath: string): FileTreeNode
   return { name, path: relativePath, type: 'file' };
 }
 
-function buildTreeFromPaths(filePaths: string[], rootPath: string): FileTreeNode[] {
+function buildTreeFromPaths(filePaths: string[]): FileTreeNode[] {
   const nodeMap = new Map<string, FileTreeNode>();
   const rootChildren: FileTreeNode[] = [];
 
@@ -106,7 +90,6 @@ function buildTreeFromPaths(filePaths: string[], rootPath: string): FileTreeNode
               name: part,
               path: currentPath,
               type: 'file',
-              isBinary: isBinaryFile(path.join(rootPath, filePath)),
             }
           : {
               name: part,

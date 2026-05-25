@@ -346,6 +346,7 @@
               :session-id="activeSession?.session_id ?? null"
               :step-name="activeSession?.step_name || ''"
               :assembled-prompt="activeSession?.assembled_prompt || ''"
+              :assistant-label="activeAgent?.name || ''"
               :show-header="false"
             />
           </div>

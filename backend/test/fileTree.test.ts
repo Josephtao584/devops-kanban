@@ -50,21 +50,6 @@ test.test('getFileTree excludes .git and node_modules directories', async () => 
   });
 });
 
-test.test('getFileTree marks binary files as binary', async () => {
-  await withTempDir(async (dir) => {
-    const binaryPath = path.join(dir, 'image.png');
-    fs.writeFileSync(binaryPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0d]));
-    fs.writeFileSync(path.join(dir, 'text.txt'), 'hello');
-
-    const tree = getFileTree(dir, dir);
-    const binaryFile = tree.children!.find((c) => c.name === 'image.png');
-    const textFile = tree.children!.find((c) => c.name === 'text.txt');
-
-    assert.equal(binaryFile?.isBinary, true);
-    assert.equal(textFile?.isBinary, false);
-  });
-});
-
 test.test('getFileTree excludes .DS_Store and dist directories', async () => {
   await withTempDir(async (dir) => {
     fs.mkdirSync(path.join(dir, '.DS_Store'));
@@ -94,17 +79,6 @@ test.test('getFileTree handles empty directories', async () => {
 
     assert.ok(emptyNode);
     assert.deepEqual(emptyNode.children, []);
-  });
-});
-
-test.test('getFileTree handles zero-byte files as text', async () => {
-  await withTempDir(async (dir) => {
-    fs.writeFileSync(path.join(dir, 'empty.txt'), '');
-
-    const tree = getFileTree(dir, dir);
-    const emptyFile = tree.children!.find((c) => c.name === 'empty.txt');
-
-    assert.equal(emptyFile?.isBinary, false);
   });
 });
 

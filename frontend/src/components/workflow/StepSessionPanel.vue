@@ -65,6 +65,7 @@
           <SessionEventRenderer
             v-else
             :event="event"
+            :assistant-label="props.assistantLabel"
           />
         </template>
       </div>
@@ -156,6 +157,10 @@ const props = defineProps({
     default: ''
   },
   assembledPrompt: {
+    type: String,
+    default: ''
+  },
+  assistantLabel: {
     type: String,
     default: ''
   }

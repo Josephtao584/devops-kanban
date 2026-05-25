@@ -49,24 +49,36 @@ class WorkflowRunRepository extends BaseRepository<WorkflowRunEntity> {
   }
 
   /**
-   * 为 steps 附加 agent_id（从 sessions 表获取）
+   * 为 steps 附加 agent_id 和 agent_name（从 sessions / agents 表 join 获取）
    */
   private async enrichStepsWithAgentId(steps: WorkflowStepEntity[]): Promise<WorkflowStepEntity[]> {
     const sessionIds = [...new Set(steps.filter(s => s.session_id).map(s => s.session_id!))];
     if (sessionIds.length === 0) return steps;
 
     const sessionResult = await this.client.execute({
-      sql: 'SELECT id, agent_id FROM sessions WHERE id IN (' + sessionIds.map(() => '?').join(',') + ')',
+      sql: 'SELECT s.id AS session_id, s.agent_id AS agent_id, a.name AS agent_name '
+        + 'FROM sessions s LEFT JOIN agents a ON a.id = s.agent_id '
+        + 'WHERE s.id IN (' + sessionIds.map(() => '?').join(',') + ')',
       args: sessionIds,
     });
 
-    const agentIdBySessionId = new Map(
-      sessionResult.rows.map(r => [r.id as number, ((r as Record<string, unknown>).agent_id ?? null) as number | null])
+    const agentInfoBySessionId = new Map<number, { agent_id: number | null; agent_name: string | null }>(
+      sessionResult.rows.map(r => {
+        const row = r as Record<string, unknown>;
+        return [
+          row.session_id as number,
+          {
+            agent_id: (row.agent_id ?? null) as number | null,
+            agent_name: (row.agent_name ?? null) as string | null,
+          },
+        ];
+      })
     );
 
     return steps.map(step => {
-      if (step.session_id && agentIdBySessionId.has(step.session_id)) {
-        return { ...step, agent_id: agentIdBySessionId.get(step.session_id)! };
+      if (step.session_id && agentInfoBySessionId.has(step.session_id)) {
+        const info = agentInfoBySessionId.get(step.session_id)!;
+        return { ...step, agent_id: info.agent_id, agent_name: info.agent_name };
       }
       return step;
     });

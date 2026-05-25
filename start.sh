@@ -126,8 +126,8 @@ if ! npm install --no-audit; then
     echo -e "${RED}✗ 后端依赖安装失败${NC}"
     exit 1
 fi
-if [ -n "$NATIVE_LIBSQL" ]; then
-    npm install "$NATIVE_LIBSQL" --no-save --no-audit --silent >/dev/null 2>&1 || true
+if [ -n "$NATIVE_LIBSQL" ] && [ ! -d "$BACKEND_DIR/node_modules/$NATIVE_LIBSQL" ]; then
+    npm install "$NATIVE_LIBSQL" --no-save --no-audit --prefer-offline --silent >/dev/null 2>&1 || true
 fi
 echo -e "${GREEN}✓ 后端依赖安装完成${NC}"
 echo ""
@@ -162,8 +162,8 @@ if ! npm install --no-audit; then
     echo -e "${RED}✗ 前端依赖安装失败${NC}"
     exit 1
 fi
-if [ -n "$NATIVE_ROLLUP" ]; then
-    npm install "$NATIVE_ROLLUP" --no-save --no-audit --silent >/dev/null 2>&1 || true
+if [ -n "$NATIVE_ROLLUP" ] && [ ! -d "$FRONTEND_DIR/node_modules/$NATIVE_ROLLUP" ]; then
+    npm install "$NATIVE_ROLLUP" --no-save --no-audit --prefer-offline --silent >/dev/null 2>&1 || true
 fi
 echo -e "${GREEN}✓ 前端依赖安装完成${NC}"
 echo ""
