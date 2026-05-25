@@ -89,6 +89,9 @@ function createMockDeps(options: {
         updated_at: new Date().toISOString(),
       }));
     },
+    async countActive() {
+      return activeRuns.filter((r) => r.status === 'RUNNING' || r.status === 'PENDING' || r.status === 'SUSPENDED').length;
+    },
   };
 
   const taskService = {

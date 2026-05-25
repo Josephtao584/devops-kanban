@@ -38,12 +38,21 @@ export interface SessionStats {
   total: number;
 }
 
+export interface WorkflowAlertItem {
+  runId: string;
+  taskId: number;
+  taskTitle: string;
+  projectId: number | null;
+}
+
 export interface WorkflowStats {
   running: number;
   suspended: number;
   recent7dCompleted: number;
   recent7dFailed: number;
   total: number;
+  suspendedItems: WorkflowAlertItem[];
+  failedItems: WorkflowAlertItem[];
 }
 
 export interface AgentLeaderboardEntry {
@@ -211,12 +220,49 @@ export class DashboardRepository {
       ],
     });
     const row: any = result.rows[0] ?? {};
+
+    const itemsResult = await this.client.execute({
+      sql: `
+        SELECT wr.id AS run_id, wr.status AS status,
+               t.id AS task_id, t.title AS task_title, t.project_id AS project_id
+        FROM workflow_runs wr
+        JOIN tasks t ON t.id = wr.task_id
+        WHERE (
+          wr.status = 'SUSPENDED'
+          OR (wr.status = 'FAILED' AND wr.updated_at >= datetime('now', ?))
+        )
+          AND (? IS NULL OR t.project_id = ?)
+          AND (? IS NULL OR t.project_id IN (SELECT id FROM projects WHERE team_id = ?))
+        ORDER BY wr.updated_at DESC
+        LIMIT 20
+      `,
+      args: [
+        window,
+        scope.projectId ?? null, scope.projectId ?? null,
+        scope.teamId ?? null, scope.teamId ?? null,
+      ],
+    });
+    const suspendedItems: WorkflowAlertItem[] = [];
+    const failedItems: WorkflowAlertItem[] = [];
+    for (const r of itemsResult.rows as any[]) {
+      const item: WorkflowAlertItem = {
+        runId: String(r.run_id),
+        taskId: Number(r.task_id),
+        taskTitle: String(r.task_title || ''),
+        projectId: r.project_id == null ? null : Number(r.project_id),
+      };
+      if (r.status === 'SUSPENDED') suspendedItems.push(item);
+      else if (r.status === 'FAILED') failedItems.push(item);
+    }
+
     return {
       running:           Number(row.running   ?? 0),
       suspended:         Number(row.suspended ?? 0),
       recent7dCompleted: Number(row.rc        ?? 0),
       recent7dFailed:    Number(row.rf        ?? 0),
       total:             Number(row.total     ?? 0),
+      suspendedItems,
+      failedItems,
     };
   }
 

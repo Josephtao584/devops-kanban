@@ -91,23 +91,20 @@
             v-if="!treeLoading && !treeError && hasTreeChildren"
             class="akb-tree-pane__stats"
           >
-            <div class="akb-stat">
-              <span class="akb-stat__value">{{ totalFiles }}</span>
-              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statFiles') }}</span>
-            </div>
-            <div class="akb-stat">
-              <span class="akb-stat__value">{{ totalDirs }}</span>
-              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statDirs') }}</span>
-            </div>
-            <div v-if="markdownCount" class="akb-stat">
-              <span class="akb-stat__value">{{ markdownCount }}</span>
-              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statMarkdown') }}</span>
-            </div>
-          </div>
-          <div v-if="selectedProject.local_path" class="akb-path-bar">
-            <span class="akb-path-bar__label">{{ $t('agentKnowledgeBus.localPath') }}</span>
-            <span class="akb-path-bar__value" :title="selectedProject.local_path">
-              {{ selectedProject.local_path }}
+            <span class="akb-stat-pill">
+              <span class="akb-stat-pill__icon">📄</span>
+              <span class="akb-stat-pill__value">{{ totalFiles }}</span>
+              <span class="akb-stat-pill__label">{{ $t('agentKnowledgeBus.statFiles') }}</span>
+            </span>
+            <span class="akb-stat-pill">
+              <span class="akb-stat-pill__icon">📁</span>
+              <span class="akb-stat-pill__value">{{ totalDirs }}</span>
+              <span class="akb-stat-pill__label">{{ $t('agentKnowledgeBus.statDirs') }}</span>
+            </span>
+            <span v-if="markdownCount" class="akb-stat-pill">
+              <span class="akb-stat-pill__icon">📖</span>
+              <span class="akb-stat-pill__value">{{ markdownCount }}</span>
+              <span class="akb-stat-pill__label">{{ $t('agentKnowledgeBus.statMarkdown') }}</span>
             </span>
           </div>
           <div class="akb-tree-pane__body">
@@ -1124,65 +1121,35 @@ onMounted(loadAll)
 
 .akb-tree-pane__stats {
   display: flex;
-  gap: 8px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  flex-shrink: 0;
-}
-
-.akb-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 8px;
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  min-width: 0;
-}
-
-.akb-stat__value {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.2;
-}
-
-.akb-stat__label {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.akb-path-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 14px;
   padding: 8px 16px;
-  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  font-size: 11px;
+  background: var(--bg-secondary);
   flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-secondary, var(--el-text-color-regular));
 }
 
-.akb-path-bar__label {
-  color: var(--text-muted);
+.akb-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+.akb-stat-pill__icon {
+  font-size: 13px;
+}
+
+.akb-stat-pill__value {
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 10px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
-.akb-path-bar__value {
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.akb-stat-pill__label {
+  color: var(--text-muted);
 }
 
 .akb-tree-pane__body {

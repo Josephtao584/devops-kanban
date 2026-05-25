@@ -56,6 +56,15 @@
             <el-switch v-model="step.canEarlyExit" size="small" />
             <span class="step-option__label">{{ $t('workflowTemplate.canEarlyExit') }}</span>
           </label>
+          <label v-if="showAiSplitToggle" class="step-option" :title="$t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）')">
+            <el-switch
+              :model-value="aiSplitEnabled"
+              size="small"
+              data-testid="ai-split-toggle"
+              @update:model-value="onAiSplitToggle"
+            />
+            <span class="step-option__label">{{ $t('workflowTemplate.aiSplitToggleLabel', 'AI 拆分') }}</span>
+          </label>
         </div>
       </div>
 
@@ -130,10 +139,16 @@ const props = defineProps({
   agents: { type: Array, default: () => [] },
   agentsLoaded: { type: Boolean, default: false },
   agentsLoadFailed: { type: Boolean, default: false },
-  priorSteps: { type: Array, default: () => [] }
+  priorSteps: { type: Array, default: () => [] },
+  showAiSplitToggle: { type: Boolean, default: false },
+  aiSplitEnabled: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['preview-prompt'])
+const emit = defineEmits(['preview-prompt', 'toggle-ai-split'])
+
+function onAiSplitToggle(value) {
+  emit('toggle-ai-split', value)
+}
 
 const { t } = useI18n()
 const getAgentById = computed(() => createAgentLookup(props.agents))
