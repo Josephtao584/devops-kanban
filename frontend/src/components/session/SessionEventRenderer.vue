@@ -7,6 +7,7 @@
     <ChatMessageEvent
       v-if="event.kind === 'message' && !event.isThinking"
       :event="event"
+      :assistant-label="assistantLabel"
     />
     <ThinkingMessageEvent
       v-else-if="event.kind === 'message' && event.isThinking"
@@ -41,7 +42,8 @@ import StatusEvent from './events/StatusEvent.vue'
 import SystemEvent from './events/SystemEvent.vue'
 
 const props = defineProps({
-  event: { type: Object, required: true }
+  event: { type: Object, required: true },
+  assistantLabel: { type: String, default: '' }
 })
 
 const isDebuggerOutput = computed(() => {

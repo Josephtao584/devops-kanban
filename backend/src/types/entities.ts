@@ -114,6 +114,7 @@ export interface WorkflowStepEntity {
   error: string | null;
   session_id: number | null;
   agent_id?: number | null;
+  agent_name?: string | null;
   provider_session_id?: string | null;
   summary: string | null;
   assembled_prompt?: string | null;

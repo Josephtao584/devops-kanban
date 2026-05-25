@@ -27,7 +27,8 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const props = defineProps({
-  event: { type: Object, required: true }
+  event: { type: Object, required: true },
+  assistantLabel: { type: String, default: '' }
 })
 
 const messageAlignmentClass = computed(() => {
@@ -43,7 +44,8 @@ const messageBubbleClass = computed(() => {
 })
 
 const roleLabel = computed(() => {
-  return props.event?.role === 'user' ? '用户' : 'Agent'
+  if (props.event?.role === 'user') return '用户'
+  return props.assistantLabel || 'Agent'
 })
 
 const messageTime = computed(() => {

@@ -56,7 +56,7 @@
           </div>
 
           <!-- Agent events via SessionEventRenderer -->
-          <SessionEventRenderer v-else :event="msg" />
+          <SessionEventRenderer v-else :event="msg" :assistant-label="agent?.name || ''" />
         </template>
 
         <!-- Thinking indicator -->
