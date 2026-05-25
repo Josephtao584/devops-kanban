@@ -6,7 +6,6 @@
         'is-directory': node.type === 'directory',
         'is-file': node.type === 'file',
         'is-selected': node.path === selectedPath,
-        'is-binary': node.isBinary,
       }"
       :data-path="node.path"
       :style="{ paddingLeft: `${depth * 16 + 8}px` }"
@@ -21,7 +20,6 @@
         <polyline points="14 2 14 8 20 8"></polyline>
       </svg>
       <span class="file-name">{{ node.name }}</span>
-      <span v-if="node.isBinary" class="binary-badge">binary</span>
     </div>
 
     <div v-if="expanded && node.children">
@@ -53,7 +51,7 @@ const expanded = ref(false)
 function handleClick() {
   if (props.node.type === 'directory') {
     expanded.value = !expanded.value
-  } else if (!props.node.isBinary) {
+  } else {
     emit('file-select', props.node.path)
   }
 }
@@ -79,11 +77,6 @@ function handleClick() {
   color: #409eff;
 }
 
-.file-tree-item.is-binary {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .tree-icon {
   flex-shrink: 0;
   color: #909399;
@@ -92,13 +85,5 @@ function handleClick() {
 .file-name {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.binary-badge {
-  font-size: 10px;
-  color: #909399;
-  background: #f0f0f0;
-  padding: 1px 4px;
-  border-radius: 3px;
 }
 </style>
