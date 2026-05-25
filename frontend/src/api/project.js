@@ -14,6 +14,7 @@ export const deleteProject = (id) => crud.delete(id)
 // gets percent-encoded individually (encodeURIComponent would otherwise
 // escape the separators and break Fastify's wildcard matching).
 export const getProjectFileTree = (id) => api.get(`/projects/${id}/files`)
+export const getKnowledgeStats = () => api.get('/projects/knowledge-stats')
 export const getProjectFileContent = (id, path) => {
   const encoded = String(path)
     .split('/')

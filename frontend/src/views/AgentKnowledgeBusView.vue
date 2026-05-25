@@ -8,6 +8,20 @@
         </p>
       </div>
       <div class="header-actions">
+        <div class="akb-global-stats" v-if="globalStats">
+          <div class="akb-global-stat">
+            <span class="akb-global-stat__value">{{ globalStats.totalFiles }}</span>
+            <span class="akb-global-stat__label">{{ $t('agentKnowledgeBus.statFiles') }}</span>
+          </div>
+          <div class="akb-global-stat">
+            <span class="akb-global-stat__value">{{ globalStats.totalDirs }}</span>
+            <span class="akb-global-stat__label">{{ $t('agentKnowledgeBus.statDirs') }}</span>
+          </div>
+          <div class="akb-global-stat" v-if="globalStats.markdownCount">
+            <span class="akb-global-stat__value">{{ globalStats.markdownCount }}</span>
+            <span class="akb-global-stat__label">{{ $t('agentKnowledgeBus.statMarkdown') }}</span>
+          </div>
+        </div>
         <button class="btn btn-secondary" :disabled="loading" @click="loadAll">
           {{ loading ? $t('common.loading') : $t('common.refresh') }}
         </button>
@@ -220,7 +234,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { getTeams, getTeam } from '../api/team.js'
-import { getProjectFileTree, getProjectFileContent, saveProjectFileContent } from '../api/project.js'
+import { getProjectFileTree, getProjectFileContent, saveProjectFileContent, getKnowledgeStats } from '../api/project.js'
 import FileTree from '../components/editor/FileTree.vue'
 
 marked.setOptions({ gfm: true, breaks: false })
@@ -228,6 +242,7 @@ marked.setOptions({ gfm: true, breaks: false })
 const teams = ref([])
 const loading = ref(false)
 const selectedProject = ref(null)
+const globalStats = ref(null)
 
 // Resizable column widths. Persisted in localStorage so user's adjustment
 // sticks across reloads. Defaults match the old hard-coded layout.
@@ -415,6 +430,9 @@ function sortProjects(projects) {
 
 async function loadAll() {
   loading.value = true
+  // Kick off the global stats fetch in parallel with the teams listing so the
+  // header KPI populates as soon as it's ready.
+  loadGlobalStats()
   try {
     const resp = await getTeams()
     if (!resp?.success) {
@@ -446,6 +464,20 @@ async function loadAll() {
     ElMessage.error(e?.message || 'Failed to load teams')
   } finally {
     loading.value = false
+  }
+}
+
+// Fetch the aggregated knowledge stats that drive the header KPI. Runs
+// independently of the teams loader since it's purely informational and a
+// failure here shouldn't block project browsing.
+async function loadGlobalStats() {
+  try {
+    const resp = await getKnowledgeStats()
+    if (resp?.success && resp.data) {
+      globalStats.value = resp.data
+    }
+  } catch {
+    // header KPI is best-effort; stay silent on failure
   }
 }
 
@@ -1120,6 +1152,35 @@ onMounted(loadAll)
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.akb-global-stats {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.akb-global-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 48px;
+}
+
+.akb-global-stat__value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.akb-global-stat__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .akb-tree-pane__stats {
