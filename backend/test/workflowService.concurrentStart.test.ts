@@ -74,6 +74,10 @@ test.test('startWorkflow prevents duplicate runs under concurrent calls', async 
           createdRuns.push(run);
           return { created: run, existing: null };
         },
+        async countActive() { return 0; },
+      } as never,
+      settingsService: {
+        async getMaxConcurrentWorkflows() { return 5; },
       } as never,
       instanceService: {
         async createFromTemplate(templateId: string) {
@@ -140,6 +144,10 @@ test.test('startWorkflow allows new run after previous run is COMPLETED', async 
           }
           return { created: null, existing: createdRuns[0] };
         },
+        async countActive() { return 0; },
+      } as never,
+      settingsService: {
+        async getMaxConcurrentWorkflows() { return 5; },
       } as never,
       instanceService: {
         async createFromTemplate() {
@@ -197,6 +205,10 @@ test.test('startWorkflow rejects when previous run is RUNNING', async () => {
         async createIfNoActiveRun() {
           return { created: null, existing: { id: 80, task_id: 7, status: 'RUNNING' } };
         },
+        async countActive() { return 0; },
+      } as never,
+      settingsService: {
+        async getMaxConcurrentWorkflows() { return 5; },
       } as never,
     });
 
@@ -243,6 +255,10 @@ test.test('startWorkflow rejects when previous run is SUSPENDED', async () => {
         async createIfNoActiveRun() {
           return { created: null, existing: { id: 80, task_id: 7, status: 'SUSPENDED' } };
         },
+        async countActive() { return 0; },
+      } as never,
+      settingsService: {
+        async getMaxConcurrentWorkflows() { return 5; },
       } as never,
     });
 
@@ -288,6 +304,10 @@ test.test('startWorkflow rejects when previous run is PENDING', async () => {
         async createIfNoActiveRun() {
           return { created: null, existing: { id: 80, task_id: 7, status: 'PENDING' } };
         },
+        async countActive() { return 0; },
+      } as never,
+      settingsService: {
+        async getMaxConcurrentWorkflows() { return 5; },
       } as never,
     });
 

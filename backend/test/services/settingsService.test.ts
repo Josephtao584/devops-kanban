@@ -132,7 +132,7 @@ test.test('getMaxConcurrentWorkflows returns default when not set', async () => 
   const { service, cleanup } = await setupService();
   try {
     const result = await service.getMaxConcurrentWorkflows();
-    assert.equal(result, 3);
+    assert.equal(result, 5);
   } finally {
     cleanup();
   }

@@ -69,6 +69,10 @@ test.test('startWorkflow creates workflow instance from template', async () => {
         createdRuns.push(payload);
         return { created: run, existing: null };
       },
+      async countActive() { return 0; },
+    } as never,
+    settingsService: {
+      async getMaxConcurrentWorkflows() { return 5; },
     } as never,
     instanceService: {
       async createFromTemplate(templateId: string) {

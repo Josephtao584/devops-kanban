@@ -148,18 +148,6 @@
                   />
                 </el-select>
               </div>
-              <div class="meta-field meta-field--toggle">
-                <div class="meta-field__toggle-head">
-                  <label class="meta-field__label">{{ $t('workflowTemplate.aiSplitToggleLabel', 'AI 拆分') }}</label>
-                  <el-switch
-                    :model-value="aiSplitEnabled"
-                    size="small"
-                    data-testid="ai-split-toggle"
-                    @update:model-value="onToggleAiSplit"
-                  />
-                </div>
-                <p class="meta-field__hint">{{ $t('workflowTemplate.aiSplitToggleHint', '在步骤末尾追加一个 AI 拆分步骤，生成子任务建议（可自行拖到其他位置）') }}</p>
-              </div>
             </div>
           </div>
 
@@ -277,7 +265,10 @@
               :agents-loaded="agentsLoaded"
               :agents-load-failed="agentsLoadFailed"
               :prior-steps="priorStepsForSelected"
+              :show-ai-split-toggle="isLastStepSelected"
+              :ai-split-enabled="aiSplitEnabled"
               @preview-prompt="handlePreviewPrompt"
+              @toggle-ai-split="onToggleAiSplit"
             />
           </section>
         </template>
@@ -447,6 +438,11 @@ const canDeleteStep = computed(() => {
 
 const selectedStep = computed(() => {
   return template.value?.steps?.[selectedStepIndex.value] || null
+})
+
+const isLastStepSelected = computed(() => {
+  const steps = template.value?.steps || []
+  return steps.length > 0 && selectedStepIndex.value === steps.length - 1
 })
 
 const priorStepsForSelected = computed(() => {

@@ -38,7 +38,20 @@
         <div v-if="alerts.length > 0" class="alert-bar">
           <div v-for="alert in alerts" :key="alert.key" class="alert-bar__item" :class="'alert-bar__item--' + alert.level">
             <span class="alert-bar__dot"></span>
-            <span class="alert-bar__text">{{ alert.text }}</span>
+            <span class="alert-bar__text">
+              <span>{{ alert.text }}</span>
+              <template v-if="alert.items && alert.items.length">
+                <span class="alert-bar__sep">：</span>
+                <template v-for="(item, idx) in alert.items" :key="item.runId">
+                  <a
+                    class="alert-bar__link"
+                    :href="item.projectId ? `/workspace/${item.projectId}` : '/workspace'"
+                    @click.prevent="goToTask(item)"
+                  >{{ item.taskTitle || `#${item.taskId}` }}</a>
+                  <span v-if="idx < alert.items.length - 1" class="alert-bar__comma">、</span>
+                </template>
+              </template>
+            </span>
           </div>
         </div>
 
@@ -243,14 +256,26 @@ export default {
       const blocked = this.taskByStatus.BLOCKED || 0
       const suspended = this.overview.workflows?.suspended || 0
       const failed = this.overview.workflows?.recent7dFailed || 0
+      const suspendedItems = this.overview.workflows?.suspendedItems || []
+      const failedItems = this.overview.workflows?.failedItems || []
       if (blocked > 0) {
         list.push({ key: 'blocked', level: 'warn', text: `${blocked} 个任务处于阻塞状态，需要关注` })
       }
       if (suspended > 0) {
-        list.push({ key: 'suspended', level: 'warn', text: `${suspended} 个 Workflow 等待确认，请及时处理` })
+        list.push({
+          key: 'suspended',
+          level: 'warn',
+          text: `${suspended} 个 AgentTeam 等待确认，请及时处理`,
+          items: suspendedItems,
+        })
       }
       if (failed > 0 && this.workflowSuccessRate !== null && this.workflowSuccessRate < 60) {
-        list.push({ key: 'failrate', level: 'danger', text: `近期 Workflow 成功率仅 ${this.workflowSuccessRate}%，请排查失败原因` })
+        list.push({
+          key: 'failrate',
+          level: 'danger',
+          text: `近期 AgentTeam 成功率仅 ${this.workflowSuccessRate}%，请排查失败原因`,
+          items: failedItems,
+        })
       }
       return list
     },
@@ -294,6 +319,12 @@ export default {
       if (prev === 0) return { pct: null, dir: 'up', curr, prev }
       const pct = Math.round(((curr - prev) / prev) * 100)
       return { pct, dir: pct >= 0 ? 'up' : 'down', curr, prev }
+    },
+    goToTask(item) {
+      const target = item?.projectId
+        ? `/workspace/${item.projectId}`
+        : '/workspace'
+      this.$router.push(target)
     },
     async loadOverview() {
       this.loading = true
@@ -726,6 +757,26 @@ export default {
 
 .alert-bar__item--warn   .alert-bar__dot { background: #EAB445; }
 .alert-bar__item--danger .alert-bar__dot { background: #ef4444; }
+
+.alert-bar__sep {
+  margin: 0 2px;
+  color: var(--text-muted);
+}
+
+.alert-bar__link {
+  color: var(--el-color-primary, #2563eb);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.alert-bar__link:hover {
+  text-decoration: underline;
+}
+
+.alert-bar__comma {
+  margin: 0 2px;
+  color: var(--text-muted);
+}
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }

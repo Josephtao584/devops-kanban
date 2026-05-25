@@ -14,6 +14,10 @@ function shortDate(d) {
   return d.length >= 10 ? d.slice(5) : d
 }
 
+function num(v) {
+  return Number.isFinite(v) ? v : 0
+}
+
 export default {
   name: 'TrendChart',
   props: { data: { type: Array, required: true } },
@@ -50,6 +54,7 @@ export default {
           itemWidth: 14,
           itemHeight: 8,
           textStyle: { fontSize: 12, color: 'var(--text-secondary)' },
+          selectedMode: false,
         },
         grid: { left: 36, right: 16, top: 24, bottom: 36, containLabel: true },
         xAxis: {
@@ -73,7 +78,7 @@ export default {
             symbol: 'circle',
             symbolSize: 6,
             itemStyle: { color: '#EAB445' },
-            data: this.data.map(d => d.tasksCompleted),
+            data: this.data.map(d => num(d.tasksCompleted)),
           },
           {
             name: workflowsLabel,
@@ -82,7 +87,7 @@ export default {
             symbol: 'circle',
             symbolSize: 6,
             itemStyle: { color: '#7c5cf6' },
-            data: this.data.map(d => d.workflowsCompleted),
+            data: this.data.map(d => num(d.workflowsCompleted)),
           },
           {
             name: sessionsLabel,
@@ -92,7 +97,7 @@ export default {
             symbolSize: 6,
             itemStyle: { color: '#25C6C9' },
             areaStyle: { opacity: 0.10, color: '#25C6C9' },
-            data: this.data.map(d => d.sessionsStarted),
+            data: this.data.map(d => num(d.sessionsStarted)),
           },
         ],
       })
