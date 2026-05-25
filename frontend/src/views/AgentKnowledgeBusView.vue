@@ -131,6 +131,7 @@
               v-else
               :tree="tree"
               :selected-path="selectedFilePath"
+              :max-depth="2"
               @file-select="handleFileSelect"
             />
           </div>

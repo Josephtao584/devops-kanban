@@ -24,11 +24,12 @@
 
     <div v-if="expanded && node.children">
       <FileTreeNode
-        v-for="child in node.children"
+        v-for="child in filteredChildren"
         :key="child.path"
         :node="child"
         :selected-path="selectedPath"
         :depth="depth + 1"
+        :max-depth="maxDepth"
         @file-select="$emit('file-select', $event)"
       />
     </div>
@@ -36,7 +37,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const emit = defineEmits(['file-select'])
 
@@ -44,9 +45,12 @@ const props = defineProps({
   node: { type: Object, required: true },
   selectedPath: { type: String, default: '' },
   depth: { type: Number, default: 0 },
+  maxDepth: { type: Number, default: Infinity },
+  filterText: { type: String, default: '' },
 })
 
-const expanded = ref(false)
+// Default: all collapsed. Auto-expand only when maxDepth is explicitly finite.
+const expanded = ref(typeof props.maxDepth === 'number' && Number.isFinite(props.maxDepth) ? props.depth < props.maxDepth : false)
 
 function handleClick() {
   if (props.node.type === 'directory') {
@@ -55,6 +59,20 @@ function handleClick() {
     emit('file-select', props.node.path)
   }
 }
+
+// Filter children by search text; if any descendant matches, keep the directory
+function matchesFilter(node) {
+  if (!props.filterText) return true
+  const text = props.filterText.toLowerCase()
+  if (node.name.toLowerCase().includes(text)) return true
+  if (node.children) return node.children.some(matchesFilter)
+  return false
+}
+
+const filteredChildren = computed(() => {
+  if (!props.filterText) return props.node.children
+  return (props.node.children || []).filter(matchesFilter)
+})
 </script>
 
 <style scoped>

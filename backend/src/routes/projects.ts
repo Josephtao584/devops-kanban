@@ -29,18 +29,6 @@ const RAW_MIME_BY_EXT: Record<string, string> = {
   '.pdf': 'application/pdf',
 };
 
-// Strip dot-prefixed directories (.git, .claude, .worktree, .vscode, ...) from
-// a knowledge-repo file tree. We only filter directories — dot-files at any
-// level (.gitignore, .env.example, README dot-files) are still useful to
-// browse, so they stay. The original tree is returned by reference; we mutate
-// children in place since this is the only consumer.
-function stripDotDirsInPlace(node: { type: 'file' | 'directory'; name: string; children?: any[] } | null | undefined): void {
-  if (!node || node.type !== 'directory' || !Array.isArray(node.children)) return;
-  node.children = node.children.filter((child) => !(child.type === 'directory' && typeof child.name === 'string' && child.name.startsWith('.')));
-  for (const child of node.children) {
-    stripDotDirsInPlace(child);
-  }
-}
 
 export const projectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', async (request) => {
@@ -213,8 +201,7 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
         return errorResponse('Project local_path does not exist on disk');
       }
 
-      const tree = getFileTree(project.local_path, project.local_path);
-      stripDotDirsInPlace(tree);
+      const tree = await getFileTree(project.local_path, project.local_path);
       return successResponse(tree);
     } catch (error) {
       logError(error, request);
