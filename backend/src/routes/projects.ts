@@ -53,6 +53,54 @@ export const projectRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // GET /knowledge-stats - aggregate file/dir/markdown counts across every
+  // project that has a readable local_path. Powers the global KPI in the
+  // Agent Knowledge Bus header. Projects without a local_path or with an
+  // unreadable path are silently skipped so a single broken project doesn't
+  // null out the whole dashboard.
+  fastify.get('/knowledge-stats', async (request) => {
+    try {
+      const projects = await projectService.getAll();
+      let totalFiles = 0;
+      let totalDirs = 0;
+      let markdownCount = 0;
+      let projectCount = 0;
+
+      const isMarkdown = (p: string) => {
+        const lower = p.toLowerCase();
+        return lower.endsWith('.md') || lower.endsWith('.markdown');
+      };
+
+      const walk = (node: any) => {
+        if (!node) return;
+        if (node.type === 'file') {
+          totalFiles += 1;
+          if (typeof node.path === 'string' && isMarkdown(node.path)) markdownCount += 1;
+          return;
+        }
+        if (node.type === 'directory') totalDirs += 1;
+        if (Array.isArray(node.children)) node.children.forEach(walk);
+      };
+
+      for (const project of projects) {
+        const localPath = (project as any).local_path;
+        if (!localPath || !fs.existsSync(localPath)) continue;
+        try {
+          const tree = getFileTree(localPath, localPath);
+          projectCount += 1;
+          if (Array.isArray(tree.children)) tree.children.forEach(walk);
+        } catch {
+          // skip projects whose tree fails to build
+        }
+      }
+
+      return successResponse({ totalFiles, totalDirs, markdownCount, projectCount });
+    } catch (error) {
+      logError(error, request);
+      return errorResponse('Failed to compute knowledge stats');
+    }
+  });
+
   fastify.get<{ Params: IdParams }>('/:id', async (request, reply) => {
     try {
       const projectId = parseNumber(request.params.id);
