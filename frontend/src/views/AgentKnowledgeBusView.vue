@@ -87,6 +87,23 @@
               </div>
             </div>
           </header>
+          <div
+            v-if="!treeLoading && !treeError && hasTreeChildren"
+            class="akb-tree-pane__stats"
+          >
+            <div class="akb-stat">
+              <span class="akb-stat__value">{{ totalFiles }}</span>
+              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statFiles') }}</span>
+            </div>
+            <div class="akb-stat">
+              <span class="akb-stat__value">{{ totalDirs }}</span>
+              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statDirs') }}</span>
+            </div>
+            <div v-if="markdownCount" class="akb-stat">
+              <span class="akb-stat__value">{{ markdownCount }}</span>
+              <span class="akb-stat__label">{{ $t('agentKnowledgeBus.statMarkdown') }}</span>
+            </div>
+          </div>
           <div v-if="selectedProject.local_path" class="akb-path-bar">
             <span class="akb-path-bar__label">{{ $t('agentKnowledgeBus.localPath') }}</span>
             <span class="akb-path-bar__value" :title="selectedProject.local_path">
@@ -287,6 +304,41 @@ function startDrag(which, event) {
 const tree = ref(null)
 const treeLoading = ref(false)
 const treeError = ref('')
+
+const hasTreeChildren = computed(() => Array.isArray(tree.value?.children) && tree.value.children.length > 0)
+
+const totalFiles = computed(() => {
+  let count = 0
+  const walk = (node) => {
+    if (!node) return
+    if (node.type === 'file') { count += 1; return }
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  ;(tree.value?.children || []).forEach(walk)
+  return count
+})
+
+const totalDirs = computed(() => {
+  let count = 0
+  const walk = (node) => {
+    if (!node) return
+    if (node.type === 'directory') count += 1
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  ;(tree.value?.children || []).forEach(walk)
+  return count
+})
+
+const markdownCount = computed(() => {
+  let count = 0
+  const walk = (node) => {
+    if (!node) return
+    if (node.type === 'file' && isMarkdown(node.path)) count += 1
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  ;(tree.value?.children || []).forEach(walk)
+  return count
+})
 
 // File preview state.
 const selectedFilePath = ref('')
@@ -553,6 +605,9 @@ function resolveDocPath(href, baseDir) {
     trailing = cleaned.slice(hashIdx)
     cleaned = cleaned.slice(0, hashIdx)
   }
+  // Authors often write links with URL-encoded spaces or unicode; decode so we
+  // can match the raw filename in the file tree.
+  try { cleaned = decodeURIComponent(cleaned) } catch { /* keep as-is */ }
   const stack = []
   const baseSegments = baseDir ? baseDir.split('/').filter(Boolean) : []
   stack.push(...baseSegments)
@@ -565,19 +620,33 @@ function resolveDocPath(href, baseDir) {
   return { path: stack.join('/'), hash: trailing.startsWith('#') ? trailing : '' }
 }
 
-function fileExistsInTree(treeRoot, relPath) {
-  if (!treeRoot || !relPath) return false
-  let exists = false
+// Look up a file in the tree by its relative path. Returns the actual node
+// path (for navigation) or null. Tries exact match first, then a
+// case-insensitive fallback so links like `README.MD` or `Docs/intro.md`
+// still resolve when the on-disk filename uses different casing.
+function findFileInTree(treeRoot, relPath) {
+  if (!treeRoot || !relPath) return null
+  let exact = null
+  let ciMatch = null
+  const target = String(relPath)
+  const targetLower = target.toLowerCase()
   const walk = (node) => {
-    if (!node || exists) return
-    if (node.type === 'file' && node.path === relPath) {
-      exists = true
+    if (!node || exact) return
+    if (node.type === 'file') {
+      if (node.path === target) { exact = node.path; return }
+      if (!ciMatch && typeof node.path === 'string' && node.path.toLowerCase() === targetLower) {
+        ciMatch = node.path
+      }
       return
     }
     if (Array.isArray(node.children)) node.children.forEach(walk)
   }
   walk(treeRoot)
-  return exists
+  return exact || ciMatch
+}
+
+function fileExistsInTree(treeRoot, relPath) {
+  return !!findFileInTree(treeRoot, relPath)
 }
 
 // GitHub-style slug for ToC anchors. Not perfect but matches the common case.
@@ -763,11 +832,12 @@ function handleMarkdownClick(event) {
   if (!docPath) return
   event.preventDefault()
   const hash = anchor.getAttribute('data-doc-hash') || ''
-  if (!fileExistsInTree(tree.value, docPath)) {
+  const actualPath = findFileInTree(tree.value, docPath)
+  if (!actualPath) {
     ElMessage.warning(`项目内未找到文件：${docPath}`)
     return
   }
-  handleFileSelect(docPath, hash)
+  handleFileSelect(actualPath, hash)
 }
 
 onMounted(loadAll)
@@ -1040,6 +1110,42 @@ onMounted(loadAll)
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.akb-tree-pane__stats {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.akb-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.akb-stat__value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.akb-stat__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .akb-path-bar {

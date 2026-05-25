@@ -28,22 +28,17 @@
           @change="handleProjectChange"
           :disabled="projectStore.loading"
         >
-          <option :value="null">全部开发仓库</option>
+          <option :value="null">全部仓库</option>
           <option
-            v-for="project in developmentProjects"
+            v-for="project in teamProjects"
             :key="project.id"
             :value="project.id"
           >
-            🔧 {{ project.name }}
+            {{ project.repo_role === 'knowledge' ? '📚' : '🔧' }} {{ project.name }}
           </option>
         </select>
       </div>
-      <KnowledgeRepoCard
-        v-if="selectedTeamId && knowledgeProject"
-        :project="knowledgeProject"
-        @open="openKnowledgeDialog"
-      />
-      <div class="project-filter-bar" v-else-if="!selectedTeamId">
+      <div class="project-filter-bar" v-if="!selectedTeamId">
         <select
           v-model="selectedProjectId"
           @change="handleProjectChange"
@@ -245,11 +240,6 @@
         @tasks-imported="handleTasksImported"
       />
     </el-dialog>
-
-    <KnowledgeRepoDialog
-      v-model="knowledgeDialogVisible"
-      :project="knowledgeDialogProject"
-    />
 
     <div class="resize-handle" @mousedown="(e) => handleMouseDown(e, 'left')"></div>
 
@@ -594,8 +584,6 @@ import WorkflowTemplateSelectDialog from '../components/workflow/WorkflowTemplat
 import WorkflowStartEditorDialog from '../components/workflow/WorkflowStartEditorDialog.vue'
 import WorkflowProgressDialog from '../components/WorkflowProgressDialog.vue'
 import TaskSourcePanel from '../components/taskSource/TaskSourcePanel.vue'
-import KnowledgeRepoCard from '../components/workspace/KnowledgeRepoCard.vue'
-import KnowledgeRepoDialog from '../components/workspace/KnowledgeRepoDialog.vue'
 import { normalizeWorkflowTemplate } from '../components/workflow/templateEditorShared.js'
 import { useProjectStore } from '../stores/projectStore.js'
 import { useTeamStore } from '../stores/teamStore.js'
@@ -636,16 +624,8 @@ const teamProjects = computed(() => {
 
 // Knowledge / development split. A team has at most one knowledge repo
 // (enforced by teamService); the rest are development repos shown in the
-// project picker. The knowledge repo gets its own card above the picker.
-const knowledgeProject = computed(() => teamProjects.value.find(p => p.repo_role === 'knowledge') || null)
+// project picker.
 const developmentProjects = computed(() => teamProjects.value.filter(p => p.repo_role !== 'knowledge'))
-
-const knowledgeDialogVisible = ref(false)
-const knowledgeDialogProject = ref(null)
-function openKnowledgeDialog(project) {
-  knowledgeDialogProject.value = project
-  knowledgeDialogVisible.value = true
-}
 
 // Active step session info from the current workflow run
 const activeSession = ref(null) // { session_id, step_name, assembled_prompt }

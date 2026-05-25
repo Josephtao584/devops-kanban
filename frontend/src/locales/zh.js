@@ -1054,5 +1054,8 @@ export default {
     unsaved: '未保存',
     editorPlaceholder: '在此处编辑文件内容...',
     read: '阅读',
+    statFiles: '文件',
+    statDirs: '目录',
+    statMarkdown: 'Markdown',
   },
 }
