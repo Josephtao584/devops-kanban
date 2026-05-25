@@ -1,6 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 export interface FileTreeNode {
   name: string;
@@ -11,19 +14,21 @@ export interface FileTreeNode {
 }
 
 const IGNORED_DIRS = ['.git', 'node_modules', '.DS_Store', 'dist'];
+const GIT_TIMEOUT_MS = 5000;
 
-export function getFileTree(rootPath: string, currentPath: string): FileTreeNode {
+export async function getFileTree(rootPath: string, currentPath: string): Promise<FileTreeNode> {
   const relativePath = path.relative(rootPath, currentPath).split(path.sep).join('/');
   const name = path.basename(currentPath);
 
-  if (name === '.') {
+  if (currentPath === rootPath) {
     // Root: use git ls-tree to respect .gitignore
     try {
-      const output = execFileSync('git', ['ls-tree', '-r', '--name-only', '-z', 'HEAD'], {
+      const { stdout } = await execFileAsync('git', ['ls-tree', '-r', '--name-only', '-z', 'HEAD'], {
         cwd: rootPath,
         encoding: 'utf-8',
+        timeout: GIT_TIMEOUT_MS,
       });
-      const files = output.split('\0').filter(Boolean);
+      const files = stdout.split('\0').filter(Boolean);
 
       const tree: FileTreeNode = {
         name: path.basename(rootPath),
@@ -33,7 +38,7 @@ export function getFileTree(rootPath: string, currentPath: string): FileTreeNode
       };
       return tree;
     } catch {
-      // Fall back to filesystem walk if git fails
+      // Fall back to filesystem walk if git fails or times out
     }
   }
 
@@ -54,13 +59,14 @@ export function getFileTree(rootPath: string, currentPath: string): FileTreeNode
       }
       const entries = fs.readdirSync(currentPath, { withFileTypes: true });
       const children = entries
+        .filter((entry) => !IGNORED_DIRS.includes(entry.name))
         .sort((a, b) => {
           if (a.isDirectory() && !b.isDirectory()) return -1;
           if (!a.isDirectory() && b.isDirectory()) return 1;
           return a.name.localeCompare(b.name);
         })
         .map((entry) => getFileTree(rootPath, path.join(currentPath, entry.name)));
-      return { name, path: relativePath, type: 'directory', children };
+      return { name, path: relativePath, type: 'directory', children: await Promise.all(children) };
     }
   } catch {
     // ignore
@@ -75,6 +81,9 @@ function buildTreeFromPaths(filePaths: string[]): FileTreeNode[] {
 
   for (const filePath of filePaths) {
     const parts = filePath.split('/');
+    // Skip paths that start with a dot-directory (e.g. .git/config, .claude/settings)
+    if (parts[0].startsWith('.')) continue;
+
     let currentPath = '';
     let parentChildren = rootChildren;
 
