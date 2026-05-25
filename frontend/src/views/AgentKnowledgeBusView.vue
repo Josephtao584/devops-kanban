@@ -515,10 +515,10 @@ async function loadProjectTree(project) {
   try {
     const resp = await getProjectFileTree(project.id)
     if (resp?.success) {
-      tree.value = resp.data
+      tree.value = normalizeTreePaths(resp.data)
       // Auto-open the project's default doc so column 3 isn't blank on every
       // project switch — that's the most common landing page users want.
-      const defaultDoc = findDefaultDoc(resp.data)
+      const defaultDoc = findDefaultDoc(tree.value)
       if (defaultDoc) {
         handleFileSelect(defaultDoc)
       }
@@ -530,6 +530,16 @@ async function loadProjectTree(project) {
   } finally {
     treeLoading.value = false
   }
+}
+
+// Normalize all node paths to use forward slashes. The backend emits OS-native
+// separators when it falls back to filesystem walk (Windows = `\`), but every
+// other path consumer in this view assumes `/`.
+function normalizeTreePaths(node) {
+  if (!node) return node
+  if (typeof node.path === 'string') node.path = node.path.split('\\').join('/')
+  if (Array.isArray(node.children)) node.children.forEach(normalizeTreePaths)
+  return node
 }
 
 watch(() => selectedProject.value?.id, (id) => {
