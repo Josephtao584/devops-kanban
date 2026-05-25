@@ -28,7 +28,7 @@ function isBinaryFile(filePath: string): boolean {
 }
 
 export function getFileTree(rootPath: string, currentPath: string): FileTreeNode {
-  const relativePath = path.relative(rootPath, currentPath);
+  const relativePath = path.relative(rootPath, currentPath).split(path.sep).join('/');
   const name = path.basename(currentPath);
 
   if (name === '.') {
