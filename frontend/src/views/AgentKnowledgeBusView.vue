@@ -605,6 +605,9 @@ function resolveDocPath(href, baseDir) {
     trailing = cleaned.slice(hashIdx)
     cleaned = cleaned.slice(0, hashIdx)
   }
+  // Authors often write links with URL-encoded spaces or unicode; decode so we
+  // can match the raw filename in the file tree.
+  try { cleaned = decodeURIComponent(cleaned) } catch { /* keep as-is */ }
   const stack = []
   const baseSegments = baseDir ? baseDir.split('/').filter(Boolean) : []
   stack.push(...baseSegments)
@@ -617,19 +620,33 @@ function resolveDocPath(href, baseDir) {
   return { path: stack.join('/'), hash: trailing.startsWith('#') ? trailing : '' }
 }
 
-function fileExistsInTree(treeRoot, relPath) {
-  if (!treeRoot || !relPath) return false
-  let exists = false
+// Look up a file in the tree by its relative path. Returns the actual node
+// path (for navigation) or null. Tries exact match first, then a
+// case-insensitive fallback so links like `README.MD` or `Docs/intro.md`
+// still resolve when the on-disk filename uses different casing.
+function findFileInTree(treeRoot, relPath) {
+  if (!treeRoot || !relPath) return null
+  let exact = null
+  let ciMatch = null
+  const target = String(relPath)
+  const targetLower = target.toLowerCase()
   const walk = (node) => {
-    if (!node || exists) return
-    if (node.type === 'file' && node.path === relPath) {
-      exists = true
+    if (!node || exact) return
+    if (node.type === 'file') {
+      if (node.path === target) { exact = node.path; return }
+      if (!ciMatch && typeof node.path === 'string' && node.path.toLowerCase() === targetLower) {
+        ciMatch = node.path
+      }
       return
     }
     if (Array.isArray(node.children)) node.children.forEach(walk)
   }
   walk(treeRoot)
-  return exists
+  return exact || ciMatch
+}
+
+function fileExistsInTree(treeRoot, relPath) {
+  return !!findFileInTree(treeRoot, relPath)
 }
 
 // GitHub-style slug for ToC anchors. Not perfect but matches the common case.
@@ -815,11 +832,12 @@ function handleMarkdownClick(event) {
   if (!docPath) return
   event.preventDefault()
   const hash = anchor.getAttribute('data-doc-hash') || ''
-  if (!fileExistsInTree(tree.value, docPath)) {
+  const actualPath = findFileInTree(tree.value, docPath)
+  if (!actualPath) {
     ElMessage.warning(`项目内未找到文件：${docPath}`)
     return
   }
-  handleFileSelect(docPath, hash)
+  handleFileSelect(actualPath, hash)
 }
 
 onMounted(loadAll)
