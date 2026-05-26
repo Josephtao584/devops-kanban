@@ -54,6 +54,7 @@ Coplat 当前是单机部署：Fastify backend + LibSQL（`data/kanban.db` 业�
 **任务工作目录**（绑定 task，每个 task 最多一块 PVC）
 - task 上加 PVC 状态字段：`pvc_status = none | active | archived`、`pvc_last_active_at` — 3~5
 - step 间共享代码与 .git（同一 PVC）— 5~8
+- CLI 会话目录软链到 PVC（`~/.claude/projects` 等 → `/work/.coplat/cli-sessions/`），保证 `--resume` 续聊在云端可用 — 2~4
 - 浏览器内编辑器：看文件、改代码、跑 git — 15~20
 - 编辑器只读 vs 写模式切换；run 进行中编辑器只读，显式"暂停 run"才能编辑 — 5~8
 - Editor Pod 高可用：异常退出 5 分钟内重连恢复；自动 git stash 落盘；前端落盘状态显示 — 5~8
@@ -85,10 +86,10 @@ Coplat 当前是单机部署：Fastify backend + LibSQL（`data/kanban.db` 业�
 | 项目与任务（适配） | 5~8 |
 | Agent 资产（适配 + Chat 改造） | 9~14 |
 | Workflow 执行 | 28~44 |
-| 任务工作目录 | 49~74 |
+| 任务工作目录 | 51~78 |
 | 代码仓库接入 | 11~18 |
 | 运行时基础设施 | 31~47 |
-| **合计** | **152~235 人日 ≈ 7~12 人月** |
+| 合计 | 154~239 人日 ≈ 7~12 人月 |
 
 > 不含联调、压测、文档、CI/CD、生产部署、灰度迁移。整体项目以 2-3 人团队估算约 4-6 个月可发布 MVP。
 
@@ -126,119 +127,9 @@ Coplat 当前是单机部署：Fastify backend + LibSQL（`data/kanban.db` 业�
        └────────────────┘    └────────────────┘    └────────────────┘
 ```
 
-## 3. 用户场景与核心流程
+## 3. 领域概念与实体关系
 
-### 3.1 新用户加入团队、第一次跑 AI 任务
-
-**角色**：新员工小张，已有公司 SSO 账号
-
-```
-1. 小张访问 Coplat 域名 → 自动跳 SSO 登录
-2. 登录后落到「我的工作台」，发现没有任何团队
-3. 小张找团队 owner 老李在 Coplat 里发邀请；接受邀请后进入团队
-4. 团队里已有项目 X，小张获得 member 角色（可看可跑，不能改模板/Agent）
-5. 在项目 X 里挑一个 task「修复登录页报错」
-6. 选一个团队已发布的 Workflow 模板「修 bug」→ 点「运行」
-7. Backend 校验权限 + 给 task 创建 PVC + clone repo（用小张 SSO 派生的 Git 凭证）
-8. AI Pod 启动跑 step 1，前端实时显示 stdout
-9. 小张点开同一 task 的「编辑器」，进只读模式看 AI 改了哪些文件
-10. 全部 step 跑完 → run 完成 → 小张点「编辑」转 rw → 手动微调 → git commit + push
-```
-
-**关键决策点**：
-- 第 4 步：未加入任何团队的用户看到的是空状态 + 引导加入团队
-- 第 7 步：repo 凭证从 SSO 会话派生，小张不需要单独绑 Git 账号
-- 第 9 步：编辑器在 run 进行中只能看不能改
-
-### 3.2 团队 owner 配置 Workflow 模板
-
-**角色**：团队 owner 老李，要为团队搭一套"修 bug"标准流程
-
-```
-1. 老李在「Workflow 模板」里点新建
-2. 添加第 1 步「分析问题」：选 Agent = Claude，提示词模板 = 「读 task 描述 + 看相关代码定位根因」
-3. 添加第 2 步「写修复」：选 Agent = Claude，依赖第 1 步产物
-4. 添加第 3 步「自检」：选 Agent = OpenCode（异构验证），requiresConfirmation = true
-5. 配 Skill 与 MCP（如 git-mcp、jira-mcp）
-6. 老李点「保存并发布」 → 模板对所有团队成员可见
-7. 团队成员跑模板时，系统拍模板快照绑定到那次 run，老李后续改模板不影响在跑的 run
-```
-
-**关键决策点**：
-- 模板归团队所有，不能跨团队复用（要复用就 fork）
-- 模板快照机制保证"运行中的流程不受模板变更影响"——这是从单机版沿用过来的关键设计
-
-### 3.3 普通成员日常用：跑、看、改、提交
-
-**角色**：开发小张，已经熟悉系统
-
-```
-1. 进项目看板，task「优化首页加载性能」在 todo 列
-2. 拖到 in_progress，点「运行」选模板
-3. AI 跑 step 1（分析）期间，小张开编辑器只读模式看 AI 在改什么
-4. step 1 跑完 step 2 启动（写优化代码）
-5. 小张觉得 AI 改的方向不对 → 点「暂停以编辑」
-6. 等当前 step 跑完 → task 切到 editing → 编辑器变可写
-7. 小张手动改了几个文件、跑了下测试 → 点「继续 run」
-8. AI 接着跑 step 3（自检），requiresConfirmation 触发挂起
-9. 小张看 AI 写的自检报告 → 点「确认通过」 → step 3 完成
-10. Run 完成 → 小张在编辑器里 git push → 走团队 PR 流程
-11. PR 合并后 → 小张点「合并完成」 → task PVC 进归档
-```
-
-**关键决策点**：
-- 第 5-7 步「看 → 暂停 → 改 → 继续」是云端版相对单机版的核心新体验
-- 第 11 步归档触发 PVC 内容打包到对象存储，可恢复
-
-### 3.4 Run 失败后的故障处理
-
-**角色**：开发小张，AI 在 step 2 报错
-
-```
-场景 a：单步重试
-  step 2 失败 → 系统按模板的 maxRetries 自动重试 N 次
-  仍失败 → run 暂停在 step 2 失败态 → 小张手动调整提示词 → 点「重试此步」
-
-场景 b：整 run 重启
-  小张觉得方向错了 → 点「重启 run」 → 系统重置 step 状态 → 从 step 1 重跑
-  task PVC 不变（沿用之前的代码状态）
-
-场景 c：抛弃工作目录重来
-  小张觉得 PVC 已经被 AI 改乱了 → 点「重置工作目录」
-  → PVC 删除 → 下次 run 时从 base repo 重新 clone
-
-场景 d：Pod 卡死
-  AI Pod 心跳缺失 10 次 → Orchestrator 主动 kill → step 标 failed
-  task PVC 进 idle，小张可以选「重试」或「重置」
-```
-
-### 3.5 任务结束、归档与清理
-
-**角色**：用户主动归档 / 系统自动归档
-
-```
-路径 a：合并完成自动归档
-  小张点「合并完成」（已推 PR 并被合）→ task PVC 打包推对象存储 → 删 PVC → archived
-
-路径 b：用户主动「归档」
-  小张觉得 task 暂时不动了但以后可能恢复 → 点「归档」 → 同 a
-
-路径 c：用户主动「丢弃」
-  task 是探索性的、不要了 → 点「丢弃」 → 直接删 PVC，不留备份
-
-路径 d：闲置自动归档
-  task 处于 idle 状态超过 N 天（默认 7 天）→ 系统自动按路径 a 归档
-  → 用户下次进入 task 看到「已归档，点击恢复」
-```
-
-**关键决策点**：
-- 归档前置条件：task 必须 idle（编辑器关闭、无 run 在跑）
-- 归档保留对象存储里的 tar，可恢复；丢弃不可恢复
-- 自动归档窗口 7 天可由 team owner 配（3-30 天）
-
-## 4. 领域概念与实体关系
-
-### 4.1 实体关系总览
+### 3.1 实体关系总览
 
 ```
 Team ──┬── User （多对多，team_members 带角色）
@@ -261,7 +152,7 @@ Team ──┬── User （多对多，team_members 带角色）
   - LLM Credential：动态获取，注入 Pod 临时 Secret
 ```
 
-### 4.2 实体职责一览
+### 3.2 实体职责一览
 
 | 实体 | 归属 | 核心职责 | 生命周期 |
 |---|---|---|---|
@@ -280,7 +171,7 @@ Team ──┬── User （多对多，team_members 带角色）
 | **Session / Segment / Event** | WorkflowStep | 三层会话模型，记录 AI 输出 | 持久化在 MySQL，可历史回放 |
 | **GitCredential** | 运行时派生 | Pod 启动时从用户 SSO 派生短期凭证 | 短（随 Pod 退出销毁） |
 
-### 4.3 关键状态机
+### 3.3 关键状态机
 
 **TaskPVC 状态机** —— 见 §7.7
 
@@ -311,7 +202,7 @@ Team ──┬── User （多对多，team_members 带角色）
          editor Pod 终止
 ```
 
-### 4.4 概念边界澄清
+### 3.4 概念边界澄清
 
 **Task vs Run vs Step**
 - 一个 task 在生命周期里可以**多次启动 run**（重跑、换模板跑、改提示词跑）
@@ -337,6 +228,138 @@ Team ──┬── User （多对多，team_members 带角色）
 - 沿用单机版的三层会话模型
 - 持久化在 MySQL，是历史回放的真实数据源
 - Redis Streams 只是实时分发管道，不是数据源
+
+**CLI 会话与 Coplat 会话的关系（重要）**
+- Coplat 的 `sessions / segments / events` 三层表存的是 AI **输出快照**，是给前端看的
+- 真正用于"续聊"的对话上下文在 **CLI 自己的本地目录**：Claude Code 在 `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`，OpenCode 类似
+- Coplat 表里的 `provider_session_id` 字段只是个**指针**——指向 CLI 本地那份 jsonl
+- 续聊时 Coplat 调 `claude --resume <id>` / `opencode --session <id>`，由 CLI 自己加载本机文件
+- **这意味着云端必须把 CLI 会话目录也持久化下来**，否则 Pod 销毁 = 续聊上下文丢失
+
+**云端持久化策略**
+- Pod 启动脚本把 CLI 的会话目录软链到 PVC 内的 `.coplat/cli-sessions/` 子目录（具体路径按 CLI 版本）
+- 这样 CLI 会话文件**天然跟着 task PVC 走**：跨 step 续聊、暂停后续聊、归档/恢复一并处理，无需额外组件
+- Agent Chat 面板的会话同样以「Chat 专属 PVC + 软链 `~/.claude`」方式持久化
+
+**恢复场景一览**
+
+| 场景 | 行为 |
+|---|---|
+| 同一 run 跨 step 续对话 | 下一 step Pod 启动后软链 PVC 里的会话目录，CLI 直接 `--resume` |
+| 用户暂停 run、改了代码、继续 | CLI 会话文件留在 PVC，下一 step 启动续上 |
+| 整 run 失败重试 | 按模板决定从 step 1 重跑或续上；前者会清掉 CLI 会话文件 |
+| Task 归档后恢复重跑 | PVC 恢复时 CLI 会话一并回来，可续聊 |
+| Task 重置工作目录 | 删 PVC 同时清掉 CLI 会话，下次 run 全新开始 |
+
+## 4. 用户场景与核心流程
+
+### 4.1 新用户加入团队、第一次跑 AI 任务
+
+**角色**：新员工小张，已有公司 SSO 账号
+
+```
+1. 小张访问 Coplat 域名 → 自动跳 SSO 登录
+2. 登录后落到「我的工作台」，发现没有任何团队
+3. 小张找团队 owner 老李在 Coplat 里发邀请；接受邀请后进入团队
+4. 团队里已有项目 X，小张获得 member 角色（可看可跑，不能改模板/Agent）
+5. 在项目 X 里挑一个 task「修复登录页报错」
+6. 选一个团队已发布的 Workflow 模板「修 bug」→ 点「运行」
+7. Backend 校验权限 + 给 task 创建 PVC + clone repo（用小张 SSO 派生的 Git 凭证）
+8. AI Pod 启动跑 step 1，前端实时显示 stdout
+9. 小张点开同一 task 的「编辑器」，进只读模式看 AI 改了哪些文件
+10. 全部 step 跑完 → run 完成 → 小张点「编辑」转 rw → 手动微调 → git commit + push
+```
+
+**关键决策点**：
+- 第 4 步：未加入任何团队的用户看到的是空状态 + 引导加入团队
+- 第 7 步：repo 凭证从 SSO 会话派生，小张不需要单独绑 Git 账号
+- 第 9 步：编辑器在 run 进行中只能看不能改
+
+### 4.2 团队 owner 配置 Workflow 模板
+
+**角色**：团队 owner 老李，要为团队搭一套"修 bug"标准流程
+
+```
+1. 老李在「Workflow 模板」里点新建
+2. 添加第 1 步「分析问题」：选 Agent = Claude，提示词模板 = 「读 task 描述 + 看相关代码定位根因」
+3. 添加第 2 步「写修复」：选 Agent = Claude，依赖第 1 步产物
+4. 添加第 3 步「自检」：选 Agent = OpenCode（异构验证），requiresConfirmation = true
+5. 配 Skill 与 MCP（如 git-mcp、jira-mcp）
+6. 老李点「保存并发布」 → 模板对所有团队成员可见
+7. 团队成员跑模板时，系统拍模板快照绑定到那次 run，老李后续改模板不影响在跑的 run
+```
+
+**关键决策点**：
+- 模板归团队所有，不能跨团队复用（要复用就 fork）
+- 模板快照机制保证"运行中的流程不受模板变更影响"——这是从单机版沿用过来的关键设计
+
+### 4.3 普通成员日常用：跑、看、改、提交
+
+**角色**：开发小张，已经熟悉系统
+
+```
+1. 进项目看板，task「优化首页加载性能」在 todo 列
+2. 拖到 in_progress，点「运行」选模板
+3. AI 跑 step 1（分析）期间，小张开编辑器只读模式看 AI 在改什么
+4. step 1 跑完 step 2 启动（写优化代码）
+5. 小张觉得 AI 改的方向不对 → 点「暂停以编辑」
+6. 等当前 step 跑完 → task 切到 editing → 编辑器变可写
+7. 小张手动改了几个文件、跑了下测试 → 点「继续 run」
+8. AI 接着跑 step 3（自检），requiresConfirmation 触发挂起
+9. 小张看 AI 写的自检报告 → 点「确认通过」 → step 3 完成
+10. Run 完成 → 小张在编辑器里 git push → 走团队 PR 流程
+11. PR 合并后 → 小张点「合并完成」 → task PVC 进归档
+```
+
+**关键决策点**：
+- 第 5-7 步「看 → 暂停 → 改 → 继续」是云端版相对单机版的核心新体验
+- 第 11 步归档触发 PVC 内容打包到对象存储，可恢复
+
+### 4.4 Run 失败后的故障处理
+
+**角色**：开发小张，AI 在 step 2 报错
+
+```
+场景 a：单步重试
+  step 2 失败 → 系统按模板的 maxRetries 自动重试 N 次
+  仍失败 → run 暂停在 step 2 失败态 → 小张手动调整提示词 → 点「重试此步」
+
+场景 b：整 run 重启
+  小张觉得方向错了 → 点「重启 run」 → 系统重置 step 状态 → 从 step 1 重跑
+  task PVC 不变（沿用之前的代码状态）
+
+场景 c：抛弃工作目录重来
+  小张觉得 PVC 已经被 AI 改乱了 → 点「重置工作目录」
+  → PVC 删除 → 下次 run 时从 base repo 重新 clone
+
+场景 d：Pod 卡死
+  AI Pod 心跳缺失 10 次 → Orchestrator 主动 kill → step 标 failed
+  task PVC 进 idle，小张可以选「重试」或「重置」
+```
+
+### 4.5 任务结束、归档与清理
+
+**角色**：用户主动归档 / 系统自动归档
+
+```
+路径 a：合并完成自动归档
+  小张点「合并完成」（已推 PR 并被合）→ task PVC 打包推对象存储 → 删 PVC → archived
+
+路径 b：用户主动「归档」
+  小张觉得 task 暂时不动了但以后可能恢复 → 点「归档」 → 同 a
+
+路径 c：用户主动「丢弃」
+  task 是探索性的、不要了 → 点「丢弃」 → 直接删 PVC，不留备份
+
+路径 d：闲置自动归档
+  task 处于 idle 状态超过 N 天（默认 7 天）→ 系统自动按路径 a 归档
+  → 用户下次进入 task 看到「已归档，点击恢复」
+```
+
+**关键决策点**：
+- 归档前置条件：task 必须 idle（编辑器关闭、无 run 在跑）
+- 归档保留对象存储里的 tar，可恢复；丢弃不可恢复
+- 自动归档窗口 7 天可由 team owner 配（3-30 天）
 
 ## 5. 微服务划分
 
@@ -440,6 +463,7 @@ Team ──┬── User （多对多，team_members 带角色）
 **Kubernetes**
 - 单 namespace `coplat-runs` 承载 step Job、editor Pod、归档 Job
 - 每个 task 一块 PVC（同 AZ 调度），由 backend 创建/删除；step Pod 与 editor Pod 共享挂载，但 rw 互斥
+- Pod 启动脚本把 CLI 会话目录（如 `~/.claude/projects`）软链到 PVC 内 `.coplat/cli-sessions/`，确保续聊上下文跟随 task PVC 持久化
 - 利用 CSI 的 RWO 多挂载只读能力：run 进行中 editor Pod 以 `readOnly: true` 挂载实现实时观察（上线前需在目标环境验证）
 - ServiceAccount 仅授予 Job / Pod / PVC / Secret / ConfigMap 的 CRUD 权限
 
