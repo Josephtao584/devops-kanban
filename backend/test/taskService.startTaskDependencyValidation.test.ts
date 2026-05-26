@@ -14,7 +14,7 @@ function stubStartWorkflow(): () => void {
   };
 }
 
-test.skip('startTask passes when all upstream tasks are DONE', async () => {
+test.test('startTask passes when all upstream tasks are DONE', async () => {
   const restore = stubStartWorkflow();
   const project = await projectRepository.create({ name: 'dep-val-allDone', env: {} } as any);
   const a = await taskRepository.create({ title: 'A', project_id: project.id, status: 'DONE', priority: 'MEDIUM', source: 'internal', depends_on: [] } as any);
@@ -32,7 +32,7 @@ test.skip('startTask passes when all upstream tasks are DONE', async () => {
   }
 });
 
-test.skip('startTask throws BusinessError when an upstream task is TODO', async () => {
+test.test('startTask throws BusinessError when an upstream task is TODO', async () => {
   const restore = stubStartWorkflow();
   const project = await projectRepository.create({ name: 'dep-val-upstreamTodo', env: {} } as any);
   const a = await taskRepository.create({ title: 'A', project_id: project.id, status: 'TODO', priority: 'MEDIUM', source: 'internal', depends_on: [] } as any);
@@ -58,7 +58,7 @@ test.skip('startTask throws BusinessError when an upstream task is TODO', async 
   }
 });
 
-test.skip('startTask throws BusinessError when an upstream task is IN_PROGRESS', async () => {
+test.test('startTask throws BusinessError when an upstream task is IN_PROGRESS', async () => {
   const restore = stubStartWorkflow();
   const project = await projectRepository.create({ name: 'dep-val-inprogress', env: {} } as any);
   const a = await taskRepository.create({ title: 'A', project_id: project.id, status: 'IN_PROGRESS', priority: 'MEDIUM', source: 'internal', depends_on: [] } as any);
@@ -77,7 +77,7 @@ test.skip('startTask throws BusinessError when an upstream task is IN_PROGRESS',
   }
 });
 
-test.skip('startTask throws BusinessError when an upstream task is BLOCKED', async () => {
+test.test('startTask throws BusinessError when an upstream task is BLOCKED', async () => {
   const restore = stubStartWorkflow();
   const project = await projectRepository.create({ name: 'dep-val-blocked', env: {} } as any);
   const a = await taskRepository.create({ title: 'A', project_id: project.id, status: 'BLOCKED', priority: 'MEDIUM', source: 'internal', depends_on: [] } as any);
@@ -96,7 +96,7 @@ test.skip('startTask throws BusinessError when an upstream task is BLOCKED', asy
   }
 });
 
-test.skip('startTask throws BusinessError when a depends_on points to a non-existent task', async () => {
+test.test('startTask throws BusinessError when a depends_on points to a non-existent task', async () => {
   const restore = stubStartWorkflow();
   const project = await projectRepository.create({ name: 'dep-val-missing', env: {} } as any);
   const b = await taskRepository.create({ title: 'B', project_id: project.id, status: 'TODO', priority: 'MEDIUM', source: 'internal', depends_on: [999999] } as any);
@@ -117,7 +117,7 @@ test.skip('startTask throws BusinessError when a depends_on points to a non-exis
   }
 });
 
-test.skip('startTask passes when depends_on is empty (regression)', async () => {
+test.test('startTask passes when depends_on is empty (regression)', async () => {
   const restore = stubStartWorkflow();
   const project = await projectRepository.create({ name: 'dep-val-empty', env: {} } as any);
   const b = await taskRepository.create({ title: 'B', project_id: project.id, status: 'TODO', priority: 'MEDIUM', source: 'internal', depends_on: [] } as any);

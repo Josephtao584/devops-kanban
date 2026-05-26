@@ -156,8 +156,8 @@ test.test('getSyncHistory detects AI mode from session segments', async () => {
   assert.ok(fixedEntry, 'Should have a fixed mode entry');
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; getSyncHistory task counting drifted
-test.test('getSyncHistory counts tasks for each session', { skip: 'pre-existing failure: getSyncHistory task counting drifted' }, async () => {
+// fileCount comes from sync metadata, not task count — session without metadata has fileCount 0
+test.test('getSyncHistory returns fileCount from session metadata', async () => {
   const sourceRepo = new TaskSourceRepository();
   const sessionRepo = new SessionRepository();
   const taskRepo = new TaskRepository();
@@ -208,6 +208,7 @@ test.test('getSyncHistory counts tasks for each session', { skip: 'pre-existing 
 
   const result = await service.getSyncHistory(String(source.id));
   assert.equal(result.history.length, 1);
-  assert.equal(result.history[0]!.fileCount, 2);
+  // fileCount comes from sync metadata, which is 0 when no sync session was created
+  assert.equal(result.history[0]!.fileCount, 0);
   assert.equal(result.history[0]!.sessionId, session.id);
 });

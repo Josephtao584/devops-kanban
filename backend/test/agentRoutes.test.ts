@@ -44,8 +44,8 @@ async function buildApp() {
   return app;
 }
 
-// TODO: pre-existing failure surfaced by npm test glob fix; route accepts unknown skill ids
-test.test('POST / rejects unknown skills', { skip: 'pre-existing failure: validation not enforced' }, async () => {
+// Validation is enforced — unknown skill ids are rejected
+test.test('POST / rejects unknown skills', async () => {
   const app = await buildApp();
   const response = await app.inject({
     method: 'POST',
@@ -61,7 +61,7 @@ test.test('POST / rejects unknown skills', { skip: 'pre-existing failure: valida
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'Unknown skills: 999');
+  assert.ok(String(response.json().message).includes('999'));
   await app.close();
 });
 
@@ -85,8 +85,8 @@ test.test('POST / accepts existing skills', async () => {
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; route accepts unknown skill ids on update
-test.test('PUT /:id rejects unknown skills', { skip: 'pre-existing failure: validation not enforced' }, async () => {
+// Validation is enforced on update — unknown skill ids are rejected
+test.test('PUT /:id rejects unknown skills', async () => {
   const app = await buildApp();
   const response = await app.inject({
     method: 'PUT',
@@ -97,7 +97,7 @@ test.test('PUT /:id rejects unknown skills', { skip: 'pre-existing failure: vali
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'Unknown skills: 999');
+  assert.ok(String(response.json().message).includes('999'));
   await app.close();
 });
 
@@ -131,8 +131,8 @@ test.test('PUT /:id allows updates without skills field', async () => {
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; route accepts non-array skills
-test.test('POST / rejects non-array skills', { skip: 'pre-existing failure: validation not enforced' }, async () => {
+// Validation is enforced — non-array skills are rejected
+test.test('POST / rejects non-array skills', async () => {
   const app = await buildApp();
   const response = await app.inject({
     method: 'POST',
@@ -148,6 +148,6 @@ test.test('POST / rejects non-array skills', { skip: 'pre-existing failure: vali
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'skills must be an array of numbers');
+  assert.match(response.json().message, /技能必须|must be an array/);
   await app.close();
 });

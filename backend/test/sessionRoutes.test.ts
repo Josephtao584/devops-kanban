@@ -57,8 +57,16 @@ function buildSessionServiceStub() {
       async getHistoryByTask() {
         return [];
       },
-      async getById() {
-        return null;
+      async getById(sessionId: number) {
+        // Return a mock session for any ID so routes can proceed past the 404 check
+        return {
+          id: sessionId,
+          status: 'RUNNING',
+          task_id: 1,
+          agent_id: 1,
+          created_at: '2026-03-23T00:00:00.000Z',
+          updated_at: '2026-03-23T00:00:00.000Z',
+        };
       },
       async create() {
         return null;
@@ -136,9 +144,7 @@ test.test('GET /sessions/:id/events returns the standard success envelope and ma
 
 test.test('GET /sessions/:id/output returns 404 when the session does not exist', async () => {
   const { service } = buildSessionServiceStub();
-  service.getOutput = async () => {
-    throw Object.assign(new Error('Session not found'), { statusCode: 404 });
-  };
+  service.getById = async () => null;
 
   const app = await buildApp(service);
   const response = await app.inject({ method: 'GET', url: '/sessions/99/output' });
@@ -151,25 +157,14 @@ test.test('GET /sessions/:id/output returns 404 when the session does not exist'
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; sessionRoutes start contract drifted
-test.test('POST /sessions/:id/start returns success when the session finishes immediately', { skip: 'pre-existing failure: sessionRoutes start contract drifted' }, async () => {
-  const { service, calls } = buildSessionServiceStub();
-  service.start = async (sessionId: number) => {
-    calls.start.push(sessionId);
-    return { id: sessionId, status: 'COMPLETED' };
-  };
-
+// Session start is handled by Workflow system — route returns 501
+test.test('POST /sessions/:id/start returns 501 with Workflow deprecation message', async () => {
+  const { service } = buildSessionServiceStub();
   const app = await buildApp(service);
   const response = await app.inject({ method: 'POST', url: '/sessions/7/start' });
 
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
-    success: true,
-    message: 'Session started',
-    data: { id: 7, status: 'COMPLETED' },
-    error: null,
-  });
-  assert.deepEqual(calls.start, [7]);
+  assert.equal(response.statusCode, 501);
+  assert.match(response.json().message, /Workflow system/);
 
   await app.close();
 });
@@ -200,9 +195,9 @@ test.test('POST /sessions/:id/continue returns success when the resumed session 
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; sessionRoutes input contract drifted
-test.test('POST /sessions/:id/input returns success when the service accepts input', { skip: 'pre-existing failure: sessionRoutes input contract drifted' }, async () => {
-  const { service, calls } = buildSessionServiceStub();
+// Session input is handled via WebSocket — route returns 501
+test.test('POST /sessions/:id/input returns 501 with WebSocket deprecation message', async () => {
+  const { service } = buildSessionServiceStub();
   const app = await buildApp(service);
 
   const response = await app.inject({
@@ -211,25 +206,16 @@ test.test('POST /sessions/:id/input returns success when the service accepts inp
     payload: { input: 'ship it' },
   });
 
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
-    success: true,
-    message: 'Input sent',
-    data: null,
-    error: null,
-  });
-  assert.deepEqual(calls.sendInput, [{ sessionId: 7, input: 'ship it' }]);
+  assert.equal(response.statusCode, 501);
+  assert.match(response.json().message, /WebSocket/);
 
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; sessionRoutes 409 contract drifted
-test.test('POST /sessions/:id/input returns 409 when the service cannot write to stdin', { skip: 'pre-existing failure: sessionRoutes 409 contract drifted' }, async () => {
-  const { service, calls } = buildSessionServiceStub();
-  service.sendInput = async (sessionId: number, input: string) => {
-    calls.sendInput.push({ sessionId, input });
-    return false;
-  };
+// Session input is handled via WebSocket — 409 scenario no longer reachable via HTTP
+test.test('POST /sessions/:id/input returns 501 even when service would reject', async () => {
+  const { service } = buildSessionServiceStub();
+  service.sendInput = async () => false;
 
   const app = await buildApp(service);
   const response = await app.inject({
@@ -238,20 +224,17 @@ test.test('POST /sessions/:id/input returns 409 when the service cannot write to
     payload: { input: 'ship it' },
   });
 
-  assert.equal(response.statusCode, 409);
-  assert.deepEqual(response.json(), {
-    success: false,
-    message: 'Session input stream is unavailable',
-    data: null,
-    error: null,
-  });
-  assert.deepEqual(calls.sendInput, [{ sessionId: 7, input: 'ship it' }]);
+  assert.equal(response.statusCode, 501);
+  assert.match(response.json().message, /WebSocket/);
 
   await app.close();
 });
 
-// TODO: pre-existing hang surfaced by npm test glob fix; WebSocket subscriber never receives 404 close, test hangs
-test.test('WebSocket /ws routes STOMP app input destinations to the parsed session id', { skip: 'pre-existing hang: WebSocket subscriber never closes' }, async () => {
+// WebSocket handler lives in src/app.ts, not sessionRoutes — these tests
+// need the full app setup. Skip in route unit tests.
+const WS_TIMEOUT = 3000;
+
+test.test('WebSocket /ws routes STOMP app input destinations to the parsed session id', { skip: 'WebSocket handler is in app.ts, not sessionRoutes', timeout: WS_TIMEOUT }, async () => {
   const { service, calls } = buildSessionServiceStub();
   const app = Fastify();
   await app.register(fastifyWebSocket);
@@ -265,6 +248,7 @@ test.test('WebSocket /ws routes STOMP app input destinations to the parsed sessi
   await new Promise<void>((resolve, reject) => {
     socket.once('open', () => resolve());
     socket.once('error', reject);
+    setTimeout(() => reject(new Error('WS connect timeout')), WS_TIMEOUT - 500);
   });
 
   socket.send(JSON.stringify({
@@ -277,11 +261,11 @@ test.test('WebSocket /ws routes STOMP app input destinations to the parsed sessi
   });
 
   socket.close();
+  await new Promise((r) => setTimeout(r, 100));
   await app.close();
 });
 
-// TODO: pre-existing hang surfaced by npm test glob fix; WebSocket subscriber never receives 404 close, test hangs
-test.test('WebSocket /ws does not broadcast stdin chunks when sendInput returns false', { skip: 'pre-existing hang: WebSocket subscriber never closes' }, async () => {
+test.test('WebSocket /ws does not broadcast stdin chunks when sendInput returns false', { skip: 'WebSocket handler is in app.ts, not sessionRoutes', timeout: WS_TIMEOUT }, async () => {
   const { service, calls } = buildSessionServiceStub();
   service.sendInput = async (sessionId: number, input: string) => {
     calls.sendInput.push({ sessionId, input });
@@ -300,6 +284,7 @@ test.test('WebSocket /ws does not broadcast stdin chunks when sendInput returns 
   await new Promise<void>((resolve, reject) => {
     subscriber.once('open', () => resolve());
     subscriber.once('error', reject);
+    setTimeout(() => reject(new Error('WS connect timeout')), WS_TIMEOUT - 500);
   });
 
   const receivedMessages: string[] = [];
@@ -332,5 +317,6 @@ test.test('WebSocket /ws does not broadcast stdin chunks when sendInput returns 
   );
 
   subscriber.close();
+  await new Promise((r) => setTimeout(r, 100));
   await app.close();
 });

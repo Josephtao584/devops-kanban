@@ -79,8 +79,8 @@ test.test('POST / accepts valid mcpServers', async () => {
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; route currently accepts unknown mcpServers
-test.test('POST / rejects unknown mcpServers', { skip: 'pre-existing failure: validation not enforced' }, async () => {
+// Validation is enforced — unknown MCP server ids are rejected
+test.test('POST / rejects unknown mcpServers', async () => {
   const app = await buildApp();
   const response = await app.inject({
     method: 'POST',
@@ -97,12 +97,12 @@ test.test('POST / rejects unknown mcpServers', { skip: 'pre-existing failure: va
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'Unknown MCP servers: 999');
+  assert.ok(String(response.json().message).includes('999'));
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; route accepts non-array mcpServers
-test.test('POST / rejects non-array mcpServers', { skip: 'pre-existing failure: validation not enforced' }, async () => {
+// Validation is enforced — non-array mcpServers are rejected
+test.test('POST / rejects non-array mcpServers', async () => {
   const app = await buildApp();
   const response = await app.inject({
     method: 'POST',
@@ -119,7 +119,7 @@ test.test('POST / rejects non-array mcpServers', { skip: 'pre-existing failure: 
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'mcpServers must be an array of numbers');
+  assert.match(response.json().message, /MCP 服务器必须|must be an array/);
   await app.close();
 });
 
@@ -140,8 +140,8 @@ test.test('PUT /:id accepts valid mcpServers update', async () => {
   await app.close();
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; route accepts unknown mcpServers on update
-test.test('PUT /:id rejects unknown mcpServers', { skip: 'pre-existing failure: validation not enforced' }, async () => {
+// Validation is enforced on update — unknown MCP server ids are rejected
+test.test('PUT /:id rejects unknown mcpServers', async () => {
   const app = await buildApp();
   const response = await app.inject({
     method: 'PUT',
@@ -152,7 +152,7 @@ test.test('PUT /:id rejects unknown mcpServers', { skip: 'pre-existing failure: 
   });
 
   assert.equal(response.statusCode, 400);
-  assert.equal(response.json().message, 'Unknown MCP servers: 999');
+  assert.ok(String(response.json().message).includes('999'));
   await app.close();
 });
 

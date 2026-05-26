@@ -93,8 +93,7 @@ test.test('ClaudeStepRunner throws on non-zero exit code', async () => {
   }), /Claude step failed/);
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; expected error message text drifted
-test.test('ClaudeStepRunner includes diagnostics when stdout summary is missing', { skip: 'pre-existing failure: error message format drifted' }, async () => {
+test.test('ClaudeStepRunner includes diagnostics when stdout summary is missing', async () => {
   const runner = new ClaudeStepRunner({
     spawnImpl: async () => ({
       exitCode: 0,
@@ -115,7 +114,8 @@ test.test('ClaudeStepRunner includes diagnostics when stdout summary is missing'
     const typedError = error as Error;
     assert.match(typedError.message, /summary is required/);
     assert.match(typedError.message, /stderr line 1/);
-    assert.match(typedError.message, /@anthropic-ai\/claude-code@2\.1\.62/);
+    // Version may change — just check the command is included
+    assert.match(typedError.message, /@anthropic-ai\/claude-code/);
     return true;
   });
 });

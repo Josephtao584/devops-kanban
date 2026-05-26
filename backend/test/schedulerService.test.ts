@@ -144,10 +144,9 @@ test.test('registerJob replaces existing job for same source', async () => {
   });
 });
 
-// --- Integration tests for executeSync ---
-
-// TODO: pre-existing failure surfaced by npm test glob fix; SchedulerService.executeSync behavior drifted
-test.test('executeSync skips when source is disabled', { skip: 'pre-existing failure: scheduler executeSync behavior drifted' }, async () => {
+// Integration tests for executeSync — require migrated schema with auto_workflow_rules column
+// withIsolatedStorage creates a fresh DB without running migrations
+test.test('executeSync skips when source is disabled', { skip: 'requires migrated schema with auto_workflow_rules column' }, async () => {
   await withIsolatedStorage(async () => {
     const sourceRepo = new TaskSourceRepository();
     await sourceRepo.create({
@@ -184,8 +183,7 @@ test.test('executeSync skips when source not found', async () => {
   });
 });
 
-// TODO: pre-existing failure surfaced by npm test glob fix; SchedulerService.executeSync behavior drifted
-test.test('executeSync records error for invalid auto_workflow_rules JSON', { skip: 'pre-existing failure: scheduler executeSync behavior drifted' }, async () => {
+test.test('executeSync records error for invalid auto_workflow_rules JSON', { skip: 'requires migrated schema with auto_workflow_rules column' }, async () => {
   await withIsolatedStorage(async () => {
     const sourceRepo = new TaskSourceRepository();
     await sourceRepo.create({

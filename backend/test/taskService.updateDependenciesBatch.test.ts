@@ -21,7 +21,7 @@ async function teardownPipeline(setup: Awaited<ReturnType<typeof setupPipeline>>
   await projectRepository.delete(setup.project.id);
 }
 
-test.skip('updateDependenciesBatch rejects edges referencing tasks outside pipeline', async () => {
+test.test('updateDependenciesBatch rejects edges referencing tasks outside pipeline', async () => {
   const s = await setupPipeline();
   try {
     await assert.rejects(
@@ -37,7 +37,7 @@ test.skip('updateDependenciesBatch rejects edges referencing tasks outside pipel
   }
 });
 
-test.skip('updateDependenciesBatch rejects self-loop', async () => {
+test.test('updateDependenciesBatch rejects self-loop', async () => {
   const s = await setupPipeline();
   try {
     await assert.rejects(
@@ -53,7 +53,7 @@ test.skip('updateDependenciesBatch rejects self-loop', async () => {
   }
 });
 
-test.skip('updateDependenciesBatch rejects cycle and reports path', async () => {
+test.test('updateDependenciesBatch rejects cycle and reports path', async () => {
   const s = await setupPipeline();
   try {
     await assert.rejects(
@@ -76,7 +76,7 @@ test.skip('updateDependenciesBatch rejects cycle and reports path', async () => 
   }
 });
 
-test.skip('updateDependenciesBatch with empty edges clears all depends_on', async () => {
+test.test('updateDependenciesBatch with empty edges clears all depends_on', async () => {
   const s = await setupPipeline();
   await taskRepository.update(s.b.id, { depends_on: [s.a.id] } as any);
   await taskRepository.update(s.c.id, { depends_on: [s.b.id] } as any);
@@ -92,7 +92,7 @@ test.skip('updateDependenciesBatch with empty edges clears all depends_on', asyn
   }
 });
 
-test.skip('updateDependenciesBatch leaves DB untouched when validation fails', async () => {
+test.test('updateDependenciesBatch leaves DB untouched when validation fails', async () => {
   const s = await setupPipeline();
   await taskRepository.update(s.b.id, { depends_on: [s.a.id] } as any);
   try {
@@ -112,7 +112,7 @@ test.skip('updateDependenciesBatch leaves DB untouched when validation fails', a
   }
 });
 
-test.skip('updateDependenciesBatch tasks omitted from edges have depends_on cleared', async () => {
+test.test('updateDependenciesBatch tasks omitted from edges have depends_on cleared', async () => {
   const s = await setupPipeline();
   await taskRepository.update(s.b.id, { depends_on: [s.a.id] } as any);
   await taskRepository.update(s.c.id, { depends_on: [s.b.id] } as any);
@@ -130,7 +130,7 @@ test.skip('updateDependenciesBatch tasks omitted from edges have depends_on clea
   }
 });
 
-test.skip('updateDependenciesBatch preserves dependencies pointing outside the pipeline', async () => {
+test.test('updateDependenciesBatch preserves dependencies pointing outside the pipeline', async () => {
   const s = await setupPipeline();
   // External task in a different project: not part of this pipeline.
   const otherProject = await projectRepository.create({ name: `dep-edit-other-${Date.now()}-${Math.random()}`, env: {} } as any);
@@ -152,7 +152,7 @@ test.skip('updateDependenciesBatch preserves dependencies pointing outside the p
   }
 });
 
-test.skip('updateDependenciesBatch cycle error message contains task titles', async () => {
+test.test('updateDependenciesBatch cycle error message contains task titles', async () => {
   const s = await setupPipeline();
   try {
     await assert.rejects(
@@ -172,7 +172,7 @@ test.skip('updateDependenciesBatch cycle error message contains task titles', as
   }
 });
 
-test.skip('updateDependenciesBatch is atomic — failure in mid-write leaves DB unchanged', async () => {
+test.test('updateDependenciesBatch is atomic — failure in mid-write leaves DB unchanged', async () => {
   const s = await setupPipeline();
   await taskRepository.update(s.b.id, { depends_on: [s.a.id] } as any);
   await taskRepository.update(s.c.id, { depends_on: [s.b.id] } as any);
