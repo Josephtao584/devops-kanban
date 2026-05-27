@@ -1,27 +1,9 @@
 import * as test from 'node:test';
 import * as assert from 'node:assert/strict';
 import Fastify from 'fastify';
-import fastifyWebSocket from '@fastify/websocket';
-import WebSocket from 'ws';
 
 import { sessionRoutes } from '../src/routes/sessions.js';
 import type { ListSessionEventsQuery, SessionEventListItem } from '../src/types/dto/sessionEvents.ts';
-
-async function waitFor(assertion: () => Promise<void> | void, timeoutMs = 1500) {
-  const startedAt = Date.now();
-
-  while (true) {
-    try {
-      await assertion();
-      return;
-    } catch (error) {
-      if (Date.now() - startedAt >= timeoutMs) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-}
 
 function buildSessionServiceStub() {
   const calls = {
@@ -230,93 +212,4 @@ test.test('POST /sessions/:id/input returns 501 even when service would reject',
   await app.close();
 });
 
-// WebSocket handler lives in src/app.ts, not sessionRoutes — these tests
-// need the full app setup. Skip in route unit tests.
-const WS_TIMEOUT = 3000;
 
-test.test('WebSocket /ws routes STOMP app input destinations to the parsed session id', { skip: 'WebSocket handler is in app.ts, not sessionRoutes', timeout: WS_TIMEOUT }, async () => {
-  const { service, calls } = buildSessionServiceStub();
-  const app = Fastify();
-  await app.register(fastifyWebSocket);
-  app.register(sessionRoutes, { service: service as never });
-  await app.listen({ port: 0, host: '127.0.0.1' });
-
-  const address = app.server.address();
-  assert.ok(address && typeof address === 'object');
-
-  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
-  await new Promise<void>((resolve, reject) => {
-    socket.once('open', () => resolve());
-    socket.once('error', reject);
-    setTimeout(() => reject(new Error('WS connect timeout')), WS_TIMEOUT - 500);
-  });
-
-  socket.send(JSON.stringify({
-    destination: '/app/session/42/input',
-    body: JSON.stringify({ input: 'hello from ws' }),
-  }));
-
-  await waitFor(() => {
-    assert.deepEqual(calls.sendInput, [{ sessionId: 42, input: 'hello from ws' }]);
-  });
-
-  socket.close();
-  await new Promise((r) => setTimeout(r, 100));
-  await app.close();
-});
-
-test.test('WebSocket /ws does not broadcast stdin chunks when sendInput returns false', { skip: 'WebSocket handler is in app.ts, not sessionRoutes', timeout: WS_TIMEOUT }, async () => {
-  const { service, calls } = buildSessionServiceStub();
-  service.sendInput = async (sessionId: number, input: string) => {
-    calls.sendInput.push({ sessionId, input });
-    return false;
-  };
-
-  const app = Fastify();
-  await app.register(fastifyWebSocket);
-  app.register(sessionRoutes, { service: service as never });
-  await app.listen({ port: 0, host: '127.0.0.1' });
-
-  const address = app.server.address();
-  assert.ok(address && typeof address === 'object');
-
-  const subscriber = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
-  await new Promise<void>((resolve, reject) => {
-    subscriber.once('open', () => resolve());
-    subscriber.once('error', reject);
-    setTimeout(() => reject(new Error('WS connect timeout')), WS_TIMEOUT - 500);
-  });
-
-  const receivedMessages: string[] = [];
-  subscriber.on('message', (message) => {
-    receivedMessages.push(message.toString());
-  });
-
-  subscriber.send(JSON.stringify({
-    destination: '/topic/session/42/output',
-  }));
-
-  await waitFor(() => {
-    assert.ok(receivedMessages.some((message) => message.includes('SUBSCRIBED')));
-  });
-
-  subscriber.send(JSON.stringify({
-    destination: '/app/session/42/input',
-    body: JSON.stringify({ input: 'hello from ws' }),
-  }));
-
-  await waitFor(() => {
-    assert.deepEqual(calls.sendInput, [{ sessionId: 42, input: 'hello from ws' }]);
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 50));
-
-  assert.equal(
-    receivedMessages.some((message) => message.includes('"stream":"stdin"')),
-    false,
-  );
-
-  subscriber.close();
-  await new Promise((r) => setTimeout(r, 100));
-  await app.close();
-});

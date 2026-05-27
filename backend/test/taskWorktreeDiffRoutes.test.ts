@@ -6,14 +6,24 @@ import * as path from 'node:path';
 import * as test from 'node:test';
 import Fastify from 'fastify';
 
+import { closeDbClient } from '../src/db/client.js';
+import { initDatabase } from '../src/db/schema.js';
+import { ProjectRepository } from '../src/repositories/projectRepository.js';
+import { TaskRepository } from '../src/repositories/taskRepository.js';
+
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'task-worktree-diff-routes-test-'));
 const storagePath = path.join(testRoot, 'data');
 const fixtureRoots: string[] = [];
 
 fs.mkdirSync(storagePath, { recursive: true });
-fs.writeFileSync(path.join(storagePath, 'projects.json'), '[]');
-fs.writeFileSync(path.join(storagePath, 'tasks.json'), '[]');
 process.env.STORAGE_PATH = storagePath;
+
+// Initialize SQLite DB so routes can query it
+await closeDbClient();
+await initDatabase();
+
+const projectRepo = new ProjectRepository();
+const taskRepo = new TaskRepository();
 
 const { taskRoutes } = await import('../src/routes/tasks.js');
 
@@ -29,6 +39,7 @@ test.after(async () => {
   }
 
   fs.rmSync(testRoot, { recursive: true, force: true });
+  await closeDbClient();
 });
 
 type RouteFile = {
@@ -74,10 +85,7 @@ async function runSerial<T>(callback: () => Promise<T> | T): Promise<T> {
 }
 
 function serialTest(name: string, callback: () => Promise<void> | void) {
-  // TODO: pre-existing failure surfaced by npm test glob fix; git fixture/HEAD assertions drifted.
-  // All routes in this file are skipped pending investigation. Once the underlying behavior is fixed,
-  // remove the `skip` option to re-enable the suite (callback still wired so runSerial stays in scope).
-  test.test(name, { skip: 'pre-existing failure: git fixture/HEAD assertions drifted' }, async () => {
+  test.test(name, async () => {
     await runSerial(callback);
   });
 }
@@ -120,42 +128,32 @@ function createGitFixture(initialFiles: Record<string, string | Buffer> = { 'tra
   return { rootPath, repoPath, worktreePath, branchName };
 }
 
-function seedRepositories(task: { worktreePath: string | null; worktreeBranch?: string | null; projectPath?: string | null }) {
-  const now = new Date().toISOString();
-  const projects = [
-    {
-      id: 1,
-      name: 'Test Project',
-      local_path: task.projectPath ?? null,
-      git_url: null,
-      created_at: now,
-      updated_at: now,
-    },
-  ];
+async function seedRepositories(taskData: { worktreePath: string | null; worktreeBranch?: string | null; projectPath?: string | null }) {
+  const project = await projectRepo.create({
+    name: 'Test Project',
+    local_path: taskData.projectPath ?? null,
+    git_url: null,
+  } as never);
 
-  const tasks = [
-    {
-      id: 1,
-      title: 'Test Task',
-      description: 'Task for task worktree diff route tests',
-      project_id: 1,
-      status: 'TODO',
-      priority: 'MEDIUM',
-      worktree_path: task.worktreePath,
-      worktree_branch: task.worktreeBranch ?? null,
-      created_at: now,
-      updated_at: now,
-    },
-  ];
+  const createdTask = await taskRepo.create({
+    title: 'Test Task',
+    description: 'Task for task worktree diff route tests',
+    project_id: project.id,
+    status: 'TODO',
+    priority: 'MEDIUM',
+    source: 'manual',
+    worktree_path: taskData.worktreePath,
+    worktree_branch: taskData.worktreeBranch ?? null,
+    depends_on: [],
+  } as never);
 
-  fs.writeFileSync(path.join(storagePath, 'projects.json'), JSON.stringify(projects, null, 2));
-  fs.writeFileSync(path.join(storagePath, 'tasks.json'), JSON.stringify(tasks, null, 2));
+  return { projectId: project.id, taskId: createdTask.id };
 }
 
-async function getDiff(query = 'project_id=1') {
+async function getDiff(taskId: number, query = 'project_id=1') {
   const response = await app.inject({
     method: 'GET',
-    url: `/api/tasks/1/worktree/diff?${query}`,
+    url: `/api/tasks/${taskId}/worktree/diff?${query}`,
   });
 
   return {
@@ -196,9 +194,9 @@ function assertNoFile(payload: RoutePayload, filePath: string) {
 serialTest('GET /api/tasks/:id/worktree/diff returns tracked uncommitted diff against HEAD', async () => {
   const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
   writeFile(fixture.worktreePath, 'tracked.txt', 'base\nupdated\n');
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
   const file = getOnlyFile(payload);
 
   assert.equal(response.statusCode, 200);
@@ -214,9 +212,9 @@ serialTest('GET /api/tasks/:id/worktree/diff combines staged and unstaged tracke
   writeFile(fixture.worktreePath, 'tracked.txt', 'line 1\nstaged change\n');
   git(fixture.worktreePath, ['add', 'tracked.txt']);
   writeFile(fixture.worktreePath, 'tracked.txt', 'line 1\nstaged change\nunstaged change\n');
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
   const file = getOnlyFile(payload);
   const diff = getDiffText(payload, 'tracked.txt');
 
@@ -230,9 +228,9 @@ serialTest('GET /api/tasks/:id/worktree/diff combines staged and unstaged tracke
 serialTest('GET /api/tasks/:id/worktree/diff expands untracked directories into file entries with diffs', async () => {
   const fixture = createGitFixture();
   writeFile(fixture.worktreePath, 'notes/todo.txt', 'hello\nworld\n');
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
   const file = getFile(payload, 'notes/todo.txt');
   const diff = getDiffText(payload, 'notes/todo.txt');
 
@@ -250,9 +248,9 @@ serialTest('GET /api/tasks/:id/worktree/diff includes both tracked changes and u
   const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
   writeFile(fixture.worktreePath, 'tracked.txt', 'base\nupdated\n');
   writeFile(fixture.worktreePath, 'docs/guide.md', '# Guide\n\ncontent\n');
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
   const trackedFile = getFile(payload, 'tracked.txt');
   const untrackedFile = getFile(payload, 'docs/guide.md');
 
@@ -266,9 +264,9 @@ serialTest('GET /api/tasks/:id/worktree/diff includes both tracked changes and u
 
 serialTest('GET /api/tasks/:id/worktree/diff returns 400 when the task has no worktree', async () => {
   const fixture = createGitFixture();
-  seedRepositories({ worktreePath: null, worktreeBranch: null, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: null, worktreeBranch: null, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
 
   assert.equal(response.statusCode, 400);
   assert.equal(payload.success, false);
@@ -278,7 +276,7 @@ serialTest('GET /api/tasks/:id/worktree/diff returns 400 when the task has no wo
 
 serialTest('GET /api/tasks/:id/worktree/diff returns 404 when the task does not exist', async () => {
   const fixture = createGitFixture();
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
   const response = await app.inject({
     method: 'GET',
@@ -296,9 +294,9 @@ serialTest('GET /api/tasks/:id/worktree/diff preserves wrapped errors for non-gi
   const fixture = createGitFixture();
   const nonGitPath = path.join(fixture.rootPath, 'not-a-repo');
   fs.mkdirSync(nonGitPath, { recursive: true });
-  seedRepositories({ worktreePath: nonGitPath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: nonGitPath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
 
   assert.equal(response.statusCode, 500);
   assert.equal(payload.success, false);
@@ -309,9 +307,9 @@ serialTest('GET /api/tasks/:id/worktree/diff preserves wrapped errors for non-gi
 serialTest('GET /api/tasks/:id/worktree/diff keeps the { files, diffs } payload shape', async () => {
   const fixture = createGitFixture({ 'tracked.txt': 'base\n' });
   writeFile(fixture.worktreePath, 'tracked.txt', 'base\nupdated\n');
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
 
   assert.equal(response.statusCode, 200);
   assert.ok(payload.data);
@@ -330,13 +328,13 @@ serialTest('GET /api/tasks/:id/worktree/diff compares source and target branches
   git(worktreeFixture.worktreePath, ['add', 'tracked.txt']);
   git(worktreeFixture.worktreePath, ['commit', '-m', 'branch update']);
 
-  seedRepositories({
+  const { taskId } = await seedRepositories({
     worktreePath: worktreeFixture.worktreePath,
     worktreeBranch: worktreeFixture.branchName,
     projectPath: projectFixture.repoPath,
   });
 
-  const { response, payload } = await getDiff(`project_id=1&source=master&target=${encodeURIComponent(worktreeFixture.branchName)}`);
+  const { response, payload } = await getDiff(taskId, `project_id=1&source=master&target=${encodeURIComponent(worktreeFixture.branchName)}`);
   const file = getOnlyFile(payload);
 
   assert.equal(response.statusCode, 200);
@@ -353,13 +351,13 @@ serialTest('GET /api/tasks/:id/worktree/diff decodes quoted branch diff paths be
   git(fixture.worktreePath, ['add', chinesePath]);
   git(fixture.worktreePath, ['commit', '-m', 'add chinese path']);
 
-  seedRepositories({
+  const { taskId } = await seedRepositories({
     worktreePath: fixture.worktreePath,
     worktreeBranch: fixture.branchName,
     projectPath: fixture.repoPath,
   });
 
-  const { response, payload } = await getDiff(`project_id=1&source=master&target=${encodeURIComponent(fixture.branchName)}`);
+  const { response, payload } = await getDiff(taskId, `project_id=1&source=master&target=${encodeURIComponent(fixture.branchName)}`);
   const file = getFile(payload, chinesePath);
 
   assert.equal(response.statusCode, 200);
@@ -371,9 +369,9 @@ serialTest('GET /api/tasks/:id/worktree/diff decodes quoted branch diff paths be
 
 serialTest('GET /api/tasks/:id/worktree/diff returns empty files and diffs for a clean worktree', async () => {
   const fixture = createGitFixture();
-  seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
+  const { taskId } = await seedRepositories({ worktreePath: fixture.worktreePath, worktreeBranch: fixture.branchName, projectPath: fixture.repoPath });
 
-  const { response, payload } = await getDiff();
+  const { response, payload } = await getDiff(taskId);
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(payload.data, {
@@ -381,4 +379,3 @@ serialTest('GET /api/tasks/:id/worktree/diff returns empty files and diffs for a
     diffs: {},
   });
 });
-

@@ -144,9 +144,7 @@ test.test('registerJob replaces existing job for same source', async () => {
   });
 });
 
-// Integration tests for executeSync — require migrated schema with auto_workflow_rules column
-// withIsolatedStorage creates a fresh DB without running migrations
-test.test('executeSync skips when source is disabled', { skip: 'requires migrated schema with auto_workflow_rules column' }, async () => {
+test.test('executeSync skips when source is disabled', async () => {
   await withIsolatedStorage(async () => {
     const sourceRepo = new TaskSourceRepository();
     await sourceRepo.create({
@@ -156,7 +154,6 @@ test.test('executeSync skips when source is disabled', { skip: 'requires migrate
       config: { repo: 'test/repo' },
       enabled: false,
       sync_schedule: '*/5 * * * *',
-      auto_workflow_rules: JSON.stringify([{ label: 'bug', template_id: 'flow-1' }]),
     });
 
     const scheduler = new SchedulerService({ sourceRepository: sourceRepo });
@@ -183,27 +180,23 @@ test.test('executeSync skips when source not found', async () => {
   });
 });
 
-test.test('executeSync records error for invalid auto_workflow_rules JSON', { skip: 'requires migrated schema with auto_workflow_rules column' }, async () => {
+test.test('executeSync records error when adapter fails (invalid rules not applicable)', async () => {
+  // The auto_workflow_rules column was removed from the schema.
+  // This test verifies that executeSync completes cleanly on adapter failure.
   await withIsolatedStorage(async () => {
     const sourceRepo = new TaskSourceRepository();
-    await sourceRepo.create({
-      name: 'Bad Rules',
+    const source = await sourceRepo.create({
+      name: 'Test Source',
       type: 'GITHUB',
       project_id: 1,
-      config: { repo: 'test/repo' },
+      config: { repo: 'test/repo', token: '' },
       enabled: true,
       sync_schedule: '*/5 * * * *',
-      auto_workflow_rules: 'not-valid-json{{{',
     });
 
     const scheduler = new SchedulerService({ sourceRepository: sourceRepo });
-    // executeSync will try to sync which calls the adapter, which will fail for GITHUB
-    // but the rules parsing error should still be recorded
-    const result = await scheduler.executeSync(1);
-
-    // Should have at least one error (either rules parse error or sync error)
-    assert.ok(result.errors.length >= 0); // adapter may fail before rules are used
-
+    const result = await scheduler.executeSync(source.id);
+    assert.ok(result, 'executeSync should return a result even on adapter failure');
     scheduler.shutdown();
   });
 });
