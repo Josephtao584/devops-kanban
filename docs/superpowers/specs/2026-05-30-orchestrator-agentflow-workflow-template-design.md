@@ -8,7 +8,7 @@
 
 整体架构上，Backend 是业务控制面，负责用户 / 团队权限、Workflow 模板、Agent / Skill / MCP 配置、workspace、credential refs 和 AgentFlow 组装；Orchestrator 是工作流编排层，只执行 Backend 提交的 AgentFlow，不读取 Backend 业务表，不感知底层运行时；Agent Core 是运行时执行层，负责把 Orchestrator 的 StepAttempt 落到实际执行环境，并回报 Agent 执行事件。
 
-AgentFlow 是 Backend 在启动 run 时生成的不可变执行快照，由已发布 WorkflowTemplateVersion、Agent / Skill / MCP 快照引用、task / project / workspace 上下文、credential refs 和 prompt variables 组成。Orchestrator 持久化并执行 AgentFlow，不受后续模板或 Agent 配置变更影响。
+AgentFlow 是 Backend 在启动 run 时生成的不可变执行快照，由已发布 WorkflowTemplateVersion、Agent / Skill / MCP 快照引用、task / project / workspace 上下文、repo 配置、credential refs 和 prompt variables 组成。Orchestrator 持久化并执行 AgentFlow，不受后续模板或 Agent 配置变更影响。云端 workspace 初始为空卷，代码仓由 Agent Core 在 attempt 启动时 clone 进 workspace，Backend 不预先 clone。
 
 Workflow 模板属于 Backend 数据库，主要包含 `workflow_templates`、`workflow_template_steps`、`workflow_template_edges`、`workflow_template_versions` 四类表。运行时 Backend 从已发布模板版本生成 AgentFlow，再调用 Orchestrator `POST /runs` 启动执行。
 
@@ -477,7 +477,7 @@ MVP 约束：
 2. Backend 读取 current_version.snapshot_json
 3. Backend 校验 team / user / task 权限
 4. Backend 展开 Agent / Skill / MCP 快照引用
-5. Backend 准备 task / project / workspace / credential refs / variables
+5. Backend 准备 task / project / workspace（空卷 + lease）/ repo 配置 / credential refs / variables
 6. Backend 生成 AgentFlow
 7. Backend 调 Orchestrator POST /runs
 ```
@@ -496,8 +496,11 @@ MVP 约束：
 | `steps.requires_confirmation` | `steps[].requiresConfirmation` |
 | `edges` | `edges` |
 | task/project/workspace | Backend 启动 run 时补充 |
+| 项目级 repo URL / branch | `repo`（Backend 启动 run 时补充，Agent Core 据此 clone） |
 | credentials | Backend 启动 run 时补充 refs |
 | variables | Backend 启动 run 时补充 |
+
+> 云端 workspace 初始为空卷。代码仓不由 Backend 预先 clone，而是由 Orchestrator 透传 `repo` 信息给 Agent Core，Agent Core 在 attempt 启动时 clone / checkout 进 workspace。
 
 ### 5.1 启动 run 的 AgentFlow 组装接口流程
 
@@ -620,6 +623,7 @@ class AgentFlow {
     TenantRef tenant;
     TaskRef task;
     WorkspaceRef workspace;
+    RepoRef repo;
     CredentialRefs credentials;
 
     Map<String, Object> variables;
@@ -647,6 +651,12 @@ class WorkspaceRef {
     String workspaceRef;
     String mountPath;
     String leaseId;
+}
+
+class RepoRef {
+    String repoUrl;
+    String branch;
+    String commit;   // 可选，指定则 checkout 到该 commit
 }
 
 class CredentialRefs {
@@ -807,8 +817,9 @@ Orchestrator 需要 Agent Core 提供以下能力：
      - 文件形态：知识库内容以只读方式挂载到 workspace 内约定路径，Agent 直接读取；
      - 检索服务形态：知识库以检索服务（MCP 风格）暴露，Agent 通过工具调用查询；
      - 两种形态可同时存在，由 Orchestrator 以引用方式传入，Agent Core 按形态分别挂载或注册；
-   - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；代码仓由 Backend 在启动 run 前已 clone 进 workspace，可附带 repo URL / branch / commit 元信息用于审计，Agent Core 只负责挂载，不负责 clone；
-   - 输入（凭证）：模型 / 工具 / 知识库 / 代码仓库等所需的 credential refs；attempt 内的 git 操作（pull / push）使用 `gitCredentialRef`；
+   - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；云端 workspace 初始为空卷，由 Agent Core 准备；
+   - 输入（代码仓）：`repoUrl / branch`（可选 `commit`）；Agent Core 在准备运行环境时把代码仓 clone / checkout 到 workspace，使用 `gitCredentialRef` 鉴权；续聊或复用已有 workspace 时代码已就位，可跳过 clone；
+   - 输入（凭证）：模型 / 工具 / 知识库 / 代码仓库等所需的 credential refs；clone 及 attempt 内的 git 操作（pull / push）使用 `gitCredentialRef`；
    - 输入（输出通道）：事件、stdout/stderr、heartbeat 的 stream keys；
    - 输入（续聊，可选）：`resumeFromSessionRef`，指向要恢复的对话上下文；为空表示新建对话，非空表示在已有对话上续聊（见 8.8）；
    - 输出：`runtimeAttemptRef`、初始运行状态。
@@ -1208,7 +1219,7 @@ attempt #2 succeeded ──► step 回到 suspended，等待下一次确认或�
 6. MVP 同一 run 内只串行执行 step，未来再考虑并行。
 7. AgentFlowStep 不显式包含 settingsRef，settings 归入 agent snapshot。
 8. AgentFlow 只包含 executorType，image 由 Orchestrator 配置解析并固化。
-9. AgentFlow 顶层需要包含 tenant、task、workspace、variables。
+9. AgentFlow 顶层需要包含 tenant、task、workspace、repo、variables。
 10. AgentFlow 不携带 credential material，只携带 credential refs。
 11. MVP credentials 放在 AgentFlow 顶层，step 级暂不支持覆盖。
 12. AgentFlow 不感知 CPU / memory 等资源规格。
@@ -1218,6 +1229,8 @@ attempt #2 succeeded ──► step 回到 suspended，等待下一次确认或�
 16. Orchestrator 内部引入 StepAttempt，每个 StepAttempt 对应 Agent Core 中的一个 RuntimeAttempt。
 17. 对话上下文独立于进程持久化；suspend 后用户可"继续对话"，在同一对话上下文起新 attempt 续聊。
 18. 续聊采用「冷恢复为主 + 热窗口」：进程默认可退出靠 sessionRef + `--resume` 恢复，可选热窗口走低延迟续聊。
+19. 云端 workspace 初始为空卷，代码仓由 Agent Core clone（输入 `repo` + `gitCredentialRef`），Backend 不预先 clone。
+20. StepAttempt 支持知识库两种形态：文件挂载（只读挂进 workspace）与检索服务（MCP 风格工具调用），可同时使用。
 
 ## 10. 后续待展开
 
