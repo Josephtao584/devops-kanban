@@ -764,11 +764,13 @@ step.requiresConfirmation = true
   -> attempt succeeded
   -> step suspended
   -> run suspended
-  -> Backend / user 调 resume
-  -> step completed
-  -> run running
-  -> 调度下游 step
+  -> 等待用户操作
+       ├─ 确认通过 ──► step completed ──► run running ──► 调度下游 step
+       └─ 继续对话 ──► 在同一对话上下文起新 attempt 续聊（见 8.8）
+                       ──► 新 attempt succeeded ──► 仍回到 step suspended，等待下一次确认
 ```
+
+也就是说，suspended 状态下用户有两种选择：确认通过让 step 完成并推进下游；或带上反馈继续与当前 step 的 Agent 对话，此时 Orchestrator 在同一对话上下文中创建新 attempt 续聊，续聊结束后仍回到 suspended，直到用户最终确认通过。
 
 ### 7.5 运行时资源边界
 
@@ -804,20 +806,28 @@ Orchestrator 需要 Agent Core 提供以下能力：
    - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；
    - 输入（凭证）：模型 / 工具 / 代码仓库等所需的 credential refs；
    - 输入（输出通道）：事件、stdout/stderr、heartbeat 的 stream keys；
+   - 输入（续聊，可选）：`resumeFromSessionRef`，指向要恢复的对话上下文；为空表示新建对话，非空表示在已有对话上续聊（见 8.8）；
    - 输出：`runtimeAttemptRef`、初始运行状态。
 
-   说明：上述 Agent 配置、skill、MCP 等输入由 Orchestrator 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境，不需要理解这些引用背后的业务来源。
+   说明：
+   - 上述 Agent 配置、skill、MCP 等输入由 Orchestrator 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境，不需要理解这些引用背后的业务来源。
+   - 同一接口同时承载「新建对话」和「续聊」两种场景，区别仅在于是否携带 `resumeFromSessionRef`：
+     - 新建对话：不带 `resumeFromSessionRef`，Agent Core 新建对话上下文，prompt 作为首轮指令；
+     - 续聊：携带 `resumeFromSessionRef`，Agent Core 用 `--resume` 重载该对话上下文，prompt 作为本轮追加输入（用户反馈）。
+   - attempt 结束时，Agent Core 在结果中回报 `sessionRef`（对话上下文标识），Orchestrator 持久化，作为后续续聊的 `resumeFromSessionRef`。
 
 2. **取消 StepAttempt**
    - Orchestrator 可以按 `attemptId` 请求 Agent Core 终止对应 RuntimeAttempt；
-   - cancel 必须幂等；RuntimeAttempt 不存在时返回可识别状态；运行时资源清理由 Agent Core 负责。
+   - cancel 必须幂等；RuntimeAttempt 不存在时返回可识别状态；运行时资源清理由 Agent Core 负责；
+   - 取消同样适用于热窗口保活中的进程（已产出结果但等待续聊）；取消时对话上下文（sessionRef 指向的内容）是否保留由 Orchestrator 在请求中指明，默认保留以便后续恢复。
 
 3. **查询 StepAttempt 运行状态**
    - Orchestrator 可以按 `attemptId` 查询 RuntimeAttempt 状态、最近 heartbeat、exitCode、failure reason。
 
-4. **回报运行时事件**
-   - Agent Core 需要向 Orchestrator 回报 RuntimeAttempt created、runtime running、heartbeat、executor succeeded / failed、runtime completed / failed、runtime cancelled、cleanup completed 等事实；
-   - Agent Core 需要把 Agent 执行过程标准化为事件流，上报给 Orchestrator，再由 Orchestrator 透传给 Backend / Frontend。
+4. **回报执行事件**
+   - 生命周期事件：RuntimeAttempt created / running / completed / failed / cancelled、heartbeat、cleanup completed、attempt 最终结果（成功 / 失败）—— 用于 Orchestrator 推进状态机；
+   - Agent 执行过程事件：thinking、message、tool_use、tool_result、stdout / stderr 等 Agent 对话与日志内容 —— 由 Orchestrator 透传给下游消费方展示；
+   - 两类事件都通过统一的 AgentExecutionEvent 协议上报，靠 `eventType` / 类别区分。
 
 5. **满足运行约束**
    - 一个 StepAttempt 对应 Agent Core 中的一个 RuntimeAttempt；
@@ -921,7 +931,7 @@ MVP 定义以下事件类型：
 |---|---|---|---|
 | `attempt.started` | control | 标记 attempt running | 可选展示 |
 | `attempt.heartbeat` | control | 更新 heartbeat | 通常不展示 |
-| `attempt.result` | control | 更新 attempt / step 状态 | 展示最终结果 |
+| `attempt.result` | control | 记录 executor 语义结果（含 sessionRef）；结合 `runtime.*` 终态推进 attempt / step 状态 | 展示最终结果 |
 | `agent.thinking` | display | 向下游转发 | 展示思考摘要 |
 | `agent.message` | display | 向下游转发 | 展示 Agent 消息 |
 | `agent.tool_use` | display | 向下游转发 | 展示工具调用 |
@@ -930,8 +940,16 @@ MVP 定义以下事件类型：
 | `executor.stderr` | display | 向下游转发 | 日志面板 |
 | `runtime.attempt_created` | runtime | 更新 attempt runtime 信息 | 可选展示 |
 | `runtime.running` | runtime | 更新 attempt runtime 信息 | 可选展示 |
-| `runtime.completed` | runtime | 和 `attempt.result` 结合判断终态 | 可选展示 |
+| `runtime.completed` | runtime | 标记运行环境正常结束，结合 `attempt.result` 判定终态 | 可选展示 |
 | `runtime.failed` | runtime | 标记运行时失败 | 展示错误 |
+| `runtime.cancelled` | runtime | 标记运行环境被取消 | 可选展示 |
+
+`attempt.result` 与 `runtime.*` 的关系：
+
+- `attempt.result` 表示 executor 的**语义结果**（Agent 跑完得出成功 / 失败、产物、sessionRef）；
+- `runtime.completed / failed / cancelled` 表示**运行环境的物理终态**（进程退出、被杀、资源回收）；
+- attempt 终态由两者结合判定：收到 `attempt.result` 且 `runtime.completed` 才判 succeeded / failed；只有 `runtime.failed` 而无 `attempt.result` 视为执行失败；`runtime.cancelled` 视为 cancelled；
+- `runtime.*` 缺失但超时或 heartbeat 丢失时，由 Orchestrator watchdog 兜底判定 failed。
 
 事件 payload 约定：
 
@@ -968,6 +986,7 @@ class AttemptResultPayload {
     String summary;
     String result;
     List<String> artifactRefs;
+    String sessionRef;       // 对话上下文标识，供后续续聊作为 resumeFromSessionRef
     String errorCode;
     String errorMessage;
 }
@@ -1072,9 +1091,10 @@ Attempt succeeded
 Step suspended
 Run suspended
   │
-  │ Backend / user resume
-  ▼
-Step completed
+  ├─ 用户确认通过 ──► Step completed ──► 调度下游
+  │
+  └─ 用户带反馈继续对话 ──► 新 attempt（resumeFromSessionRef 续聊）
+                            ──► attempt succeeded ──► 回到 Step suspended
 ```
 
 ### 8.7 Orchestrator / Agent Core 交互视角
@@ -1087,7 +1107,7 @@ Step ready
    │ create StepAttempt
    │
    ├──────── StartAttempt ───────────▶ create RuntimeAttempt
-   │                                   prepare runtime
+   │         (resumeFromSessionRef?)    prepare runtime
    │                                   start executor
    │
 Attempt starting
@@ -1100,13 +1120,79 @@ Attempt running
    │◀────── agent.tool_result ──────── forward downstream
    │◀────── attempt.heartbeat ──────── update heartbeat
    │
-   │◀────── attempt.result ─────────── success / failed
+   │◀────── attempt.result ─────────── success / failed (+ sessionRef)
    │◀────── runtime.completed ─────────
    │
-Attempt succeeded / failed
+Attempt succeeded
+   │ 持久化 sessionRef
    │
-Update Step status and forward display events
+   ├─ step.requiresConfirmation = false ──► Step completed ──► 调度下游
+   │
+   └─ step.requiresConfirmation = true ───► Step suspended
+            │
+            ├─ 用户确认通过 ──► Step completed ──► 调度下游
+            │
+            └─ 用户带反馈继续对话
+                 │
+                 └─ create StepAttempt(resumeFromSessionRef)
+                      └──── StartAttempt ────▶ 续聊（热窗口复用 / 冷恢复 --resume）
+                            （回到上方 Attempt running 流程，结束后再回 Step suspended）
 ```
+
+### 8.8 对话生命周期与 suspend-resume 续聊
+
+一个 step 的 Agent 执行结束后，任务轮次结束，但对话不一定结束。当 step `requiresConfirmation = true` 时，用户在 suspended 状态下可能选择"继续对话"——带着反馈让 Agent 在**原有上下文**上接着聊，而不是从头开始。为此需要把**进程生命周期**和**对话上下文生命周期**拆开。
+
+#### 设计原则：对话上下文独立于进程持久化
+
+采用「冷恢复为主 + 热窗口」模型：
+
+- 对话上下文（conversation / CLI session）是独立于 RuntimeAttempt 的持久资源，落在 workspace 内约定路径，进程退出不影响它；
+- 进程默认可以退出，靠对话上下文持久化 + 恢复重载保证续聊连续；
+- 可选热窗口：attempt 产出结果后，Agent Core 保留进程存活一段时间（默认 5 分钟，与 editor 重连窗口模式一致），窗口内续聊走低延迟热路径，超窗口进程退出转冷恢复。
+
+```text
+WorkflowStep
+  └─ Conversation（durable，键 = sessionRef，落 workspace）
+       ├─ StepAttempt #1  首轮，新建 session
+       ├─ StepAttempt #2  续聊，--resume 重载上下文 + 用户反馈
+       └─ StepAttempt #3  再次续聊
+```
+
+- 一次对话轮次对应一个 StepAttempt；
+- attempt 退出后，session 上下文留在 workspace；
+- 续聊时 Orchestrator 起新 attempt，传入 `resumeFromSessionRef` + 用户新输入；
+- 续聊结束仍回到 step suspended，直到用户确认通过。
+
+#### 续聊流程
+
+```text
+step suspended（attempt #1 已产出结果，进程可能已退出或处于热窗口）
+   │
+   │ 用户带反馈点「继续对话」
+   ▼
+Orchestrator 创建 StepAttempt #2
+   │
+   ├─ 热窗口内：Agent Core 复用存活进程，直接续聊（低延迟）
+   └─ 热窗口外：Agent Core 起新进程，--resume <sessionRef> 重载上下文后续聊
+   │
+   ▼
+attempt #2 succeeded ──► step 回到 suspended，等待下一次确认或续聊
+```
+
+#### 对 Agent Core 的要求
+
+1. **对话上下文持久化**：attempt 结束时把对话上下文写到 workspace 内约定路径（与总体设计的 CLI 会话目录持久化一致），保证跨进程、跨 attempt 可恢复；
+2. **回报 sessionRef**：attempt 结束时在结果中回报 `sessionRef`（对话上下文标识 / provider session id），Orchestrator 持久化并在续聊时回传；
+3. **支持 resume 入参**：StartAttempt 支持可选 `resumeFromSessionRef` + 追加输入，让 Agent Core 在已有上下文上续聊，而非新建对话；
+4. **热窗口（可选）**：支持「产出结果后保活 N 秒等待续聊」，超时自动退出，退出前必须保证对话上下文已落盘；保活期间继续上报 heartbeat；
+5. **续聊事件归属**：续聊产生的执行事件按新 `attemptId` 上报，但归属同一 step 与同一 conversation，保证下游能把多轮对话拼成连续会话。
+
+#### 边界
+
+- Orchestrator 只持有 `sessionRef` 指针，不解析对话上下文内容；
+- 对话上下文的具体格式、存储位置、`--resume` 机制由 Agent Core 与执行器实现，对 Orchestrator 透明；
+- 热窗口是 Agent Core 的资源优化手段，Orchestrator 不依赖进程是否保活，续聊一律按"创建新 attempt"处理；冷热只影响恢复延迟，不影响语义。
 
 ## 9. 当前讨论结论汇总
 
@@ -1126,6 +1212,8 @@ Update Step status and forward display events
 14. AgentFlowStep 不包含 `maxRetries/timeoutSeconds/canEarlyExit`。
 15. AgentFlowStep 需要包含 `requiresConfirmation`。
 16. Orchestrator 内部引入 StepAttempt，每个 StepAttempt 对应 Agent Core 中的一个 RuntimeAttempt。
+17. 对话上下文独立于进程持久化；suspend 后用户可"继续对话"，在同一对话上下文起新 attempt 续聊。
+18. 续聊采用「冷恢复为主 + 热窗口」：进程默认可退出靠 sessionRef + `--resume` 恢复，可选热窗口走低延迟续聊。
 
 ## 10. 后续待展开
 
@@ -1137,4 +1225,5 @@ Update Step status and forward display events
 4. Credential Provider 交互；
 5. Redis Streams 事件协议；
 6. 调度器与幂等策略；
-7. Orchestrator 重启恢复与 watchdog。
+7. Orchestrator 重启恢复与 watchdog；
+8. 续聊场景下 workspace 的并发互斥（与 PVC rw lease 衔接）与 conversation / sessionRef 的持久化和清理策略。
