@@ -803,14 +803,18 @@ Orchestrator 需要 Agent Core 提供以下能力：
    - 输入（Agent 配置）：Agent 的模型、系统提示词、运行参数等配置；
    - 输入（能力包）：Agent 可加载的 skill 列表；
    - 输入（工具服务）：Agent 可调用的 MCP server 列表；
-   - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；
-   - 输入（凭证）：模型 / 工具 / 代码仓库等所需的 credential refs；
+   - 输入（知识库，可选）：Agent 可使用的知识库列表，支持两种形态——
+     - 文件形态：知识库内容以只读方式挂载到 workspace 内约定路径，Agent 直接读取；
+     - 检索服务形态：知识库以检索服务（MCP 风格）暴露，Agent 通过工具调用查询；
+     - 两种形态可同时存在，由 Orchestrator 以引用方式传入，Agent Core 按形态分别挂载或注册；
+   - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；代码仓由 Backend 在启动 run 前已 clone 进 workspace，可附带 repo URL / branch / commit 元信息用于审计，Agent Core 只负责挂载，不负责 clone；
+   - 输入（凭证）：模型 / 工具 / 知识库 / 代码仓库等所需的 credential refs；attempt 内的 git 操作（pull / push）使用 `gitCredentialRef`；
    - 输入（输出通道）：事件、stdout/stderr、heartbeat 的 stream keys；
    - 输入（续聊，可选）：`resumeFromSessionRef`，指向要恢复的对话上下文；为空表示新建对话，非空表示在已有对话上续聊（见 8.8）；
    - 输出：`runtimeAttemptRef`、初始运行状态。
 
    说明：
-   - 上述 Agent 配置、skill、MCP 等输入由 Orchestrator 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境，不需要理解这些引用背后的业务来源。
+   - 上述 Agent 配置、skill、MCP、知识库等输入由 Orchestrator 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境（拉取 skill/MCP、挂载文件形态知识库、注册检索服务形态知识库等），不需要理解这些引用背后的业务来源。
    - 同一接口同时承载「新建对话」和「续聊」两种场景，区别仅在于是否携带 `resumeFromSessionRef`：
      - 新建对话：不带 `resumeFromSessionRef`，Agent Core 新建对话上下文，prompt 作为首轮指令；
      - 续聊：携带 `resumeFromSessionRef`，Agent Core 用 `--resume` 重载该对话上下文，prompt 作为本轮追加输入（用户反馈）。
@@ -839,7 +843,7 @@ Orchestrator 需要 Agent Core 提供以下能力：
    - RuntimeAttempt 使用短期凭证；
    - Agent Core 不保存明文凭证。
 
-Agent Core 不需要理解工作流模板、DAG 编排、step ready 计算、retry 策略、run / step 状态机、用户权限或 workspace 生命周期。它只面向单个 attempt 的执行：拿到 prompt、Agent 配置、skill、MCP、workspace、凭证，跑起来，回报事件。
+Agent Core 不需要理解工作流模板、DAG 编排、step ready 计算、retry 策略、run / step 状态机、用户权限或 workspace 生命周期。它只面向单个 attempt 的执行：拿到 prompt、Agent 配置、skill、MCP、知识库、workspace、凭证，跑起来，回报事件。
 
 ### 8.2 Agent Core 性能要求
 
