@@ -795,8 +795,18 @@ Agent Core 是 Orchestrator 依赖的运行时执行服务，负责把一个 Ste
 Orchestrator 需要 Agent Core 提供以下能力：
 
 1. **启动 StepAttempt**
-   - 输入：`runId / stepId / attemptId / attemptNo`、`executorType`、workspace、rendered prompt、snapshot refs、credential refs、stream keys；
+   - 输入（标识）：`runId / stepId / attemptId / attemptNo`，用于关联与幂等；
+   - 输入（执行器）：`executorType`，标识使用哪类 Agent 执行器；
+   - 输入（提示词）：已渲染好的 prompt（指令文本，Agent Core 不再二次渲染）；
+   - 输入（Agent 配置）：Agent 的模型、系统提示词、运行参数等配置；
+   - 输入（能力包）：Agent 可加载的 skill 列表；
+   - 输入（工具服务）：Agent 可调用的 MCP server 列表；
+   - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；
+   - 输入（凭证）：模型 / 工具 / 代码仓库等所需的 credential refs；
+   - 输入（输出通道）：事件、stdout/stderr、heartbeat 的 stream keys；
    - 输出：`runtimeAttemptRef`、初始运行状态。
+
+   说明：上述 Agent 配置、skill、MCP 等输入由 Orchestrator 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境，不需要理解这些引用背后的业务来源。
 
 2. **取消 StepAttempt**
    - Orchestrator 可以按 `attemptId` 请求 Agent Core 终止对应 RuntimeAttempt；
@@ -812,14 +822,14 @@ Orchestrator 需要 Agent Core 提供以下能力：
 5. **满足运行约束**
    - 一个 StepAttempt 对应 Agent Core 中的一个 RuntimeAttempt；
    - Agent Core 不做自动重试，重试由 Orchestrator 创建新 attempt；
-   - RuntimeAttempt 使用 Backend 提供的 workspace；
+   - RuntimeAttempt 使用输入指定的 workspace；
    - RuntimeAttempt 将 stdout / stderr 写入指定 stream；
    - RuntimeAttempt 将结构化结果写入指定 event stream；
    - RuntimeAttempt 定期写 heartbeat；
    - RuntimeAttempt 使用短期凭证；
    - Agent Core 不保存明文凭证。
 
-Agent Core 不需要理解 WorkflowTemplate、AgentFlow DAG、step ready 计算、retry 策略、run / step 状态机、用户权限或 task workspace 生命周期。
+Agent Core 不需要理解工作流模板、DAG 编排、step ready 计算、retry 策略、run / step 状态机、用户权限或 workspace 生命周期。它只面向单个 attempt 的执行：拿到 prompt、Agent 配置、skill、MCP、workspace、凭证，跑起来，回报事件。
 
 ### 8.2 Agent Core 性能要求
 
@@ -849,7 +859,7 @@ Agent Core 需要保证 attempt 启动、取消、查询和控制事件回报的
 
 ### 8.3 Agent 执行事件协议
 
-Agent Core 产生 AgentExecutionEvent；Orchestrator 是 Agent 执行事件的统一入口，负责校验事件归属、推进 attempt 状态机，并将展示类事件规范化后转发给 Backend。Backend 负责将事件持久化到 session / segment / event，并通过 WebSocket 推送给前端。
+Agent Core 产生 AgentExecutionEvent，统一上报给 Orchestrator。Orchestrator 是 Agent 执行事件的统一入口，负责校验事件归属、推进 attempt 状态机，并将展示类事件规范化后向下游消费方转发。Agent Core 只负责把执行过程标准化为事件流并上报，不关心事件最终如何被持久化或展示。
 
 ```text
 Agent Runtime
@@ -862,13 +872,9 @@ Orchestrator
      │ 1. 校验事件归属
      │ 2. 推进 attempt 状态机
      │ 3. 规范化展示事件
-     │ 4. 转发给 Backend
+     │ 4. 向下游消费方转发
      ▼
-Backend
-     │ 1. 写 session / segment / event
-     │ 2. WebSocket 推送
-     ▼
-Frontend
+下游消费方（持久化 / 实时展示）
 ```
 
 所有 AgentExecutionEvent 使用统一 envelope：
@@ -903,7 +909,7 @@ enum EventSource {
 - `eventId`：全局唯一事件 ID，用于去重；
 - `eventType`：事件类型；
 - `runId / stepId / attemptId`：事件归属；
-- `sequence`：attempt 内单调递增序号，用于前端排序；
+- `sequence`：attempt 内单调递增序号，用于消费方按序展示；
 - `source`：事件来源；
 - `payload`：事件内容。
 
@@ -911,17 +917,17 @@ enum EventSource {
 
 MVP 定义以下事件类型：
 
-| 事件类型 | 类别 | Orchestrator 动作 | 前端用途 |
+| 事件类型 | 类别 | Orchestrator 动作 | 展示用途 |
 |---|---|---|---|
 | `attempt.started` | control | 标记 attempt running | 可选展示 |
 | `attempt.heartbeat` | control | 更新 heartbeat | 通常不展示 |
 | `attempt.result` | control | 更新 attempt / step 状态 | 展示最终结果 |
-| `agent.thinking` | display | 透传 Backend | 展示思考摘要 |
-| `agent.message` | display | 透传 Backend | 展示 Agent 消息 |
-| `agent.tool_use` | display | 透传 Backend | 展示工具调用 |
-| `agent.tool_result` | display | 透传 Backend | 展示工具结果 |
-| `executor.stdout` | display | 透传 Backend | 日志面板 |
-| `executor.stderr` | display | 透传 Backend | 日志面板 |
+| `agent.thinking` | display | 向下游转发 | 展示思考摘要 |
+| `agent.message` | display | 向下游转发 | 展示 Agent 消息 |
+| `agent.tool_use` | display | 向下游转发 | 展示工具调用 |
+| `agent.tool_result` | display | 向下游转发 | 展示工具结果 |
+| `executor.stdout` | display | 向下游转发 | 日志面板 |
+| `executor.stderr` | display | 向下游转发 | 日志面板 |
 | `runtime.attempt_created` | runtime | 更新 attempt runtime 信息 | 可选展示 |
 | `runtime.running` | runtime | 更新 attempt runtime 信息 | 可选展示 |
 | `runtime.completed` | runtime | 和 `attempt.result` 结合判断终态 | 可选展示 |
@@ -1089,9 +1095,9 @@ Attempt starting
    │
 Attempt running
    │◀────── runtime.running ───────────
-   │◀────── agent.message ──────────── forward to Backend
-   │◀────── agent.tool_use ─────────── forward to Backend
-   │◀────── agent.tool_result ──────── forward to Backend
+   │◀────── agent.message ──────────── forward downstream
+   │◀────── agent.tool_use ─────────── forward downstream
+   │◀────── agent.tool_result ──────── forward downstream
    │◀────── attempt.heartbeat ──────── update heartbeat
    │
    │◀────── attempt.result ─────────── success / failed
