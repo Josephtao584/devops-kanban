@@ -115,7 +115,7 @@ Agent-Orchestration 的核心不是通用 BPM 工作流引擎，而是围绕 Age
 | 层面 | 选型 | 说明 |
 |---|---|---|
 | 语言 / 框架 | Java 21 + Spring Boot 3 | 与后端团队 Java 技术栈匹配，生态成熟，适合后台服务 |
-| 状态存储 | MySQL | Agent-Orchestration 的事实状态源，持久化 run / step / attempt / event / AgentFlow 快照 |
+| 状态存储 | openGauss | Agent-Orchestration 的事实状态源，持久化 run / step / attempt / event / AgentFlow 快照；PostgreSQL 兼容 |
 | 调度方式 | DB polling + row lock / optimistic lock | MVP 简单可靠，支持多副本避免重复调度 |
 | 状态机 | 自研轻量状态机 | 直接围绕 Run / Step / Attempt 状态建模 |
 | Agent Core 事件入口 | HTTP callback | MVP 易实现、易调试；后续事件量变大可切 Redis Streams / Kafka |
@@ -125,7 +125,7 @@ Agent-Orchestration 的核心不是通用 BPM 工作流引擎，而是围绕 Age
 
 ### 2.2 状态存储
 
-MySQL 是 Agent-Orchestration 的事实状态源，用于持久化：
+openGauss 是 Agent-Orchestration 的事实状态源，用于持久化：
 
 - `workflow_runs`
 - `workflow_steps`
@@ -181,14 +181,14 @@ enum AttemptStatus {
 - 定时 watchdog：timeout、heartbeat lost、stuck attempt 修复；
 - 调度器扫描：发现 ready step 并创建 StepAttempt。
 
-多副本调度时，使用 MySQL row lock 或 optimistic lock 防止重复调度：
+多副本调度时，使用 openGauss row lock 或 optimistic lock 防止重复调度：
 
 ```text
 方案 A：SELECT ... FOR UPDATE SKIP LOCKED
 方案 B：version 字段 + CAS update
 ```
 
-MVP 优先选择 MySQL row lock + transaction，语义直接、排错简单。
+MVP 优先选择 openGauss row lock + transaction，语义直接、排错简单（`SELECT ... FOR UPDATE SKIP LOCKED` 在 openGauss / PostgreSQL 兼容模式下可用）。
 
 ### 2.4 事件接入与转发
 
