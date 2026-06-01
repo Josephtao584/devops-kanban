@@ -14,43 +14,49 @@ Workflow 模板属于 Agent-Management 数据库，主要包含 `workflow_templa
 
 Agent-Orchestration 的执行语义包括：简单 prompt 变量替换、固定 DAG、MVP 串行 step 调度、StepOutput 结构化输出、`requiresConfirmation` 人工确认，以及 StepAttempt 执行尝试模型。AgentFlow 不包含底层运行时字段、资源规格、镜像、节点、容器、任务、进程、密钥等信息。
 
-Agent Core 对 Agent-Orchestration 提供启动、取消、查询 StepAttempt 的能力，并上报控制类、展示类、运行时类事件。Agent-Orchestration 负责校验事件归属、推进 attempt 状态机，并将展示类事件透传给 Agent-Management / Frontend。Agent Core 的性能要求强调低延迟、幂等、可查询、控制事件可靠；展示类事件可以限流，但不能阻塞 heartbeat、attempt.result、runtime.failed 等控制事件。
+Agent Core 对 Agent-Orchestration 提供启动、取消、查询 StepAttempt 的能力，并上报控制类、展示类、运行时类事件。Agent-Orchestration 负责校验事件归属、推进 attempt 状态机：展示类事件经只读直连实时推给浏览器、并异步回流 Agent-Management 落库供历史回放。Agent Core 的性能要求强调低延迟、幂等、可查询、控制事件可靠；展示类事件可以限流，但不能阻塞 heartbeat、attempt.result、runtime.failed 等控制事件。
 
-Agent-Orchestration 对外只面向 Agent-Management，提供 run 生命周期（启动 / 取消）、suspended step 操作（confirm 推进下游 / continue 带反馈续聊 / retry 重试）、查询与事件回调等 API（见第 9 章）。第 10 章给出端到端控制流与事件流，第 11 章汇总当前设计缺陷与开放问题。
+Agent-Orchestration 自身做用户级鉴权（验 JWT + run 启动时冻结的授权范围），浏览器的只读访问（查询状态、订阅实时事件流）可凭 JWT 直连，缩短链路；所有写操作（启动 / confirm / continue / cancel / retry）仍经 Agent-Management。
+
+Agent-Orchestration 自身做用户级鉴权，对外提供 run 生命周期（启动 / 取消）、suspended step 操作（confirm 推进下游 / continue 带反馈续聊 / retry 重试）、查询与事件回调等 API（见第 9 章）。写操作经 Agent-Management（需组装 AgentFlow 并校验业务权限）；浏览器的只读访问（查询状态、订阅实时事件流）可直连 Agent-Orchestration，缩短链路。第 10 章给出端到端控制流与事件流，第 11 章汇总当前设计缺陷与开放问题。
 
 ## 1. 微服务总体架构
 
 Coplat 云端化后，Workflow 执行链路由 Agent-Management 控制面和 Agent-Orchestration 编排服务共同完成。
 
 ```text
-浏览器
-  │
-  │ REST / WebSocket
-  ▼
-Agent-Management
-  │
-  │ 1. 管理 Workflow 模板、Agent、Skill、MCP
-  │ 2. 校验用户 / 团队 / task 权限
-  │ 3. 准备 workspace、credential refs、prompt variables
-  │ 4. 生成 AgentFlow 不可变快照
-  │
-  │ POST /runs
-  ▼
-Agent-Orchestration
-  │
-  │ 1. 持久化 AgentFlow 快照
-  │ 2. 渲染 step prompt
-  │ 3. 调度 WorkflowStep / StepAttempt
-  │ 4. 调用 Agent Core 启动 / 取消 attempt
-  │ 5. 接收 Agent Core 运行时事件
-  │ 6. 将 run / step / attempt 状态和展示事件回流给 Agent-Management
-  ▼
-Agent Core
-  │
-  │ RuntimeAttempt
-  ▼
-Agent Runtime
+                  浏览器
+                 │      │
+       写操作 +   │      │  只读直连
+       业务管理   │      │  (查询 / 实时事件流，用户级鉴权)
+                 ▼      │
+        Agent-Management│
+          │             │
+          │ 1. 管理 Workflow 模板、Agent、Skill、MCP
+          │ 2. 校验用户 / 团队 / task 权限
+          │ 3. 准备 workspace、credential refs、prompt variables
+          │ 4. 生成 AgentFlow 不可变快照
+          │             │
+          │ POST /runs  │
+          ▼             ▼
+        Agent-Orchestration
+          │
+          │ 1. 持久化 AgentFlow 快照
+          │ 2. 渲染 step prompt
+          │ 3. 调度 WorkflowStep / StepAttempt
+          │ 4. 用户级鉴权（验 JWT + run 授权范围）
+          │ 5. 调用 Agent Core 启动 / 取消 attempt
+          │ 6. 接收 Agent Core 运行时事件
+          │ 7. 将 run / step / attempt 状态和展示事件回流给 Agent-Management
+          ▼
+        Agent Core
+          │
+          │ RuntimeAttempt
+          ▼
+        Agent Runtime
 ```
+
+> 浏览器对 Agent-Orchestration 只做只读直连（查询 + 实时事件流）；所有写操作（启动 / confirm / continue / cancel / retry）仍经 Agent-Management。Agent-Orchestration 通过验 JWT 拿用户身份、用 run 启动时冻结的授权范围判权限，不回查业务表。
 
 ### 1.1 Agent-Management 职责
 
@@ -84,18 +90,19 @@ Agent-Orchestration 是工作流编排服务，只执行 Agent-Management 提交
 - 调用 Agent Core 启动 / 取消 / 查询 StepAttempt；
 - 接收 Agent Core 回报的 attempt 运行时事实、executor 结果和 heartbeat；
 - 按运行时配置处理 retry、timeout、heartbeat lost；
-- 将 run / step / attempt 状态和展示类事件回流给 Agent-Management。
+- 用户级鉴权：验 JWT 拿用户身份，用 run 启动时冻结的授权范围判断该用户对 run 的访问权，支撑浏览器只读直连；
+- 对外提供只读查询与实时事件流（供浏览器直连），并将状态和展示类事件回流给 Agent-Management。
 
 ### 1.3 Agent-Orchestration 不负责的内容
 
 Agent-Orchestration 不承担以下职责：
 
-- 不管理用户、团队、项目、任务权限；
+- 不管理用户、团队、项目、任务的权限数据（只验 JWT + 消费 run 授权范围，不维护权限模型）；
 - 不直接读取 WorkflowTemplate、Agent、Skill、MCP 业务表；
 - 不创建、删除、归档、恢复 task workspace；
 - 不直接操作底层运行时资源；
 - 不决定业务上的 task 状态；
-- 不面向浏览器提供 WebSocket；
+- 不接收浏览器的写操作（启动 / confirm / continue / cancel / retry 仍经 Agent-Management）；
 - 不保存任何明文 credential material；
 - 不把底层运行时资源策略暴露给 Agent-Management 或 AgentFlow。
 
@@ -1032,11 +1039,11 @@ attempt #2 succeeded ──► step 回到 suspended，等待下一次确认或�
 
 ## 9. Agent-Orchestration 对外 API
 
-Agent-Orchestration 对外只面向 Agent-Management（不直接面向浏览器）。API 分三类：run 生命周期、suspended step 操作、查询与事件回调。所有写操作要求幂等。
+Agent-Orchestration 对外有两类调用方：**Agent-Management**（写操作 + 内部对接）与**浏览器**（只读直连）。写操作要求幂等。Agent-Orchestration 自身做用户级鉴权（验 JWT + run 授权范围），浏览器可凭 JWT 直连只读接口。
 
 ### 9.1 API 一览
 
-入站（Agent-Management / Agent Core 调 Agent-Orchestration）：
+写操作 / 内部（经 Agent-Management，或服务间调用）：
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
@@ -1045,14 +1052,22 @@ Agent-Orchestration 对外只面向 Agent-Management（不直接面向浏览器�
 | POST | `/runs/{runId}/steps/{stepId}/confirm` | 确认通过 suspended step，推进下游 |
 | POST | `/runs/{runId}/steps/{stepId}/continue` | 带反馈续聊 suspended step，起新 attempt |
 | POST | `/runs/{runId}/steps/{stepId}/retry` | 手动重试 failed step，起新 attempt |
-| GET | `/runs/{runId}` | 查询 run / step / attempt 状态快照 |
 | POST | `/internal/agent-core/events` | 接收 Agent Core 上报的执行事件（内部） |
+
+只读（浏览器可凭 JWT 直连）：
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/runs/{runId}` | 查询 run / step / attempt 状态快照 |
+| GET (WS/SSE) | `/runs/{runId}/events` | 订阅 run 的实时事件流（展示类事件） |
 
 出站（Agent-Orchestration 调 Agent-Management，见 9.8）：
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | POST | `/internal/agent-orchestration/events` | 回传 run/step/attempt 状态变更与展示事件 |
+
+> 只读接口经用户级鉴权：验 JWT 拿用户身份，比对 run 启动时冻结的授权范围（owner user/team），通过才返回。写操作仍经 Agent-Management（需组装 AgentFlow、校验业务权限）。
 
 ### 9.2 启动 run
 
@@ -1113,15 +1128,20 @@ POST /runs/{runId}/steps/{stepId}/retry
 - 仅当 step 处于 failed（已耗尽自动 maxRetries 或不可自动重试）时可用；
 - 复用同一 workspace；是否复用对话上下文由请求指明（默认从该 step 重新开始）。
 
-### 9.6 查询
+### 9.6 查询与事件流（浏览器可直连）
 
 ```text
 GET /runs/{runId}
 → { run, steps[], 当前 attempt 摘要 }
+
+GET (WS/SSE) /runs/{runId}/events
+→ 实时推送该 run 的展示类事件（thinking / message / tool_use / tool_result / stdout / stderr）
 ```
 
-- 用于 Agent-Management 对账、断线补偿、reconcile；
-- 返回各级状态、失败原因、最近 heartbeat、sessionRef 等。
+- 两者均经用户级鉴权（验 JWT + run 授权范围），浏览器可凭 JWT 直连，无需经 Agent-Management 转发；
+- `GET /runs/{runId}` 用于状态快照、Agent-Management 对账、断线补偿、reconcile；返回各级状态、失败原因、最近 heartbeat、sessionRef 等；
+- `GET /runs/{runId}/events` 用于前端实时展示，直连缩短链路（避免 Agent Core → Agent-Orchestration → Agent-Management → 浏览器 的多跳转发）；断线重连按 `sequence` 续传；
+- 历史回放的持久事实源仍在 Agent-Management（session/segment/event）；此直连流为实时通道。
 
 ### 9.7 事件回调（内部）
 
@@ -1173,17 +1193,20 @@ Frontend        Agent-Management              Agent-Orchestration           Agen
 ### 10.2 事件流（执行中实时输出）
 
 ```text
-Agent Runtime ──► Agent Core ──► Agent-Orchestration ──► Agent-Management ──► Frontend
-  thinking/        标准化为         控制类: 推进状态机     写 session/      WebSocket
-  message/         AgentExec        展示类: 规范化后转发    segment/event    实时展示
-  tool_use/        Event            (按 eventId 去重)      (历史回放源)
+                                          ┌─► 浏览器（实时展示，只读直连）
+                                          │     GET (WS/SSE) /runs/{id}/events
+Agent Runtime ──► Agent Core ──► Agent-Orchestration
+  thinking/        标准化为      ├─ 控制类: 推进状态机
+  message/         AgentExec     ├─ 展示类: 实时流给直连的浏览器
+  tool_use/        Event         └─ 异步回流 Agent-Management（写 session/segment/event，历史回放源）
   tool_result/
   stdout/stderr/
   heartbeat/result
 ```
 
 - 控制类事件（attempt.started / heartbeat / result、runtime.*）驱动 Agent-Orchestration 状态机；
-- 展示类事件（thinking / message / tool_use / tool_result / stdout / stderr）经 Agent-Orchestration 规范化后透传，Agent-Orchestration 不解析其业务含义；
+- 展示类事件（thinking / message / tool_use / tool_result / stdout / stderr）：浏览器经 `GET /runs/{id}/events` 直连订阅实时展示，缩短链路；Agent-Orchestration 同时异步回流 Agent-Management 落库供历史回放；
+- 实时通道（直连）与持久通道（回流 Agent-Management）解耦：前者求低延迟，后者求可回放；
 - 持久化的事实源在 Agent-Management（session/segment/event）；Redis Streams 等只是实时分发管道。
 
 ### 10.3 suspend-resume 数据流
