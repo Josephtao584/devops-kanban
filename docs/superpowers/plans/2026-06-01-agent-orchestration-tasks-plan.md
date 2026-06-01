@@ -27,7 +27,7 @@
 
 | ID | Task | 产出 / 验收 | 依赖 | 预估 |
 |---|---|---|---|---|
-| T2.1 | POST /runs 接口 | 鉴权、Idempotency-Key 幂等、422 校验、落库快照、建 step/dependency | T1.4 T1.5 | 2 |
+| T2.1 | POST /runs 接口 | Idempotency-Key 幂等、422 校验、落库快照、建 step/dependency | T1.4 T1.5 | 2 |
 | T2.2 | DAG 解析 + ready 计算 | 从 edges 算初始 ready；多 ready 按 order_index 选一（串行） | T1.2 | 1.5 |
 | T2.3 | prompt 渲染器 | 简单变量替换（global+step variables+上游 stepOutput）；缺变量→PROMPT_RENDER_ERROR | T1.2 | 1.5 |
 | T2.4 | StartAttempt 客户端 | 调（mock）Agent Core，组装入参（prompt/agent/skill/mcp/kb/workspace/repo/cred refs/stream keys），落 attempt | T0.4 T2.3 | 2 |
@@ -49,9 +49,8 @@
 |---|---|---|---|---|
 | T4.1 | POST /internal/agent-core/events | eventId 去重、归属校验、按 category 分流 | T1.4 | 1.5 |
 | T4.2 | 控制类事件→状态机 | 驱动 attempt/step/run 推进（事务+CAS） | T4.1 T3.3 | 2 |
-| T4.3 | 用户级鉴权 | 验 JWT + 比对 run 授权范围（team/user），只读接口用 | T2.1 | 2 |
-| T4.4 | GET /runs/{id} 查询 | §2.6 响应；403/404 | T4.3 | 1 |
-| T4.5 | GET /runs/{id}/events 实时流 | WS/SSE，展示类事件按 sequence 有序，fromSequence 续传 | T4.3 | 3 |
+| T4.4 | GET /runs/{id} 查询 | §2.6 响应；403/404（鉴权由本服务自行实现，不在本计划范围） | T2.1 | 1 |
+| T4.5 | GET /runs/{id}/events 实时流 | WS/SSE，展示类事件按 sequence 有序，fromSequence 续传（鉴权自行实现） | T2.1 | 3 |
 | T4.6 | outbox + worker | 状态变更同事务写 outbox；worker 投递 Agent-Management，指数退避重试，至少一次 | T4.2 | 2.5 |
 
 ## M5 suspend-resume 与续聊
@@ -85,16 +84,16 @@
 | M1 | 8 |
 | M2 | 7 |
 | M3 | 13 |
-| M4 | 12 |
+| M4 | 10 |
 | M5 | 10 |
 | M6 | 17 |
-| 合计 | ~73 人日 |
+| 合计 | ~71 人日 |
 
 关键路径：`T0.1→T1.1→T1.2→T2.x→T3.x→T4.2→T5.x→T6.2→T6.6→T6.7`。
 
 并行建议：
 - T0.3/T0.4（契约+mock）尽早，解耦对其他团队的依赖；
-- T4.3（鉴权）可在 M1-M3 期间并行设计，M4 接入；
-- 文档（详细设计）已就绪，开发可直接按 §1/§2/§3 落地。
+- 文档（详细设计）已就绪，开发可直接按 §1/§2/§3 落地；
+- 鉴权由本服务自行实现，不在本计划范围（只读接口接入时挂上即可）。
 
 风险延续概要设计第 11 章 7 项开放问题，已分别落到对应 task（如 #3 workspace 互斥→T5.3 校验 lease、#4 取消竞态→T6.3、#2 配置→T3.5）。
