@@ -8,9 +8,9 @@
 
 整体架构上，Agent-Management 是业务控制面，负责用户 / 团队权限、Workflow 模板、Agent / Skill / MCP 配置、workspace、credential refs 和 AgentFlow 组装；Agent-Orchestration 是工作流编排层，只执行 Agent-Management 提交的 AgentFlow，不读取 Agent-Management 业务表，不感知底层运行时；Agent Core 是运行时执行层，负责把 Agent-Orchestration 的 StepAttempt 落到实际执行环境，并回报 Agent 执行事件。
 
-AgentFlow 是 Agent-Management 在启动 run 时生成的不可变执行快照，由已发布 WorkflowTemplateVersion、Agent / Skill / MCP 快照引用、task / project / workspace 上下文、repo 配置、credential refs 和 prompt variables 组成。Agent-Orchestration 持久化并执行 AgentFlow，不受后续模板或 Agent 配置变更影响。云端 workspace 初始为空卷，代码仓由 Agent Core 在 attempt 启动时 clone 进 workspace，Agent-Management 不预先 clone。
+AgentFlow 是 Agent-Management 在启动 run 时生成的不可变执行快照，由当前 WorkflowTemplate、Agent / Skill / MCP 快照引用、task / project / workspace 上下文、repo 配置、credential refs 和 prompt variables 组成。Agent-Orchestration 持久化并执行 AgentFlow，不受后续模板或 Agent 配置变更影响——这一冻结即是运行隔离的保证，模板无需为此单独存版本。云端 workspace 初始为空卷，代码仓由 Agent Core 在 attempt 启动时 clone 进 workspace，Agent-Management 不预先 clone。
 
-Workflow 模板属于 Agent-Management 数据库，主要包含 `workflow_templates`、`workflow_template_steps`、`workflow_template_edges`、`workflow_template_versions` 四类表。运行时 Agent-Management 从已发布模板版本生成 AgentFlow，再调用 Agent-Orchestration `POST /runs` 启动执行。
+Workflow 模板属于 Agent-Management 数据库，包含 `workflow_templates`、`workflow_template_steps`、`workflow_template_edges` 三类表（不保留版本/快照表）。运行时 Agent-Management 把当前模板转换成 AgentFlow，再调用 Agent-Orchestration `POST /runs` 启动执行。
 
 Agent-Orchestration 的执行语义包括：简单 prompt 变量替换、固定 DAG、MVP 串行 step 调度、StepOutput 结构化输出、`requiresConfirmation` 人工确认，以及 StepAttempt 执行尝试模型。AgentFlow 不包含底层运行时字段、资源规格、镜像、节点、容器、任务、进程、密钥等信息。
 
@@ -64,7 +64,7 @@ Agent-Management 是业务控制面，负责所有与用户、团队、模板、
 
 核心职责：
 
-- 管理 WorkflowTemplate、WorkflowTemplateVersion；
+- 管理 WorkflowTemplate（可编辑，无版本表）；
 - 管理 Agent、Skill、MCP Server 配置；
 - 校验用户、团队、项目、任务权限；
 - 创建或恢复 task workspace，并获得 workspace lease；
@@ -253,17 +253,16 @@ Agent-Management 负责：
 
 ```text
 WorkflowTemplate
-  └─ WorkflowTemplateVersion
-       └─ AgentFlow snapshot
-            └─ WorkflowRun
-                 └─ WorkflowStep
-                      └─ StepAttempt
-                           └─ Agent Core RuntimeAttempt
+  └─ AgentFlow snapshot   （run 启动时由当前模板转换冻结）
+       └─ WorkflowRun
+            └─ WorkflowStep
+                 └─ StepAttempt
+                      └─ Agent Core RuntimeAttempt
 ```
 
 ### 3.2 WorkflowTemplate
 
-WorkflowTemplate 是 Agent-Management 侧的业务模板，归团队所有，可编辑、可发布、可归档。
+WorkflowTemplate 是 Agent-Management 侧的业务模板，归团队所有，可编辑、可归档。
 
 模板用于描述团队可复用的 Agent 工作流，包括：
 
@@ -273,33 +272,27 @@ WorkflowTemplate 是 Agent-Management 侧的业务模板，归团队所有，可
 - step 之间的 DAG 依赖；
 - step 是否需要人工确认。
 
-WorkflowTemplate 本体可变，但运行时不直接执行本体，而是执行某个已发布版本生成的 AgentFlow。
+WorkflowTemplate 本体可编辑，但运行时不直接执行本体，而是在 run 启动时把当前模板转换成 AgentFlow 不可变快照来执行。**模板不保留版本/快照表**——"运行中的 run 不受模板修改影响" 由 AgentFlow 快照保证（见 3.3），无需额外的模板版本机制。
 
-### 3.3 WorkflowTemplateVersion
-
-WorkflowTemplateVersion 是模板发布时生成的不可变模板快照。
-
-它保存发布时的模板结构，包括 step、edge、promptTemplate、agentId、requiresConfirmation 等。用户启动 run 时，Agent-Management 从当前发布版本读取 snapshot，再补充 task、workspace、credential refs、variables 和 Agent / Skill / MCP 快照引用，生成 AgentFlow。
-
-### 3.4 AgentFlow
+### 3.3 AgentFlow
 
 AgentFlow 是 Agent-Management 启动 WorkflowRun 时生成并传给 Agent-Orchestration 的不可变执行快照。
 
-它不是 WorkflowTemplate 本体，也不是前端正在编辑的模板。Agent-Management 在启动 run 时根据已发布模板版本、Agent、Skill、MCP、Task 上下文、Workspace 信息、凭证引用和静态变量组装 AgentFlow；Agent-Orchestration 只持久化并执行该快照，不回查 Agent-Management 业务表，也不感知后续模板或 Agent 配置变更。
+它不是 WorkflowTemplate 本体，也不是前端正在编辑的模板。Agent-Management 在启动 run 时根据当前模板、Agent、Skill、MCP、Task 上下文、Workspace 信息、凭证引用和静态变量组装 AgentFlow；Agent-Orchestration 只持久化并执行该快照，不回查 Agent-Management 业务表，也不感知后续模板或 Agent 配置变更。这一冻结即是运行隔离的保证：run 启动后模板再怎么改，都不影响已在跑的 run。
 
 ```text
-WorkflowTemplateVersion
+WorkflowTemplate（当前可编辑状态）
   + Agent / Skill / MCP 快照引用
   + Task / Project / Workspace 上下文
   + Credential refs
   + Prompt variables
-      ↓ Agent-Management 启动 run 时组装
+      ↓ Agent-Management 启动 run 时组装并冻结
 AgentFlow immutable snapshot
       ↓
 Agent-Orchestration 执行
 ```
 
-### 3.5 WorkflowRun / WorkflowStep / StepAttempt
+### 3.4 WorkflowRun / WorkflowStep / StepAttempt
 
 WorkflowRun 是一次 AgentFlow 执行实例。
 
@@ -322,24 +315,24 @@ Agent-Management DB（模板，Agent-Management 负责）:        Agent-Orchestr
   workflow_templates                       workflow_runs
   workflow_template_steps                  workflow_steps
   workflow_template_edges                  step_attempts
-  workflow_template_versions               workflow_events
+                                           workflow_events
 ```
 
-四张模板表的职责：
+三张模板表的职责：
 
 | 表 | 职责 |
 |---|---|
-| `workflow_templates` | 模板主表，归团队所有，状态 `draft / published / archived` |
+| `workflow_templates` | 模板主表，归团队所有，状态 `draft / archived` |
 | `workflow_template_steps` | 模板 step 定义：step_key、name、agent_id、prompt_template、requires_confirmation |
 | `workflow_template_edges` | 模板 DAG 边：from / to step_key（固定 DAG，无环、无 self-edge、无条件边） |
-| `workflow_template_versions` | 发布版本快照：`snapshot_json` 冻结发布时的完整模板结构，运行时不可变 |
 
-发布版本的 `snapshot_json` 是模板→AgentFlow 转换的输入，结构示例：
+> 模板不保留版本/快照表。run 启动时把当前模板转换成 AgentFlow 冻结副本绑到 run，运行隔离由 AgentFlow 快照保证（见 3.3），无需单独的模板版本机制。代价是模板没有历史版本/回滚功能，MVP 可接受。
+
+模板转换成 AgentFlow 时的 step/edge 结构示例（即 AgentFlow 中 steps/edges 部分的来源）：
 
 ```json
 {
   "templateId": "tpl_bugfix",
-  "version": 3,
   "name": "修 bug 标准流程",
   "steps": [
     { "stepKey": "analyze", "name": "分析问题", "agentId": "agent_claude",
@@ -358,15 +351,15 @@ Agent-Management DB（模板，Agent-Management 负责）:        Agent-Orchestr
 
 ## 5. WorkflowTemplate 到 AgentFlow 的转换
 
-启动 run 时，Agent-Management 将已发布模板版本转换为 AgentFlow。
+启动 run 时，Agent-Management 将当前模板转换为 AgentFlow。
 
 ```text
-1. 用户选择 published workflow_template
-2. Agent-Management 读取 current_version.snapshot_json
+1. 用户选择 workflow_template
+2. Agent-Management 读取模板当前的 steps / edges
 3. Agent-Management 校验 team / user / task 权限
 4. Agent-Management 展开 Agent / Skill / MCP 快照引用
 5. Agent-Management 准备 task / project / workspace（空卷 + lease）/ repo 配置 / credential refs / variables
-6. Agent-Management 生成 AgentFlow
+6. Agent-Management 生成 AgentFlow（冻结副本）
 7. Agent-Management 调 Agent-Orchestration POST /runs
 ```
 
@@ -375,7 +368,7 @@ Agent-Management DB（模板，Agent-Management 负责）:        Agent-Orchestr
 | WorkflowTemplate | AgentFlow |
 |---|---|
 | `template_id` | `flowId` |
-| `template_version_id` | `flowSnapshotId` |
+| （run 启动时生成快照 ID） | `flowSnapshotId` |
 | `template.name` | `flowName` |
 | `steps.step_key` | `steps[].id` |
 | `steps.name` | `steps[].name` |
@@ -387,6 +380,8 @@ Agent-Management DB（模板，Agent-Management 负责）:        Agent-Orchestr
 | 项目级 repo URL / branch | `repo`（Agent-Management 启动 run 时补充，Agent Core 据此 clone） |
 | credentials | Agent-Management 启动 run 时补充 refs |
 | variables | Agent-Management 启动 run 时补充 |
+
+> `flowSnapshotId` 由 run 启动时生成，标识这一次模板冻结副本（不再来自模板版本表）。
 
 > 云端 workspace 初始为空卷。代码仓不由 Agent-Management 预先 clone，而是由 Agent-Orchestration 透传 `repo` 信息给 Agent Core，Agent Core 在 attempt 启动时 clone / checkout 进 workspace。
 
@@ -407,11 +402,8 @@ sequenceDiagram
 
     BE->>BE: 校验 user/team/project/task 权限
 
-    BE->>TPL: 查询 workflow_templates
-    TPL-->>BE: template(status=published)
-
-    BE->>TPL: 查询 current workflow_template_versions
-    TPL-->>BE: snapshot_json
+    BE->>TPL: 查询 workflow_templates / steps / edges
+    TPL-->>BE: 当前模板结构（steps + edges）
 
     BE->>AG: 查询 steps.agentId 对应 Agent
     AG-->>BE: Agent 配置
