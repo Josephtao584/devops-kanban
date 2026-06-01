@@ -1,31 +1,33 @@
-# Orchestrator AgentFlow 与 Workflow 模板设计（草案）
+# Agent-Orchestration AgentFlow 与 Workflow 模板设计（草案）
 
-> 文档定位：在 Coplat 云端化总体架构下，细化 Orchestrator 与 Backend、Workflow 模板、AgentFlow、Agent Core 之间的职责边界和数据模型。本文重点覆盖微服务边界、模板存储、AgentFlow 快照、模板到 AgentFlow 的转换，以及当前已确认的 MVP 约束；调度器状态机、运行库表结构后续另文展开。
+> 文档定位：在 Coplat 云端化总体架构下，细化 Agent-Orchestration 与 Agent-Management、Workflow 模板、AgentFlow、Agent Core 之间的职责边界和数据模型。本文重点覆盖微服务边界、模板存储、AgentFlow 快照、模板到 AgentFlow 的转换，以及当前已确认的 MVP 约束；调度器状态机、运行库表结构后续另文展开。
 
 ## 0. 概要
 
-本文定义 Coplat 云端化后 Orchestrator 层与 Backend、Agent Core、Workflow 模板、AgentFlow 之间的职责边界和 MVP 数据模型。
+本文定义 Coplat 云端化后 Agent-Orchestration 层与 Agent-Management、Agent Core、Workflow 模板、AgentFlow 之间的职责边界和 MVP 数据模型。
 
-整体架构上，Backend 是业务控制面，负责用户 / 团队权限、Workflow 模板、Agent / Skill / MCP 配置、workspace、credential refs 和 AgentFlow 组装；Orchestrator 是工作流编排层，只执行 Backend 提交的 AgentFlow，不读取 Backend 业务表，不感知底层运行时；Agent Core 是运行时执行层，负责把 Orchestrator 的 StepAttempt 落到实际执行环境，并回报 Agent 执行事件。
+整体架构上，Agent-Management 是业务控制面，负责用户 / 团队权限、Workflow 模板、Agent / Skill / MCP 配置、workspace、credential refs 和 AgentFlow 组装；Agent-Orchestration 是工作流编排层，只执行 Agent-Management 提交的 AgentFlow，不读取 Agent-Management 业务表，不感知底层运行时；Agent Core 是运行时执行层，负责把 Agent-Orchestration 的 StepAttempt 落到实际执行环境，并回报 Agent 执行事件。
 
-AgentFlow 是 Backend 在启动 run 时生成的不可变执行快照，由已发布 WorkflowTemplateVersion、Agent / Skill / MCP 快照引用、task / project / workspace 上下文、repo 配置、credential refs 和 prompt variables 组成。Orchestrator 持久化并执行 AgentFlow，不受后续模板或 Agent 配置变更影响。云端 workspace 初始为空卷，代码仓由 Agent Core 在 attempt 启动时 clone 进 workspace，Backend 不预先 clone。
+AgentFlow 是 Agent-Management 在启动 run 时生成的不可变执行快照，由已发布 WorkflowTemplateVersion、Agent / Skill / MCP 快照引用、task / project / workspace 上下文、repo 配置、credential refs 和 prompt variables 组成。Agent-Orchestration 持久化并执行 AgentFlow，不受后续模板或 Agent 配置变更影响。云端 workspace 初始为空卷，代码仓由 Agent Core 在 attempt 启动时 clone 进 workspace，Agent-Management 不预先 clone。
 
-Workflow 模板属于 Backend 数据库，主要包含 `workflow_templates`、`workflow_template_steps`、`workflow_template_edges`、`workflow_template_versions` 四类表。运行时 Backend 从已发布模板版本生成 AgentFlow，再调用 Orchestrator `POST /runs` 启动执行。
+Workflow 模板属于 Agent-Management 数据库，主要包含 `workflow_templates`、`workflow_template_steps`、`workflow_template_edges`、`workflow_template_versions` 四类表。运行时 Agent-Management 从已发布模板版本生成 AgentFlow，再调用 Agent-Orchestration `POST /runs` 启动执行。
 
-Orchestrator 的执行语义包括：简单 prompt 变量替换、固定 DAG、MVP 串行 step 调度、StepOutput 结构化输出、`requiresConfirmation` 人工确认，以及 StepAttempt 执行尝试模型。AgentFlow 不包含底层运行时字段、资源规格、镜像、节点、容器、任务、进程、密钥等信息。
+Agent-Orchestration 的执行语义包括：简单 prompt 变量替换、固定 DAG、MVP 串行 step 调度、StepOutput 结构化输出、`requiresConfirmation` 人工确认，以及 StepAttempt 执行尝试模型。AgentFlow 不包含底层运行时字段、资源规格、镜像、节点、容器、任务、进程、密钥等信息。
 
-Agent Core 对 Orchestrator 提供启动、取消、查询 StepAttempt 的能力，并上报控制类、展示类、运行时类事件。Orchestrator 负责校验事件归属、推进 attempt 状态机，并将展示类事件透传给 Backend / Frontend。Agent Core 的性能要求强调低延迟、幂等、可查询、控制事件可靠；展示类事件可以限流，但不能阻塞 heartbeat、attempt.result、runtime.failed 等控制事件。
+Agent Core 对 Agent-Orchestration 提供启动、取消、查询 StepAttempt 的能力，并上报控制类、展示类、运行时类事件。Agent-Orchestration 负责校验事件归属、推进 attempt 状态机，并将展示类事件透传给 Agent-Management / Frontend。Agent Core 的性能要求强调低延迟、幂等、可查询、控制事件可靠；展示类事件可以限流，但不能阻塞 heartbeat、attempt.result、runtime.failed 等控制事件。
+
+Agent-Orchestration 对外只面向 Agent-Management，提供 run 生命周期（启动 / 取消）、suspended step 操作（confirm 推进下游 / continue 带反馈续聊 / retry 重试）、查询与事件回调等 API（见第 9 章）。第 10 章给出端到端控制流与事件流，第 11 章汇总当前设计缺陷与开放问题。
 
 ## 1. 微服务总体架构
 
-Coplat 云端化后，Workflow 执行链路由 Backend 控制面和 Orchestrator 编排服务共同完成。
+Coplat 云端化后，Workflow 执行链路由 Agent-Management 控制面和 Agent-Orchestration 编排服务共同完成。
 
 ```text
 浏览器
   │
   │ REST / WebSocket
   ▼
-Backend
+Agent-Management
   │
   │ 1. 管理 Workflow 模板、Agent、Skill、MCP
   │ 2. 校验用户 / 团队 / task 权限
@@ -34,14 +36,14 @@ Backend
   │
   │ POST /runs
   ▼
-Orchestrator
+Agent-Orchestration
   │
   │ 1. 持久化 AgentFlow 快照
   │ 2. 渲染 step prompt
   │ 3. 调度 WorkflowStep / StepAttempt
   │ 4. 调用 Agent Core 启动 / 取消 attempt
   │ 5. 接收 Agent Core 运行时事件
-  │ 6. 将 run / step / attempt 状态和展示事件回流给 Backend
+  │ 6. 将 run / step / attempt 状态和展示事件回流给 Agent-Management
   ▼
 Agent Core
   │
@@ -50,9 +52,9 @@ Agent Core
 Agent Runtime
 ```
 
-### 1.1 Backend 职责
+### 1.1 Agent-Management 职责
 
-Backend 是业务控制面，负责所有与用户、团队、模板、任务和工作区相关的业务语义。
+Agent-Management 是业务控制面，负责所有与用户、团队、模板、任务和工作区相关的业务语义。
 
 核心职责：
 
@@ -63,13 +65,13 @@ Backend 是业务控制面，负责所有与用户、团队、模板、任务和
 - 准备 credential refs；
 - 准备 prompt 渲染所需的静态变量；
 - 在启动 run 时生成 AgentFlow；
-- 调用 Orchestrator 启动 / 取消 / resume run；
-- 接收 Orchestrator 状态事件并更新业务侧视图；
+- 调用 Agent-Orchestration 启动 / 取消 / resume run；
+- 接收 Agent-Orchestration 状态事件并更新业务侧视图；
 - 通过 WebSocket 向前端转发实时状态和输出。
 
-### 1.2 Orchestrator 职责
+### 1.2 Agent-Orchestration 职责
 
-Orchestrator 是工作流编排服务，只执行 Backend 提交的 AgentFlow，不读取 Backend 业务表。
+Agent-Orchestration 是工作流编排服务，只执行 Agent-Management 提交的 AgentFlow，不读取 Agent-Management 业务表。
 
 核心职责：
 
@@ -82,11 +84,11 @@ Orchestrator 是工作流编排服务，只执行 Backend 提交的 AgentFlow，
 - 调用 Agent Core 启动 / 取消 / 查询 StepAttempt；
 - 接收 Agent Core 回报的 attempt 运行时事实、executor 结果和 heartbeat；
 - 按运行时配置处理 retry、timeout、heartbeat lost；
-- 将 run / step / attempt 状态和展示类事件回流给 Backend。
+- 将 run / step / attempt 状态和展示类事件回流给 Agent-Management。
 
-### 1.3 Orchestrator 不负责的内容
+### 1.3 Agent-Orchestration 不负责的内容
 
-Orchestrator 不承担以下职责：
+Agent-Orchestration 不承担以下职责：
 
 - 不管理用户、团队、项目、任务权限；
 - 不直接读取 WorkflowTemplate、Agent、Skill、MCP 业务表；
@@ -95,28 +97,28 @@ Orchestrator 不承担以下职责：
 - 不决定业务上的 task 状态；
 - 不面向浏览器提供 WebSocket；
 - 不保存任何明文 credential material；
-- 不把底层运行时资源策略暴露给 Backend 或 AgentFlow。
+- 不把底层运行时资源策略暴露给 Agent-Management 或 AgentFlow。
 
 ## 2. Orchestration Workflow 技术选型
 
-Orchestrator 的核心不是通用 BPM 工作流引擎，而是围绕 AgentFlow、WorkflowStep、StepAttempt、Agent Core 事件构建一个可恢复、幂等、DB 驱动的轻量状态机服务。
+Agent-Orchestration 的核心不是通用 BPM 工作流引擎，而是围绕 AgentFlow、WorkflowStep、StepAttempt、Agent Core 事件构建一个可恢复、幂等、DB 驱动的轻量状态机服务。
 
 ### 2.1 推荐技术栈
 
 | 层面 | 选型 | 说明 |
 |---|---|---|
 | 语言 / 框架 | Java 21 + Spring Boot 3 | 与后端团队 Java 技术栈匹配，生态成熟，适合后台服务 |
-| 状态存储 | MySQL | Orchestrator 的事实状态源，持久化 run / step / attempt / event / AgentFlow 快照 |
+| 状态存储 | MySQL | Agent-Orchestration 的事实状态源，持久化 run / step / attempt / event / AgentFlow 快照 |
 | 调度方式 | DB polling + row lock / optimistic lock | MVP 简单可靠，支持多副本避免重复调度 |
 | 状态机 | 自研轻量状态机 | 直接围绕 Run / Step / Attempt 状态建模 |
 | Agent Core 事件入口 | HTTP callback | MVP 易实现、易调试；后续事件量变大可切 Redis Streams / Kafka |
-| Orchestrator → Backend 事件转发 | HTTP callback + outbox | Backend 负责写 session / segment / event 并推 WebSocket；outbox 保证至少一次投递 |
+| Agent-Orchestration → Agent-Management 事件转发 | HTTP callback + outbox | Agent-Management 负责写 session / segment / event 并推 WebSocket；outbox 保证至少一次投递 |
 | 缓存 / 临时队列 | Redis 可选 | 仅用于短期缓存、限流或事件缓冲，不作为事实状态源 |
 | 可观测性 | Micrometer + Prometheus + structured logging | 观察调度延迟、attempt 状态、事件积压、失败原因 |
 
 ### 2.2 状态存储
 
-MySQL 是 Orchestrator 的事实状态源，用于持久化：
+MySQL 是 Agent-Orchestration 的事实状态源，用于持久化：
 
 - `workflow_runs`
 - `workflow_steps`
@@ -127,7 +129,7 @@ MySQL 是 Orchestrator 的事实状态源，用于持久化：
 - event id 去重记录
 - outbox 转发记录
 
-Redis 不作为 Orchestrator 状态源，避免重启恢复、审计和补偿逻辑依赖易失数据。
+Redis 不作为 Agent-Orchestration 状态源，避免重启恢复、审计和补偿逻辑依赖易失数据。
 
 ### 2.3 调度与状态机
 
@@ -167,7 +169,7 @@ enum AttemptStatus {
 
 状态推进来源：
 
-- Backend API 请求：start / cancel / resume；
+- Agent-Management API 请求：start / cancel / resume；
 - Agent Core 事件：attempt.started / attempt.heartbeat / attempt.result / runtime.failed；
 - 定时 watchdog：timeout、heartbeat lost、stuck attempt 修复；
 - 调度器扫描：发现 ready step 并创建 StepAttempt。
@@ -183,27 +185,27 @@ MVP 优先选择 MySQL row lock + transaction，语义直接、排错简单。
 
 ### 2.4 事件接入与转发
 
-Agent Core 到 Orchestrator 的事件入口：
+Agent Core 到 Agent-Orchestration 的事件入口：
 
 ```text
 POST /internal/agent-core/events
 ```
 
-Orchestrator 收到事件后：
+Agent-Orchestration 收到事件后：
 
 1. 按 `eventId` 去重；
 2. 校验 run / step / attempt 归属；
 3. 控制类事件推进状态机；
 4. 展示类事件规范化后写 outbox；
-5. 后台 outbox worker 转发给 Backend。
+5. 后台 outbox worker 转发给 Agent-Management。
 
-Orchestrator 到 Backend 的事件转发：
+Agent-Orchestration 到 Agent-Management 的事件转发：
 
 ```text
-POST /internal/orchestrator/events
+POST /internal/agent-orchestration/events
 ```
 
-Backend 负责：
+Agent-Management 负责：
 
 - 写 session / segment / event；
 - 通过 WebSocket 推送前端；
@@ -215,10 +217,10 @@ Backend 负责：
 
 | 对象 | 幂等字段 | 用途 |
 |---|---|---|
-| WorkflowRun | `idempotencyKey` | 防止 Backend 重复启动 run |
+| WorkflowRun | `idempotencyKey` | 防止 Agent-Management 重复启动 run |
 | StepAttempt | `attemptId` | 防止重复创建 attempt |
 | Agent Core 事件 | `eventId` | 防止事件重复消费 |
-| Backend 转发事件 | `outboxId` | 防止转发失败后丢事件 |
+| Agent-Management 转发事件 | `outboxId` | 防止转发失败后丢事件 |
 
 可靠性要求：
 
@@ -226,8 +228,8 @@ Backend 负责：
 - Agent Core 事件按 `eventId` 去重；
 - StepAttempt 创建按 `attemptId` 幂等；
 - 状态更新带 DB transaction 和 version；
-- Orchestrator → Backend 事件通过 outbox 至少一次投递；
-- Backend / Frontend 需要能接受重复展示事件并按 `eventId` 去重。
+- Agent-Orchestration → Agent-Management 事件通过 outbox 至少一次投递；
+- Agent-Management / Frontend 需要能接受重复展示事件并按 `eventId` 去重。
 
 ### 2.6 不采用的方案
 
@@ -236,11 +238,11 @@ Backend 负责：
 | Temporal | 引入成本高，Java workflow determinism 约束多，与当前 AgentFlow / StepAttempt 状态模型重叠 |
 | Camunda / Flowable | 偏 BPMN / 人工审批流程，不适合 Agent attempt + runtime event 的轻量编排 |
 | Redis 作为事实状态源 | 不利于审计、重启恢复、补偿和一致性维护 |
-| Orchestrator 直接操作底层运行时 | 会把 Orchestrator 绑定到底层执行平台，破坏与 Agent Core 的职责边界 |
+| Agent-Orchestration 直接操作底层运行时 | 会把 Agent-Orchestration 绑定到底层执行平台，破坏与 Agent Core 的职责边界 |
 
 ## 3. 核心领域对象
 
-### 2.1 对象关系
+### 3.1 对象关系
 
 ```text
 WorkflowTemplate
@@ -252,9 +254,9 @@ WorkflowTemplate
                            └─ Agent Core RuntimeAttempt
 ```
 
-### 2.2 WorkflowTemplate
+### 3.2 WorkflowTemplate
 
-WorkflowTemplate 是 Backend 侧的业务模板，归团队所有，可编辑、可发布、可归档。
+WorkflowTemplate 是 Agent-Management 侧的业务模板，归团队所有，可编辑、可发布、可归档。
 
 模板用于描述团队可复用的 Agent 工作流，包括：
 
@@ -266,17 +268,17 @@ WorkflowTemplate 是 Backend 侧的业务模板，归团队所有，可编辑、
 
 WorkflowTemplate 本体可变，但运行时不直接执行本体，而是执行某个已发布版本生成的 AgentFlow。
 
-### 2.3 WorkflowTemplateVersion
+### 3.3 WorkflowTemplateVersion
 
 WorkflowTemplateVersion 是模板发布时生成的不可变模板快照。
 
-它保存发布时的模板结构，包括 step、edge、promptTemplate、agentId、requiresConfirmation 等。用户启动 run 时，Backend 从当前发布版本读取 snapshot，再补充 task、workspace、credential refs、variables 和 Agent / Skill / MCP 快照引用，生成 AgentFlow。
+它保存发布时的模板结构，包括 step、edge、promptTemplate、agentId、requiresConfirmation 等。用户启动 run 时，Agent-Management 从当前发布版本读取 snapshot，再补充 task、workspace、credential refs、variables 和 Agent / Skill / MCP 快照引用，生成 AgentFlow。
 
-### 2.4 AgentFlow
+### 3.4 AgentFlow
 
-AgentFlow 是 Backend 启动 WorkflowRun 时生成并传给 Orchestrator 的不可变执行快照。
+AgentFlow 是 Agent-Management 启动 WorkflowRun 时生成并传给 Agent-Orchestration 的不可变执行快照。
 
-它不是 WorkflowTemplate 本体，也不是前端正在编辑的模板。Backend 在启动 run 时根据已发布模板版本、Agent、Skill、MCP、Task 上下文、Workspace 信息、凭证引用和静态变量组装 AgentFlow；Orchestrator 只持久化并执行该快照，不回查 Backend 业务表，也不感知后续模板或 Agent 配置变更。
+它不是 WorkflowTemplate 本体，也不是前端正在编辑的模板。Agent-Management 在启动 run 时根据已发布模板版本、Agent、Skill、MCP、Task 上下文、Workspace 信息、凭证引用和静态变量组装 AgentFlow；Agent-Orchestration 只持久化并执行该快照，不回查 Agent-Management 业务表，也不感知后续模板或 Agent 配置变更。
 
 ```text
 WorkflowTemplateVersion
@@ -284,13 +286,13 @@ WorkflowTemplateVersion
   + Task / Project / Workspace 上下文
   + Credential refs
   + Prompt variables
-      ↓ Backend 启动 run 时组装
+      ↓ Agent-Management 启动 run 时组装
 AgentFlow immutable snapshot
       ↓
-Orchestrator 执行
+Agent-Orchestration 执行
 ```
 
-### 2.5 WorkflowRun / WorkflowStep / StepAttempt
+### 3.5 WorkflowRun / WorkflowStep / StepAttempt
 
 WorkflowRun 是一次 AgentFlow 执行实例。
 
@@ -304,134 +306,28 @@ WorkflowStep: fix
   └─ StepAttempt #2 -> RuntimeAttempt #2 -> succeeded
 ```
 
-## 4. Workflow 模板归属与数据库字段
+## 4. Workflow 模板归属（简述）
 
-Workflow 模板属于 Backend 控制面业务库，不属于 Orchestrator 数据库。
-
-```text
-Backend DB:
-  workflow_templates
-  workflow_template_steps
-  workflow_template_edges
-  workflow_template_versions
-
-Orchestrator DB:
-  workflow_runs
-  workflow_steps
-  step_attempts
-  workflow_events
-```
-
-Orchestrator 不直接读取 WorkflowTemplate 表。Backend 启动 run 时读取已发布模板版本，将其转换为 AgentFlow 后调用 Orchestrator。
-
-### 4.1 `workflow_templates`
-
-模板主表，表示团队拥有的一份可编辑模板。
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | varchar | 模板 ID |
-| `team_id` | varchar | 所属团队 |
-| `name` | varchar | 模板名称 |
-| `description` | text nullable | 模板说明 |
-| `status` | varchar | `draft/published/archived` |
-| `current_version_id` | varchar nullable | 当前发布版本 ID |
-| `created_by` | varchar | 创建用户 |
-| `updated_by` | varchar nullable | 最后更新用户 |
-| `created_at` | datetime | 创建时间 |
-| `updated_at` | datetime | 更新时间 |
-| `published_at` | datetime nullable | 最近发布时间 |
-| `archived_at` | datetime nullable | 归档时间 |
-
-状态：
+Workflow 模板属于 Agent-Management 控制面业务库，**不属于 Agent-Orchestration 职责范围**。Agent-Orchestration 不读取模板表，只接收 Agent-Management 由模板转换出的 AgentFlow。此处仅作上下文简述，完整字段设计见 Agent-Management 文档。
 
 ```text
-draft -> published -> archived
+Agent-Management DB（模板，Agent-Management 负责）:        Agent-Orchestration DB（运行态，本设计负责）:
+  workflow_templates                       workflow_runs
+  workflow_template_steps                  workflow_steps
+  workflow_template_edges                  step_attempts
+  workflow_template_versions               workflow_events
 ```
 
-语义：
+四张模板表的职责：
 
-- `draft`：可编辑；
-- `published`：团队成员可以选择运行；
-- `archived`：不可新运行，但历史 run 不受影响。
+| 表 | 职责 |
+|---|---|
+| `workflow_templates` | 模板主表，归团队所有，状态 `draft / published / archived` |
+| `workflow_template_steps` | 模板 step 定义：step_key、name、agent_id、prompt_template、requires_confirmation |
+| `workflow_template_edges` | 模板 DAG 边：from / to step_key（固定 DAG，无环、无 self-edge、无条件边） |
+| `workflow_template_versions` | 发布版本快照：`snapshot_json` 冻结发布时的完整模板结构，运行时不可变 |
 
-### 4.2 `workflow_template_steps`
-
-模板里的 step 定义。
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | varchar | step record id |
-| `template_id` | varchar | 所属模板 |
-| `step_key` | varchar | step 逻辑 ID，例如 `analyze/fix/verify` |
-| `name` | varchar | step 名称 |
-| `description` | text nullable | step 说明 |
-| `order_index` | int | 展示顺序；MVP 串行调度也用它 |
-| `agent_id` | varchar | 使用的 Agent |
-| `prompt_template` | text | prompt 模板，由 Orchestrator 做简单变量替换 |
-| `requires_confirmation` | boolean | 执行成功后是否需要人工确认 |
-| `created_at` | datetime | 创建时间 |
-| `updated_at` | datetime | 更新时间 |
-
-约束：
-
-```sql
-unique(template_id, step_key)
-```
-
-模板 step 不包含：
-
-```text
-maxRetries
-timeoutSeconds
-canEarlyExit
-resources
-runtime config
-runtimeRef
-```
-
-### 4.3 `workflow_template_edges`
-
-模板 DAG 边。
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | varchar | 边 ID |
-| `template_id` | varchar | 所属模板 |
-| `from_step_key` | varchar | 上游 step |
-| `to_step_key` | varchar | 下游 step |
-| `created_at` | datetime | 创建时间 |
-
-约束：
-
-```sql
-unique(template_id, from_step_key, to_step_key)
-```
-
-MVP 约束：
-
-- 固定 DAG；
-- 不允许环；
-- 不允许 self-edge；
-- 不支持条件边；
-- 不支持动态 step。
-
-### 4.4 `workflow_template_versions`
-
-模板发布版本 / 快照表。模板可编辑，但运行时必须不可变，所以发布时生成版本快照。
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | varchar | version id |
-| `template_id` | varchar | 来源模板 |
-| `version` | int | 版本号，从 1 递增 |
-| `name` | varchar | 发布时模板名 |
-| `description` | text nullable | 发布时模板说明 |
-| `snapshot_json` | json | 发布时完整模板快照 |
-| `created_by` | varchar | 发布用户 |
-| `created_at` | datetime | 发布时间 |
-
-`snapshot_json` 示例：
+发布版本的 `snapshot_json` 是模板→AgentFlow 转换的输入，结构示例：
 
 ```json
 {
@@ -439,27 +335,12 @@ MVP 约束：
   "version": 3,
   "name": "修 bug 标准流程",
   "steps": [
-    {
-      "stepKey": "analyze",
-      "name": "分析问题",
-      "agentId": "agent_claude",
-      "promptTemplate": "请分析任务：{{task.title}}",
-      "requiresConfirmation": false
-    },
-    {
-      "stepKey": "fix",
-      "name": "修复问题",
-      "agentId": "agent_claude",
-      "promptTemplate": "请根据分析结果修复：{{steps.analyze.summary}}",
-      "requiresConfirmation": false
-    },
-    {
-      "stepKey": "verify",
-      "name": "验证结果",
-      "agentId": "agent_opencode",
-      "promptTemplate": "请验证本次修改",
-      "requiresConfirmation": true
-    }
+    { "stepKey": "analyze", "name": "分析问题", "agentId": "agent_claude",
+      "promptTemplate": "请分析任务：{{task.title}}", "requiresConfirmation": false },
+    { "stepKey": "fix", "name": "修复问题", "agentId": "agent_claude",
+      "promptTemplate": "请根据分析结果修复：{{steps.analyze.summary}}", "requiresConfirmation": false },
+    { "stepKey": "verify", "name": "验证结果", "agentId": "agent_opencode",
+      "promptTemplate": "请验证本次修改", "requiresConfirmation": true }
   ],
   "edges": [
     { "from": "analyze", "to": "fix" },
@@ -470,16 +351,16 @@ MVP 约束：
 
 ## 5. WorkflowTemplate 到 AgentFlow 的转换
 
-启动 run 时，Backend 将已发布模板版本转换为 AgentFlow。
+启动 run 时，Agent-Management 将已发布模板版本转换为 AgentFlow。
 
 ```text
 1. 用户选择 published workflow_template
-2. Backend 读取 current_version.snapshot_json
-3. Backend 校验 team / user / task 权限
-4. Backend 展开 Agent / Skill / MCP 快照引用
-5. Backend 准备 task / project / workspace（空卷 + lease）/ repo 配置 / credential refs / variables
-6. Backend 生成 AgentFlow
-7. Backend 调 Orchestrator POST /runs
+2. Agent-Management 读取 current_version.snapshot_json
+3. Agent-Management 校验 team / user / task 权限
+4. Agent-Management 展开 Agent / Skill / MCP 快照引用
+5. Agent-Management 准备 task / project / workspace（空卷 + lease）/ repo 配置 / credential refs / variables
+6. Agent-Management 生成 AgentFlow
+7. Agent-Management 调 Agent-Orchestration POST /runs
 ```
 
 字段映射：
@@ -495,86 +376,25 @@ MVP 约束：
 | `steps.prompt_template` | `steps[].prompt.template` |
 | `steps.requires_confirmation` | `steps[].requiresConfirmation` |
 | `edges` | `edges` |
-| task/project/workspace | Backend 启动 run 时补充 |
-| 项目级 repo URL / branch | `repo`（Backend 启动 run 时补充，Agent Core 据此 clone） |
-| credentials | Backend 启动 run 时补充 refs |
-| variables | Backend 启动 run 时补充 |
+| task/project/workspace | Agent-Management 启动 run 时补充 |
+| 项目级 repo URL / branch | `repo`（Agent-Management 启动 run 时补充，Agent Core 据此 clone） |
+| credentials | Agent-Management 启动 run 时补充 refs |
+| variables | Agent-Management 启动 run 时补充 |
 
-> 云端 workspace 初始为空卷。代码仓不由 Backend 预先 clone，而是由 Orchestrator 透传 `repo` 信息给 Agent Core，Agent Core 在 attempt 启动时 clone / checkout 进 workspace。
+> 云端 workspace 初始为空卷。代码仓不由 Agent-Management 预先 clone，而是由 Agent-Orchestration 透传 `repo` 信息给 Agent Core，Agent Core 在 attempt 启动时 clone / checkout 进 workspace。
 
 ### 5.1 启动 run 的 AgentFlow 组装接口流程
-
-```text
-┌─────────┐
-│ Frontend│
-└────┬────┘
-     │ 1. POST /api/tasks/:taskId/runs
-     │    { workflowTemplateId }
-     ▼
-┌─────────┐
-│ Backend │
-└────┬────┘
-     │
-     │ 2. 校验用户 / team / project / task 权限
-     │
-     ├──────────────▶┌────────────────────┐
-     │               │ WorkflowTemplate DB│
-     │ 3. 读取当前发布版本                │
-     │    workflow_template_versions       │
-     │◀──────────────└────────────────────┘
-     │
-     ├──────────────▶┌──────────────┐
-     │               │ Agent DB     │
-     │ 4. 读取 step.agentId 对应 Agent │
-     │◀──────────────└──────────────┘
-     │
-     ├──────────────▶┌──────────────┐
-     │               │ Skill/MCP DB │
-     │ 5. 读取 Agent 关联 Skill/MCP   │
-     │◀──────────────└──────────────┘
-     │
-     ├──────────────▶┌────────────────┐
-     │               │ Object Storage │
-     │ 6. 上传 Agent / Skill / MCP 快照│
-     │◀──────────────└────────────────┘
-     │
-     ├──────────────▶┌──────────────────┐
-     │               │ Workspace Service│
-     │ 7. 准备 task workspace + 获取 lease│
-     │◀──────────────└──────────────────┘
-     │
-     ├──────────────▶┌────────────────────┐
-     │               │ Credential Provider│
-     │ 8. 创建 credential refs            │
-     │◀──────────────└────────────────────┘
-     │
-     │ 9. 组装 AgentFlow
-     │
-     ├──────────────▶┌──────────────┐
-     │               │ Orchestrator │
-     │ 10. POST /runs│              │
-     │     { agentFlow }            │
-     │◀──────────────└──────────────┘
-     │ 11. 返回 runId / status
-     │
-     ▼
-┌─────────┐
-│ Frontend│
-└─────────┘
-```
-
-接口时序：
 
 ```mermaid
 sequenceDiagram
     participant FE as Frontend
-    participant BE as Backend
+    participant BE as Agent-Management
     participant TPL as WorkflowTemplate DB
     participant AG as Agent/Skill/MCP DB
     participant OS as Object Storage
     participant WS as Workspace Service
     participant CP as Credential Provider
-    participant OR as Orchestrator
+    participant OR as Agent-Orchestration
 
     FE->>BE: POST /api/tasks/{taskId}/runs<br/>{ workflowTemplateId }
 
@@ -701,7 +521,7 @@ enum ExecutorType {
 
 ### 7.1 Prompt 渲染
 
-Orchestrator 负责在 step 执行前渲染 prompt，但只做简单变量替换，不支持条件、循环、函数或脚本逻辑。
+Agent-Orchestration 负责在 step 执行前渲染 prompt，但只做简单变量替换，不支持条件、循环、函数或脚本逻辑。
 
 支持语法：
 
@@ -715,11 +535,11 @@ Orchestrator 负责在 step 执行前渲染 prompt，但只做简单变量替换
 
 渲染上下文来源：
 
-1. `AgentFlow.variables`：Backend 启动 run 时冻结的全局静态变量；
+1. `AgentFlow.variables`：Agent-Management 启动 run 时冻结的全局静态变量；
 2. `AgentFlowStep.prompt.variables`：当前 step 的局部静态变量；
 3. `stepOutputs`：已完成上游 step 的结构化输出。
 
-Orchestrator 不读取任意 stdout，也不回查 Backend 业务表。引用不存在变量、未完成 step 输出或非上游 step 输出时，当前 step 失败，错误类型为 `PROMPT_RENDER_ERROR`。
+Agent-Orchestration 不读取任意 stdout，也不回查 Agent-Management 业务表。引用不存在变量、未完成 step 输出或非上游 step 输出时，当前 step 失败，错误类型为 `PROMPT_RENDER_ERROR`。
 
 ### 7.2 Step 输出
 
@@ -743,7 +563,7 @@ class StepOutput {
 
 ### 7.3 DAG 与串行调度
 
-AgentFlow 使用固定 DAG 表达 step 依赖，但 MVP 阶段 Orchestrator 对同一 WorkflowRun 采用串行调度策略。
+AgentFlow 使用固定 DAG 表达 step 依赖，但 MVP 阶段 Agent-Orchestration 对同一 WorkflowRun 采用串行调度策略。
 
 约束：
 
@@ -780,15 +600,15 @@ step.requiresConfirmation = true
                        ──► 新 attempt succeeded ──► 仍回到 step suspended，等待下一次确认
 ```
 
-也就是说，suspended 状态下用户有两种选择：确认通过让 step 完成并推进下游；或带上反馈继续与当前 step 的 Agent 对话，此时 Orchestrator 在同一对话上下文中创建新 attempt 续聊，续聊结束后仍回到 suspended，直到用户最终确认通过。
+也就是说，suspended 状态下用户有两种选择：确认通过让 step 完成并推进下游；或带上反馈继续与当前 step 的 Agent 对话，此时 Agent-Orchestration 在同一对话上下文中创建新 attempt 续聊，续聊结束后仍回到 suspended，直到用户最终确认通过。
 
 ### 7.5 运行时资源边界
 
 AgentFlow 不包含底层运行时细节，也不包含 CPU / memory 等资源规格。
 
-AgentFlow 只包含 `executorType`。Orchestrator 只把 `executorType` 作为 Agent Core 的输入，不解析镜像、节点、容器、任务、进程、密钥等底层运行时概念。Agent Core 可以使用 Kubernetes，也可以使用其他执行后端；这些实现细节对 Orchestrator 透明。
+AgentFlow 只包含 `executorType`。Agent-Orchestration 只把 `executorType` 作为 Agent Core 的输入，不解析镜像、节点、容器、任务、进程、密钥等底层运行时概念。Agent Core 可以使用 Kubernetes，也可以使用其他执行后端；这些实现细节对 Agent-Orchestration 透明。
 
-资源规格、镜像选择、凭证注入、执行环境创建、日志采集、运行时清理等全部属于 Agent Core 的职责。Orchestrator 只关心 StepAttempt 的启动、取消、查询和事件回报。
+资源规格、镜像选择、凭证注入、执行环境创建、日志采集、运行时清理等全部属于 Agent Core 的职责。Agent-Orchestration 只关心 StepAttempt 的启动、取消、查询和事件回报。
 
 ### 7.6 Credential refs
 
@@ -796,15 +616,15 @@ AgentFlow 不携带明文凭证，只携带 credential refs。
 
 MVP credential refs 放在 AgentFlow 顶层，作为整个 run 的默认凭证，step 级暂不支持覆盖。
 
-Orchestrator 不负责根据 credential refs 换取明文凭证，也不创建运行时密钥资源。credential refs 会随 StartAttempt 请求传给 Agent Core，由 Agent Core 或其依赖的凭证服务完成短期凭证注入。Orchestrator 数据库只保存 credential refs，不保存 credential material。
+Agent-Orchestration 不负责根据 credential refs 换取明文凭证，也不创建运行时密钥资源。credential refs 会随 StartAttempt 请求传给 Agent Core，由 Agent Core 或其依赖的凭证服务完成短期凭证注入。Agent-Orchestration 数据库只保存 credential refs，不保存 credential material。
 
 ## 8. Agent Core 能力要求
 
-Agent Core 是 Orchestrator 依赖的运行时执行服务，负责把一个 StepAttempt 落到实际执行环境，并把 Agent 执行过程事件回报给 Orchestrator。Orchestrator 决定哪个 attempt 该运行、取消、重试或完成；Agent Core 决定如何运行这个 attempt，可以使用 Kubernetes，也可以使用其他执行后端。
+Agent Core 是 Agent-Orchestration 依赖的运行时执行服务，负责把一个 StepAttempt 落到实际执行环境，并把 Agent 执行过程事件回报给 Agent-Orchestration。Agent-Orchestration 决定哪个 attempt 该运行、取消、重试或完成；Agent Core 决定如何运行这个 attempt，可以使用 Kubernetes，也可以使用其他执行后端。
 
-### 8.1 Orchestrator 对 Agent Core 的能力要求
+### 8.1 Agent-Orchestration 对 Agent Core 的能力要求
 
-Orchestrator 需要 Agent Core 提供以下能力：
+Agent-Orchestration 需要 Agent Core 提供以下能力：
 
 1. **启动 StepAttempt**
    - 输入（标识）：`runId / stepId / attemptId / attemptNo`，用于关联与幂等；
@@ -816,7 +636,7 @@ Orchestrator 需要 Agent Core 提供以下能力：
    - 输入（知识库，可选）：Agent 可使用的知识库列表，支持两种形态——
      - 文件形态：知识库内容以只读方式挂载到 workspace 内约定路径，Agent 直接读取；
      - 检索服务形态：知识库以检索服务（MCP 风格）暴露，Agent 通过工具调用查询；
-     - 两种形态可同时存在，由 Orchestrator 以引用方式传入，Agent Core 按形态分别挂载或注册；
+     - 两种形态可同时存在，由 Agent-Orchestration 以引用方式传入，Agent Core 按形态分别挂载或注册；
    - 输入（工作目录）：执行所用的 workspace 引用与挂载路径；云端 workspace 初始为空卷，由 Agent Core 准备；
    - 输入（代码仓）：`repoUrl / branch`（可选 `commit`）；Agent Core 在准备运行环境时把代码仓 clone / checkout 到 workspace，使用 `gitCredentialRef` 鉴权；续聊或复用已有 workspace 时代码已就位，可跳过 clone；
    - 输入（凭证）：模型 / 工具 / 知识库 / 代码仓库等所需的 credential refs；clone 及 attempt 内的 git 操作（pull / push）使用 `gitCredentialRef`；
@@ -825,28 +645,28 @@ Orchestrator 需要 Agent Core 提供以下能力：
    - 输出：`runtimeAttemptRef`、初始运行状态。
 
    说明：
-   - 上述 Agent 配置、skill、MCP、知识库等输入由 Orchestrator 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境（拉取 skill/MCP、挂载文件形态知识库、注册检索服务形态知识库等），不需要理解这些引用背后的业务来源。
+   - 上述 Agent 配置、skill、MCP、知识库等输入由 Agent-Orchestration 以引用方式传入；Agent Core 负责按引用拉取具体内容并组装执行环境（拉取 skill/MCP、挂载文件形态知识库、注册检索服务形态知识库等），不需要理解这些引用背后的业务来源。
    - 同一接口同时承载「新建对话」和「续聊」两种场景，区别仅在于是否携带 `resumeFromSessionRef`：
      - 新建对话：不带 `resumeFromSessionRef`，Agent Core 新建对话上下文，prompt 作为首轮指令；
      - 续聊：携带 `resumeFromSessionRef`，Agent Core 用 `--resume` 重载该对话上下文，prompt 作为本轮追加输入（用户反馈）。
-   - attempt 结束时，Agent Core 在结果中回报 `sessionRef`（对话上下文标识），Orchestrator 持久化，作为后续续聊的 `resumeFromSessionRef`。
+   - attempt 结束时，Agent Core 在结果中回报 `sessionRef`（对话上下文标识），Agent-Orchestration 持久化，作为后续续聊的 `resumeFromSessionRef`。
 
 2. **取消 StepAttempt**
-   - Orchestrator 可以按 `attemptId` 请求 Agent Core 终止对应 RuntimeAttempt；
+   - Agent-Orchestration 可以按 `attemptId` 请求 Agent Core 终止对应 RuntimeAttempt；
    - cancel 必须幂等；RuntimeAttempt 不存在时返回可识别状态；运行时资源清理由 Agent Core 负责；
-   - 取消同样适用于热窗口保活中的进程（已产出结果但等待续聊）；取消时对话上下文（sessionRef 指向的内容）是否保留由 Orchestrator 在请求中指明，默认保留以便后续恢复。
+   - 取消同样适用于热窗口保活中的进程（已产出结果但等待续聊）；取消时对话上下文（sessionRef 指向的内容）是否保留由 Agent-Orchestration 在请求中指明，默认保留以便后续恢复。
 
 3. **查询 StepAttempt 运行状态**
-   - Orchestrator 可以按 `attemptId` 查询 RuntimeAttempt 状态、最近 heartbeat、exitCode、failure reason。
+   - Agent-Orchestration 可以按 `attemptId` 查询 RuntimeAttempt 状态、最近 heartbeat、exitCode、failure reason。
 
 4. **回报执行事件**
-   - 生命周期事件：RuntimeAttempt created / running / completed / failed / cancelled、heartbeat、cleanup completed、attempt 最终结果（成功 / 失败）—— 用于 Orchestrator 推进状态机；
-   - Agent 执行过程事件：thinking、message、tool_use、tool_result、stdout / stderr 等 Agent 对话与日志内容 —— 由 Orchestrator 透传给下游消费方展示；
+   - 生命周期事件：RuntimeAttempt created / running / completed / failed / cancelled、heartbeat、cleanup completed、attempt 最终结果（成功 / 失败）—— 用于 Agent-Orchestration 推进状态机；
+   - Agent 执行过程事件：thinking、message、tool_use、tool_result、stdout / stderr 等 Agent 对话与日志内容 —— 由 Agent-Orchestration 透传给下游消费方展示；
    - 两类事件都通过统一的 AgentExecutionEvent 协议上报，靠 `eventType` / 类别区分。
 
 5. **满足运行约束**
    - 一个 StepAttempt 对应 Agent Core 中的一个 RuntimeAttempt；
-   - Agent Core 不做自动重试，重试由 Orchestrator 创建新 attempt；
+   - Agent Core 不做自动重试，重试由 Agent-Orchestration 创建新 attempt；
    - RuntimeAttempt 使用输入指定的 workspace；
    - RuntimeAttempt 将 stdout / stderr 写入指定 stream；
    - RuntimeAttempt 将结构化结果写入指定 event stream；
@@ -880,11 +700,11 @@ Agent Core 需要保证 attempt 启动、取消、查询和控制事件回报的
 - 容量不足时，`StartAttempt` 返回 `RESOURCE_EXHAUSTED`，不允许长时间阻塞；
 - 控制类事件优先级高于展示类事件；
 - stdout / stderr 可以批量、截断或降采样，但不能阻塞 heartbeat、attempt.result、runtime.failed；
-- 控制类事件至少一次投递，Orchestrator 侧按 `eventId` 去重。
+- 控制类事件至少一次投递，Agent-Orchestration 侧按 `eventId` 去重。
 
 ### 8.3 Agent 执行事件协议
 
-Agent Core 产生 AgentExecutionEvent，统一上报给 Orchestrator。Orchestrator 是 Agent 执行事件的统一入口，负责校验事件归属、推进 attempt 状态机，并将展示类事件规范化后向下游消费方转发。Agent Core 只负责把执行过程标准化为事件流并上报，不关心事件最终如何被持久化或展示。
+Agent Core 产生 AgentExecutionEvent，统一上报给 Agent-Orchestration。Agent-Orchestration 是 Agent 执行事件的统一入口，负责校验事件归属、推进 attempt 状态机，并将展示类事件规范化后向下游消费方转发。Agent Core 只负责把执行过程标准化为事件流并上报，不关心事件最终如何被持久化或展示。
 
 ```text
 Agent Runtime
@@ -893,7 +713,7 @@ Agent Runtime
 Agent Core
      │ AgentExecutionEvent
      ▼
-Orchestrator
+Agent-Orchestration
      │ 1. 校验事件归属
      │ 2. 推进 attempt 状态机
      │ 3. 规范化展示事件
@@ -942,7 +762,7 @@ enum EventSource {
 
 MVP 定义以下事件类型：
 
-| 事件类型 | 类别 | Orchestrator 动作 | 展示用途 |
+| 事件类型 | 类别 | Agent-Orchestration 动作 | 展示用途 |
 |---|---|---|---|
 | `attempt.started` | control | 标记 attempt running | 可选展示 |
 | `attempt.heartbeat` | control | 更新 heartbeat | 通常不展示 |
@@ -964,7 +784,7 @@ MVP 定义以下事件类型：
 - `attempt.result` 表示 executor 的**语义结果**（Agent 跑完得出成功 / 失败、产物、sessionRef）；
 - `runtime.completed / failed / cancelled` 表示**运行环境的物理终态**（进程退出、被杀、资源回收）；
 - attempt 终态由两者结合判定：收到 `attempt.result` 且 `runtime.completed` 才判 succeeded / failed；只有 `runtime.failed` 而无 `attempt.result` 视为执行失败；`runtime.cancelled` 视为 cancelled；
-- `runtime.*` 缺失但超时或 heartbeat 丢失时，由 Orchestrator watchdog 兜底判定 failed。
+- `runtime.*` 缺失但超时或 heartbeat 丢失时，由 Agent-Orchestration watchdog 兜底判定 failed。
 
 事件 payload 约定：
 
@@ -1027,10 +847,53 @@ enum AttemptResultStatus {
 - `agent.thinking` 只传思考摘要，不传原始 chain-of-thought；
 - `agent.tool_use.input` 与 `agent.tool_result.output` 必须脱敏，不能包含 credential、token、env secret；
 - `agent.tool_result.output` 和 stdout/stderr 单条事件需要限制大小，超限内容应写 artifact；
-- Orchestrator 不把展示类事件作为 prompt 变量来源；后续 step 只能引用 StepOutput；
-- Orchestrator 对展示类事件只做归属校验、顺序保留和透传，不理解业务含义。
+- Agent-Orchestration 不把展示类事件作为 prompt 变量来源；后续 step 只能引用 StepOutput；
+- Agent-Orchestration 对展示类事件只做归属校验、顺序保留和透传，不理解业务含义。
 
-### 8.5 Agent Attempt 状态流
+### 8.5 Run / Step 状态机
+
+Agent-Orchestration 维护三级状态机：WorkflowRun、WorkflowStep、StepAttempt。run 和 step 在本节，attempt 在 8.6。
+
+**WorkflowRun 状态流**
+
+```text
+PENDING
+  └─ 调度首批 ready step ──► RUNNING
+RUNNING
+  ├─ 全部 step completed ─────────────► COMPLETED
+  ├─ 某 step 终态 failed（不可重试）──► FAILED
+  ├─ 收到 cancel ────────────────────► CANCELLING ──► CANCELLED
+  └─ step 进入 suspended ─────────────► SUSPENDED
+SUSPENDED
+  ├─ confirm（推进下游）──► RUNNING
+  ├─ continue（续聊中）──► RUNNING（续聊 attempt 跑完再回 SUSPENDED）
+  └─ cancel ────────────► CANCELLING ──► CANCELLED
+```
+
+**WorkflowStep 状态流**
+
+```text
+PENDING
+  └─ 所有 upstream completed ──► READY
+READY
+  └─ 创建 StepAttempt ─────────► RUNNING
+RUNNING
+  ├─ attempt succeeded + 无需确认 ──────────► COMPLETED ──► 触发下游 step READY
+  ├─ attempt succeeded + requiresConfirmation ─► SUSPENDED
+  ├─ attempt failed + 可自动重试 ───────────► RUNNING（新 attempt）
+  ├─ attempt failed + 重试耗尽 ─────────────► FAILED（可手动 retry 回 RUNNING）
+  └─ run cancel ───────────────────────────► CANCELLED
+SUSPENDED
+  ├─ confirm ──► COMPLETED ──► 触发下游 step READY
+  ├─ continue ─► RUNNING（续聊 attempt，跑完回 SUSPENDED）
+  └─ run cancel ► CANCELLED
+```
+
+- run 状态由其 step 状态聚合驱动：任一 step suspended → run suspended；全部 completed → run completed；
+- step 的 RUNNING ↔ 新 attempt 循环对应自动重试与续聊；
+- 各级状态枚举见 2.3。
+
+### 8.6 Agent Attempt 状态流
 
 单个 Agent 的运行状态落在 StepAttempt 上。
 
@@ -1078,7 +941,7 @@ enum FailureReason {
 }
 ```
 
-### 8.6 Step 与 Attempt 的关系
+### 8.7 Step 与 Attempt 的关系
 
 一个 Agent step 可能因为重试产生多个 attempt。Step 表达逻辑步骤状态，Attempt 表达一次 Agent Core RuntimeAttempt 执行状态。
 
@@ -1112,48 +975,6 @@ Run suspended
                             ──► attempt succeeded ──► 回到 Step suspended
 ```
 
-### 8.7 Orchestrator / Agent Core 交互视角
-
-```text
-Orchestrator                         Agent Core / Runtime
-
-Step ready
-   │
-   │ create StepAttempt
-   │
-   ├──────── StartAttempt ───────────▶ create RuntimeAttempt
-   │         (resumeFromSessionRef?)    prepare runtime
-   │                                   start executor
-   │
-Attempt starting
-   │◀────── runtime.attempt_created ──
-   │
-Attempt running
-   │◀────── runtime.running ───────────
-   │◀────── agent.message ──────────── forward downstream
-   │◀────── agent.tool_use ─────────── forward downstream
-   │◀────── agent.tool_result ──────── forward downstream
-   │◀────── attempt.heartbeat ──────── update heartbeat
-   │
-   │◀────── attempt.result ─────────── success / failed (+ sessionRef)
-   │◀────── runtime.completed ─────────
-   │
-Attempt succeeded
-   │ 持久化 sessionRef
-   │
-   ├─ step.requiresConfirmation = false ──► Step completed ──► 调度下游
-   │
-   └─ step.requiresConfirmation = true ───► Step suspended
-            │
-            ├─ 用户确认通过 ──► Step completed ──► 调度下游
-            │
-            └─ 用户带反馈继续对话
-                 │
-                 └─ create StepAttempt(resumeFromSessionRef)
-                      └──── StartAttempt ────▶ 续聊（热窗口复用 / 冷恢复 --resume）
-                            （回到上方 Attempt running 流程，结束后再回 Step suspended）
-```
-
 ### 8.8 对话生命周期与 suspend-resume 续聊
 
 一个 step 的 Agent 执行结束后，任务轮次结束，但对话不一定结束。当 step `requiresConfirmation = true` 时，用户在 suspended 状态下可能选择"继续对话"——带着反馈让 Agent 在**原有上下文**上接着聊，而不是从头开始。为此需要把**进程生命周期**和**对话上下文生命周期**拆开。
@@ -1176,7 +997,7 @@ WorkflowStep
 
 - 一次对话轮次对应一个 StepAttempt；
 - attempt 退出后，session 上下文留在 workspace；
-- 续聊时 Orchestrator 起新 attempt，传入 `resumeFromSessionRef` + 用户新输入；
+- 续聊时 Agent-Orchestration 起新 attempt，传入 `resumeFromSessionRef` + 用户新输入；
 - 续聊结束仍回到 step suspended，直到用户确认通过。
 
 #### 续聊流程
@@ -1186,7 +1007,7 @@ step suspended（attempt #1 已产出结果，进程可能已退出或处于热�
    │
    │ 用户带反馈点「继续对话」
    ▼
-Orchestrator 创建 StepAttempt #2
+Agent-Orchestration 创建 StepAttempt #2
    │
    ├─ 热窗口内：Agent Core 复用存活进程，直接续聊（低延迟）
    └─ 热窗口外：Agent Core 起新进程，--resume <sessionRef> 重载上下文后续聊
@@ -1198,49 +1019,211 @@ attempt #2 succeeded ──► step 回到 suspended，等待下一次确认或�
 #### 对 Agent Core 的要求
 
 1. **对话上下文持久化**：attempt 结束时把对话上下文写到 workspace 内约定路径（与总体设计的 CLI 会话目录持久化一致），保证跨进程、跨 attempt 可恢复；
-2. **回报 sessionRef**：attempt 结束时在结果中回报 `sessionRef`（对话上下文标识 / provider session id），Orchestrator 持久化并在续聊时回传；
+2. **回报 sessionRef**：attempt 结束时在结果中回报 `sessionRef`（对话上下文标识 / provider session id），Agent-Orchestration 持久化并在续聊时回传；
 3. **支持 resume 入参**：StartAttempt 支持可选 `resumeFromSessionRef` + 追加输入，让 Agent Core 在已有上下文上续聊，而非新建对话；
 4. **热窗口（可选）**：支持「产出结果后保活 N 秒等待续聊」，超时自动退出，退出前必须保证对话上下文已落盘；保活期间继续上报 heartbeat；
 5. **续聊事件归属**：续聊产生的执行事件按新 `attemptId` 上报，但归属同一 step 与同一 conversation，保证下游能把多轮对话拼成连续会话。
 
 #### 边界
 
-- Orchestrator 只持有 `sessionRef` 指针，不解析对话上下文内容；
-- 对话上下文的具体格式、存储位置、`--resume` 机制由 Agent Core 与执行器实现，对 Orchestrator 透明；
-- 热窗口是 Agent Core 的资源优化手段，Orchestrator 不依赖进程是否保活，续聊一律按"创建新 attempt"处理；冷热只影响恢复延迟，不影响语义。
+- Agent-Orchestration 只持有 `sessionRef` 指针，不解析对话上下文内容；
+- 对话上下文的具体格式、存储位置、`--resume` 机制由 Agent Core 与执行器实现，对 Agent-Orchestration 透明；
+- 热窗口是 Agent Core 的资源优化手段，Agent-Orchestration 不依赖进程是否保活，续聊一律按"创建新 attempt"处理；冷热只影响恢复延迟，不影响语义。
 
-## 9. 当前讨论结论汇总
+## 9. Agent-Orchestration 对外 API
 
-1. AgentFlow 是 Backend 在启动 run 时生成的不可变执行快照。
-2. Orchestrator 负责 prompt 渲染，但只做简单变量替换。
-3. Prompt 变量来源包括 AgentFlow 静态变量、step 局部变量、已完成上游 step 的结构化输出。
-4. StepOutput MVP 只包含 `summary/result/artifactRefs`，不支持 metadata。
-5. AgentFlow 使用固定 DAG，不支持条件边或动态 step。
-6. MVP 同一 run 内只串行执行 step，未来再考虑并行。
-7. AgentFlowStep 不显式包含 settingsRef，settings 归入 agent snapshot。
-8. AgentFlow 只包含 executorType，image 由 Orchestrator 配置解析并固化。
-9. AgentFlow 顶层需要包含 tenant、task、workspace、repo、variables。
-10. AgentFlow 不携带 credential material，只携带 credential refs。
-11. MVP credentials 放在 AgentFlow 顶层，step 级暂不支持覆盖。
-12. AgentFlow 不感知 CPU / memory 等资源规格。
-13. AgentFlow 不包含任何底层运行时字段。
-14. AgentFlowStep 不包含 `maxRetries/timeoutSeconds/canEarlyExit`。
-15. AgentFlowStep 需要包含 `requiresConfirmation`。
-16. Orchestrator 内部引入 StepAttempt，每个 StepAttempt 对应 Agent Core 中的一个 RuntimeAttempt。
-17. 对话上下文独立于进程持久化；suspend 后用户可"继续对话"，在同一对话上下文起新 attempt 续聊。
-18. 续聊采用「冷恢复为主 + 热窗口」：进程默认可退出靠 sessionRef + `--resume` 恢复，可选热窗口走低延迟续聊。
-19. 云端 workspace 初始为空卷，代码仓由 Agent Core clone（输入 `repo` + `gitCredentialRef`），Backend 不预先 clone。
-20. StepAttempt 支持知识库两种形态：文件挂载（只读挂进 workspace）与检索服务（MCP 风格工具调用），可同时使用。
+Agent-Orchestration 对外只面向 Agent-Management（不直接面向浏览器）。API 分三类：run 生命周期、suspended step 操作、查询与事件回调。所有写操作要求幂等。
 
-## 10. 后续待展开
+### 9.1 API 一览
+
+入站（Agent-Management / Agent Core 调 Agent-Orchestration）：
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| POST | `/runs` | 启动一次 run，提交 AgentFlow 快照 |
+| POST | `/runs/{runId}/cancel` | 取消整个 run（级联 step / attempt） |
+| POST | `/runs/{runId}/steps/{stepId}/confirm` | 确认通过 suspended step，推进下游 |
+| POST | `/runs/{runId}/steps/{stepId}/continue` | 带反馈续聊 suspended step，起新 attempt |
+| POST | `/runs/{runId}/steps/{stepId}/retry` | 手动重试 failed step，起新 attempt |
+| GET | `/runs/{runId}` | 查询 run / step / attempt 状态快照 |
+| POST | `/internal/agent-core/events` | 接收 Agent Core 上报的执行事件（内部） |
+
+出站（Agent-Orchestration 调 Agent-Management，见 9.8）：
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| POST | `/internal/agent-orchestration/events` | 回传 run/step/attempt 状态变更与展示事件 |
+
+### 9.2 启动 run
+
+```text
+POST /runs
+Header: Idempotency-Key: <idempotencyKey>
+Body: { agentFlow: AgentFlow }
+→ 200 { runId, status }
+```
+
+- 按 `idempotencyKey` 幂等：重复提交同一 key 返回已存在的 run，不重复创建；
+- Agent-Orchestration 校验 AgentFlow schema、持久化快照、初始化 run/step、调度首批 ready step；
+- 不阻塞等待执行完成，立即返回 `runId` 与初始状态。
+
+### 9.3 取消 run
+
+```text
+POST /runs/{runId}/cancel
+→ 200 { runId, status: CANCELLING | CANCELLED }
+```
+
+- 幂等：重复取消返回当前状态；
+- 级联语义：run 标记 cancelling → 对所有 in-flight attempt 调 Agent Core CancelAttempt → 收到终态后 step/run 转 cancelled；
+- suspended step 也可取消，对话上下文按默认保留（与 8.1 取消语义一致）；
+- 已 completed / failed 的 run 取消为 no-op，返回终态。
+
+### 9.4 confirm vs continue（suspended step 操作）
+
+两者都只在 step 处于 suspended（`requiresConfirmation = true` 且 attempt 成功产出）时可用，语义正交：
+
+```text
+POST /runs/{runId}/steps/{stepId}/confirm
+→ step completed → run RUNNING → 调度下游
+   - 不产生新 attempt
+   - 把当前 StepOutput 作为下游输入
+
+POST /runs/{runId}/steps/{stepId}/continue
+Body: { feedback: string }
+→ 起新 StepAttempt（resumeFromSessionRef + feedback）→ 续聊
+   - 复用对话上下文，不从头开始
+   - 续聊结束仍回到 step suspended，直到 confirm
+```
+
+| | confirm | continue |
+|---|---|---|
+| 产生新 attempt | 否 | 是 |
+| step 去向 | completed → 下游 | 回到 suspended |
+| 携带用户输入 | 否 | 是（feedback） |
+| 动作性质 | 流程推进 | 对话续聊 |
+
+### 9.5 手动重试
+
+```text
+POST /runs/{runId}/steps/{stepId}/retry
+→ 对 failed step 起新 StepAttempt
+```
+
+- 仅当 step 处于 failed（已耗尽自动 maxRetries 或不可自动重试）时可用；
+- 复用同一 workspace；是否复用对话上下文由请求指明（默认从该 step 重新开始）。
+
+### 9.6 查询
+
+```text
+GET /runs/{runId}
+→ { run, steps[], 当前 attempt 摘要 }
+```
+
+- 用于 Agent-Management 对账、断线补偿、reconcile；
+- 返回各级状态、失败原因、最近 heartbeat、sessionRef 等。
+
+### 9.7 事件回调（内部）
+
+```text
+POST /internal/agent-core/events
+Body: AgentExecutionEvent
+```
+
+- 见 8.3 / 8.4；按 `eventId` 去重，校验归属，推进状态机或转发下游；
+- 与 GET 查询互补：push 为主、查询为辅，Agent-Orchestration 重启或事件丢失时用查询 + Agent Core QueryAttempt 对齐（见 11 章开放问题）。
+
+### 9.8 出站回调（Agent-Orchestration → Agent-Management）
+
+除了上述入站接口，Agent-Orchestration 还会主动回调 Agent-Management 回传状态与展示事件。Agent-Management 需提供接收端点：
+
+```text
+POST /internal/agent-orchestration/events
+Body: { type, runId, stepId?, attemptId?, payload }
+```
+
+- 回传内容：run / step / attempt 状态变更（如 run.completed / run.failed / step.suspended）、规范化后的展示类事件；
+- 通过 outbox 至少一次投递，按 `outboxId` / `eventId` 去重；
+- Agent-Management 据此更新业务侧视图、写 session / segment / event、推 WebSocket；
+- 这是 Agent-Orchestration 与 Agent-Management 之间唯一的出站方向，承载 10.1 控制流图中的 `run.completed 事件` 与 10.2 事件流的展示事件转发。
+
+## 10. 端到端数据流
+
+### 10.1 控制流（启动到完成）
+
+```text
+Frontend        Agent-Management              Agent-Orchestration           Agent Core / Runtime
+   │  运行 task    │                       │                        │
+   ├──────────────▶│                       │                        │
+   │               │ 组装 AgentFlow         │                        │
+   │               ├── POST /runs ─────────▶│                        │
+   │               │                        │ 持久化快照 / 调度        │
+   │               │◀── { runId } ──────────┤                        │
+   │◀──────────────┤                        │                        │
+   │               │                        ├── StartAttempt ───────▶│
+   │               │                        │                        │ clone repo
+   │               │                        │                        │ 起 executor
+   │               │                        │◀── 事件流（见 10.2）────┤
+   │               │                        │ 推进 step/run 状态       │
+   │               │                        │ 全部 step 完成           │
+   │               │◀── run.completed 事件 ─┤                        │
+   │◀── 状态推送 ──┤                        │                        │
+```
+
+### 10.2 事件流（执行中实时输出）
+
+```text
+Agent Runtime ──► Agent Core ──► Agent-Orchestration ──► Agent-Management ──► Frontend
+  thinking/        标准化为         控制类: 推进状态机     写 session/      WebSocket
+  message/         AgentExec        展示类: 规范化后转发    segment/event    实时展示
+  tool_use/        Event            (按 eventId 去重)      (历史回放源)
+  tool_result/
+  stdout/stderr/
+  heartbeat/result
+```
+
+- 控制类事件（attempt.started / heartbeat / result、runtime.*）驱动 Agent-Orchestration 状态机；
+- 展示类事件（thinking / message / tool_use / tool_result / stdout / stderr）经 Agent-Orchestration 规范化后透传，Agent-Orchestration 不解析其业务含义；
+- 持久化的事实源在 Agent-Management（session/segment/event）；Redis Streams 等只是实时分发管道。
+
+### 10.3 suspend-resume 数据流
+
+```text
+attempt 成功产出（含 sessionRef）
+   │
+Agent-Orchestration 持久化 sessionRef → step suspended → run suspended
+   │
+   ├─ Agent-Management POST .../confirm  ──► step completed ──► 调度下游
+   │
+   └─ Agent-Management POST .../continue ──► 新 attempt（resumeFromSessionRef + feedback）
+                                     ──► Agent Core --resume 续聊
+                                     ──► 新 sessionRef ──► 回 suspended
+```
+
+## 11. 设计缺陷与开放问题
+
+以下为审阅发现的待解决问题，MVP 落地前需要明确：
+
+| # | 问题 | 现状 | 建议方向 |
+|---|---|---|---|
+| 1 | **push / pull 事件协调** | 事件以 Agent Core push（`/internal/agent-core/events`）为主，但同时存在 QueryAttempt 拉取。两者并存时的补偿、去重、顺序未定义 | 明确 push 为主、query 为辅；Agent-Orchestration 重启后对 in-flight attempt 主动 QueryAttempt 对齐；事件统一按 `eventId` 去重、`sequence` 排序 |
+| 2 | **timeout / maxRetries 配置来源** | 结论第 14 条说"由 Agent-Orchestration 运行时配置决定"，但配置形态（全局 / per-executor / 能否 per-flow 覆盖）全文未定义 | 定义为 Agent-Orchestration 配置：全局默认 + per-executorType 覆盖；MVP 不支持 per-flow 覆盖 |
+| 3 | **workspace 并发写互斥** | 串行调度下单 attempt 独占 workspace，但续聊新 attempt、editor pod（总体设计）也会挂 workspace，rw 互斥协调者未定 | confirm/continue/retry 起新 attempt 前校验 workspace lease；与 editor pod 的 rw 互斥归 Agent-Management lease 管理，Agent-Orchestration 只在 StartAttempt 前确认 lease 有效 |
+| 4 | **run 取消与 suspended 的竞态** | run cancel 与 confirm/continue 可能并发到达 suspended step | 以 run 状态为准：进入 cancelling 后拒绝 confirm/continue；用乐观锁 + 状态校验防竞态 |
+| 5 | **continue / retry 的幂等** | confirm/continue/retry 会产生新 attempt，重复请求可能重复起 attempt | 为这些写操作引入 action-level idempotency key 或基于 step 当前 attemptNo 的 CAS，防重复 |
+| 6 | **failed run 的 workspace 归属** | run 失败 / 取消后 workspace 和对话上下文的清理时机未定 | 归 Agent-Management workspace 生命周期管理；Agent-Orchestration 仅释放 lease 引用，不删卷 |
+| 7 | **事件积压与背压传导** | Agent Core 限流（8.2）已定义，但 Agent-Orchestration → Agent-Management outbox 积压时如何反压未定 | outbox 设上限与告警；积压超阈值时降采样展示类事件，控制类事件优先保障 |
+
+## 12. 后续待展开
 
 后续详细设计需要继续展开：
 
-1. Orchestrator workflow run / step / attempt 数据库字段；
+1. Agent-Orchestration workflow run / step / attempt 数据库字段；
 2. run、step、attempt 状态机；
 3. Agent Core StartAttempt / CancelAttempt / QueryAttempt 接口约定；
 4. Credential Provider 交互；
 5. Redis Streams 事件协议；
 6. 调度器与幂等策略；
-7. Orchestrator 重启恢复与 watchdog；
-8. 续聊场景下 workspace 的并发互斥（与 PVC rw lease 衔接）与 conversation / sessionRef 的持久化和清理策略。
+7. Agent-Orchestration 重启恢复与 watchdog；
+8. 续聊场景下 workspace 的并发互斥（与 rw lease 衔接）与 conversation / sessionRef 的持久化和清理策略；
+9. 第 11 章 7 项开放问题的逐项落地方案。
